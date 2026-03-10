@@ -1,19 +1,32 @@
 import { parse, HTMLElement } from 'node-html-parser';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import * as fs from 'fs';
 import { AnimePlanning } from '../types/anime.types';
 
-puppeteer.use(StealthPlugin());
-
 class AnimeScraperService {
-    private baseUrl: string;
+    private extension: string;
+    private flareSolverrUrl: string;
     private cache: AnimePlanning[] | null = null;
     private cacheTimestamp: Date | null = null;
     private cacheDuration = 10 * 60 * 1000; // 10 minutes
 
     constructor() {
-        this.baseUrl = process.env.ANIME_BASE_URL || 'https://anime-sama.one';
+        this.extension = process.env.SITE_EXTENSION || 'to';
+        this.flareSolverrUrl = process.env.FLARESOLVERR_URL || 'http://localhost:8191/v1';
+    }
+
+    private get baseUrl(): string {
+        return `https://anime-sama.${this.extension}`;
+    }
+
+    getExtension(): string {
+        return this.extension;
+    }
+
+    setExtension(ext: string): void {
+        if (ext !== this.extension) {
+            console.log(`🔄 Extension changée: ${this.extension} → ${ext}`);
+            this.extension = ext;
+            this.clearCache();
+        }
     }
 
     private isCacheValid(): boolean {
@@ -39,46 +52,33 @@ class AnimeScraperService {
             return this.cache;
         }
 
-        console.log('🌐 Récupération via navigateur headless...');
-        console.log(`📍 URL: ${this.baseUrl}/planning/`);
+        const url = `${this.baseUrl}/planning/`;
+        console.log('🌐 Récupération via FlareSolverr...');
+        console.log(`📍 URL: ${url}`);
         
-        let browser;
         try {
-            browser = await puppeteer.launch({
-                headless: 'new' as any,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-blink-features=AutomationControlled',
-                    '--window-size=1920,1080',
-                ],
-            });
-            const page = await browser.newPage();
-            await page.setViewport({ width: 1920, height: 1080 });
-            
-            // Naviguer vers la page planning
-            await page.goto(`${this.baseUrl}/planning/`, {
-                waitUntil: 'networkidle2',
-                timeout: 60000,
+            const response = await fetch(this.flareSolverrUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cmd: 'request.get',
+                    url,
+                    maxTimeout: 60000,
+                }),
             });
 
-            // Attendre que le contenu de planning soit rendu (JS côté client)
-            console.log('⏳ Attente du rendu du contenu...');
-            try {
-                await page.waitForSelector('.anime-card-premium, .scan-card-premium, [id="0"]', {
-                    timeout: 30000,
-                });
-                console.log('✅ Contenu planning détecté');
-            } catch {
-                console.log('⚠️ Sélecteurs planning non trouvés, attente supplémentaire...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
+            if (!response.ok) {
+                throw new Error(`FlareSolverr HTTP error: ${response.status}`);
             }
 
-            const html = await page.content();
+            const data = await response.json() as any;
+            
+            if (data.status !== 'ok') {
+                throw new Error(`FlareSolverr error: ${data.message || 'Unknown error'}`);
+            }
 
-            // Sauvegarder le HTML pour debug
-            fs.writeFileSync('debug-planning.html', html, 'utf-8');
-            console.log('💾 HTML sauvegardé dans debug-planning.html');
+            const html = data.solution.response;
+            console.log(`✅ HTML reçu (${html.length} caractères)`);
 
             const animes = this.parsePlanning(html);
             
@@ -92,8 +92,6 @@ class AnimeScraperService {
         } catch (error) {
             console.error('❌ Erreur de scraping:', error);
             throw error;
-        } finally {
-            if (browser) await browser.close();
         }
     }
 

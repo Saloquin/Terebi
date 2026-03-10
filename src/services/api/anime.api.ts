@@ -1,6 +1,6 @@
 import { AnimePlanning, ApiResponse } from '../../types/anime.types';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 class AnimeApiService {
     private async fetch<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {

@@ -22,13 +22,8 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
     isNew = false,
     isOld = false,
 }) => {
-    const baseUrl = process.env.REACT_APP_ANIME_BASE_URL;
-
     const handleClick = () => {
-        // Utiliser fullUrl si disponible, sinon construire l'URL
-        console.log('Navigating to anime URL:', anime.fullUrl || `${baseUrl} / ${anime.url}`);
-
-        const finalUrl = anime.fullUrl || `${baseUrl}/${anime.url}`;
+        const finalUrl = anime.fullUrl || `https://anime-sama.to/${anime.url}`;
         window.open(finalUrl, '_blank');
     };
 

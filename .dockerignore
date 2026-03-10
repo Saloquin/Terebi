@@ -1,0 +1,11 @@
+node_modules
+build
+dist
+npm-debug.log
+.env
+api/node_modules
+api/dist
+api/.env
+debug-planning.html
+debug-one.html
+.git
