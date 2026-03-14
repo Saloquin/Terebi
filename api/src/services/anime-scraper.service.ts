@@ -204,6 +204,77 @@ class AnimeScraperService {
         return this.getAnimesByDay(today);
     }
 
+    /**
+     * Scrape anime-sama.pw via FlareSolverr pour détecter l'extension active.
+     * Cherche dans le tableau de statuts la ligne marquée "en cours" / "actif".
+     */
+    async detectActiveExtension(): Promise<string | null> {
+        const url = 'https://anime-sama.pw';
+        console.log('🔍 Détection de l\'extension active depuis', url);
+
+        try {
+            const response = await fetch(this.flareSolverrUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    cmd: 'request.get',
+                    url,
+                    maxTimeout: 60000,
+                }),
+            });
+
+            if (!response.ok) throw new Error(`FlareSolverr HTTP error: ${response.status}`);
+
+            const data = await response.json() as any;
+            if (data.status !== 'ok') throw new Error(`FlareSolverr error: ${data.message}`);
+
+            const html: string = data.solution.response;
+            const root = parse(html);
+
+            // Stratégie 1 : bouton principal "ACCÉDER À ANIME-SAMA" → href
+            const mainLink = root.querySelector('a[href*="anime-sama."]');
+            if (mainLink) {
+                const href = mainLink.getAttribute('href') || '';
+                const match = href.match(/anime-sama\.([a-z]{2,10})/i);
+                if (match) {
+                    console.log(`✅ Extension détectée (lien principal): .${match[1]}`);
+                    return match[1].toLowerCase();
+                }
+            }
+
+            // Stratégie 2 : chercher dans le tableau de statuts une cellule "en cours" ou "actif"
+            // Le tableau contient des lignes avec l'extension et le statut
+            const rows = root.querySelectorAll('tr, .domain-row, [class*="domain"]');
+            for (const row of rows) {
+                const text = row.text.toLowerCase();
+                if (text.includes('en cours') || text.includes('actif') || text.includes('active')) {
+                    const extMatch = row.text.match(/anime-sama\.([a-z]{2,10})/i)
+                        || row.text.match(/\.([a-z]{2,10})/);
+                    if (extMatch) {
+                        console.log(`✅ Extension détectée (tableau): .${extMatch[1]}`);
+                        return extMatch[1].toLowerCase();
+                    }
+                }
+            }
+
+            // Stratégie 3 : regex large sur tout le HTML — cherche "en cours" proche d'un domaine
+            const enCoursMatch = html.match(/anime-sama\.([a-z]{2,10})[^<]{0,200}en cours/i)
+                || html.match(/en cours[^<]{0,200}anime-sama\.([a-z]{2,10})/i);
+            if (enCoursMatch) {
+                const ext = enCoursMatch[1].toLowerCase();
+                console.log(`✅ Extension détectée (regex html): .${ext}`);
+                return ext;
+            }
+
+            console.warn('⚠️ Impossible de détecter l\'extension depuis', url);
+            return null;
+
+        } catch (error) {
+            console.error('❌ Erreur détection extension:', error);
+            return null;
+        }
+    }
+
     clearCache(): void {
         this.cache = null;
         this.cacheTimestamp = null;

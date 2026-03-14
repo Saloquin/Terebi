@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useAnimeData } from '../../hooks/useAnimeData';
 import { ViewMode } from '../../types/anime.types';
 import { configApi } from '../../services/api/config.api';
+import { migrateStorageDomain } from '../../services/api/domain-migration';
 import AnimeFilters from './AnimeFilters';
 import AnimeList from './AnimeList';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
@@ -10,6 +11,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import SyncIcon from '@mui/icons-material/Sync';
 
 const EXT_STORAGE_KEY = 'anime_extension';
 
@@ -39,13 +41,34 @@ export const AnimePage: React.FC = () => {
     const [editingExt, setEditingExt] = useState(false);
     const [inputExt, setInputExt] = useState('');
     const [savingExt, setSavingExt] = useState(false);
+    const [detecting, setDetecting] = useState(false);
+    const [detectInfo, setDetectInfo] = useState<string | null>(null);
 
-    // Load extension from API on mount, sync with localStorage
+    // Au démarrage : détecter automatiquement l'extension active et migrer si besoin
     useEffect(() => {
-        configApi.getConfig().then(c => {
-            setExtension(c.extension);
-            localStorage.setItem(EXT_STORAGE_KEY, c.extension);
-        }).catch(() => {});
+        const currentLocalExt = localStorage.getItem(EXT_STORAGE_KEY) || 'to';
+        setDetecting(true);
+        configApi.detectExtension()
+            .then(config => {
+                if (config.previousExtension && config.previousExtension !== config.extension) {
+                    // L'extension a changé : migrer le localStorage
+                    migrateStorageDomain(currentLocalExt, config.extension);
+                    setDetectInfo(`Domaine migré : .${config.previousExtension} → .${config.extension}`);
+                } else if (currentLocalExt !== config.extension) {
+                    // LocalStorage différent du backend : migrer silencieusement
+                    migrateStorageDomain(currentLocalExt, config.extension);
+                }
+                setExtension(config.extension);
+                localStorage.setItem(EXT_STORAGE_KEY, config.extension);
+            })
+            .catch(() => {
+                // Fallback : utiliser getConfig sans détection
+                configApi.getConfig().then(c => {
+                    setExtension(c.extension);
+                    localStorage.setItem(EXT_STORAGE_KEY, c.extension);
+                }).catch(() => {});
+            })
+            .finally(() => setDetecting(false));
     }, []);
 
     const handleSaveExtension = async () => {
@@ -138,6 +161,33 @@ export const AnimePage: React.FC = () => {
                             </button>
                         )}
                     </div>
+                    {/* Bouton détecter auto */}
+                    <button
+                        onClick={async () => {
+                            const currentLocalExt = localStorage.getItem(EXT_STORAGE_KEY) || extension;
+                            setDetecting(true);
+                            try {
+                                const config = await configApi.detectExtension();
+                                if (currentLocalExt !== config.extension) {
+                                    migrateStorageDomain(currentLocalExt, config.extension);
+                                    setDetectInfo(`Domaine migré : .${currentLocalExt} → .${config.extension}`);
+                                } else {
+                                    setDetectInfo(`Domaine actif confirmé : .${config.extension}`);
+                                }
+                                setExtension(config.extension);
+                                localStorage.setItem(EXT_STORAGE_KEY, config.extension);
+                            } catch {
+                                setDetectInfo('Détection échouée');
+                            } finally {
+                                setDetecting(false);
+                            }
+                        }}
+                        disabled={detecting}
+                        className="text-gray-500 dark:text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40"
+                        title="Détecter automatiquement le domaine actif"
+                    >
+                        <SyncIcon sx={{ fontSize: 18 }} className={detecting ? 'animate-spin' : ''} />
+                    </button>
                 </div>
                 <button
                     onClick={refresh}
@@ -152,6 +202,14 @@ export const AnimePage: React.FC = () => {
                     {loading ? 'Chargement...' : 'Rafraîchir'}
                 </button>
             </div>
+
+            {/* Migration info banner */}
+            {detectInfo && (
+                <div className="mb-3 p-2 bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700 rounded-lg text-blue-700 dark:text-blue-300 text-sm flex items-center justify-between flex-shrink-0">
+                    <span className="flex items-center gap-2"><SyncIcon sx={{ fontSize: 16 }} /> {detectInfo}</span>
+                    <button onClick={() => setDetectInfo(null)} className="text-blue-400 hover:text-blue-600"><CloseIcon sx={{ fontSize: 14 }} /></button>
+                </div>
+            )}
 
             {/* Error message */}
             {error && (

@@ -2,6 +2,8 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || '/api';
 
 export interface AppConfig {
     extension: string;
+    previousExtension?: string;
+    changed?: boolean;
     baseUrl: string;
 }
 
@@ -16,6 +18,13 @@ class ConfigApiService {
             console.error('❌ Erreur config:', error);
             return { extension: 'to', baseUrl: 'https://anime-sama.to' };
         }
+    }
+
+    async detectExtension(): Promise<AppConfig> {
+        const res = await fetch(`${API_BASE_URL}/config/detect`);
+        const data = await res.json();
+        if (data.success) return data.data;
+        throw new Error(data.error || 'Détection échouée');
     }
 
     async setExtension(extension: string): Promise<AppConfig> {
