@@ -1,8 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAnimeData } from '../../hooks/useAnimeData';
 import { ViewMode } from '../../types/anime.types';
+import { configApi } from '../../services/api/config.api';
 import AnimeFilters from './AnimeFilters';
 import AnimeList from './AnimeList';
+import LiveTvIcon from '@mui/icons-material/LiveTv';
+import LanguageIcon from '@mui/icons-material/Language';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+
+const EXT_STORAGE_KEY = 'anime_extension';
 
 export const AnimePage: React.FC = () => {
     const {
@@ -16,12 +25,43 @@ export const AnimePage: React.FC = () => {
         hideAnime,
         restoreAnime,
         markAsSeen,
+        clearNew,
+        clearOld,
         filterBySearch,
         getAnimesByViewMode,
     } = useAnimeData();
 
     const [viewMode, setViewMode] = useState<ViewMode>('planning');
     const [searchQuery, setSearchQuery] = useState('');
+
+    // Extension state
+    const [extension, setExtension] = useState(() => localStorage.getItem(EXT_STORAGE_KEY) || 'to');
+    const [editingExt, setEditingExt] = useState(false);
+    const [inputExt, setInputExt] = useState('');
+    const [savingExt, setSavingExt] = useState(false);
+
+    // Load extension from API on mount, sync with localStorage
+    useEffect(() => {
+        configApi.getConfig().then(c => {
+            setExtension(c.extension);
+            localStorage.setItem(EXT_STORAGE_KEY, c.extension);
+        }).catch(() => {});
+    }, []);
+
+    const handleSaveExtension = async () => {
+        if (!inputExt.trim()) return;
+        setSavingExt(true);
+        try {
+            const config = await configApi.setExtension(inputExt.trim());
+            setExtension(config.extension);
+            localStorage.setItem(EXT_STORAGE_KEY, config.extension);
+            setEditingExt(false);
+        } catch (e) {
+            alert(e instanceof Error ? e.message : 'Erreur');
+        } finally {
+            setSavingExt(false);
+        }
+    };
 
     // Get animes for current view
     const currentViewAnimes = useMemo(() => {
@@ -50,54 +90,98 @@ export const AnimePage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gray-100 dark:bg-gray-900 py-4 px-2 sm:px-4">
-            <div className="w-full">
-                {/* Header avec bouton refresh */}
-                <div className="flex items-center justify-between mb-4">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
-                            📺 Planning Anime
-                        </h1>
+        <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 py-3 px-2 sm:px-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-3 flex-shrink-0">
+                <div className="flex items-center gap-4">
+                    <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                        <LiveTvIcon fontSize="small" /> Planning Anime
+                    </h1>
+                    {/* Extension selector */}
+                    <div className="flex items-center">
+                        {editingExt ? (
+                            <div className="flex items-center gap-1.5">
+                                <span className="text-gray-500 dark:text-gray-400 text-sm">anime-sama.</span>
+                                <input
+                                    type="text"
+                                    value={inputExt}
+                                    onChange={(e) => setInputExt(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveExtension();
+                                        if (e.key === 'Escape') setEditingExt(false);
+                                    }}
+                                    className="w-14 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-800 dark:text-white text-sm focus:outline-none focus:border-blue-500"
+                                    placeholder="to"
+                                    autoFocus
+                                />
+                                <button
+                                    onClick={handleSaveExtension}
+                                    disabled={savingExt}
+                                    className="px-1.5 py-0.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
+                                >
+                                    {savingExt ? '...' : <CheckIcon sx={{ fontSize: 14 }} />}
+                                </button>
+                                <button
+                                    onClick={() => setEditingExt(false)}
+                                    className="px-1.5 py-0.5 bg-gray-400 hover:bg-gray-500 text-white text-xs rounded transition-colors"
+                                >
+                                    <CloseIcon sx={{ fontSize: 14 }} />
+                                </button>
+                            </div>
+                        ) : (
+                            <button
+                                onClick={() => { setInputExt(extension); setEditingExt(true); }}
+                                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm flex items-center gap-1 transition-colors"
+                                title="Changer l'extension du site"
+                            >
+                                <LanguageIcon sx={{ fontSize: 16 }} /> anime-sama.<span className="text-blue-500 font-bold">{extension}</span>
+                            </button>
+                        )}
                     </div>
-                    <button
-                        onClick={refresh}
-                        disabled={loading}
-                        className={`
-                            px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium
-                            hover:bg-blue-700 transition-colors flex items-center gap-2
-                            ${loading ? 'opacity-50 cursor-not-allowed' : ''}
-                        `}
-                    >
-                        <span className={loading ? 'animate-spin' : ''}>🔄</span>
-                        {loading ? 'Chargement...' : 'Rafraîchir'}
-                    </button>
                 </div>
+                <button
+                    onClick={refresh}
+                    disabled={loading}
+                    className={`
+                        px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium
+                        hover:bg-blue-700 transition-colors flex items-center gap-2
+                        ${loading ? 'opacity-50 cursor-not-allowed' : ''}
+                    `}
+                >
+                    <RefreshIcon sx={{ fontSize: 18 }} className={loading ? 'animate-spin' : ''} />
+                    {loading ? 'Chargement...' : 'Rafraîchir'}
+                </button>
+            </div>
 
-                {/* Error message */}
-                {error && (
-                    <div className="mb-4 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm">
-                        ⚠️ {error}
-                    </div>
-                )}
+            {/* Error message */}
+            {error && (
+                <div className="mb-3 p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg text-red-700 dark:text-red-300 text-sm flex-shrink-0">
+                    <WarningAmberIcon sx={{ fontSize: 18 }} /> {error}
+                </div>
+            )}
 
-                {/* Filters */}
+            {/* Filters */}
+            <div className="flex-shrink-0">
                 <AnimeFilters
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
                     counts={counts}
+                    onClear={viewMode === 'nouveaux' ? clearNew : viewMode === 'anciens' ? clearOld : undefined}
                 />
+            </div>
 
-                {/* Loading indicator */}
-                {loading && (
-                    <div className="flex justify-center py-8">
-                        <div className="animate-spin text-4xl">🔄</div>
-                    </div>
-                )}
+            {/* Loading indicator */}
+            {loading && (
+                <div className="flex justify-center py-8 flex-shrink-0">
+                    <RefreshIcon sx={{ fontSize: 48 }} className="animate-spin" />
+                </div>
+            )}
 
-                {/* Anime List */}
-                {!loading && (
+            {/* Anime List - fills remaining height */}
+            {!loading && (
+                <div className="flex-1 min-h-0 overflow-hidden">
                     <AnimeList
                         animes={currentViewAnimes}
                         onHide={viewMode !== 'masques' ? hideAnime : undefined}
@@ -107,11 +191,11 @@ export const AnimePage: React.FC = () => {
                         isHiddenList={viewMode === 'masques'}
                         isNewList={viewMode === 'nouveaux'}
                         isOldList={viewMode === 'anciens'}
-                        groupByDay={viewMode === 'planning'}
+                        groupByDay={true}
                         emptyMessage={getEmptyMessage()}
                     />
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };

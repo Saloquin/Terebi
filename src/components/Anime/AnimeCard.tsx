@@ -1,5 +1,8 @@
 import React from 'react';
 import { AnimePlanning } from '../../types/anime.types';
+import RestoreIcon from '@mui/icons-material/Restore';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 
 interface AnimeCardProps {
     anime: AnimePlanning;
@@ -119,35 +122,38 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
                     </div>
                 </div>
                 
-                {/* Actions (visible on hover) */}
+                {/* Actions - small corner buttons (bottom-right) */}
                 {showActions && (
-                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <div className="absolute bottom-12 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         {isHidden ? (
                             <button
-                                className="px-3 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-white text-sm font-medium transition-colors"
+                                className="w-7 h-7 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-full text-white text-xs shadow-lg transition-colors"
                                 onClick={(e) => handleAction(e, () => onRestore?.(anime.id))}
                                 onMouseDown={(e) => e.stopPropagation()}
+                                title="Restaurer"
                             >
-                                ♻️ Restaurer
+                                <RestoreIcon sx={{ fontSize: 16 }} />
                             </button>
                         ) : (
                             <>
                                 {onMarkSeen && isNew && (
                                     <button
-                                        className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors"
+                                        className="w-7 h-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white text-xs shadow-lg transition-colors"
                                         onClick={(e) => handleAction(e, () => onMarkSeen(anime.id))}
                                         onMouseDown={(e) => e.stopPropagation()}
+                                        title="Marquer comme vu"
                                     >
-                                        ✓ Vu
+                                        <CheckIcon sx={{ fontSize: 16 }} />
                                     </button>
                                 )}
                                 {onHide && (
                                     <button
-                                        className="px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white text-sm font-medium transition-colors"
+                                        className="w-7 h-7 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded-full text-white text-xs shadow-lg transition-colors"
                                         onClick={(e) => handleAction(e, () => onHide(anime.id))}
                                         onMouseDown={(e) => e.stopPropagation()}
+                                        title="Masquer"
                                     >
-                                        🙈 Masquer
+                                        <CloseIcon sx={{ fontSize: 16 }} />
                                     </button>
                                 )}
                             </>

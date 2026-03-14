@@ -173,9 +173,11 @@ class AnimeStorageService {
 
     clearOld(): void {
         const storage = this.getStorage();
+        const oldIds = new Set(storage.old.map(a => a.id));
+        storage.hidden = storage.hidden.filter(id => !oldIds.has(id));
         storage.old = [];
         this.saveStorage(storage);
-        console.log('🗑️ Liste des anciens vidée');
+        console.log('🗑️ Liste des anciens vidée (+ hidden nettoyés)');
     }
 
     clearAll(): void {
