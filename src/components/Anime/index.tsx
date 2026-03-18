@@ -3,6 +3,7 @@ import { useAnimeData } from '../../hooks/useAnimeData';
 import { ViewMode } from '../../types/anime.types';
 import { configApi } from '../../services/api/config.api';
 import { migrateStorageDomain } from '../../services/api/domain-migration';
+import { getTabLogic } from '../../utils/tabLogic';
 import AnimeFilters from './AnimeFilters';
 import AnimeList from './AnimeList';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
@@ -80,16 +81,13 @@ export const AnimePage: React.FC = () => {
         masques: hidden.length,
     }), [current.length, newAnimes.length, old.length, hidden.length]);
 
-    // Empty messages
-    const getEmptyMessage = () => {
-        switch (viewMode) {
-            case 'planning': return 'Aucun anime dans le planning';
-            case 'nouveaux': return 'Pas de nouveaux animes détectés';
-            case 'anciens': return 'Pas d\'anciens animes';
-            case 'masques': return 'Aucun anime masqué';
-            default: return 'Aucun anime';
-        }
-    };
+    const tabLogic = getTabLogic(viewMode);
+    const tabActions = tabLogic.bindActions({
+        hideAnime,
+        restoreAnime,
+        markAsSeen,
+        removeFromOld,
+    });
 
     return (
         <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 py-3 px-2 sm:px-4">
@@ -156,16 +154,16 @@ export const AnimePage: React.FC = () => {
                 <div className="flex-1 min-h-0 overflow-hidden">
                     <AnimeList
                         animes={currentViewAnimes}
-                        onHide={viewMode === 'planning' ? hideAnime : undefined}
-                        onRestore={viewMode === 'masques' ? restoreAnime : undefined}
-                        onMarkSeen={viewMode === 'nouveaux' ? markAsSeen : undefined}
-                        onRemoveOld={viewMode === 'anciens' ? removeFromOld : undefined}
+                        onHide={tabActions.onHide}
+                        onRestore={tabActions.onRestore}
+                        onMarkSeen={tabActions.onMarkSeen}
+                        onRemoveOld={tabActions.onRemoveOld}
                         showActions={true}
-                        isHiddenList={viewMode === 'masques'}
-                        isNewList={viewMode === 'nouveaux'}
-                        isOldList={viewMode === 'anciens'}
+                        isHiddenList={tabActions.isHiddenList}
+                        isNewList={tabActions.isNewList}
+                        isOldList={tabActions.isOldList}
                         groupByDay={true}
-                        emptyMessage={getEmptyMessage()}
+                        emptyMessage={tabLogic.emptyMessage}
                     />
                 </div>
             )}

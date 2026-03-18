@@ -1,18 +1,13 @@
 import { AnimePlanning, AnimeStorage, AnimeStats } from '../../types/anime.types';
-
-const STORAGE_KEY = 'anime_dashboard_v2';
+import { getHiddenAnime, restoreHiddenAnime } from '../../utils/tabLogic/hidden.logic';
+import { getNewAnime, newMarkAsSeen } from '../../utils/tabLogic/new.logic';
+import { getOldAnime, removeOldAnime } from '../../utils/tabLogic/old.logic';
+import { getPlanningAnime } from '../../utils/tabLogic/planning.logic';
+import { readStorage, STORAGE_KEY, writeStorage } from '../../utils/tabLogic/storage.utils';
 
 class AnimeStorageService {
     private getStorage(): AnimeStorage {
-        try {
-            const stored = localStorage.getItem(STORAGE_KEY);
-            if (stored) {
-                return JSON.parse(stored);
-            }
-        } catch (error) {
-            console.error('Erreur lecture storage:', error);
-        }
-        return this.initStorage();
+        return readStorage();
     }
 
     private initStorage(): AnimeStorage {
@@ -26,11 +21,7 @@ class AnimeStorageService {
     }
 
     private saveStorage(storage: AnimeStorage): void {
-        try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
-        } catch (error) {
-            console.error('Erreur sauvegarde storage:', error);
-        }
+        writeStorage(storage);
     }
 
     private normalizeTitle(title: string): string {
@@ -104,24 +95,19 @@ class AnimeStorageService {
 
     // Getters - Filtrent les hidden
     getCurrent(): AnimePlanning[] {
-        const storage = this.getStorage();
-        return storage.current.filter(a => !storage.hidden.includes(a.id));
+        return getPlanningAnime();
     }
 
     getNew(): AnimePlanning[] {
-        const storage = this.getStorage();
-        return storage.new.filter(a => !storage.hidden.includes(a.id));
+        return getNewAnime();
     }
 
     getOld(): AnimePlanning[] {
-        const storage = this.getStorage();
-        return storage.old.filter(a => !storage.hidden.includes(a.id));
+        return getOldAnime();
     }
 
     getHidden(): AnimePlanning[] {
-        const storage = this.getStorage();
-        const allAnimes = [...storage.current, ...storage.new, ...storage.old];
-        return allAnimes.filter(a => storage.hidden.includes(a.id));
+        return getHiddenAnime();
     }
 
     // Actions
@@ -138,12 +124,7 @@ class AnimeStorageService {
     }
 
     restoreAnime(animeId: string): boolean {
-        const storage = this.getStorage();
-        const index = storage.hidden.indexOf(animeId);
-        
-        if (index > -1) {
-            storage.hidden.splice(index, 1);
-            this.saveStorage(storage);
+        if (restoreHiddenAnime(animeId)) {
             console.log(`👁️ Anime restauré: ${animeId}`);
             return true;
         }
@@ -151,12 +132,7 @@ class AnimeStorageService {
     }
 
     markAsSeen(animeId: string): boolean {
-        const storage = this.getStorage();
-        const index = storage.new.findIndex(a => a.id === animeId);
-        
-        if (index > -1) {
-            storage.new.splice(index, 1);
-            this.saveStorage(storage);
+        if (newMarkAsSeen(animeId)) {
             console.log(`✅ Anime marqué comme vu: ${animeId}`);
             return true;
         }
@@ -164,13 +140,7 @@ class AnimeStorageService {
     }
 
     removeFromOld(animeId: string): boolean {
-        const storage = this.getStorage();
-        const oldIndex = storage.old.findIndex(a => a.id === animeId);
-
-        if (oldIndex > -1) {
-            storage.old.splice(oldIndex, 1);
-            storage.hidden = storage.hidden.filter(id => id !== animeId);
-            this.saveStorage(storage);
+        if (removeOldAnime(animeId)) {
             console.log(`🗑️ Anime supprimé des anciens: ${animeId} (+ hidden nettoyé)`);
             return true;
         }
