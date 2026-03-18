@@ -8,6 +8,7 @@ interface AnimeListProps {
     onHide?: (id: string) => void;
     onRestore?: (id: string) => void;
     onMarkSeen?: (id: string) => void;
+    onRemoveOld?: (id: string) => void;
     showActions?: boolean;
     isHiddenList?: boolean;
     isNewList?: boolean;
@@ -24,6 +25,7 @@ export const AnimeList: React.FC<AnimeListProps> = ({
     onHide,
     onRestore,
     onMarkSeen,
+    onRemoveOld,
     showActions = true,
     isHiddenList = false,
     isNewList = false,
@@ -101,6 +103,7 @@ export const AnimeList: React.FC<AnimeListProps> = ({
                                 onHide={onHide}
                                 onRestore={onRestore}
                                 onMarkSeen={onMarkSeen}
+                                onRemoveOld={onRemoveOld}
                                 showActions={showActions}
                                 isHidden={isHiddenList}
                                 isNew={isNewList}

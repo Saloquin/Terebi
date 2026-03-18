@@ -15,45 +15,6 @@ router.get('/', (_req: Request, res: Response) => {
     });
 });
 
-// PUT /api/config - Modifier la config
-router.put('/', (req: Request, res: Response) => {
-    const { extension } = req.body;
-
-    if (!extension || typeof extension !== 'string') {
-        res.status(400).json({
-            success: false,
-            data: null,
-            error: 'Extension manquante ou invalide',
-            timestamp: new Date().toISOString(),
-        });
-        return;
-    }
-
-    const cleaned = extension.replace(/^\./, '').trim().toLowerCase();
-    if (!/^[a-z]{1,10}$/.test(cleaned)) {
-        res.status(400).json({
-            success: false,
-            data: null,
-            error: 'Extension invalide (ex: to, fr, me)',
-            timestamp: new Date().toISOString(),
-        });
-        return;
-    }
-
-    const previousExtension = animeScraperService.getExtension();
-    animeScraperService.setExtension(cleaned);
-
-    res.json({
-        success: true,
-        data: {
-            extension: cleaned,
-            previousExtension,
-            baseUrl: `https://anime-sama.${cleaned}`,
-        },
-        timestamp: new Date().toISOString(),
-    });
-});
-
 // GET /api/config/detect - Détecter automatiquement l'extension active depuis anime-sama.pw
 router.get('/detect', async (_req: Request, res: Response) => {
     const detected = await animeScraperService.detectActiveExtension();

@@ -163,6 +163,20 @@ class AnimeStorageService {
         return false;
     }
 
+    removeFromOld(animeId: string): boolean {
+        const storage = this.getStorage();
+        const oldIndex = storage.old.findIndex(a => a.id === animeId);
+
+        if (oldIndex > -1) {
+            storage.old.splice(oldIndex, 1);
+            storage.hidden = storage.hidden.filter(id => id !== animeId);
+            this.saveStorage(storage);
+            console.log(`🗑️ Anime supprimé des anciens: ${animeId} (+ hidden nettoyé)`);
+            return true;
+        }
+        return false;
+    }
+
     // Utilitaires
     clearNew(): void {
         const storage = this.getStorage();

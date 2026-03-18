@@ -31,7 +31,7 @@ const server = app.listen(PORT, () => {
     console.log(`  GET  /api/animes/day/:d  - Animes par jour`);
     console.log(`  POST /api/animes/refresh - Rafraîchir le cache`);
     console.log(`  GET  /api/config         - Config actuelle`);
-    console.log(`  PUT  /api/config         - Changer l'extension`);
+    console.log(`  GET  /api/config/detect  - Détecter l'extension active`);
     console.log(`  GET  /api/health         - Health check`);
     console.log('========================================');
 });

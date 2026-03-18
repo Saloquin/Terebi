@@ -26,17 +26,6 @@ class ConfigApiService {
         if (data.success) return data.data;
         throw new Error(data.error || 'Détection échouée');
     }
-
-    async setExtension(extension: string): Promise<AppConfig> {
-        const res = await fetch(`${API_BASE_URL}/config`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ extension }),
-        });
-        const data = await res.json();
-        if (data.success) return data.data;
-        throw new Error(data.error || 'Erreur lors du changement d\'extension');
-    }
 }
 
 export const configApi = new ConfigApiService();

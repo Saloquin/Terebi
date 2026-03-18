@@ -20,6 +20,7 @@ interface UseAnimeDataReturn {
     hideAnime: (id: string) => void;
     restoreAnime: (id: string) => void;
     markAsSeen: (id: string) => void;
+    removeFromOld: (id: string) => void;
     clearNew: () => void;
     clearOld: () => void;
     clearAll: () => void;
@@ -96,6 +97,12 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         }
     }, [loadLocal]);
 
+    const removeFromOld = useCallback((id: string) => {
+        if (animeStorage.removeFromOld(id)) {
+            loadLocal();
+        }
+    }, [loadLocal]);
+
     const clearNew = useCallback(() => {
         animeStorage.clearNew();
         loadLocal();
@@ -167,6 +174,7 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         hideAnime,
         restoreAnime,
         markAsSeen,
+        removeFromOld,
         clearNew,
         clearOld,
         clearAll,

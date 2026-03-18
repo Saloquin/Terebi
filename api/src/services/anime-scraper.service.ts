@@ -230,24 +230,54 @@ class AnimeScraperService {
 
             const html: string = data.solution.response;
             const root = parse(html);
+            const activeKeywords = ['adresse en cours', 'en cours', 'actif', 'active'];
+            const inactiveKeywords = ['inactif', 'inactive', 'redirection', 'redirig'];
 
-            // Stratégie 1 : bouton principal "ACCÉDER À ANIME-SAMA" → href
-            const mainLink = root.querySelector('a[href*="anime-sama."]');
-            if (mainLink) {
-                const href = mainLink.getAttribute('href') || '';
-                const match = href.match(/anime-sama\.([a-z]{2,10})/i);
-                if (match) {
-                    console.log(`✅ Extension détectée (lien principal): .${match[1]}`);
-                    return match[1].toLowerCase();
+            // Stratégie 1 : source de vérité dynamique, comme la page JS (endpoint ?check=...)
+            const checkDomains = [
+                'anime-sama.si',
+                'anime-sama.tv',
+                'anime-sama.to',
+                'anime-sama.org',
+                'anime-sama.fr',
+                'anime-sama.eu',
+            ];
+
+            for (const domain of checkDomains) {
+                try {
+                    const checkUrl = `${url}/?check=${encodeURIComponent(domain)}&_=${Date.now()}`;
+                    const checkResponse = await fetch(checkUrl, {
+                        redirect: 'follow',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                            'Accept': 'application/json,text/plain,*/*',
+                        },
+                    });
+
+                    if (!checkResponse.ok) continue;
+
+                    const checkData = await checkResponse.json() as { status?: string; code?: number };
+                    if (checkData?.status === 'online') {
+                        const extMatch = domain.match(/anime-sama\.([a-z]{2,10})/i);
+                        if (extMatch) {
+                            console.log(`✅ Extension détectée (?check online): .${extMatch[1]} (${checkData.code || 'n/a'})`);
+                            return extMatch[1].toLowerCase();
+                        }
+                    }
+                } catch {
+                    // ignore et continuer les domaines suivants
                 }
             }
 
-            // Stratégie 2 : chercher dans le tableau de statuts une cellule "en cours" ou "actif"
-            // Le tableau contient des lignes avec l'extension et le statut
-            const rows = root.querySelectorAll('tr, .domain-row, [class*="domain"]');
+            // Stratégie 1 : chercher dans le tableau de statuts une ligne explicitement active.
+            // On ignore volontairement le bouton "ACCÉDER" car son href peut être stale.
+            const rows = root.querySelectorAll('tr, .domain-row, [class*="domain"], [class*="status"], li');
             for (const row of rows) {
                 const text = row.text.toLowerCase();
-                if (text.includes('en cours') || text.includes('actif') || text.includes('active')) {
+                const isActive = activeKeywords.some(keyword => text.includes(keyword));
+                const isInactive = inactiveKeywords.some(keyword => text.includes(keyword));
+
+                if (isActive && !isInactive) {
                     const extMatch = row.text.match(/anime-sama\.([a-z]{2,10})/i)
                         || row.text.match(/\.([a-z]{2,10})/);
                     if (extMatch) {
@@ -257,13 +287,54 @@ class AnimeScraperService {
                 }
             }
 
-            // Stratégie 3 : regex large sur tout le HTML — cherche "en cours" proche d'un domaine
-            const enCoursMatch = html.match(/anime-sama\.([a-z]{2,10})[^<]{0,200}en cours/i)
-                || html.match(/en cours[^<]{0,200}anime-sama\.([a-z]{2,10})/i);
-            if (enCoursMatch) {
-                const ext = enCoursMatch[1].toLowerCase();
-                console.log(`✅ Extension détectée (regex html): .${ext}`);
-                return ext;
+            // Stratégie 3 : fallback regex robuste sur le HTML (actif oui, redirection/inactif non).
+            const activeRegexes = [
+                /anime-sama\.([a-z]{2,10})[\s\S]{0,140}?(adresse en cours|en cours|actif|active)/ig,
+                /(adresse en cours|en cours|actif|active)[\s\S]{0,140}?anime-sama\.([a-z]{2,10})/ig,
+            ];
+
+            for (const regex of activeRegexes) {
+                const matches = Array.from(html.matchAll(regex));
+                for (const match of matches) {
+                    const candidates = [match[1], match[2]].map(value => (value || '').toLowerCase());
+                    const ext = candidates.find(value => /^[a-z]{2,10}$/.test(value) && !activeKeywords.includes(value));
+                    if (!ext) continue;
+
+                    const context = match[0].toLowerCase();
+                    const isInactive = inactiveKeywords.some(keyword => context.includes(keyword));
+                    if (!isInactive) {
+                        console.log(`✅ Extension détectée (fallback regex): .${ext}`);
+                        return ext;
+                    }
+                }
+            }
+
+            // Stratégie 4 : suivre la redirection réelle du bouton principal pour obtenir le domaine d'arrivée.
+            const accessButton = root.querySelector('a.btn-primary[href*="anime-sama."]')
+                || root.querySelector('a[href*="anime-sama."]');
+            if (accessButton) {
+                const href = accessButton.getAttribute('href') || '';
+                if (href.startsWith('http')) {
+                    try {
+                        const landingResponse = await fetch(href, {
+                            redirect: 'follow',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                            },
+                        });
+
+                        const finalUrl = landingResponse.url || href;
+                        const finalHost = new URL(finalUrl).hostname.toLowerCase();
+                        const finalMatch = finalHost.match(/anime-sama\.([a-z]{2,10})$/i);
+                        if (finalMatch) {
+                            console.log(`✅ Extension détectée (landing redirect): .${finalMatch[1]} via ${href} → ${finalUrl}`);
+                            return finalMatch[1].toLowerCase();
+                        }
+                    } catch {
+                        // ignore et laisser tomber sur null
+                    }
+                }
             }
 
             console.warn('⚠️ Impossible de détecter l\'extension depuis', url);

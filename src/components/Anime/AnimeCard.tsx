@@ -9,6 +9,7 @@ interface AnimeCardProps {
     onHide?: (id: string) => void;
     onRestore?: (id: string) => void;
     onMarkSeen?: (id: string) => void;
+    onRemoveOld?: (id: string) => void;
     showActions?: boolean;
     isHidden?: boolean;
     isNew?: boolean;
@@ -20,6 +21,7 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
     onHide,
     onRestore,
     onMarkSeen,
+    onRemoveOld,
     showActions = true,
     isHidden = false,
     isNew = false,
@@ -39,12 +41,11 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
         action();
     };
 
-    const getBadgeStyle = () => {
-        if (isNew) return 'bg-green-500';
-        if (isOld) return 'bg-orange-500';
-        if (isHidden) return 'bg-gray-500';
-        return 'bg-blue-500';
-    };
+    const canRestore = isHidden && !!onRestore;
+    const canRemoveFromNew = !isHidden && isNew && !!onMarkSeen;
+    const canRemoveFromOld = !isHidden && isOld && !!onRemoveOld;
+    const canHide = !isHidden && !!onHide;
+    const hasActions = showActions && (canRestore || canRemoveFromNew || canRemoveFromOld || canHide);
 
     const getTypeStyle = () => {
         switch (anime.type) {
@@ -123,30 +124,40 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
                 </div>
                 
                 {/* Actions - small corner buttons (bottom-right) */}
-                {showActions && (
+                {hasActions && (
                     <div className="absolute bottom-12 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        {isHidden ? (
+                        {canRestore ? (
                             <button
                                 className="w-7 h-7 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-full text-white text-xs shadow-lg transition-colors"
                                 onClick={(e) => handleAction(e, () => onRestore?.(anime.id))}
                                 onMouseDown={(e) => e.stopPropagation()}
-                                title="Restaurer"
+                                title="Supprimer de masqués"
                             >
                                 <RestoreIcon sx={{ fontSize: 16 }} />
                             </button>
                         ) : (
                             <>
-                                {onMarkSeen && isNew && (
+                                {canRemoveFromNew && (
                                     <button
                                         className="w-7 h-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white text-xs shadow-lg transition-colors"
                                         onClick={(e) => handleAction(e, () => onMarkSeen(anime.id))}
                                         onMouseDown={(e) => e.stopPropagation()}
-                                        title="Marquer comme vu"
+                                        title="Retirer de nouveaux"
                                     >
                                         <CheckIcon sx={{ fontSize: 16 }} />
                                     </button>
                                 )}
-                                {onHide && (
+                                {canRemoveFromOld && (
+                                    <button
+                                        className="w-7 h-7 flex items-center justify-center bg-orange-600 hover:bg-orange-700 rounded-full text-white text-xs shadow-lg transition-colors"
+                                        onClick={(e) => handleAction(e, () => onRemoveOld?.(anime.id))}
+                                        onMouseDown={(e) => e.stopPropagation()}
+                                        title="Supprimer de anciens"
+                                    >
+                                        <CloseIcon sx={{ fontSize: 16 }} />
+                                    </button>
+                                )}
+                                {canHide && (
                                     <button
                                         className="w-7 h-7 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded-full text-white text-xs shadow-lg transition-colors"
                                         onClick={(e) => handleAction(e, () => onHide(anime.id))}

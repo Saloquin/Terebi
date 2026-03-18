@@ -7,7 +7,6 @@ import AnimeFilters from './AnimeFilters';
 import AnimeList from './AnimeList';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import LanguageIcon from '@mui/icons-material/Language';
-import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -27,6 +26,7 @@ export const AnimePage: React.FC = () => {
         hideAnime,
         restoreAnime,
         markAsSeen,
+        removeFromOld,
         clearNew,
         clearOld,
         filterBySearch,
@@ -38,16 +38,11 @@ export const AnimePage: React.FC = () => {
 
     // Extension state
     const [extension, setExtension] = useState(() => localStorage.getItem(EXT_STORAGE_KEY) || 'to');
-    const [editingExt, setEditingExt] = useState(false);
-    const [inputExt, setInputExt] = useState('');
-    const [savingExt, setSavingExt] = useState(false);
-    const [detecting, setDetecting] = useState(false);
     const [detectInfo, setDetectInfo] = useState<string | null>(null);
 
     // Au démarrage : détecter automatiquement l'extension active et migrer si besoin
     useEffect(() => {
         const currentLocalExt = localStorage.getItem(EXT_STORAGE_KEY) || 'to';
-        setDetecting(true);
         configApi.detectExtension()
             .then(config => {
                 if (config.previousExtension && config.previousExtension !== config.extension) {
@@ -67,24 +62,8 @@ export const AnimePage: React.FC = () => {
                     setExtension(c.extension);
                     localStorage.setItem(EXT_STORAGE_KEY, c.extension);
                 }).catch(() => {});
-            })
-            .finally(() => setDetecting(false));
+            });
     }, []);
-
-    const handleSaveExtension = async () => {
-        if (!inputExt.trim()) return;
-        setSavingExt(true);
-        try {
-            const config = await configApi.setExtension(inputExt.trim());
-            setExtension(config.extension);
-            localStorage.setItem(EXT_STORAGE_KEY, config.extension);
-            setEditingExt(false);
-        } catch (e) {
-            alert(e instanceof Error ? e.message : 'Erreur');
-        } finally {
-            setSavingExt(false);
-        }
-    };
 
     // Get animes for current view
     const currentViewAnimes = useMemo(() => {
@@ -120,74 +99,9 @@ export const AnimePage: React.FC = () => {
                     <h1 className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
                         <LiveTvIcon fontSize="small" /> Planning Anime
                     </h1>
-                    {/* Extension selector */}
-                    <div className="flex items-center">
-                        {editingExt ? (
-                            <div className="flex items-center gap-1.5">
-                                <span className="text-gray-500 dark:text-gray-400 text-sm">anime-sama.</span>
-                                <input
-                                    type="text"
-                                    value={inputExt}
-                                    onChange={(e) => setInputExt(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') handleSaveExtension();
-                                        if (e.key === 'Escape') setEditingExt(false);
-                                    }}
-                                    className="w-14 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-800 dark:text-white text-sm focus:outline-none focus:border-blue-500"
-                                    placeholder="to"
-                                    autoFocus
-                                />
-                                <button
-                                    onClick={handleSaveExtension}
-                                    disabled={savingExt}
-                                    className="px-1.5 py-0.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded transition-colors"
-                                >
-                                    {savingExt ? '...' : <CheckIcon sx={{ fontSize: 14 }} />}
-                                </button>
-                                <button
-                                    onClick={() => setEditingExt(false)}
-                                    className="px-1.5 py-0.5 bg-gray-400 hover:bg-gray-500 text-white text-xs rounded transition-colors"
-                                >
-                                    <CloseIcon sx={{ fontSize: 14 }} />
-                                </button>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={() => { setInputExt(extension); setEditingExt(true); }}
-                                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm flex items-center gap-1 transition-colors"
-                                title="Changer l'extension du site"
-                            >
-                                <LanguageIcon sx={{ fontSize: 16 }} /> anime-sama.<span className="text-blue-500 font-bold">{extension}</span>
-                            </button>
-                        )}
+                    <div className="text-gray-500 dark:text-gray-400 text-sm flex items-center gap-1">
+                        <LanguageIcon sx={{ fontSize: 16 }} /> anime-sama.<span className="text-blue-500 font-bold">{extension}</span>
                     </div>
-                    {/* Bouton détecter auto */}
-                    <button
-                        onClick={async () => {
-                            const currentLocalExt = localStorage.getItem(EXT_STORAGE_KEY) || extension;
-                            setDetecting(true);
-                            try {
-                                const config = await configApi.detectExtension();
-                                if (currentLocalExt !== config.extension) {
-                                    migrateStorageDomain(currentLocalExt, config.extension);
-                                    setDetectInfo(`Domaine migré : .${currentLocalExt} → .${config.extension}`);
-                                } else {
-                                    setDetectInfo(`Domaine actif confirmé : .${config.extension}`);
-                                }
-                                setExtension(config.extension);
-                                localStorage.setItem(EXT_STORAGE_KEY, config.extension);
-                            } catch {
-                                setDetectInfo('Détection échouée');
-                            } finally {
-                                setDetecting(false);
-                            }
-                        }}
-                        disabled={detecting}
-                        className="text-gray-500 dark:text-gray-400 hover:text-blue-500 transition-colors disabled:opacity-40"
-                        title="Détecter automatiquement le domaine actif"
-                    >
-                        <SyncIcon sx={{ fontSize: 18 }} className={detecting ? 'animate-spin' : ''} />
-                    </button>
                 </div>
                 <button
                     onClick={refresh}
@@ -242,9 +156,10 @@ export const AnimePage: React.FC = () => {
                 <div className="flex-1 min-h-0 overflow-hidden">
                     <AnimeList
                         animes={currentViewAnimes}
-                        onHide={viewMode !== 'masques' ? hideAnime : undefined}
+                        onHide={viewMode === 'planning' ? hideAnime : undefined}
                         onRestore={viewMode === 'masques' ? restoreAnime : undefined}
                         onMarkSeen={viewMode === 'nouveaux' ? markAsSeen : undefined}
+                        onRemoveOld={viewMode === 'anciens' ? removeFromOld : undefined}
                         showActions={true}
                         isHiddenList={viewMode === 'masques'}
                         isNewList={viewMode === 'nouveaux'}
