@@ -17,10 +17,14 @@ class CatalogService {
         const normalizedSearch = (search || '').trim();
         const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 
-        // If search is empty, fetch the main catalogue page
-        const sourceUrl = normalizedSearch
-            ? `${this.baseUrl}/catalogue/?search=${encodeURIComponent(normalizedSearch)}&page=${normalizedPage}`
-            : `${this.baseUrl}/catalogue/?page=${normalizedPage}`;
+        // Build URL with type and langue filters for Anime VOSTFR only
+        let sourceUrl: string;
+        
+        if (normalizedSearch) {
+            sourceUrl = `${this.baseUrl}/catalogue/?type%5B%5D=Anime&langue%5B%5D=VOSTFR&search=${encodeURIComponent(normalizedSearch)}&page=${normalizedPage}`;
+        } else {
+            sourceUrl = `${this.baseUrl}/catalogue/?type%5B%5D=Anime&langue%5B%5D=VOSTFR&page=${normalizedPage}`;
+        }
 
         console.log(`🔎 Recherche catalogue: ${sourceUrl}`);
 
