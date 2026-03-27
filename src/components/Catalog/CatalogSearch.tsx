@@ -3,6 +3,7 @@ import Search from '@mui/icons-material/Search';
 import CircularProgress from '@mui/material/CircularProgress';
 import Pagination from '@mui/material/Pagination';
 import Box from '@mui/material/Box';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 
 interface CatalogItem {
     id: string;
@@ -15,6 +16,14 @@ interface CatalogItem {
 interface CatalogSearchProps {
     onSearch?: (query: string, page: number) => void;
 }
+
+const paginationTheme = createTheme({
+    palette: {
+        primary: {
+            main: '#3b82f6',
+        },
+    },
+});
 
 export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -127,16 +136,18 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
             {!isLoading && hasSearched && results.length > 0 && (
                 <div className="space-y-6">
                     {/* Top Pagination */}
-                    <Box className="flex justify-center py-4 bg-white dark:bg-gray-800 rounded-lg">
-                        <Pagination
-                            count={totalPages}
-                            page={currentPage}
-                            onChange={(_, page) => loadCatalog(searchQuery, page)}
-                            color="primary"
-                            size="large"
-                            showFirstButton
-                            showLastButton
-                        />
+                    <Box className="flex justify-center py-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                        <ThemeProvider theme={paginationTheme}>
+                            <Pagination
+                                count={totalPages}
+                                page={currentPage}
+                                onChange={(_, page) => loadCatalog(searchQuery, page)}
+                                color="primary"
+                                size="large"
+                                showFirstButton
+                                showLastButton
+                            />
+                        </ThemeProvider>
                     </Box>
 
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -172,16 +183,18 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                     </div>
 
                     {/* Bottom Pagination */}
-                    <Box className="flex justify-center py-4 bg-white dark:bg-gray-800 rounded-lg">
-                        <Pagination
-                            count={totalPages}
-                            page={currentPage}
-                            onChange={(_, page) => loadCatalog(searchQuery, page)}
-                            color="primary"
-                            size="large"
-                            showFirstButton
-                            showLastButton
-                        />
+                    <Box className="flex justify-center py-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+                        <ThemeProvider theme={paginationTheme}>
+                            <Pagination
+                                count={totalPages}
+                                page={currentPage}
+                                onChange={(_, page) => loadCatalog(searchQuery, page)}
+                                color="primary"
+                                size="large"
+                                showFirstButton
+                                showLastButton
+                            />
+                        </ThemeProvider>
                     </Box>
                 </div>
             )}
