@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { animeScraperService } from '../services/anime-scraper.service';
+import { planningService } from '../services/planning.service';
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.get('/detect', async (_req: Request, res: Response) => {
     const previousExtension = animeScraperService.getExtension();
     if (detected !== previousExtension) {
         animeScraperService.setExtension(detected);
+        planningService.clearCache();
         console.log(`🔄 Extension auto-mise à jour: ${previousExtension} → ${detected}`);
     }
 

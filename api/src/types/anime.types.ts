@@ -20,3 +20,18 @@ export interface ApiResponse<T> {
     error?: string;
     timestamp: string;
 }
+
+export interface CatalogAnime {
+    id: string;
+    title: string;
+    image?: string;
+    url: string;
+    fullUrl: string;
+}
+
+export interface CatalogResult {
+    search: string;
+    page: number;
+    sourceUrl: string;
+    items: CatalogAnime[];
+}
