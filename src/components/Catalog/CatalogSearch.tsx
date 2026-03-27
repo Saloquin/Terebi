@@ -22,20 +22,22 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
 
-    const handleSearch = useCallback(async (query: string = searchQuery, page: number = 1) => {
-        if (!query.trim()) {
-            setError('Veuillez entrer une recherche');
-            return;
-        }
+    // Load initial catalog on mount
+    React.useEffect(() => {
+        loadCatalog('', 1);
+    }, []);
 
+    const loadCatalog = useCallback(async (query: string = searchQuery, page: number = 1) => {
         setIsLoading(true);
         setError(null);
         setCurrentPage(page);
 
         try {
-            const response = await fetch(
-                `/api/animes/catalogue?search=${encodeURIComponent(query)}&page=${page}`
-            );
+            const url = query.trim()
+                ? `/api/animes/catalogue?search=${encodeURIComponent(query)}&page=${page}`
+                : `/api/animes/catalogue?page=${page}`;
+
+            const response = await fetch(url);
 
             if (!response.ok) {
                 throw new Error(`Erreur API: ${response.status}`);
@@ -51,12 +53,21 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                 setResults([]);
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Erreur lors de la recherche');
+            setError(err instanceof Error ? err.message : 'Erreur lors du chargement');
             setResults([]);
         } finally {
             setIsLoading(false);
         }
     }, [searchQuery, onSearch]);
+
+    const handleSearch = useCallback(async (query: string = searchQuery, page: number = 1) => {
+        if (!query.trim()) {
+            // If search is empty, just load the general catalog
+            await loadCatalog('', page);
+        } else {
+            await loadCatalog(query, page);
+        }
+    }, [searchQuery, loadCatalog]);
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
         if (e.key === 'Enter') {
@@ -148,7 +159,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                 <div className="text-center py-12">
                     <Search className="text-6xl text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                     <p className="text-gray-500 dark:text-gray-400">
-                        Entrez un terme de recherche pour trouver des animes
+                        Chargement du catalogue...
                     </p>
                 </div>
             )}

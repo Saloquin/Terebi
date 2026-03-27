@@ -13,11 +13,15 @@ class CatalogService {
         return `https://anime-sama.${animeScraperService.getExtension()}`;
     }
 
-    async search(search: string, page: number = 1): Promise<CatalogResult> {
+    async search(search: string = '', page: number = 1): Promise<CatalogResult> {
         const normalizedSearch = (search || '').trim();
         const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 
-        const sourceUrl = `${this.baseUrl}/catalogue/?search=${encodeURIComponent(normalizedSearch)}&page=${normalizedPage}`;
+        // If search is empty, fetch the main catalogue page
+        const sourceUrl = normalizedSearch
+            ? `${this.baseUrl}/catalogue/?search=${encodeURIComponent(normalizedSearch)}&page=${normalizedPage}`
+            : `${this.baseUrl}/catalogue/?page=${normalizedPage}`;
+
         console.log(`🔎 Recherche catalogue: ${sourceUrl}`);
 
         const response = await fetch(this.flareSolverrUrl, {
