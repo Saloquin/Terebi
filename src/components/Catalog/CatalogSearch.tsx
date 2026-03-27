@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import Search from '@mui/icons-material/Search';
 import CircularProgress from '@mui/material/CircularProgress';
+import Pagination from '@mui/material/Pagination';
+import Box from '@mui/material/Box';
 
 interface CatalogItem {
     id: string;
@@ -21,6 +23,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
+    const [totalPages, setTotalPages] = useState(1);
 
     // Load initial catalog on mount
     React.useEffect(() => {
@@ -47,6 +50,9 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
             if (data.success && data.data.items) {
                 setResults(data.data.items);
                 setHasSearched(true);
+                // Estimate total pages based on current page
+                const estimatedPages = Math.max(page + 2, 10);
+                setTotalPages(estimatedPages);
                 onSearch?.(query, page);
             } else {
                 setError('Aucun résultat trouvé');
@@ -119,8 +125,8 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
 
             {/* Results Grid */}
             {!isLoading && hasSearched && results.length > 0 && (
-                <div>
-                    <h2 className="text-xl font-bold mb-4 text-gray-900 dark:text-white">
+                <div className="space-y-6">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                         Résultats ({results.length})
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -151,6 +157,19 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                             </a>
                         ))}
                     </div>
+
+                    {/* Pagination */}
+                    <Box className="flex justify-center py-6">
+                        <Pagination
+                            count={totalPages}
+                            page={currentPage}
+                            onChange={(_, page) => loadCatalog(searchQuery, page)}
+                            color="primary"
+                            size="large"
+                            showFirstButton
+                            showLastButton
+                        />
+                    </Box>
                 </div>
             )}
 
