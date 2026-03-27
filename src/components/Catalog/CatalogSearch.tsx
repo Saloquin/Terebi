@@ -23,6 +23,26 @@ const paginationTheme = createTheme({
             main: '#3b82f6',
         },
     },
+    components: {
+        MuiPaginationItem: {
+            styleOverrides: {
+                root: {
+                    color: '#3b82f6',
+                    fontSize: '1rem',
+                    fontWeight: 500,
+                    '&:hover': {
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    },
+                },
+                page: {
+                    color: '#3b82f6',
+                },
+                previousNext: {
+                    color: '#3b82f6',
+                },
+            },
+        },
+    },
 });
 
 export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
