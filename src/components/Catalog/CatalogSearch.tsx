@@ -126,6 +126,19 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
             {/* Results Grid */}
             {!isLoading && hasSearched && results.length > 0 && (
                 <div className="space-y-6">
+                    {/* Top Pagination */}
+                    <Box className="flex justify-center py-4 bg-white dark:bg-gray-800 rounded-lg">
+                        <Pagination
+                            count={totalPages}
+                            page={currentPage}
+                            onChange={(_, page) => loadCatalog(searchQuery, page)}
+                            color="primary"
+                            size="large"
+                            showFirstButton
+                            showLastButton
+                        />
+                    </Box>
+
                     <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                         Résultats ({results.length})
                     </h2>
@@ -158,8 +171,8 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                         ))}
                     </div>
 
-                    {/* Pagination */}
-                    <Box className="flex justify-center py-6">
+                    {/* Bottom Pagination */}
+                    <Box className="flex justify-center py-4 bg-white dark:bg-gray-800 rounded-lg">
                         <Pagination
                             count={totalPages}
                             page={currentPage}
