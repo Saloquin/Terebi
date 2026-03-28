@@ -11,6 +11,10 @@ interface CatalogItem {
     image?: string;
     url: string;
     fullUrl: string;
+    genres?: string[];
+    year?: string;
+    score?: number;
+    status?: string;
 }
 
 interface CatalogSearchProps {
@@ -180,7 +184,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                                 href={item.fullUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="group rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-gray-100 dark:bg-gray-700"
+                                className="group rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
                             >
                                 {item.image ? (
                                     <img
@@ -193,10 +197,41 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                                         <span className="text-gray-500 dark:text-gray-400">Pas d'image</span>
                                     </div>
                                 )}
-                                <div className="p-3">
+                                <div className="p-3 space-y-2">
                                     <h3 className="font-semibold text-sm text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
                                         {item.title}
                                     </h3>
+                                    
+                                    {/* Genres */}
+                                    {item.genres && item.genres.length > 0 && (
+                                        <div className="flex flex-wrap gap-1">
+                                            {item.genres.slice(0, 2).map((genre, idx) => (
+                                                <span key={idx} className="inline-block text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                                    {genre}
+                                                </span>
+                                            ))}
+                                            {item.genres.length > 2 && (
+                                                <span className="inline-block text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded">
+                                                    +{item.genres.length - 2}
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Year and Score */}
+                                    {(item.year || item.score) && (
+                                        <div className="flex gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                            {item.year && <span>{item.year}</span>}
+                                            {item.score && <span>★ {item.score.toFixed(1)}</span>}
+                                        </div>
+                                    )}
+
+                                    {/* Status */}
+                                    {item.status && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                            {item.status}
+                                        </p>
+                                    )}
                                 </div>
                             </a>
                         ))}

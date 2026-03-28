@@ -27,6 +27,10 @@ export interface CatalogAnime {
     image?: string;
     url: string;
     fullUrl: string;
+    genres?: string[];
+    year?: string;
+    score?: number;
+    status?: string;
 }
 
 export interface CatalogResult {

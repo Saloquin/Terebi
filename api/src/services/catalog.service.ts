@@ -17,13 +17,13 @@ class CatalogService {
         const normalizedSearch = (search || '').trim();
         const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 
-        // Build URL with type and langue filters for Anime VOSTFR only
+        // Build URL with type and langue filters for Anime & Film in VOSTFR only
         let sourceUrl: string;
         
         if (normalizedSearch) {
-            sourceUrl = `${this.baseUrl}/catalogue/?type%5B%5D=Anime&langue%5B%5D=VOSTFR&search=${encodeURIComponent(normalizedSearch)}&page=${normalizedPage}`;
+            sourceUrl = `${this.baseUrl}/catalogue/?type%5B%5D=Anime&type%5B%5D=Film&langue%5B%5D=VOSTFR&search=${encodeURIComponent(normalizedSearch)}&page=${normalizedPage}`;
         } else {
-            sourceUrl = `${this.baseUrl}/catalogue/?type%5B%5D=Anime&langue%5B%5D=VOSTFR&page=${normalizedPage}`;
+            sourceUrl = `${this.baseUrl}/catalogue/?type%5B%5D=Anime&type%5B%5D=Film&langue%5B%5D=VOSTFR&page=${normalizedPage}`;
         }
 
         console.log(`🔎 Recherche catalogue: ${sourceUrl}`);

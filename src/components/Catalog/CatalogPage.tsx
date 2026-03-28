@@ -14,9 +14,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light' }) => 
                 <div className="max-w-6xl mx-auto px-4 py-8">
                     {/* Header */}
                     <div className="mb-8">
-                        <h1 className="text-4xl font-bold mb-2">Catalogue Anime</h1>
+                        <h1 className="text-4xl font-bold mb-2">Catalogue Anime et Films</h1>
                         <p className="text-gray-600 dark:text-gray-400">
-                            Recherchez et découvrez des animes, mangas et scans
+                            Découvrez notre sélection d'animes et de films en VOSTFR
                         </p>
                     </div>
 
