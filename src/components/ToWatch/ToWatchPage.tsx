@@ -33,7 +33,7 @@ export const ToWatchPage: React.FC = () => {
             <div className="max-w-7xl mx-auto px-4 py-8">
                 {/* Header */}
                 <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">⭐ Ma liste "À voir"</h1>
+                    <h1 className="text-4xl font-bold mb-2 text-red-600 dark:text-red-500">Ma liste "À voir"</h1>
                     <p className="text-gray-600 dark:text-gray-400">
                         {localTowatch.length} élément{localTowatch.length !== 1 ? 's' : ''} sauvegardé{localTowatch.length !== 1 ? 's' : ''}
                     </p>
