@@ -9,6 +9,7 @@ export const createEmptyStorage = (): AnimeStorage => ({
     new: [],
     old: [],
     hidden: [],
+    towatch: [],
     lastUpdate: new Date().toISOString(),
 });
 
@@ -16,7 +17,12 @@ export const readStorage = (): AnimeStorage => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return createEmptyStorage();
-        return JSON.parse(raw) as AnimeStorage;
+        const storage = JSON.parse(raw) as AnimeStorage;
+        // Migration: ajouter towatch s'il n'existe pas
+        if (!storage.towatch) {
+            storage.towatch = [];
+        }
+        return storage;
     } catch {
         return createEmptyStorage();
     }

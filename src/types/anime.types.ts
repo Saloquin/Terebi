@@ -19,6 +19,7 @@ export interface AnimeStorage {
     new: AnimePlanning[];
     old: AnimePlanning[];
     hidden: string[]; // On stocke juste les IDs des animes masqués
+    towatch: AnimePlanning[];
     lastUpdate: string;
 }
 
@@ -30,6 +31,7 @@ export interface AnimeStats {
     totalNew: number;
     totalOld: number;
     totalHidden: number;
+    totalToWatch: number;
     byDay: Record<string, number>;
     lastUpdate?: string;
 }

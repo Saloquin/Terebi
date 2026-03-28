@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { CatalogSearch } from '../Catalog/CatalogSearch';
+import { AnimePlanning } from '../../types/anime.types';
+import { markAsToWatch, removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
+import { useAnimeData } from '../../hooks/useAnimeData';
 
 interface CatalogPageProps {
     theme?: 'light' | 'dark';
@@ -7,6 +10,26 @@ interface CatalogPageProps {
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light' }) => {
     const [pageTitle, setPageTitle] = useState('Catalogue');
+    const { towatch } = useAnimeData();
+
+    const handleAddToWatch = (item: any) => {
+        const anime: AnimePlanning = {
+            id: item.id,
+            title: item.title,
+            image: item.image || '',
+            url: item.url,
+            fullUrl: item.fullUrl,
+            dayOfWeek: '',
+            type: 'VOSTFR' as any,
+        };
+        markAsToWatch(anime);
+        alert(`✅ "${item.title}" ajouté à "À voir"!`);
+    };
+
+    const handleRemoveFromToWatch = (title: string) => {
+        removeFromToWatch(title);
+        alert(`❌ "${title}" retiré de "À voir"!`);
+    };
 
     return (
         <div className={theme === 'dark' ? 'dark' : ''}>
@@ -25,6 +48,9 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light' }) => 
                         onSearch={(query, page) => {
                             setPageTitle(`Catalogue - Résultats pour "${query}"`);
                         }}
+                        onAddToWatch={handleAddToWatch}
+                        onRemoveFromToWatch={handleRemoveFromToWatch}
+                        toWatchTitles={towatch.map(a => a.title)}
                     />
                 </div>
             </div>

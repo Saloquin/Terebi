@@ -3,6 +3,8 @@ import { AnimePlanning } from '../../types/anime.types';
 import RestoreIcon from '@mui/icons-material/Restore';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import BookmarkIcon from '@mui/icons-material/Bookmark';
+import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 
 interface AnimeCardProps {
     anime: AnimePlanning;
@@ -10,10 +12,13 @@ interface AnimeCardProps {
     onRestore?: (id: string) => void;
     onMarkSeen?: (id: string) => void;
     onRemoveOld?: (id: string) => void;
+    onAddToWatch?: (anime: AnimePlanning) => void;
+    onRemoveFromToWatch?: (id: string) => void;
     showActions?: boolean;
     isHidden?: boolean;
     isNew?: boolean;
     isOld?: boolean;
+    isInToWatch?: boolean;
 }
 
 export const AnimeCard: React.FC<AnimeCardProps> = ({
@@ -22,10 +27,13 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
     onRestore,
     onMarkSeen,
     onRemoveOld,
+    onAddToWatch,
+    onRemoveFromToWatch,
     showActions = true,
     isHidden = false,
     isNew = false,
     isOld = false,
+    isInToWatch = false,
 }) => {
     const handleClick = () => {
         const finalUrl = anime.fullUrl || `https://anime-sama.to/${anime.url}`;
@@ -105,6 +113,33 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
                             {anime.season.replace(/^Saison\s*/i, 'S')}
                         </span>
                     </div>
+                )}
+
+                {/* À voir button - top right corner */}
+                {!isHidden && (onAddToWatch || onRemoveFromToWatch) && (
+                    <button
+                        className={`absolute top-2 right-${anime.season ? '16' : '2'} w-8 h-8 flex items-center justify-center rounded-full shadow-lg transition-colors ${
+                            isInToWatch
+                                ? 'bg-yellow-400 hover:bg-yellow-500 text-gray-900'
+                                : 'bg-gray-600 hover:bg-gray-700 text-white'
+                        }`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (isInToWatch && onRemoveFromToWatch) {
+                                onRemoveFromToWatch(anime.title);
+                            } else if (!isInToWatch && onAddToWatch) {
+                                onAddToWatch(anime);
+                            }
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}
+                    >
+                        {isInToWatch ? (
+                            <BookmarkIcon sx={{ fontSize: 18 }} />
+                        ) : (
+                            <BookmarkBorderIcon sx={{ fontSize: 18 }} />
+                        )}
+                    </button>
                 )}
                 
                 {/* Content */}

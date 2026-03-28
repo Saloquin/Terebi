@@ -15,10 +15,14 @@ interface CatalogItem {
     year?: string;
     score?: number;
     status?: string;
+    type?: string;
 }
 
 interface CatalogSearchProps {
     onSearch?: (query: string, page: number) => void;
+    onAddToWatch?: (item: CatalogItem) => void;
+    onRemoveFromToWatch?: (id: string) => void;
+    toWatchTitles?: string[];
 }
 
 const paginationTheme = createTheme({
@@ -49,7 +53,7 @@ const paginationTheme = createTheme({
     },
 });
 
-export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
+export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToWatch, onRemoveFromToWatch, toWatchTitles = [] }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [results, setResults] = useState<CatalogItem[]>([]);
@@ -179,61 +183,93 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch }) => {
                     </h2>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {results.map((item) => (
-                            <a
+                            <div
                                 key={item.id}
-                                href={item.fullUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600"
+                                className="group rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex flex-col"
                             >
-                                {item.image ? (
-                                    <img
-                                        src={item.image}
-                                        alt={item.title}
-                                        className="w-full h-48 object-cover group-hover:opacity-80 transition-opacity"
-                                    />
-                                ) : (
-                                    <div className="w-full h-48 bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                                        <span className="text-gray-500 dark:text-gray-400">Pas d'image</span>
-                                    </div>
-                                )}
-                                <div className="p-3 space-y-2">
-                                    <h3 className="font-semibold text-sm text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                                        {item.title}
-                                    </h3>
-                                    
-                                    {/* Genres */}
-                                    {item.genres && item.genres.length > 0 && (
-                                        <div className="flex flex-wrap gap-1">
-                                            {item.genres.slice(0, 2).map((genre, idx) => (
-                                                <span key={idx} className="inline-block text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
-                                                    {genre}
-                                                </span>
-                                            ))}
-                                            {item.genres.length > 2 && (
-                                                <span className="inline-block text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded">
-                                                    +{item.genres.length - 2}
-                                                </span>
+                                <a
+                                    href={item.fullUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1"
+                                >
+                                    {item.image ? (
+                                        <img
+                                            src={item.image}
+                                            alt={item.title}
+                                            className="w-full h-48 object-cover group-hover:opacity-80 transition-opacity"
+                                        />
+                                    ) : (
+                                        <div className="w-full h-48 bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                            <span className="text-gray-500 dark:text-gray-400">Pas d'image</span>
+                                        </div>
+                                    )}
+                                    <div className="p-3 space-y-2">
+                                        <div className="flex items-start justify-between gap-2">
+                                            <h3 className="font-semibold text-sm text-gray-900 dark:text-white line-clamp-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 flex-1">
+                                                {item.title}
+                                            </h3>
+                                            {item.type && (
+                                                <span className={`flex-shrink-0 text-xs font-bold px-2 py-1 rounded whitespace-nowrap ${
+                                                    item.type.toLowerCase() === 'anime' 
+                                                        ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                                                        : 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300'
+                                                }`}>
+                                                {item.type}
+                                            </span>
                                             )}
                                         </div>
-                                    )}
+                                        
+                                        {/* Genres */}
+                                        {item.genres && item.genres.length > 0 && (
+                                            <div className="flex flex-wrap gap-1">
+                                                {item.genres.slice(0, 2).map((genre, idx) => (
+                                                    <span key={idx} className="inline-block text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 rounded">
+                                                        {genre}
+                                                    </span>
+                                                ))}
+                                                {item.genres.length > 2 && (
+                                                    <span className="inline-block text-xs px-2 py-1 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded">
+                                                        +{item.genres.length - 2}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}
 
-                                    {/* Year and Score */}
-                                    {(item.year || item.score) && (
-                                        <div className="flex gap-2 text-xs text-gray-600 dark:text-gray-400">
-                                            {item.year && <span>{item.year}</span>}
-                                            {item.score && <span>★ {item.score.toFixed(1)}</span>}
-                                        </div>
-                                    )}
+                                        {/* Year and Score */}
+                                        {(item.year || item.score) && (
+                                            <div className="flex gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                                {item.year && <span>{item.year}</span>}
+                                                {item.score && <span>★ {item.score.toFixed(1)}</span>}
+                                            </div>
+                                        )}
 
-                                    {/* Status */}
-                                    {item.status && (
-                                        <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
-                                            {item.status}
-                                        </p>
-                                    )}
-                                </div>
-                            </a>
+                                        {/* Status */}
+                                        {item.status && (
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1">
+                                                {item.status}
+                                            </p>
+                                        )}
+                                    </div>
+                                </a>
+                                <button
+                                    onClick={() => {
+                                        const isInList = toWatchTitles.includes(item.title);
+                                        if (isInList && onRemoveFromToWatch) {
+                                            onRemoveFromToWatch(item.title);
+                                        } else if (!isInList && onAddToWatch) {
+                                            onAddToWatch(item);
+                                        }
+                                    }}
+                                    className={`mx-3 mb-3 px-3 py-2 font-semibold text-sm rounded transition-colors ${ 
+                                        toWatchTitles.includes(item.title)
+                                            ? 'bg-yellow-400 hover:bg-yellow-500 dark:bg-yellow-600 dark:hover:bg-yellow-500 text-gray-900 dark:text-white'
+                                            : 'bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-900 dark:text-white'
+                                    }`}
+                                >
+                                    {toWatchTitles.includes(item.title) ? '⭐ À voir' : '☆ À voir'}
+                                </button>
+                            </div>
                         ))}
                     </div>
 

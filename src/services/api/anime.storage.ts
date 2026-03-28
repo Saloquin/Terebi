@@ -16,6 +16,7 @@ class AnimeStorageService {
             new: [],
             old: [],
             hidden: [],
+            towatch: [],
             lastUpdate: new Date().toISOString(),
         };
     }
@@ -184,6 +185,7 @@ class AnimeStorageService {
             totalNew: storage.new.filter(a => !storage.hidden.includes(a.id)).length,
             totalOld: storage.old.filter(a => !storage.hidden.includes(a.id)).length,
             totalHidden: storage.hidden.length,
+            totalToWatch: storage.towatch.length,
             byDay,
             lastUpdate: storage.lastUpdate,
         };

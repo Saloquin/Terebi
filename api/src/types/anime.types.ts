@@ -31,6 +31,7 @@ export interface CatalogAnime {
     year?: string;
     score?: number;
     status?: string;
+    type?: string;
 }
 
 export interface CatalogResult {

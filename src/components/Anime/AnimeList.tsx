@@ -9,6 +9,8 @@ interface AnimeListProps {
     onRestore?: (id: string) => void;
     onMarkSeen?: (id: string) => void;
     onRemoveOld?: (id: string) => void;
+    onAddToWatch?: (anime: AnimePlanning) => void;
+    onRemoveFromToWatch?: (id: string) => void;
     showActions?: boolean;
     isHiddenList?: boolean;
     isNewList?: boolean;
@@ -16,6 +18,7 @@ interface AnimeListProps {
     groupByDay?: boolean;
     emptyMessage?: string;
     headerColor?: string;
+    toWatchTitles?: string[];
 }
 
 const DAY_ORDER = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
@@ -26,6 +29,8 @@ export const AnimeList: React.FC<AnimeListProps> = ({
     onRestore,
     onMarkSeen,
     onRemoveOld,
+    onAddToWatch,
+    onRemoveFromToWatch,
     showActions = true,
     isHiddenList = false,
     isNewList = false,
@@ -33,6 +38,7 @@ export const AnimeList: React.FC<AnimeListProps> = ({
     groupByDay = true,
     emptyMessage = 'Aucun anime à afficher',
     headerColor,
+    toWatchTitles = [],
 }) => {
     const resolvedHeaderColor = headerColor || (isNewList ? 'bg-green-600' : isOldList ? 'bg-orange-600' : isHiddenList ? 'bg-gray-600' : 'bg-blue-600');
 
@@ -104,10 +110,13 @@ export const AnimeList: React.FC<AnimeListProps> = ({
                                 onRestore={onRestore}
                                 onMarkSeen={onMarkSeen}
                                 onRemoveOld={onRemoveOld}
+                                onAddToWatch={onAddToWatch}
+                                onRemoveFromToWatch={onRemoveFromToWatch}
                                 showActions={showActions}
                                 isHidden={isHiddenList}
                                 isNew={isNewList}
                                 isOld={isOldList}
+                                isInToWatch={toWatchTitles.includes(anime.title)}
                             />
                         ))}
                     </div>

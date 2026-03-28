@@ -122,13 +122,47 @@ export class ParserService {
             if (seenUrls.has(normalizedHref)) continue;
             seenUrls.add(normalizedHref);
 
-            // Try to find an img tag near the h2 (within the same <a>)
-            const contextEnd = Math.min(html.length, h2StartPos + 500);
-            const contextStart = Math.max(0, h2StartPos - 2000);
+            // Extract info from the card context
+            const contextEnd = Math.min(html.length, h2StartPos + 1500);
+            const contextStart = Math.max(0, h2StartPos - 1000);
             const context = html.substring(contextStart, contextEnd);
 
+            // Image
             const imgMatch = context.match(/<img[^>]*src="([^"]+)"/);
             const image = imgMatch?.[1];
+
+            // Genres - look for "Genres" followed by list
+            const genresMatch = context.match(/Genres[\s\S]*?<p[^>]*>([^<]+)<\/p>/);
+            const genres = genresMatch?.[1]
+                ?.split(/,/)
+                .map(g => g.trim())
+                .filter(g => g.length > 0)
+                .slice(0, 5) || [];
+
+            // Year - look for a 4-digit year
+            const yearMatch = context.match(/\b(19|20)\d{2}\b/);
+            const year = yearMatch?.[0];
+
+            // Score - look for "★" or rating pattern
+            const scoreMatch = context.match(/★\s*([\d.]+)/);
+            const score = scoreMatch ? parseFloat(scoreMatch[1]) : undefined;
+
+            // Status - look for "En cours", "Fini", "Annulé"
+            let status: string | undefined;
+            if (context.includes('En cours')) status = 'En cours';
+            else if (context.includes('Fini')) status = 'Fini';
+            else if (context.includes('Annulé')) status = 'Annulé';
+
+            // Type - detect Anime or Film based on URL or page context
+            let type: string | undefined;
+            if (href.includes('/anime/')) type = 'Anime';
+            else if (href.includes('/film/')) type = 'Film';
+            else {
+                // Fallback: check page content context for type indicators
+                const contextLower = context.toLowerCase();
+                if (contextLower.includes('film')) type = 'Film';
+                else if (contextLower.includes('anime')) type = 'Anime';
+            }
 
             const relativeUrl = href.startsWith('http')
                 ? (new URL(href).pathname + (new URL(href).search || ''))
@@ -140,6 +174,11 @@ export class ParserService {
                 image,
                 url: relativeUrl,
                 fullUrl: normalizedHref,
+                genres: genres.length > 0 ? genres : undefined,
+                year,
+                score,
+                status,
+                type,
             });
         }
 

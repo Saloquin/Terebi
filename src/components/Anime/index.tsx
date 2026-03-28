@@ -21,6 +21,7 @@ export const AnimePage: React.FC = () => {
         newAnimes,
         old,
         hidden,
+        towatch,
         loading,
         error,
         refresh,
@@ -28,10 +29,12 @@ export const AnimePage: React.FC = () => {
         restoreAnime,
         markAsSeen,
         removeFromOld,
+        removeFromToWatch,
         clearNew,
         clearOld,
         filterBySearch,
         getAnimesByViewMode,
+        markAsToWatch,
     } = useAnimeData();
 
     const [viewMode, setViewMode] = useState<ViewMode>('planning');
@@ -158,12 +161,15 @@ export const AnimePage: React.FC = () => {
                         onRestore={tabActions.onRestore}
                         onMarkSeen={tabActions.onMarkSeen}
                         onRemoveOld={tabActions.onRemoveOld}
+                        onAddToWatch={markAsToWatch}
+                        onRemoveFromToWatch={removeFromToWatch}
                         showActions={true}
                         isHiddenList={tabActions.isHiddenList}
                         isNewList={tabActions.isNewList}
                         isOldList={tabActions.isOldList}
                         groupByDay={true}
                         emptyMessage={tabLogic.emptyMessage}
+                        toWatchTitles={towatch.map(a => a.title)}
                     />
                 </div>
             )}
