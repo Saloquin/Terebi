@@ -1,5 +1,11 @@
 export type AnimeType = 'VOSTFR' | 'VF' | 'Scan' | 'ScanVF';
 
+export interface Season {
+    name: string;
+    url: string;
+    type: 'regular' | 'oav' | 'special' | 'film';
+}
+
 export interface AnimePlanning {
     id: string;
     title: string;
@@ -12,6 +18,8 @@ export interface AnimePlanning {
     type: AnimeType;
     season?: string;
     status?: string;
+    seasons?: Season[];
+    totalSeasons?: number;
 }
 
 export interface AnimeStorage {

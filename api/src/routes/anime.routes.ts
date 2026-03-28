@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { planningService } from '../services/planning.service';
 import { catalogService } from '../services/catalog.service';
+import { scrapeAnimeSeasons, scrapeSeasonEpisodes } from '../services/season-scraper.service';
 import { ApiResponse, AnimePlanning, CatalogResult } from '../types/anime.types';
 
 const router = Router();
@@ -110,6 +111,29 @@ router.get('/catalogue', async (req: Request, res: Response) => {
             success: false,
             data: null,
             error: error instanceof Error ? error.message : 'Erreur inconnue',
+            timestamp: new Date().toISOString(),
+        };
+        res.status(500).json(response);
+    }
+});
+
+// GET /api/animes/seasons/:animeSlug - Récupérer les saisons d'un anime
+router.get('/seasons/:animeSlug', async (req: Request, res: Response) => {
+    try {
+        const { animeSlug } = req.params;
+        const animeInfo = await scrapeAnimeSeasons(animeSlug);
+        
+        const response: ApiResponse<any> = {
+            success: true,
+            data: animeInfo,
+            timestamp: new Date().toISOString(),
+        };
+        res.json(response);
+    } catch (error) {
+        const response: ApiResponse<null> = {
+            success: false,
+            data: null,
+            error: error instanceof Error ? error.message : 'Erreur lors du scraping des saisons',
             timestamp: new Date().toISOString(),
         };
         res.status(500).json(response);
