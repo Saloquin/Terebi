@@ -234,7 +234,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                             {displayIsInToWatch ? (
                                 <>
                                     <BookmarkIcon sx={{ fontSize: 16 }} />
-                                    Dans "À voir"
+                                    Retirer de "À voir"
                                 </>
                             ) : (
                                 <>
