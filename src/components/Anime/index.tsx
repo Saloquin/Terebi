@@ -6,12 +6,15 @@ import { migrateStorageDomain } from '../../services/api/domain-migration';
 import { getTabLogic } from '../../utils/tabLogic';
 import AnimeFilters from './AnimeFilters';
 import AnimeList from './AnimeList';
+import { SeasonSelectorModal } from './SeasonSelectorModal';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import LanguageIcon from '@mui/icons-material/Language';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import SyncIcon from '@mui/icons-material/Sync';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import { Snackbar, Alert, Box, Typography, Button, Tooltip } from '@mui/material';
 
 const EXT_STORAGE_KEY = 'anime_extension';
 
@@ -26,6 +29,7 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
         old,
         hidden,
         towatch,
+        viewed,
         loading,
         error,
         refresh,
@@ -39,10 +43,18 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
         filterBySearch,
         getAnimesByViewMode,
         markAsToWatch,
+        markAsViewed,
     } = useAnimeData();
 
     const [viewMode, setViewMode] = useState<ViewMode>('planning');
     const [searchQuery, setSearchQuery] = useState('');
+    const [seasonModalOpen, setSeasonModalOpen] = useState(false);
+    const [seasonModalLoading, setSeasonModalLoading] = useState(false);
+    const [snackbar, setSnackbar] = useState({
+        open: false,
+        message: '',
+        severity: 'success' as 'success' | 'error' | 'info' | 'warning',
+    });
 
     // Extension state
     const [extension, setExtension] = useState(() => localStorage.getItem(EXT_STORAGE_KEY) || 'to');
@@ -105,6 +117,29 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
         removeFromOld,
     });
 
+    const handleSeasonModalConfirm = async (viewedSeasons: string[]) => {
+        if (!selectedAnime) return;
+
+        setSeasonModalLoading(true);
+        try {
+            markAsViewed(selectedAnime, viewedSeasons);
+            setSnackbar({
+                open: true,
+                message: `"${selectedAnime.title}" marqué comme vu avec ${viewedSeasons.length} saison(s)!`,
+                severity: 'success',
+            });
+            setSeasonModalOpen(false);
+        } catch (err) {
+            setSnackbar({
+                open: true,
+                message: 'Erreur lors du marquage de l\'anime comme vu',
+                severity: 'error',
+            });
+        } finally {
+            setSeasonModalLoading(false);
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 py-3 px-2 sm:px-4">
             {/* Header */}
@@ -158,6 +193,85 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
                 />
             </div>
 
+            {/* Selected Anime Details Panel */}
+            {selectedAnime && (
+                <Box
+                    sx={{
+                        p: 2.5,
+                        mb: 2,
+                        bg: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        borderRadius: 1,
+                        color: 'white',
+                        display: 'flex',
+                        gap: 2,
+                        alignItems: 'flex-start',
+                        flexShrink: 0,
+                    }}
+                    className="dark:bg-gradient-to-r dark:from-blue-900 dark:to-purple-900"
+                >
+                    {/* Anime Image */}
+                    {selectedAnime.image && (
+                        <Box
+                            component="img"
+                            src={selectedAnime.image}
+                            sx={{
+                                width: 60,
+                                height: 80,
+                                borderRadius: 1,
+                                objectFit: 'cover',
+                                flexShrink: 0,
+                            }}
+                            alt={selectedAnime.title}
+                        />
+                    )}
+
+                    {/* Anime Info */}
+                    <Box sx={{ flex: 1 }}>
+                        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+                            {selectedAnime.title}
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                            {selectedAnime.type} • {selectedAnime.dayOfWeek}
+                        </Typography>
+
+                        {/* Check if anime is already viewed */}
+                        {viewed.some(
+                            (a) =>
+                                a.title.toLowerCase() === selectedAnime.title.toLowerCase() ||
+                                a.id === selectedAnime.id
+                        ) && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                                <CheckCircleIcon sx={{ fontSize: 18 }} />
+                                <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                                    Déjà marqué comme vu
+                                </Typography>
+                            </Box>
+                        )}
+                    </Box>
+
+                    {/* Action Buttons */}
+                    <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                        <Tooltip title="Marquer certaines saisons comme vues">
+                            <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<CheckCircleIcon />}
+                                onClick={() => setSeasonModalOpen(true)}
+                                sx={{
+                                    backgroundColor: 'rgba(255,255,255,0.25)',
+                                    color: 'white',
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255,255,255,0.35)',
+                                    },
+                                }}
+                            >
+                                Marquer vu
+                            </Button>
+                        </Tooltip>
+                    </Box>
+                </Box>
+            )}
+
             {/* Loading indicator */}
             {loading && (
                 <div className="flex justify-center py-8 flex-shrink-0">
@@ -186,6 +300,31 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
                     />
                 </div>
             )}
+
+            {/* Season Selector Modal */}
+            <SeasonSelectorModal
+                open={seasonModalOpen}
+                anime={selectedAnime}
+                onClose={() => setSeasonModalOpen(false)}
+                onConfirm={handleSeasonModalConfirm}
+                loading={seasonModalLoading}
+            />
+
+            {/* Snackbar for notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            >
+                <Alert
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </div>
     );
 };
