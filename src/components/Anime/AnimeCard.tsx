@@ -108,19 +108,28 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
                 )}
                 
                 {/* Content */}
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                    <h3 className="text-white font-bold text-sm line-clamp-2 mb-1">
+                <div className="absolute bottom-0 left-0 right-0 p-3 space-y-2">
+                    <h3 className="text-white font-bold text-sm line-clamp-2">
                         {anime.title}
                     </h3>
-                    <div className="flex items-center gap-2 text-white/80 text-xs">
+                    
+                    {/* Time and Day */}
+                    <div className="flex items-center gap-2 text-white/90 text-xs font-medium">
                         <span>{anime.dayOfWeek}</span>
                         {anime.time && (
                             <>
                                 <span>•</span>
-                                <span>{anime.time}</span>
+                                <span className="font-bold text-yellow-300">{anime.time}</span>
                             </>
                         )}
                     </div>
+
+                    {/* Status */}
+                    {anime.status && (
+                        <p className="text-white/75 text-xs line-clamp-1">
+                            {anime.status}
+                        </p>
+                    )}
                 </div>
                 
                 {/* Actions - small corner buttons (bottom-right) */}
