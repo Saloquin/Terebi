@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AnimePlanning, AnimeStats, ViewMode, DayFilter } from '../types/anime.types';
+import { AnimePlanning, AnimeStats, ViewMode, DayFilter, AnimeViewed } from '../types/anime.types';
 import { animeApi } from '../services/api/anime.api';
 import { animeStorage } from '../services/api/anime.storage';
 import { getToWatchAnime, markAsToWatch, removeFromToWatch as removeFromToWatchUtil, isInToWatch as isInToWatchUtil } from '../utils/tabLogic/towatch.logic';
@@ -11,6 +11,7 @@ interface UseAnimeDataReturn {
     old: AnimePlanning[];
     hidden: AnimePlanning[];
     towatch: AnimePlanning[];
+    viewed: AnimeViewed[];
     stats: AnimeStats;
     
     // États
@@ -25,6 +26,8 @@ interface UseAnimeDataReturn {
     removeFromOld: (id: string) => void;
     removeFromToWatch: (id: string) => void;
     markAsToWatch: (anime: AnimePlanning) => void;
+    markAsViewed: (anime: AnimePlanning, viewedSeasons?: string[]) => void;
+    removeFromViewed: (id: string) => void;
     isInToWatch: (title: string) => boolean;
     clearNew: () => void;
     clearOld: () => void;
@@ -42,6 +45,7 @@ export const useAnimeData = (): UseAnimeDataReturn => {
     const [old, setOld] = useState<AnimePlanning[]>([]);
     const [hidden, setHidden] = useState<AnimePlanning[]>([]);
     const [towatch, setToWatch] = useState<AnimePlanning[]>([]);
+    const [viewed, setViewed] = useState<AnimeViewed[]>([]);
     const [stats, setStats] = useState<AnimeStats>({
         totalCurrent: 0,
         totalNew: 0,
@@ -61,6 +65,7 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         setOld(animeStorage.getOld());
         setHidden(animeStorage.getHidden());
         setToWatch(getToWatchAnime());
+        setViewed(animeStorage.getViewed());
         setStats(animeStorage.getStats());
     }, []);
 
@@ -118,6 +123,16 @@ export const useAnimeData = (): UseAnimeDataReturn => {
 
     const markAsToWatchAction = useCallback((anime: AnimePlanning) => {
         markAsToWatch(anime);
+        loadLocal();
+    }, [loadLocal]);
+
+    const markAsViewedAction = useCallback((anime: AnimePlanning, viewedSeasons?: string[]) => {
+        animeStorage.markAsViewed(anime, viewedSeasons);
+        loadLocal();
+    }, [loadLocal]);
+
+    const removeFromViewedAction = useCallback((id: string) => {
+        animeStorage.removeFromViewed(id);
         loadLocal();
     }, [loadLocal]);
 
@@ -186,6 +201,7 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         old,
         hidden,
         towatch,
+        viewed,
         stats,
         loading,
         error,
@@ -196,6 +212,8 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         removeFromOld,
         removeFromToWatch,
         markAsToWatch: markAsToWatchAction,
+        markAsViewed: markAsViewedAction,
+        removeFromViewed: removeFromViewedAction,
         isInToWatch: isInToWatchUtil,
         clearNew,
         clearOld,

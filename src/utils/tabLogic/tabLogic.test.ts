@@ -96,6 +96,7 @@ describe('tab logic', () => {
             old: [],
             hidden: ['2'],
             towatch: [],
+            viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
@@ -115,6 +116,7 @@ describe('tab logic', () => {
             old: [],
             hidden: ['n2'],
             towatch: [],
+            viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
@@ -136,6 +138,7 @@ describe('tab logic', () => {
             ],
             hidden: ['o1'],
             towatch: [],
+            viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
@@ -155,6 +158,7 @@ describe('tab logic', () => {
             old: [{ id: 'o1', title: 'O1', image: '', url: '', dayOfWeek: 'Mercredi', type: 'VOSTFR' }],
             hidden: ['n1', 'o1'],
             towatch: [],
+            viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));

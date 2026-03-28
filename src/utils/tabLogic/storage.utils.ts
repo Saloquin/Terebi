@@ -10,6 +10,7 @@ export const createEmptyStorage = (): AnimeStorage => ({
     old: [],
     hidden: [],
     towatch: [],
+    viewed: [],
     lastUpdate: new Date().toISOString(),
 });
 

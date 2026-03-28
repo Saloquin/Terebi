@@ -119,7 +119,7 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
 
                 {/* À voir button - top right corner */}
                 {!isHidden && (onAddToWatch || onRemoveFromToWatch) && (
-                    <Tooltip title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                    <Tooltip title={isInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
                         <button
                             className={`absolute top-2 right-${anime.season ? '16' : '2'} w-8 h-8 flex items-center justify-center rounded-full shadow-lg transition-colors ${
                                 isInToWatch

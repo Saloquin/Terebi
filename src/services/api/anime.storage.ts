@@ -17,6 +17,7 @@ class AnimeStorageService {
             old: [],
             hidden: [],
             towatch: [],
+            viewed: [],
             lastUpdate: new Date().toISOString(),
         };
     }
@@ -189,6 +190,76 @@ class AnimeStorageService {
             byDay,
             lastUpdate: storage.lastUpdate,
         };
+    }
+
+    /**
+     * Get all viewed animes
+     */
+    getViewed() {
+        const storage = this.getStorage();
+        if (!storage.viewed) {
+            storage.viewed = [];
+            this.saveStorage(storage);
+        }
+        return storage.viewed;
+    }
+
+    /**
+     * Mark an anime as viewed (completely or partially with selected seasons)
+     */
+    markAsViewed(anime: AnimePlanning, viewedSeasons?: string[]): boolean {
+        const storage = this.getStorage();
+        
+        if (!storage.viewed) {
+            storage.viewed = [];
+        }
+
+        const existingIndex = storage.viewed.findIndex(a => 
+            this.normalizeTitle(a.title) === this.normalizeTitle(anime.title)
+        );
+
+        const viewedAnime = {
+            ...anime,
+            viewedSeasons: viewedSeasons || [],
+            viewedAt: new Date().toISOString(),
+        };
+
+        if (existingIndex >= 0) {
+            storage.viewed[existingIndex] = viewedAnime;
+        } else {
+            storage.viewed.push(viewedAnime);
+        }
+
+        // Also remove from towatch if present
+        storage.towatch = storage.towatch.filter(a => 
+            this.normalizeTitle(a.title) !== this.normalizeTitle(anime.title)
+        );
+
+        this.saveStorage(storage);
+        console.log(`✅ "${anime.title}" marqué comme vu`);
+        return true;
+    }
+
+    /**
+     * Remove anime from viewed list
+     */
+    removeFromViewed(animeId: string): boolean {
+        const storage = this.getStorage();
+        
+        if (!storage.viewed) {
+            storage.viewed = [];
+        }
+
+        const initialLength = storage.viewed.length;
+        storage.viewed = storage.viewed.filter(a => a.id !== animeId);
+
+        if (storage.viewed.length < initialLength) {
+            this.saveStorage(storage);
+            console.log(`🗑️ Anime retiré de "Déjà vu"`);
+            return true;
+        }
+
+        return false;
     }
 }
 

@@ -45,7 +45,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
         setToWatchTitles(prev => [...prev, item.title]);
         setSnackbar({
             open: true,
-            message: `"${item.title}" ajouté à "À voir"!`,
+            message: `"${item.title}" ajouté à "À regarder"!`,
             severity: 'success',
         });
     };
@@ -56,7 +56,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
         setToWatchTitles(prev => prev.filter(t => t !== title));
         setSnackbar({
             open: true,
-            message: `"${title}" retiré de "À voir"!`,
+            message: `"${title}" retiré de "À regarder"!`,
             severity: 'info',
         });
     };

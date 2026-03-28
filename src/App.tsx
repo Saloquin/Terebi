@@ -48,7 +48,7 @@ const App: React.FC = () => {
                                 : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
                         }`}
                     >
-                        À voir
+                        À regarder
                     </button>
                 </div>
             </div>

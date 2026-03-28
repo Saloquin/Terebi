@@ -110,7 +110,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
                     {/* Toggle button */}
                     {(onAddToWatch || onRemoveFromToWatch) && (
-                        <Tooltip title={displayIsInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                        <Tooltip title={displayIsInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -221,7 +221,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
                 {/* Toggle button */}
                 {(onAddToWatch || onRemoveFromToWatch) && (
-                    <Tooltip title={displayIsInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                    <Tooltip title={displayIsInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
@@ -242,12 +242,12 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                             {displayIsInToWatch ? (
                                 <>
                                     <BookmarkIcon sx={{ fontSize: 16 }} />
-                                    Retirer de "À voir"
+                                    Retirer de "À regarder"
                                 </>
                             ) : (
                                 <>
                                     <BookmarkBorderIcon sx={{ fontSize: 16 }} />
-                                    Ajouter à "À voir"
+                                    Ajouter à "À regarder"
                                 </>
                             )}
                         </button>

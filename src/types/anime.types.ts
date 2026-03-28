@@ -20,6 +20,11 @@ export interface AnimePlanning {
     status?: string;
     seasons?: Season[];
     totalSeasons?: number;
+    viewedSeasons?: string[]; // Track which seasons have been watched (e.g., ['season-1', 'season-2'])
+}
+
+export interface AnimeViewed extends AnimePlanning {
+    viewedAt?: string;
 }
 
 export interface AnimeStorage {
@@ -28,6 +33,7 @@ export interface AnimeStorage {
     old: AnimePlanning[];
     hidden: string[]; // On stocke juste les IDs des animes masqués
     towatch: AnimePlanning[];
+    viewed: AnimeViewed[]; // New: animes already watched (completely or partially)
     lastUpdate: string;
 }
 
