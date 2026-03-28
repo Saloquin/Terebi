@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAnimeData } from '../../hooks/useAnimeData';
 import { removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { CatalogAnimeCard } from '../Catalog/CatalogAnimeCard';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 export const ToWatchPage: React.FC = () => {
@@ -52,66 +52,23 @@ export const ToWatchPage: React.FC = () => {
                 {!loading && towatch.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                         {towatch.map((anime) => (
-                            <div
-                                key={anime.id}
-                                className="group rounded-lg overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all hover:scale-105 flex flex-col h-full"
-                            >
-                                {/* Image Container */}
-                                <div className="relative w-full h-32 overflow-hidden bg-gray-300 dark:bg-gray-600">
-                                    {anime.image ? (
-                                        <>
-                                            <img
-                                                src={anime.image}
-                                                alt={anime.title}
-                                                className="w-full h-full object-cover group-hover:brightness-75 transition-all"
-                                            />
-                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
-                                        </>
-                                    ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                            <span className="text-xs text-gray-500 dark:text-gray-400 text-center px-2">
-                                                No image
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Content */}
-                                <div className="p-2 flex-1 flex flex-col">
-                                    {/* Title */}
-                                    <h3 className="font-semibold text-xs line-clamp-2 text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 mb-2 flex-1">
-                                        {anime.title}
-                                    </h3>
-
-                                    {/* Type/Status Badge */}
-                                    {anime.type && (
-                                        <div className="mb-2">
-                                            <span className="inline-block text-xs font-bold px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded">
-                                                {anime.type}
-                                            </span>
-                                        </div>
-                                    )}
-
-                                    {/* Actions */}
-                                    <div className="flex gap-1 flex-shrink-0">
-                                        <button
-                                            onClick={() => handleMarkWatched(anime)}
-                                            className="flex-1 px-1.5 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors whitespace-nowrap"
-                                            title="Marquer comme regardé"
-                                        >
-                                            <CheckCircleIcon sx={{ fontSize: 14 }} />
-                                            Vu
-                                        </button>
-                                        <button
-                                            onClick={() => handleRemove(anime.title, anime.title)}
-                                            className="flex-1 px-1.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors whitespace-nowrap"
-                                            title="Retirer"
-                                        >
-                                            <DeleteIcon sx={{ fontSize: 14 }} />
-                                            Retirer
-                                        </button>
-                                    </div>
-                                </div>
+                            <div key={anime.id} className="relative">
+                                <CatalogAnimeCard
+                                    item={anime as any}
+                                    isInToWatch={true}
+                                    onAddToWatch={() => {}}
+                                    onRemoveFromToWatch={() => handleRemove(anime.id || anime.title, anime.title)}
+                                    compact={true}
+                                />
+                                {/* Extra actions overlay for ToWatch */}
+                                <button
+                                    onClick={() => handleMarkWatched(anime)}
+                                    className="absolute bottom-14 left-2 right-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors z-10"
+                                    title="Marquer comme regardé"
+                                >
+                                    <CheckCircleIcon sx={{ fontSize: 14 }} />
+                                    Vu
+                                </button>
                             </div>
                         ))}
                     </div>
