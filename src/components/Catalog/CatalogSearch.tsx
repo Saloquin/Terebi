@@ -24,6 +24,7 @@ interface CatalogSearchProps {
     onAddToWatch?: (item: CatalogItem) => void;
     onRemoveFromToWatch?: (id: string) => void;
     toWatchTitles?: string[];
+    onSelectAnime?: (anime: any) => void;
 }
 
 const paginationTheme = createTheme({
@@ -54,7 +55,7 @@ const paginationTheme = createTheme({
     },
 });
 
-export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToWatch, onRemoveFromToWatch, toWatchTitles = [] }) => {
+export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToWatch, onRemoveFromToWatch, toWatchTitles = [], onSelectAnime }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [results, setResults] = useState<CatalogItem[]>([]);
@@ -190,6 +191,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
                                 isInToWatch={toWatchTitles.includes(item.title)}
                                 onAddToWatch={onAddToWatch}
                                 onRemoveFromToWatch={onRemoveFromToWatch}
+                                onSelectAnime={onSelectAnime}
                             />
                         ))}
                     </div>

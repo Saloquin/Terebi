@@ -2,9 +2,16 @@ import React, { useState } from 'react';
 import AnimePage from './components/Anime';
 import { CatalogPage } from './components/Catalog/CatalogPage';
 import { ToWatchPage } from './components/ToWatch/ToWatchPage';
+import { AnimePlanning } from './types/anime.types';
 
 const App: React.FC = () => {
     const [currentPage, setCurrentPage] = useState<'anime' | 'catalog' | 'towatch'>('anime');
+    const [selectedAnime, setSelectedAnime] = useState<AnimePlanning | null>(null);
+
+    const handleSelectAnime = (anime: AnimePlanning) => {
+        setSelectedAnime(anime);
+        setCurrentPage('anime');
+    };
 
     return (
         <div>
@@ -47,9 +54,9 @@ const App: React.FC = () => {
             </div>
 
             {/* Page Content */}
-            {currentPage === 'anime' && <AnimePage />}
-            {currentPage === 'catalog' && <CatalogPage />}
-            {currentPage === 'towatch' && <ToWatchPage />}
+            {currentPage === 'anime' && <AnimePage selectedAnime={selectedAnime} />}
+            {currentPage === 'catalog' && <CatalogPage onSelectAnime={handleSelectAnime} />}
+            {currentPage === 'towatch' && <ToWatchPage onSelectAnime={handleSelectAnime} />}
         </div>
     );
 };

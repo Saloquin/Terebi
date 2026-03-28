@@ -23,6 +23,7 @@ interface CatalogAnimeCardProps {
     onAddToWatch?: (item: CatalogItem) => void;
     onRemoveFromToWatch?: (title: string) => void;
     compact?: boolean;
+    onSelectAnime?: (anime: any) => void;
 }
 
 export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
@@ -31,6 +32,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
     onAddToWatch,
     onRemoveFromToWatch,
     compact = false,
+    onSelectAnime,
 }) => {
     const [seasons, setSeasons] = useState<number | null>(null);
     const [loadingSeasons, setLoadingSeasons] = useState(false);
@@ -38,6 +40,12 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
     // Use optimistic state if set, otherwise use prop
     const displayIsInToWatch = optimisticIsInToWatch !== null ? optimisticIsInToWatch : isInToWatch;
+
+    const handleCardClick = () => {
+        if (onSelectAnime) {
+            onSelectAnime(item);
+        }
+    };
 
     useEffect(() => {
         // Extract slug from fullUrl or url
@@ -64,7 +72,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
         // Compact version for ToWatch page
         return (
             <div className="group rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex flex-col h-full">
-                <a href={item.fullUrl} target="_blank" rel="noopener noreferrer" className="relative block flex-1 overflow-hidden">
+                <div onClick={handleCardClick} className="relative block flex-1 overflow-hidden cursor-pointer">
                     {item.image ? (
                         <img
                             src={item.image}
@@ -83,7 +91,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                             {seasons}s
                         </div>
                     )}
-                </a>
+                </div>
 
                 <div className="p-2 flex flex-col gap-2 flex-1">
                     <h3 className="font-semibold text-xs line-clamp-2 text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
@@ -142,7 +150,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
     // Regular version for Catalog
     return (
         <div className="group rounded-lg overflow-hidden hover:shadow-lg transition-shadow bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex flex-col">
-            <a href={item.fullUrl} target="_blank" rel="noopener noreferrer" className="relative block flex-1 overflow-hidden">
+            <div onClick={handleCardClick} className="relative block flex-1 overflow-hidden cursor-pointer">
                 {item.image ? (
                     <img
                         src={item.image}
@@ -162,7 +170,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                         {seasons} saison{seasons > 1 ? 's' : ''}
                     </div>
                 )}
-            </a>
+            </div>
 
             <div className="p-3 space-y-2 flex-1 flex flex-col">
                 <div className="flex items-start justify-between gap-2">

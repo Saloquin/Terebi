@@ -2,10 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useAnimeData } from '../../hooks/useAnimeData';
 import { removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
 import { CatalogAnimeCard } from '../Catalog/CatalogAnimeCard';
+import { AnimePlanning } from '../../types/anime.types';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import Tooltip from '@mui/material/Tooltip';
 
-export const ToWatchPage: React.FC = () => {
+interface ToWatchPageProps {
+    onSelectAnime?: (anime: AnimePlanning) => void;
+}
+
+export const ToWatchPage: React.FC<ToWatchPageProps> = ({ onSelectAnime }) => {
     const { towatch, loading, markAsSeen } = useAnimeData();
     const [localTowatch, setLocalTowatch] = useState(towatch);
 
@@ -67,6 +72,7 @@ export const ToWatchPage: React.FC = () => {
                                     onAddToWatch={() => {}}
                                     onRemoveFromToWatch={() => handleRemove(anime.title)}
                                     compact={true}
+                                    onSelectAnime={onSelectAnime}
                                 />
                                 {/* Extra actions overlay for ToWatch */}
                                 <Tooltip title="Marquer comme regardé">

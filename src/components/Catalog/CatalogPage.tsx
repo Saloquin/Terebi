@@ -3,15 +3,28 @@ import { CatalogSearch } from '../Catalog/CatalogSearch';
 import { AnimePlanning } from '../../types/anime.types';
 import { markAsToWatch, removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
 import { useAnimeData } from '../../hooks/useAnimeData';
+import { Snackbar, Alert } from '@mui/material';
 
 interface CatalogPageProps {
     theme?: 'light' | 'dark';
+    onSelectAnime?: (anime: AnimePlanning) => void;
 }
 
-export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light' }) => {
+interface SnackbarState {
+    open: boolean;
+    message: string;
+    severity: 'success' | 'error' | 'info' | 'warning';
+}
+
+export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSelectAnime }) => {
     const [pageTitle, setPageTitle] = useState('Catalogue');
     const { towatch, loading } = useAnimeData();
     const [toWatchTitles, setToWatchTitles] = useState<string[]>([]);
+    const [snackbar, setSnackbar] = useState<SnackbarState>({
+        open: false,
+        message: '',
+        severity: 'info',
+    });
 
     useEffect(() => {
         setToWatchTitles(towatch.map(a => a.title));
@@ -30,14 +43,22 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light' }) => 
         markAsToWatch(anime);
         // Update local state immediately
         setToWatchTitles(prev => [...prev, item.title]);
-        alert(`✅ "${item.title}" ajouté à "À voir"!`);
+        setSnackbar({
+            open: true,
+            message: `"${item.title}" ajouté à "À voir"!`,
+            severity: 'success',
+        });
     };
 
     const handleRemoveFromToWatch = (title: string) => {
         removeFromToWatch(title);
         // Update local state immediately
         setToWatchTitles(prev => prev.filter(t => t !== title));
-        alert(`❌ "${title}" retiré de "À voir"!`);
+        setSnackbar({
+            open: true,
+            message: `"${title}" retiré de "À voir"!`,
+            severity: 'info',
+        });
     };
 
     return (
@@ -60,9 +81,26 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light' }) => 
                         onAddToWatch={handleAddToWatch}
                         onRemoveFromToWatch={handleRemoveFromToWatch}
                         toWatchTitles={toWatchTitles}
+                        onSelectAnime={onSelectAnime}
                     />
                 </div>
             </div>
+
+            {/* Snackbar for notifications */}
+            <Snackbar
+                open={snackbar.open}
+                autoHideDuration={3000}
+                onClose={() => setSnackbar({ ...snackbar, open: false })}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+            >
+                <Alert
+                    onClose={() => setSnackbar({ ...snackbar, open: false })}
+                    severity={snackbar.severity}
+                    sx={{ width: '100%' }}
+                >
+                    {snackbar.message}
+                </Alert>
+            </Snackbar>
         </div>
     );
 };

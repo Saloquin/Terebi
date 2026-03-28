@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAnimeData } from '../../hooks/useAnimeData';
-import { ViewMode } from '../../types/anime.types';
+import { ViewMode, AnimePlanning } from '../../types/anime.types';
 import { configApi } from '../../services/api/config.api';
 import { migrateStorageDomain } from '../../services/api/domain-migration';
 import { getTabLogic } from '../../utils/tabLogic';
@@ -15,7 +15,11 @@ import SyncIcon from '@mui/icons-material/Sync';
 
 const EXT_STORAGE_KEY = 'anime_extension';
 
-export const AnimePage: React.FC = () => {
+interface AnimePageProps {
+    selectedAnime?: AnimePlanning | null;
+}
+
+export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) => {
     const {
         current,
         newAnimes,
@@ -73,8 +77,17 @@ export const AnimePage: React.FC = () => {
     const currentViewAnimes = useMemo(() => {
         let animes = getAnimesByViewMode(viewMode);
         animes = filterBySearch(animes, searchQuery);
+        
+        // Filter by selectedAnime if provided
+        if (selectedAnime) {
+            animes = animes.filter(anime => 
+                anime.title.toLowerCase() === selectedAnime.title.toLowerCase() ||
+                anime.id === selectedAnime.id
+            );
+        }
+        
         return animes;
-    }, [viewMode, searchQuery, getAnimesByViewMode, filterBySearch]);
+    }, [viewMode, searchQuery, getAnimesByViewMode, filterBySearch, selectedAnime]);
 
     // Counts for tabs
     const counts = useMemo(() => ({
