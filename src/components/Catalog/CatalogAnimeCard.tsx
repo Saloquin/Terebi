@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
+import Tooltip from '@mui/material/Tooltip';
 
 interface CatalogItem {
     id: string;
@@ -204,33 +205,35 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
                 {/* Toggle button */}
                 {(onAddToWatch || onRemoveFromToWatch) && (
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            if (isInToWatch && onRemoveFromToWatch) {
-                                onRemoveFromToWatch(item.title);
-                            } else if (!isInToWatch && onAddToWatch) {
-                                onAddToWatch(item);
-                            }
-                        }}
-                        className={`mt-auto px-3 py-2 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
-                            isInToWatch
-                                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
-                                : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
-                        }`}
-                    >
-                        {isInToWatch ? (
-                            <>
-                                <BookmarkIcon sx={{ fontSize: 16 }} />
-                                Dans "À voir"
-                            </>
-                        ) : (
-                            <>
-                                <BookmarkBorderIcon sx={{ fontSize: 16 }} />
-                                Ajouter à "À voir"
-                            </>
-                        )}
-                    </button>
+                    <Tooltip title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (isInToWatch && onRemoveFromToWatch) {
+                                    onRemoveFromToWatch(item.title);
+                                } else if (!isInToWatch && onAddToWatch) {
+                                    onAddToWatch(item);
+                                }
+                            }}
+                            className={`mt-auto px-3 py-2 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
+                                isInToWatch
+                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
+                                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                            }`}
+                        >
+                            {isInToWatch ? (
+                                <>
+                                    <BookmarkIcon sx={{ fontSize: 16 }} />
+                                    Dans "À voir"
+                                </>
+                            ) : (
+                                <>
+                                    <BookmarkBorderIcon sx={{ fontSize: 16 }} />
+                                    Ajouter à "À voir"
+                                </>
+                            )}
+                        </button>
+                    </Tooltip>
                 )}
             </div>
         </div>

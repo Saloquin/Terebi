@@ -3,6 +3,7 @@ import { useAnimeData } from '../../hooks/useAnimeData';
 import { removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
 import { CatalogAnimeCard } from '../Catalog/CatalogAnimeCard';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import Tooltip from '@mui/material/Tooltip';
 
 export const ToWatchPage: React.FC = () => {
     const { towatch, loading, markAsSeen } = useAnimeData();
@@ -61,14 +62,15 @@ export const ToWatchPage: React.FC = () => {
                                     compact={true}
                                 />
                                 {/* Extra actions overlay for ToWatch */}
-                                <button
-                                    onClick={() => handleMarkWatched(anime)}
-                                    className="absolute bottom-14 left-2 right-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors z-10"
-                                    title="Marquer comme regardé"
-                                >
-                                    <CheckCircleIcon sx={{ fontSize: 14 }} />
-                                    Vu
-                                </button>
+                                <Tooltip title="Marquer comme regardé">
+                                    <button
+                                        onClick={() => handleMarkWatched(anime)}
+                                        className="absolute bottom-14 left-2 right-2 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50 rounded text-xs font-medium flex items-center justify-center gap-1 transition-colors z-10"
+                                    >
+                                        <CheckCircleIcon sx={{ fontSize: 14 }} />
+                                        Vu
+                                    </button>
+                                </Tooltip>
                             </div>
                         ))}
                     </div>

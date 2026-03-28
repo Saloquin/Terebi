@@ -6,6 +6,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
+import Tooltip from '@mui/material/Tooltip';
 
 interface AnimeCardProps {
     anime: AnimePlanning;
@@ -118,29 +119,30 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
 
                 {/* À voir button - top right corner */}
                 {!isHidden && (onAddToWatch || onRemoveFromToWatch) && (
-                    <button
-                        className={`absolute top-2 right-${anime.season ? '16' : '2'} w-8 h-8 flex items-center justify-center rounded-full shadow-lg transition-colors ${
-                            isInToWatch
-                                ? 'bg-yellow-400 hover:bg-yellow-500 text-gray-900'
-                                : 'bg-gray-600 hover:bg-gray-700 text-white'
-                        }`}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (isInToWatch && onRemoveFromToWatch) {
-                                onRemoveFromToWatch(anime.title);
-                            } else if (!isInToWatch && onAddToWatch) {
-                                onAddToWatch(anime);
-                            }
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}
-                    >
-                        {isInToWatch ? (
-                            <BookmarkIcon sx={{ fontSize: 18 }} />
-                        ) : (
-                            <BookmarkBorderIcon sx={{ fontSize: 18 }} />
-                        )}
-                    </button>
+                    <Tooltip title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                        <button
+                            className={`absolute top-2 right-${anime.season ? '16' : '2'} w-8 h-8 flex items-center justify-center rounded-full shadow-lg transition-colors ${
+                                isInToWatch
+                                    ? 'bg-yellow-400 hover:bg-yellow-500 text-gray-900'
+                                    : 'bg-gray-600 hover:bg-gray-700 text-white'
+                            }`}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (isInToWatch && onRemoveFromToWatch) {
+                                    onRemoveFromToWatch(anime.title);
+                                } else if (!isInToWatch && onAddToWatch) {
+                                    onAddToWatch(anime);
+                                }
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                        >
+                            {isInToWatch ? (
+                                <BookmarkIcon sx={{ fontSize: 18 }} />
+                            ) : (
+                                <BookmarkBorderIcon sx={{ fontSize: 18 }} />
+                            )}
+                        </button>
+                    </Tooltip>
                 )}
                 
                 {/* Content */}
@@ -172,45 +174,49 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
                 {hasActions && (
                     <div className="absolute bottom-12 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         {canRestore ? (
-                            <button
-                                className="w-7 h-7 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-full text-white text-xs shadow-lg transition-colors"
-                                onClick={(e) => handleAction(e, () => onRestore?.(anime.id))}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                title="Supprimer de masqués"
-                            >
-                                <RestoreIcon sx={{ fontSize: 16 }} />
-                            </button>
+                            <Tooltip title="Supprimer de masqués">
+                                <button
+                                    className="w-7 h-7 flex items-center justify-center bg-green-600 hover:bg-green-700 rounded-full text-white text-xs shadow-lg transition-colors"
+                                    onClick={(e) => handleAction(e, () => onRestore?.(anime.id))}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                    <RestoreIcon sx={{ fontSize: 16 }} />
+                                </button>
+                            </Tooltip>
                         ) : (
                             <>
                                 {canRemoveFromNew && (
-                                    <button
-                                        className="w-7 h-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white text-xs shadow-lg transition-colors"
-                                        onClick={(e) => handleAction(e, () => onMarkSeen(anime.id))}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        title="Retirer de nouveaux"
-                                    >
-                                        <CheckIcon sx={{ fontSize: 16 }} />
-                                    </button>
+                                    <Tooltip title="Retirer de nouveaux">
+                                        <button
+                                            className="w-7 h-7 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-full text-white text-xs shadow-lg transition-colors"
+                                            onClick={(e) => handleAction(e, () => onMarkSeen(anime.id))}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
+                                            <CheckIcon sx={{ fontSize: 16 }} />
+                                        </button>
+                                    </Tooltip>
                                 )}
                                 {canRemoveFromOld && (
-                                    <button
-                                        className="w-7 h-7 flex items-center justify-center bg-orange-600 hover:bg-orange-700 rounded-full text-white text-xs shadow-lg transition-colors"
-                                        onClick={(e) => handleAction(e, () => onRemoveOld?.(anime.id))}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        title="Supprimer de anciens"
-                                    >
-                                        <CloseIcon sx={{ fontSize: 16 }} />
-                                    </button>
+                                    <Tooltip title="Supprimer de anciens">
+                                        <button
+                                            className="w-7 h-7 flex items-center justify-center bg-orange-600 hover:bg-orange-700 rounded-full text-white text-xs shadow-lg transition-colors"
+                                            onClick={(e) => handleAction(e, () => onRemoveOld?.(anime.id))}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
+                                            <CloseIcon sx={{ fontSize: 16 }} />
+                                        </button>
+                                    </Tooltip>
                                 )}
                                 {canHide && (
-                                    <button
-                                        className="w-7 h-7 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded-full text-white text-xs shadow-lg transition-colors"
-                                        onClick={(e) => handleAction(e, () => onHide(anime.id))}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        title="Masquer"
-                                    >
-                                        <CloseIcon sx={{ fontSize: 16 }} />
-                                    </button>
+                                    <Tooltip title="Masquer">
+                                        <button
+                                            className="w-7 h-7 flex items-center justify-center bg-red-600 hover:bg-red-700 rounded-full text-white text-xs shadow-lg transition-colors"
+                                            onClick={(e) => handleAction(e, () => onHide(anime.id))}
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                        >
+                                            <CloseIcon sx={{ fontSize: 16 }} />
+                                        </button>
+                                    </Tooltip>
                                 )}
                             </>
                         )}
