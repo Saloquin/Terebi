@@ -14,12 +14,10 @@ export const ToWatchPage: React.FC = () => {
     }, [towatch]);
 
     const handleRemove = (title: string) => {
-        if (window.confirm(`Retirer "${title}" de la liste "À voir" ?`)) {
-            // Update local state immediately
-            setLocalTowatch(prev => prev.filter(a => a.title !== title));
-            // Then update storage
-            removeFromToWatch(title);
-        }
+        // Remove from localStorage
+        removeFromToWatch(title);
+        // Update local state
+        setLocalTowatch(prev => prev.filter(a => a.title !== title));
     };
 
     const handleMarkWatched = (anime: any) => {
