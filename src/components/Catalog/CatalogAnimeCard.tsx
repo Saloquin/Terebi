@@ -34,6 +34,11 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 }) => {
     const [seasons, setSeasons] = useState<number | null>(null);
     const [loadingSeasons, setLoadingSeasons] = useState(false);
+    const [localIsInToWatch, setLocalIsInToWatch] = useState(isInToWatch);
+
+    useEffect(() => {
+        setLocalIsInToWatch(isInToWatch);
+    }, [isInToWatch]);
 
     useEffect(() => {
         // Extract slug from fullUrl or url
@@ -98,23 +103,25 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
                     {/* Toggle button */}
                     {(onAddToWatch || onRemoveFromToWatch) && (
-                        <Tooltip title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                        <Tooltip title={localIsInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
-                                    if (isInToWatch && onRemoveFromToWatch) {
+                                    if (localIsInToWatch && onRemoveFromToWatch) {
+                                        setLocalIsInToWatch(false);
                                         onRemoveFromToWatch(item.title);
-                                    } else if (!isInToWatch && onAddToWatch) {
+                                    } else if (!localIsInToWatch && onAddToWatch) {
+                                        setLocalIsInToWatch(true);
                                         onAddToWatch(item);
                                     }
                                 }}
                                 className={`w-full px-2 py-1 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
-                                    isInToWatch
+                                    localIsInToWatch
                                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
                                         : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
                                 }`}
                             >
-                                {isInToWatch ? (
+                                {localIsInToWatch ? (
                                     <>
                                         <BookmarkIcon sx={{ fontSize: 14 }} />
                                         Retirer
@@ -207,23 +214,25 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
                 {/* Toggle button */}
                 {(onAddToWatch || onRemoveFromToWatch) && (
-                    <Tooltip title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                    <Tooltip title={localIsInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
                         <button
                             onClick={(e) => {
                                 e.preventDefault();
-                                if (isInToWatch && onRemoveFromToWatch) {
+                                if (localIsInToWatch && onRemoveFromToWatch) {
+                                    setLocalIsInToWatch(false);
                                     onRemoveFromToWatch(item.title);
-                                } else if (!isInToWatch && onAddToWatch) {
+                                } else if (!localIsInToWatch && onAddToWatch) {
+                                    setLocalIsInToWatch(true);
                                     onAddToWatch(item);
                                 }
                             }}
                             className={`mt-auto px-3 py-2 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
-                                isInToWatch
+                                localIsInToWatch
                                     ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-200 dark:hover:bg-yellow-900/50'
                                     : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
                             }`}
                         >
-                            {isInToWatch ? (
+                            {localIsInToWatch ? (
                                 <>
                                     <BookmarkIcon sx={{ fontSize: 16 }} />
                                     Dans "À voir"

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAnimeData } from '../../hooks/useAnimeData';
 import { removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
 import { CatalogAnimeCard } from '../Catalog/CatalogAnimeCard';
@@ -7,18 +7,27 @@ import Tooltip from '@mui/material/Tooltip';
 
 export const ToWatchPage: React.FC = () => {
     const { towatch, loading, markAsSeen } = useAnimeData();
+    const [localTowatch, setLocalTowatch] = useState(towatch);
 
-    const handleRemove = (id: string, title: string) => {
+    useEffect(() => {
+        setLocalTowatch(towatch);
+    }, [towatch]);
+
+    const handleRemove = (title: string) => {
         if (window.confirm(`Retirer "${title}" de la liste "À voir" ?`)) {
-            removeFromToWatch(id);
-            window.location.reload();
+            // Update local state immediately
+            setLocalTowatch(prev => prev.filter(a => a.title !== title));
+            // Then update storage
+            removeFromToWatch(title);
         }
     };
 
     const handleMarkWatched = (anime: any) => {
+        // Update local state immediately
+        setLocalTowatch(prev => prev.filter(a => a.title !== anime.title));
+        // Then update storage
         markAsSeen(anime.title);
         removeFromToWatch(anime.title);
-        window.location.reload();
     };
 
     return (
@@ -28,7 +37,7 @@ export const ToWatchPage: React.FC = () => {
                 <div className="mb-8">
                     <h1 className="text-4xl font-bold mb-2">⭐ Ma liste "À voir"</h1>
                     <p className="text-gray-600 dark:text-gray-400">
-                        {towatch.length} élément{towatch.length !== 1 ? 's' : ''} sauvegardé{towatch.length !== 1 ? 's' : ''}
+                        {localTowatch.length} élément{localTowatch.length !== 1 ? 's' : ''} sauvegardé{localTowatch.length !== 1 ? 's' : ''}
                     </p>
                 </div>
 
@@ -38,7 +47,7 @@ export const ToWatchPage: React.FC = () => {
                     </div>
                 )}
 
-                {!loading && towatch.length === 0 && (
+                {!loading && localTowatch.length === 0 && (
                     <div className="text-center py-16 bg-gradient-to-b from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
                         <div className="text-5xl mb-4">📺</div>
                         <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -50,15 +59,15 @@ export const ToWatchPage: React.FC = () => {
                     </div>
                 )}
 
-                {!loading && towatch.length > 0 && (
+                {!loading && localTowatch.length > 0 && (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                        {towatch.map((anime) => (
+                        {localTowatch.map((anime) => (
                             <div key={anime.id} className="relative">
                                 <CatalogAnimeCard
                                     item={anime as any}
                                     isInToWatch={true}
                                     onAddToWatch={() => {}}
-                                    onRemoveFromToWatch={() => handleRemove(anime.id || anime.title, anime.title)}
+                                    onRemoveFromToWatch={() => handleRemove(anime.title)}
                                     compact={true}
                                 />
                                 {/* Extra actions overlay for ToWatch */}
