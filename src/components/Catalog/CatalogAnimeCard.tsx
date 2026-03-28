@@ -81,7 +81,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                     )}
                 </a>
 
-                <div className="p-2 flex flex-col">
+                <div className="p-2 flex flex-col gap-2 flex-1">
                     <h3 className="font-semibold text-xs line-clamp-2 text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">
                         {item.title}
                     </h3>
@@ -98,33 +98,35 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
 
                     {/* Toggle button */}
                     {(onAddToWatch || onRemoveFromToWatch) && (
-                        <button
-                            onClick={(e) => {
-                                e.preventDefault();
-                                if (isInToWatch && onRemoveFromToWatch) {
-                                    onRemoveFromToWatch(item.title);
-                                } else if (!isInToWatch && onAddToWatch) {
-                                    onAddToWatch(item);
-                                }
-                            }}
-                            className={`mt-2 px-2 py-1 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
-                                isInToWatch
-                                    ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
-                                    : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
-                            }`}
-                        >
-                            {isInToWatch ? (
-                                <>
-                                    <BookmarkIcon sx={{ fontSize: 14 }} />
-                                    Dans "À voir"
-                                </>
-                            ) : (
-                                <>
-                                    <BookmarkBorderIcon sx={{ fontSize: 14 }} />
-                                    Ajouter
-                                </>
-                            )}
-                        </button>
+                        <Tooltip title={isInToWatch ? 'Retirer de "À voir"' : 'Ajouter à "À voir"'}>
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (isInToWatch && onRemoveFromToWatch) {
+                                        onRemoveFromToWatch(item.title);
+                                    } else if (!isInToWatch && onAddToWatch) {
+                                        onAddToWatch(item);
+                                    }
+                                }}
+                                className={`w-full px-2 py-1 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
+                                    isInToWatch
+                                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                                }`}
+                            >
+                                {isInToWatch ? (
+                                    <>
+                                        <BookmarkIcon sx={{ fontSize: 14 }} />
+                                        Retirer
+                                    </>
+                                ) : (
+                                    <>
+                                        <BookmarkBorderIcon sx={{ fontSize: 14 }} />
+                                        Ajouter
+                                    </>
+                                )}
+                            </button>
+                        </Tooltip>
                     )}
                 </div>
             </div>
@@ -192,7 +194,7 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                 {(item.year || item.score) && (
                     <div className="flex gap-2 text-xs text-gray-600 dark:text-gray-400">
                         {item.year && <span>{item.year}</span>}
-                        {item.score && <span>★ {item.score.toFixed(1)}</span>}
+                        {item.score && <span>{item.score.toFixed(1)}/10</span>}
                     </div>
                 )}
 
