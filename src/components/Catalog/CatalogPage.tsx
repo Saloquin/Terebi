@@ -20,6 +20,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
     const [pageTitle, setPageTitle] = useState('Catalogue');
     const { towatch, loading } = useAnimeData();
     const [toWatchTitles, setToWatchTitles] = useState<string[]>([]);
+    const [viewedIds, setViewedIds] = useState<string[]>([]);
     const [snackbar, setSnackbar] = useState<SnackbarState>({
         open: false,
         message: '',
@@ -29,6 +30,19 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
     useEffect(() => {
         setToWatchTitles(towatch.map(a => a.title));
     }, [towatch]);
+
+    // Load viewed animes on mount
+    useEffect(() => {
+        const storage = localStorage.getItem('anime_dashboard_v2');
+        if (storage) {
+            try {
+                const parsed = JSON.parse(storage);
+                setViewedIds(parsed.viewed?.map((a: any) => a.id) || []);
+            } catch {
+                // Ignore parse errors
+            }
+        }
+    }, []);
 
     const handleAddToWatch = (item: any) => {
         const anime: AnimePlanning = {
@@ -81,6 +95,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
                         onAddToWatch={handleAddToWatch}
                         onRemoveFromToWatch={handleRemoveFromToWatch}
                         toWatchTitles={toWatchTitles}
+                        viewedIds={viewedIds}
                         onSelectAnime={onSelectAnime}
                     />
                 </div>

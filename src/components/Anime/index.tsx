@@ -6,7 +6,7 @@ import { migrateStorageDomain } from '../../services/api/domain-migration';
 import { getTabLogic } from '../../utils/tabLogic';
 import AnimeFilters from './AnimeFilters';
 import AnimeList from './AnimeList';
-import { SeasonSelectorModal } from './SeasonSelectorModal';
+import { AnimeDetailPanel } from './AnimeDetailPanel';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import LanguageIcon from '@mui/icons-material/Language';
 import CloseIcon from '@mui/icons-material/Close';
@@ -14,15 +14,16 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { Snackbar, Alert, Box, Typography, Button, Tooltip } from '@mui/material';
+import { Snackbar, Alert, Box, Typography, Button, Tooltip, Card, CardMedia, CardContent } from '@mui/material';
 
 const EXT_STORAGE_KEY = 'anime_extension';
 
 interface AnimePageProps {
     selectedAnime?: AnimePlanning | null;
+    onDeselectAnime?: () => void;
 }
 
-export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) => {
+export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null, onDeselectAnime }) => {
     const {
         current,
         newAnimes,
@@ -48,8 +49,7 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
 
     const [viewMode, setViewMode] = useState<ViewMode>('planning');
     const [searchQuery, setSearchQuery] = useState('');
-    const [seasonModalOpen, setSeasonModalOpen] = useState(false);
-    const [seasonModalLoading, setSeasonModalLoading] = useState(false);
+    const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [snackbar, setSnackbar] = useState({
         open: false,
         message: '',
@@ -87,19 +87,12 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
 
     // Get animes for current view
     const currentViewAnimes = useMemo(() => {
+        // If selectedAnime is set, don't filter the list - show full view
+        // The selectedAnime is displayed in the detail panel above
         let animes = getAnimesByViewMode(viewMode);
         animes = filterBySearch(animes, searchQuery);
-        
-        // Filter by selectedAnime if provided
-        if (selectedAnime) {
-            animes = animes.filter(anime => 
-                anime.title.toLowerCase() === selectedAnime.title.toLowerCase() ||
-                anime.id === selectedAnime.id
-            );
-        }
-        
         return animes;
-    }, [viewMode, searchQuery, getAnimesByViewMode, filterBySearch, selectedAnime]);
+    }, [viewMode, searchQuery, getAnimesByViewMode, filterBySearch]);
 
     // Counts for tabs
     const counts = useMemo(() => ({
@@ -117,26 +110,18 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
         removeFromOld,
     });
 
-    const handleSeasonModalConfirm = async (viewedSeasons: string[]) => {
-        if (!selectedAnime) return;
-
-        setSeasonModalLoading(true);
-        try {
-            markAsViewed(selectedAnime, viewedSeasons);
+    const handleMarkAsViewedWithSeasons = (selectedSeasons: string[]) => {
+        if (selectedAnime) {
+            const viewedAnime = {
+                ...selectedAnime,
+                viewedSeasons: selectedSeasons,
+            };
+            markAsViewed(viewedAnime, selectedSeasons);
             setSnackbar({
                 open: true,
-                message: `"${selectedAnime.title}" marqué comme vu avec ${viewedSeasons.length} saison(s)!`,
+                message: `"${selectedAnime.title}" marqué comme regardé (${selectedSeasons.length} saison${selectedSeasons.length > 1 ? 's' : ''})!`,
                 severity: 'success',
             });
-            setSeasonModalOpen(false);
-        } catch (err) {
-            setSnackbar({
-                open: true,
-                message: 'Erreur lors du marquage de l\'anime comme vu',
-                severity: 'error',
-            });
-        } finally {
-            setSeasonModalLoading(false);
         }
     };
 
@@ -248,7 +233,6 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
                             </Box>
                         )}
                     </Box>
-
                     {/* Action Buttons */}
                     <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
                         <Tooltip title="Marquer certaines saisons comme vues">
@@ -256,7 +240,7 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
                                 variant="contained"
                                 size="small"
                                 startIcon={<CheckCircleIcon />}
-                                onClick={() => setSeasonModalOpen(true)}
+                                onClick={() => setDetailModalOpen(true)}
                                 sx={{
                                     backgroundColor: 'rgba(255,255,255,0.25)',
                                     color: 'white',
@@ -266,6 +250,23 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
                                 }}
                             >
                                 Marquer vu
+                            </Button>
+                        </Tooltip>
+                        <Tooltip title="Fermer le détail">
+                            <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<CloseIcon />}
+                                onClick={() => onDeselectAnime?.()}
+                                sx={{
+                                    backgroundColor: 'rgba(255,255,255,0.25)',
+                                    color: 'white',
+                                    '&:hover': {
+                                        backgroundColor: 'rgba(255,255,255,0.35)',
+                                    },
+                                }}
+                            >
+                                Fermer
                             </Button>
                         </Tooltip>
                     </Box>
@@ -301,18 +302,17 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null }) =>
                 </div>
             )}
 
-            {/* Season Selector Modal */}
-            <SeasonSelectorModal
-                open={seasonModalOpen}
+            {/* Anime Detail Modal */}
+            <AnimeDetailPanel
                 anime={selectedAnime}
-                onClose={() => setSeasonModalOpen(false)}
-                onConfirm={handleSeasonModalConfirm}
-                loading={seasonModalLoading}
+                isOpen={detailModalOpen}
+                onClose={() => setDetailModalOpen(false)}
+                onMarkAsViewed={handleMarkAsViewedWithSeasons}
             />
 
             {/* Snackbar for notifications */}
             <Snackbar
-                open={snackbar.open}
+                open={snackbar.open && !!snackbar.message}
                 autoHideDuration={3000}
                 onClose={() => setSnackbar({ ...snackbar, open: false })}
                 anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}

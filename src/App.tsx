@@ -2,15 +2,27 @@ import React, { useState } from 'react';
 import AnimePage from './components/Anime';
 import { CatalogPage } from './components/Catalog/CatalogPage';
 import { ToWatchPage } from './components/ToWatch/ToWatchPage';
+import AnimeDetailPage from './components/AnimeDetail/AnimeDetailPage';
 import { AnimePlanning } from './types/anime.types';
 
 const App: React.FC = () => {
-    const [currentPage, setCurrentPage] = useState<'anime' | 'catalog' | 'towatch'>('anime');
+    const [currentPage, setCurrentPage] = useState<'anime' | 'catalog' | 'towatch' | 'detail'>('anime');
     const [selectedAnime, setSelectedAnime] = useState<AnimePlanning | null>(null);
 
     const handleSelectAnime = (anime: AnimePlanning) => {
         setSelectedAnime(anime);
+        setCurrentPage('detail');
+    };
+
+    const handleBackFromDetail = () => {
+        setSelectedAnime(null);
         setCurrentPage('anime');
+    };
+
+    const handlePageChange = (page: 'anime' | 'catalog' | 'towatch') => {
+        // Clear selected anime when navigating away from detail
+        setSelectedAnime(null);
+        setCurrentPage(page);
     };
 
     return (
@@ -20,7 +32,7 @@ const App: React.FC = () => {
                 <div className="max-w-6xl mx-auto px-4 flex gap-4 justify-between">
                     <div className="flex gap-4">
                         <button
-                            onClick={() => setCurrentPage('anime')}
+                            onClick={() => handlePageChange('anime')}
                             className={`py-3 px-6 font-medium border-b-2 transition-colors ${
                                 currentPage === 'anime'
                                     ? 'border-blue-600 text-blue-600'
@@ -30,7 +42,7 @@ const App: React.FC = () => {
                             Planning
                         </button>
                         <button
-                            onClick={() => setCurrentPage('catalog')}
+                            onClick={() => handlePageChange('catalog')}
                             className={`py-3 px-6 font-medium border-b-2 transition-colors ${
                                 currentPage === 'catalog'
                                     ? 'border-blue-600 text-blue-600'
@@ -41,7 +53,7 @@ const App: React.FC = () => {
                         </button>
                     </div>
                     <button
-                        onClick={() => setCurrentPage('towatch')}
+                        onClick={() => handlePageChange('towatch')}
                         className={`py-3 px-6 font-medium border-b-2 transition-colors ${
                             currentPage === 'towatch'
                                 ? 'border-blue-600 text-blue-600'
@@ -54,9 +66,10 @@ const App: React.FC = () => {
             </div>
 
             {/* Page Content */}
-            {currentPage === 'anime' && <AnimePage selectedAnime={selectedAnime} />}
+            {currentPage === 'anime' && <AnimePage selectedAnime={selectedAnime} onDeselectAnime={() => setSelectedAnime(null)} />}
             {currentPage === 'catalog' && <CatalogPage onSelectAnime={handleSelectAnime} />}
             {currentPage === 'towatch' && <ToWatchPage onSelectAnime={handleSelectAnime} />}
+            {currentPage === 'detail' && selectedAnime && <AnimeDetailPage anime={selectedAnime} onBack={handleBackFromDetail} theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'} />}
         </div>
     );
 };

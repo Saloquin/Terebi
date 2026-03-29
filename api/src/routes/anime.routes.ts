@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { planningService } from '../services/planning.service';
-import { catalogService } from '../services/catalog.service';
+import { animeCatalogService } from '../services/anime-catalog.service';
+import { filmCatalogService } from '../services/film-catalog.service';
 import { scrapeAnimeSeasons, scrapeSeasonEpisodes } from '../services/season-scraper.service';
 import { ApiResponse, AnimePlanning, CatalogResult } from '../types/anime.types';
 
@@ -91,14 +92,25 @@ router.post('/refresh', async (_req: Request, res: Response) => {
     }
 });
 
-// GET /api/animes/catalogue?search=query&page=1 - Recherche catalogue
+// GET /api/animes/catalogue?search=query&page=1&type=anime|film - Recherche catalogue
 router.get('/catalogue', async (req: Request, res: Response) => {
     try {
         const search = typeof req.query.search === 'string' ? req.query.search : '';
         const pageParam = typeof req.query.page === 'string' ? Number(req.query.page) : 1;
+        const type = typeof req.query.type === 'string' ? req.query.type : 'anime'; // 'anime' or 'film'
         const page = Number.isFinite(pageParam) ? pageParam : 1;
 
-        const result = await catalogService.search(search, page);
+        console.log(`🔍 /catalogue called: search="${search}", page=${page}, type="${type}"`);
+
+        let result: CatalogResult;
+        
+        if (type === 'film') {
+            result = await filmCatalogService.search(search, page);
+        } else {
+            // Default to anime
+            result = await animeCatalogService.search(search, page);
+        }
+
         const response: ApiResponse<CatalogResult> = {
             success: true,
             data: result,

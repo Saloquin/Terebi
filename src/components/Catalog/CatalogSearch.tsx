@@ -3,6 +3,8 @@ import Search from '@mui/icons-material/Search';
 import CircularProgress from '@mui/material/CircularProgress';
 import Pagination from '@mui/material/Pagination';
 import Box from '@mui/material/Box';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { CatalogAnimeCard } from './CatalogAnimeCard';
 
@@ -24,6 +26,7 @@ interface CatalogSearchProps {
     onAddToWatch?: (item: CatalogItem) => void;
     onRemoveFromToWatch?: (id: string) => void;
     toWatchTitles?: string[];
+    viewedIds?: string[];
     onSelectAnime?: (anime: any) => void;
 }
 
@@ -55,7 +58,14 @@ const paginationTheme = createTheme({
     },
 });
 
-export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToWatch, onRemoveFromToWatch, toWatchTitles = [], onSelectAnime }) => {
+export const CatalogSearch: React.FC<CatalogSearchProps> = ({ 
+    onSearch, 
+    onAddToWatch, 
+    onRemoveFromToWatch, 
+    toWatchTitles = [], 
+    viewedIds = [],
+    onSelectAnime
+}) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [results, setResults] = useState<CatalogItem[]>([]);
@@ -63,22 +73,26 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
     const [error, setError] = useState<string | null>(null);
     const [hasSearched, setHasSearched] = useState(false);
     const [totalPages, setTotalPages] = useState(1);
+    const [contentType, setContentType] = useState<number>(0);
 
     // Load initial catalog on mount
     React.useEffect(() => {
         loadCatalog('', 1);
     }, []);
 
-    const loadCatalog = useCallback(async (query: string = searchQuery, page: number = 1) => {
+    const loadCatalog = useCallback(async (query: string = '', page: number = 1, type: number = contentType) => {
         setIsLoading(true);
         setError(null);
         setCurrentPage(page);
 
         try {
-            const url = query.trim()
-                ? `/api/animes/catalogue?search=${encodeURIComponent(query)}&page=${page}`
-                : `/api/animes/catalogue?page=${page}`;
+            const typeParam = type === 0 ? 'anime' : 'film';
+            const finalQuery = query || searchQuery;
+            const url = finalQuery.trim()
+                ? `/api/animes/catalogue?search=${encodeURIComponent(finalQuery)}&page=${page}&type=${typeParam}`
+                : `/api/animes/catalogue?page=${page}&type=${typeParam}`;
 
+            console.log(`📡 Fetching: ${url}`);
             const response = await fetch(url);
 
             if (!response.ok) {
@@ -92,7 +106,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
                 // Estimate total pages based on current page
                 const estimatedPages = Math.max(page + 2, 10);
                 setTotalPages(estimatedPages);
-                onSearch?.(query, page);
+                onSearch?.(finalQuery, page);
             } else {
                 setError('Aucun résultat trouvé');
                 setResults([]);
@@ -103,7 +117,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
         } finally {
             setIsLoading(false);
         }
-    }, [searchQuery, onSearch]);
+    }, [searchQuery, contentType, onSearch]);
 
     const handleSearch = useCallback(async (query: string = searchQuery, page: number = 1) => {
         if (!query.trim()) {
@@ -119,6 +133,10 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
             handleSearch();
         }
     };
+
+    // Count items by type from results
+    const animeCount = results.length; // Since we filter at backend now
+    const filmCount = results.length; // Since we filter at backend now
 
     return (
         <div className="space-y-6">
@@ -147,6 +165,42 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
                     </button>
                 </div>
             </div>
+
+            {/* Content Type Tabs */}
+            {hasSearched && (
+                <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }} className="dark:border-gray-700">
+                    <Tabs 
+                        value={contentType} 
+                        onChange={(e, newValue) => {
+                            setContentType(newValue);
+                            setCurrentPage(1);
+                            loadCatalog('', 1, newValue);
+                        }}
+                        sx={{
+                            '& .MuiTab-root': {
+                                color: 'inherit',
+                                '&.Mui-selected': {
+                                    color: '#2563eb',
+                                }
+                            },
+                            '& .MuiTabs-indicator': {
+                                backgroundColor: '#2563eb',
+                            }
+                        }}
+                    >
+                        <Tab 
+                            label="Animes" 
+                            value={0}
+                            sx={{ fontSize: '1rem', fontWeight: 500 }}
+                        />
+                        <Tab 
+                            label="Films" 
+                            value={1}
+                            sx={{ fontSize: '1rem', fontWeight: 500 }}
+                        />
+                    </Tabs>
+                </Box>
+            )}
 
             {/* Error Message */}
             {error && (
@@ -189,6 +243,7 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
                                 key={item.id}
                                 item={item}
                                 isInToWatch={toWatchTitles.includes(item.title)}
+                                isViewed={viewedIds.includes(item.id)}
                                 onAddToWatch={onAddToWatch}
                                 onRemoveFromToWatch={onRemoveFromToWatch}
                                 onSelectAnime={onSelectAnime}
@@ -224,9 +279,20 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({ onSearch, onAddToW
             )}
 
             {!isLoading && hasSearched && results.length === 0 && !error && (
-                <div className="text-center py-12">
-                    <p className="text-gray-500 dark:text-gray-400">
-                        Aucun résultat pour votre recherche
+                <div className="text-center py-16 bg-gradient-to-b from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
+                    <div className="text-5xl mb-4">
+                        {contentType === 0 ? '🎬' : '🎥'}
+                    </div>
+                    <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Fin du catalogue {contentType === 0 ? 'Animes' : 'Films'}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Vous avez atteint la fin des {contentType === 0 ? 'animes' : 'films'} disponibles. 
+                        {contentType === 0 ? (
+                            <> Essayez l'onglet Films ! </>
+                        ) : (
+                            <> Essayez l'onglet Animes ! </>
+                        )}
                     </p>
                 </div>
             )}

@@ -99,6 +99,7 @@ export class ParserService {
         const baseUrl = this.getBaseUrlFromSource(sourceUrl);
         const seenUrls = new Set<string>();
         const items: CatalogAnime[] = [];
+        const typeStats = { anime: 0, film: 0, other: 0 };
 
         // Pure regex approach: match <h2 class="card-title">Title</h2> preceded by <a href="...">
         // We look backwards from each h2 to find its containing <a> tag
@@ -153,15 +154,32 @@ export class ParserService {
             else if (context.includes('Fini')) status = 'Fini';
             else if (context.includes('Annulé')) status = 'Annulé';
 
-            // Type - detect Anime or Film based on URL or page context
+            // Type - detect based on URL path if available, or context
             let type: string | undefined;
-            if (href.includes('/anime/')) type = 'Anime';
-            else if (href.includes('/film/')) type = 'Film';
-            else {
-                // Fallback: check page content context for type indicators
-                const contextLower = context.toLowerCase();
-                if (contextLower.includes('film')) type = 'Film';
-                else if (contextLower.includes('anime')) type = 'Anime';
+            const hrefLower = href.toLowerCase();
+            const contextLower = context.toLowerCase();
+            
+            // Primary: Check URL for anime or film indicators
+            if (hrefLower.includes('/anime/')) {
+                type = 'Anime';
+            } else if (hrefLower.includes('/film/')) {
+                type = 'Film';
+            } else {
+                // Secondary: Check context, but be very strict
+                // Only mark as Film if we find very specific patterns
+                if (context.match(/\[Film\]|\(Film\)|Type:.*Film|Type.*:.*Film|categor.*Film/i) ||
+                    contextLower.match(/^film\s|film$/)) {
+                    type = 'Film';
+                } else {
+                    // Default to Anime
+                    type = 'Anime';
+                }
+            }
+            
+            if (type === 'Film') {
+                typeStats.film++;
+            } else {
+                typeStats.anime++;
             }
 
             const relativeUrl = href.startsWith('http')
@@ -182,6 +200,14 @@ export class ParserService {
             });
         }
 
+        console.log(`📝 Parser Stats: Anime=${typeStats.anime}, Film=${typeStats.film}, Other=${typeStats.other}`);
+        
+        // Log items detected as Film for debugging
+        const detectedFilms = items.filter(i => i.type === 'Film');
+        if (detectedFilms.length > 0 && detectedFilms.length <= 10) {
+            console.log(`📽️  Films detected: ${detectedFilms.map(f => f.title).join(', ')}`);
+        }
+        
         return items;
     }
 }

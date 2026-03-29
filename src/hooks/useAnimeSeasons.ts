@@ -19,22 +19,32 @@ export const useAnimeSeasons = (slug: string | null) => {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!slug) return;
+        console.log(`📺 useAnimeSeasons called with slug: "${slug}"`);
+        if (!slug) {
+            console.log('📺 Slug is empty, returning early');
+            return;
+        }
 
         const fetchSeasons = async () => {
             setLoading(true);
             setError(null);
             try {
-                const response = await fetch(`/api/animes/seasons/${slug}`);
+                const url = `/api/animes/seasons/${slug}`;
+                console.log(`📺 Fetching seasons from: ${url}`);
+                const response = await fetch(url);
                 if (!response.ok) throw new Error('Failed to fetch seasons');
                 const json = await response.json();
+                console.log(`📺 Response received:`, json);
                 if (json.success) {
+                    console.log(`📺 Setting data:`, json.data);
                     setData(json.data);
                 } else {
                     setError(json.error || 'Unknown error');
                 }
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Unknown error');
+                const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+                console.log(`📺 Error fetching seasons:`, errorMsg);
+                setError(errorMsg);
             } finally {
                 setLoading(false);
             }

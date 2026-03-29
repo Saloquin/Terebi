@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import BookmarkIcon from '@mui/icons-material/Bookmark';
 import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import Tooltip from '@mui/material/Tooltip';
 
 interface CatalogItem {
@@ -20,6 +22,7 @@ interface CatalogItem {
 interface CatalogAnimeCardProps {
     item: CatalogItem;
     isInToWatch?: boolean;
+    isViewed?: boolean;
     onAddToWatch?: (item: CatalogItem) => void;
     onRemoveFromToWatch?: (title: string) => void;
     compact?: boolean;
@@ -29,6 +32,7 @@ interface CatalogAnimeCardProps {
 export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
     item,
     isInToWatch = false,
+    isViewed = false,
     onAddToWatch,
     onRemoveFromToWatch,
     compact = false,
@@ -108,40 +112,59 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                         </span>
                     )}
 
-                    {/* Toggle button */}
-                    {(onAddToWatch || onRemoveFromToWatch) && (
-                        <Tooltip title={displayIsInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
-                            <button
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    if (displayIsInToWatch && onRemoveFromToWatch) {
-                                        setOptimisticIsInToWatch(false);
-                                        onRemoveFromToWatch(item.title);
-                                    } else if (!displayIsInToWatch && onAddToWatch) {
-                                        setOptimisticIsInToWatch(true);
-                                        onAddToWatch(item);
-                                    }
-                                }}
-                                className={`w-full px-2 py-1 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
-                                    displayIsInToWatch
-                                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
-                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
-                                }`}
-                            >
-                                {displayIsInToWatch ? (
-                                    <>
-                                        <BookmarkIcon sx={{ fontSize: 14 }} />
-                                        Retirer
-                                    </>
-                                ) : (
-                                    <>
-                                        <BookmarkBorderIcon sx={{ fontSize: 14 }} />
-                                        Ajouter
-                                    </>
-                                )}
-                            </button>
-                        </Tooltip>
-                    )}
+                    {/* Toggle buttons */}
+                    <div className="flex flex-col gap-1 w-full mt-auto">
+                        {/* To Watch button */}
+                        {(onAddToWatch || onRemoveFromToWatch) && (
+                            <Tooltip title={displayIsInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        if (displayIsInToWatch && onRemoveFromToWatch) {
+                                            setOptimisticIsInToWatch(false);
+                                            onRemoveFromToWatch(item.title);
+                                        } else if (!displayIsInToWatch && onAddToWatch) {
+                                            setOptimisticIsInToWatch(true);
+                                            onAddToWatch(item);
+                                        }
+                                    }}
+                                    className={`w-full px-2 py-1 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
+                                        displayIsInToWatch
+                                            ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                                    }`}
+                                >
+                                    {displayIsInToWatch ? (
+                                        <>
+                                            <BookmarkIcon sx={{ fontSize: 14 }} />
+                                            Retirer
+                                        </>
+                                    ) : (
+                                        <>
+                                            <BookmarkBorderIcon sx={{ fontSize: 14 }} />
+                                            Ajouter
+                                        </>
+                                    )}
+                                </button>
+                            </Tooltip>
+                        )}
+
+                        {/* Viewed button - now opens detail page instead */}
+                        {onSelectAnime && (
+                            <Tooltip title="Voir les saisons et marquer comme vu">
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        onSelectAnime(item);
+                                    }}
+                                    className="w-full px-2 py-1 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                                >
+                                    <PlayCircleIcon sx={{ fontSize: 14 }} />
+                                    Détails
+                                </button>
+                            </Tooltip>
+                        )}
+                    </div>
                 </div>
             </div>
         );
@@ -219,40 +242,59 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
                     </p>
                 )}
 
-                {/* Toggle button */}
-                {(onAddToWatch || onRemoveFromToWatch) && (
-                    <Tooltip title={displayIsInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
-                        <button
-                            onClick={(e) => {
-                                e.preventDefault();
-                                if (displayIsInToWatch && onRemoveFromToWatch) {
-                                    setOptimisticIsInToWatch(false);
-                                    onRemoveFromToWatch(item.title);
-                                } else if (!displayIsInToWatch && onAddToWatch) {
-                                    setOptimisticIsInToWatch(true);
-                                    onAddToWatch(item);
-                                }
-                            }}
-                            className={`mt-auto px-3 py-2 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
-                                displayIsInToWatch
-                                    ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
-                                    : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
-                            }`}
-                        >
-                            {displayIsInToWatch ? (
-                                <>
-                                    <BookmarkIcon sx={{ fontSize: 16 }} />
-                                    Retirer de "À regarder"
-                                </>
-                            ) : (
-                                <>
-                                    <BookmarkBorderIcon sx={{ fontSize: 16 }} />
-                                    Ajouter à "À regarder"
-                                </>
-                            )}
-                        </button>
-                    </Tooltip>
-                )}
+                {/* Toggle buttons */}
+                <div className="flex gap-2 mt-auto">
+                    {/* To Watch button */}
+                    {(onAddToWatch || onRemoveFromToWatch) && (
+                        <Tooltip title={displayIsInToWatch ? 'Retirer de "À regarder"' : 'Ajouter à "À regarder"'}>
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    if (displayIsInToWatch && onRemoveFromToWatch) {
+                                        setOptimisticIsInToWatch(false);
+                                        onRemoveFromToWatch(item.title);
+                                    } else if (!displayIsInToWatch && onAddToWatch) {
+                                        setOptimisticIsInToWatch(true);
+                                        onAddToWatch(item);
+                                    }
+                                }}
+                                className={`flex-1 px-3 py-2 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors ${
+                                    displayIsInToWatch
+                                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50'
+                                        : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50'
+                                }`}
+                            >
+                                {displayIsInToWatch ? (
+                                    <>
+                                        <BookmarkIcon sx={{ fontSize: 16 }} />
+                                        À regarder
+                                    </>
+                                ) : (
+                                    <>
+                                        <BookmarkBorderIcon sx={{ fontSize: 16 }} />
+                                        Ajouter
+                                    </>
+                                )}
+                            </button>
+                        </Tooltip>
+                    )}
+
+                    {/* Details button - opens detail page */}
+                    {onSelectAnime && (
+                        <Tooltip title="Voir les saisons et marquer comme vu">
+                            <button
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    onSelectAnime(item);
+                                }}
+                                className="flex-1 px-3 py-2 text-xs font-medium rounded flex items-center justify-center gap-1 transition-colors bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50"
+                            >
+                                <PlayCircleIcon sx={{ fontSize: 16 }} />
+                                Détails
+                            </button>
+                        </Tooltip>
+                    )}
+                </div>
             </div>
         </div>
     );
