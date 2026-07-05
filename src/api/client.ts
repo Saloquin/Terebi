@@ -4,15 +4,31 @@ import type {
   SeasonPageData,
   SamaResolveResult,
   UserListEntry,
+  UserSettings,
 } from '../types/anilist';
 
 const BASE = '/api';
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+
+  get isAnilistAuth(): boolean {
+    return this.status === 401 && this.code === 'ANILIST_AUTH';
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, init);
   const json = (await res.json()) as ApiResponse<T>;
   if (!json.success || json.data === null) {
-    throw new Error(json.error || `Erreur API ${res.status}`);
+    throw new ApiError(json.error || `Erreur API ${res.status}`, res.status, json.code);
   }
   return json.data;
 }
@@ -36,6 +52,15 @@ export const api = {
     if (season !== undefined) params.set('season', String(season));
     return request<SamaResolveResult>(`/sama/resolve?${params}`);
   },
+
+  getSettings: () => request<UserSettings>('/user/settings'),
+
+  saveSettings: (settings: Partial<UserSettings>) =>
+    request<UserSettings>('/user/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    }),
 
   getHidden: () => request<number[]>('/user/hidden'),
   hideAnime: (id: number) =>

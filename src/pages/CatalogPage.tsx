@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api } from '../api/client';
+import { Search } from 'lucide-react';
+import { ApiError, api } from '../api/client';
 import AnimeCard from '../components/AnimeCard';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -13,6 +14,7 @@ export default function CatalogPage() {
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState(false);
 
   const search = useCallback(async (q: string, p: number) => {
     if (!q.trim()) {
@@ -21,11 +23,15 @@ export default function CatalogPage() {
     }
     setLoading(true);
     setError(null);
+    setAuthError(false);
     try {
       const result = await api.search(q, p);
       setMedia(result.media);
       setLastPage(result.pageInfo.lastPage);
     } catch (e) {
+      if (e instanceof ApiError && e.isAnilistAuth) {
+        setAuthError(true);
+      }
       setError(e instanceof Error ? e.message : 'Erreur de recherche');
     } finally {
       setLoading(false);
@@ -59,14 +65,21 @@ export default function CatalogPage() {
         />
         <button
           type="submit"
-          className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium"
         >
+          <Search className="w-4 h-4" aria-hidden />
           Rechercher
         </button>
       </form>
 
       {loading && <LoadingSpinner />}
-      {error && <ErrorMessage message={error} onRetry={() => search(query, page)} />}
+      {error && (
+        <ErrorMessage
+          message={error}
+          onRetry={() => search(query, page)}
+          showSettingsLink={authError}
+        />
+      )}
 
       {!loading && !error && query && media.length === 0 && (
         <p className="text-gray-400 text-sm">Aucun résultat pour « {query} »</p>

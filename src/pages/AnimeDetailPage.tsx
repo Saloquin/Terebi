@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api } from '../api/client';
+import { ExternalLink, Play } from 'lucide-react';
+import { ApiError, api } from '../api/client';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import type { AniListMedia } from '../types/anilist';
@@ -15,6 +16,7 @@ export default function AnimeDetailPage() {
   const [inViewed, setInViewed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState(false);
   const [samaLoading, setSamaLoading] = useState<'watch' | 'catalog' | null>(null);
   const [samaError, setSamaError] = useState<string | null>(null);
 
@@ -26,6 +28,7 @@ export default function AnimeDetailPage() {
     }
     setLoading(true);
     setError(null);
+    setAuthError(false);
     try {
       const [anime, towatch, viewed] = await Promise.all([
         api.getAnime(id),
@@ -36,6 +39,9 @@ export default function AnimeDetailPage() {
       setInToWatch(towatch.some(e => e.anilistId === id));
       setInViewed(viewed.some(e => e.anilistId === id));
     } catch (e) {
+      if (e instanceof ApiError && e.isAnilistAuth) {
+        setAuthError(true);
+      }
       setError(e instanceof Error ? e.message : 'Erreur de chargement');
     } finally {
       setLoading(false);
@@ -89,7 +95,15 @@ export default function AnimeDetailPage() {
   };
 
   if (loading) return <LoadingSpinner />;
-  if (error || !media) return <ErrorMessage message={error || 'Anime introuvable'} onRetry={load} />;
+  if (error || !media) {
+    return (
+      <ErrorMessage
+        message={error || 'Anime introuvable'}
+        onRetry={load}
+        showSettingsLink={authError}
+      />
+    );
+  }
 
   const title = displayTitle(media);
   const banner = media.bannerImage || media.coverImage?.large;
@@ -152,8 +166,9 @@ export default function AnimeDetailPage() {
               type="button"
               onClick={() => openSama('watch')}
               disabled={samaLoading !== null}
-              className="px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium disabled:opacity-50"
             >
+              <Play className="w-4 h-4" aria-hidden />
               {samaLoading === 'watch' ? 'Résolution…' : 'Regarder'}
             </button>
             <button
@@ -191,8 +206,9 @@ export default function AnimeDetailPage() {
                 href={media.siteUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg border border-surface-border hover:bg-surface-raised"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-surface-border hover:bg-surface-raised"
               >
+                <ExternalLink className="w-4 h-4" aria-hidden />
                 AniList
               </a>
             )}

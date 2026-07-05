@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
 import type { AniListMedia } from '../types/anilist';
 import { displayTitle } from '../types/anilist';
 
@@ -7,9 +8,18 @@ interface Props {
   hidden?: boolean;
   onToggleHidden?: () => void;
   actions?: React.ReactNode;
+  airingTime?: string;
+  airingEpisode?: number;
 }
 
-export default function AnimeCard({ media, hidden, onToggleHidden, actions }: Props) {
+export default function AnimeCard({
+  media,
+  hidden,
+  onToggleHidden,
+  actions,
+  airingTime,
+  airingEpisode,
+}: Props) {
   const title = displayTitle(media);
   const cover = media.coverImage?.large || media.coverImage?.medium;
 
@@ -32,9 +42,17 @@ export default function AnimeCard({ media, hidden, onToggleHidden, actions }: Pr
         </div>
         <div className="p-3">
           <h3 className="font-medium text-sm line-clamp-2 leading-snug">{title}</h3>
-          {media.averageScore != null && (
-            <p className="text-xs text-gray-400 mt-1">{media.averageScore / 10}/10</p>
-          )}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+            {airingTime && (
+              <p className="text-xs text-accent font-medium">
+                {airingTime}
+                {airingEpisode != null && ` · Ep. ${airingEpisode}`}
+              </p>
+            )}
+            {media.averageScore != null && (
+              <p className="text-xs text-gray-400">{media.averageScore / 10}/10</p>
+            )}
+          </div>
         </div>
       </Link>
       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -45,10 +63,14 @@ export default function AnimeCard({ media, hidden, onToggleHidden, actions }: Pr
               e.preventDefault();
               onToggleHidden();
             }}
-            className="px-2 py-1 text-xs rounded-md bg-black/70 hover:bg-black/90 text-white"
+            className="p-1.5 rounded-md bg-black/70 hover:bg-black/90 text-white"
             title={hidden ? 'Afficher' : 'Masquer'}
           >
-            {hidden ? '👁' : '🙈'}
+            {hidden ? (
+              <Eye className="w-4 h-4" aria-hidden />
+            ) : (
+              <EyeOff className="w-4 h-4" aria-hidden />
+            )}
           </button>
         )}
         {actions}

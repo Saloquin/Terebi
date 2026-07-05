@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Settings } from 'lucide-react';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
   `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -15,7 +16,7 @@ export default function Layout() {
           <Link to="/planning" className="text-lg font-bold text-white tracking-tight">
             Anime Dashboard
           </Link>
-          <nav className="flex flex-wrap gap-1">
+          <nav className="flex flex-wrap items-center gap-1">
             <NavLink to="/planning" className={navClass} end>
               Planning
             </NavLink>
@@ -27,6 +28,12 @@ export default function Layout() {
             </NavLink>
             <NavLink to="/viewed" className={navClass}>
               Déjà vu
+            </NavLink>
+            <NavLink to="/settings" className={navClass}>
+              <span className="inline-flex items-center gap-1.5">
+                <Settings className="w-4 h-4" aria-hidden />
+                Paramètres
+              </span>
             </NavLink>
           </nav>
         </div>

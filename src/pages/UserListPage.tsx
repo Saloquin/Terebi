@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { Trash2 } from 'lucide-react';
+import { ApiError, api } from '../api/client';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import type { AniListMedia } from '../types/anilist';
@@ -17,10 +18,12 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
   const [mediaMap, setMediaMap] = useState<Map<number, AniListMedia>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setAuthError(false);
     try {
       const list =
         listType === 'towatch' ? await api.getToWatch() : await api.getViewed();
@@ -34,6 +37,9 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
       });
       setMediaMap(map);
     } catch (e) {
+      if (e instanceof ApiError && e.isAnilistAuth) {
+        setAuthError(true);
+      }
       setError(e instanceof Error ? e.message : 'Erreur de chargement');
     } finally {
       setLoading(false);
@@ -59,7 +65,9 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
       <h1 className="text-2xl font-bold">{title}</h1>
 
       {loading && <LoadingSpinner />}
-      {error && <ErrorMessage message={error} onRetry={load} />}
+      {error && (
+        <ErrorMessage message={error} onRetry={load} showSettingsLink={authError} />
+      )}
 
       {!loading && !error && entries.length === 0 && (
         <p className="text-gray-400 text-sm">{emptyMessage}</p>
@@ -93,8 +101,9 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
                 <button
                   type="button"
                   onClick={() => remove(entry.anilistId)}
-                  className="text-sm text-gray-400 hover:text-red-400 px-2 py-1"
+                  className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-red-400 px-2 py-1"
                 >
+                  <Trash2 className="w-4 h-4" aria-hidden />
                   Retirer
                 </button>
               </li>

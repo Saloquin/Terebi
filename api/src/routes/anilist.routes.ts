@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { anilistService } from '../services/anilist.service';
+import { anilistService, AniListApiError } from '../services/anilist.service';
 import { AniListSeason } from '../types/anilist.types';
 import { ApiResponse } from '../types/anime.types';
 
@@ -9,13 +9,22 @@ const ok = <T>(res: Response, data: T): void => {
     res.json({ success: true, data, timestamp: new Date().toISOString() } satisfies ApiResponse<T>);
 };
 
-const fail = (res: Response, status: number, error: string): void => {
+const fail = (res: Response, status: number, error: string, code?: string): void => {
     res.status(status).json({
         success: false,
         data: null,
         error,
+        code,
         timestamp: new Date().toISOString(),
     } satisfies ApiResponse<null>);
+};
+
+const handleAnilistError = (res: Response, error: unknown): void => {
+    if (error instanceof AniListApiError && error.status === 401) {
+        fail(res, 401, error.message, 'ANILIST_AUTH');
+        return;
+    }
+    fail(res, 500, error instanceof Error ? error.message : 'Erreur inconnue');
 };
 
 const parseSeason = (value: unknown): AniListSeason | null => {
@@ -37,7 +46,7 @@ router.get('/season', async (req: Request, res: Response) => {
         const result = await anilistService.getSeason(season, year, page, perPage);
         ok(res, { season, year, ...result });
     } catch (error) {
-        fail(res, 500, error instanceof Error ? error.message : 'Erreur inconnue');
+        handleAnilistError(res, error);
     }
 });
 
@@ -53,7 +62,7 @@ router.get('/search', async (req: Request, res: Response) => {
         const result = await anilistService.search(q, page);
         ok(res, result);
     } catch (error) {
-        fail(res, 500, error instanceof Error ? error.message : 'Erreur inconnue');
+        handleAnilistError(res, error);
     }
 });
 
@@ -72,7 +81,7 @@ router.get('/anime/:id', async (req: Request, res: Response) => {
         }
         ok(res, media);
     } catch (error) {
-        fail(res, 500, error instanceof Error ? error.message : 'Erreur inconnue');
+        handleAnilistError(res, error);
     }
 });
 
