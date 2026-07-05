@@ -2,20 +2,20 @@ FROM node:22-slim
 
 WORKDIR /app
 
-# Copier les fichiers de dépendances
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
+RUN npm ci
 
-# Installer les dépendances (sans puppeteer, on utilise FlareSolverr)
-RUN npm ci --omit=dev && npm install typescript ts-node
-
-# Copier le code source
 COPY tsconfig.json ./
 COPY src/ ./src/
 
-# Port de l'API
-EXPOSE 3001
+RUN npm run build && npm prune --omit=dev
 
-# Lancer en mode production compilé
-RUN npx tsc
+RUN mkdir -p data
+
+EXPOSE 3001
 
 CMD ["node", "dist/index.js"]

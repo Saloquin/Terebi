@@ -22,10 +22,12 @@ services:
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
     ports:
       - "3001:3001"
+    volumes:
+      - ./api/data:/app/data
     depends_on:
       - flaresolverr
 
-  # Frontend React + Nginx
+  # Frontend Vite + Nginx
   frontend:
     build:
       context: .

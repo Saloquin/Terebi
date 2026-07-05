@@ -82,6 +82,24 @@ api/src/
 npm run build:all
 ```
 
+## Production Docker
+
+Lancer toute la stack (FlareSolverr + API + frontend nginx) :
+
+```bash
+docker compose up -d --build
+```
+
+| Service | Port | URL |
+|---------|------|-----|
+| Frontend (nginx) | 80 | http://localhost |
+| API | 3001 | http://localhost:3001 |
+| FlareSolverr | 8191 | http://localhost:8191 |
+
+Les données utilisateur (listes, masquages, cache anime-sama) sont persistées dans `./api/data` via un volume Docker monté sur `/app/data`.
+
+FlareSolverr est requis uniquement pour les boutons « Regarder » / « Fiche anime-sama ». Le planning et le catalogue AniList fonctionnent sans lui.
+
 ## Supprimé / remplacé
 
 - Frontend CRA (react-scripts) → Vite + React
