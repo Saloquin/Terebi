@@ -12,6 +12,25 @@ class AnimeApiService {
                     ...options?.headers,
                 },
             });
+
+            if (!response.ok) {
+                let errorMessage = `Erreur HTTP ${response.status}`;
+                try {
+                    const errorBody = await response.json();
+                    if (errorBody?.error) {
+                        errorMessage = errorBody.error;
+                    }
+                } catch {
+                    // ignore non-JSON error bodies
+                }
+                return {
+                    success: false,
+                    data: null,
+                    error: errorMessage,
+                    timestamp: new Date().toISOString(),
+                };
+            }
+
             return await response.json();
         } catch (error) {
             console.error('❌ Erreur API:', error);

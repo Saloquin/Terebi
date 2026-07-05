@@ -38,7 +38,8 @@ export const AnimeCard: React.FC<AnimeCardProps> = ({
     isInToWatch = false,
 }) => {
     const handleClick = () => {
-        const finalUrl = anime.fullUrl || `https://anime-sama.to/${anime.url}`;
+        const extension = localStorage.getItem('anime_extension') || 'to';
+        const finalUrl = anime.fullUrl || `https://anime-sama.${extension}/${anime.url}`;
         window.open(finalUrl, '_blank');
     };
 

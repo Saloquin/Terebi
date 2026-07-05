@@ -1,110 +1,86 @@
-# MyDashboard
+# Anime-Sama Dashboard
 
-Un dashboard React moderne et personnalisable avec système de drag & drop et sauvegarde en localStorage.
+Dashboard personnel pour suivre le planning, le catalogue et votre liste de visionnage sur [anime-sama](https://anime-sama.pw).
 
-## 🚀 Fonctionnalités
+## Fonctionnalités
 
-- **Dashboard personnalisable** : Créez et organisez vos cartes comme vous le souhaitez
-- **Drag & Drop** : Réorganisez vos cartes par simple glisser-déposer avec `react-grid-layout`
-- **Sauvegarde automatique** : Toutes vos modifications sont sauvegardées en localStorage
-- **Types de cartes multiples** : Cartes personnalisées, métriques, graphiques et tableaux
-- **Navigation moderne** : Interface intuitive avec React Router
-- **Design responsive** : S'adapte à tous les écrans avec Tailwind CSS
-- **Architecture propre** : Structure MVC avec contrôleurs et services
+- **Planning hebdomadaire** — Animes du jour avec filtres, onglets nouveaux/anciens/masqués
+- **Catalogue** — Recherche et pagination d'animes et films VOSTFR via FlareSolverr
+- **À regarder / Déjà vu** — Listes persistantes en localStorage avec suivi par saison
+- **Fiche anime** — Saisons, marquage vu/non-vu, lecteur intégré (iframe), suivi d'épisode
+- **Sync automatique** — Détection des nouvelles saisons pour les animes déjà vus → ajout auto à « À regarder »
+- **Navigation** — React Router avec URLs partageables (`/planning`, `/catalog`, `/towatch`, `/anime/:slug`)
 
-## 🛠️ Technologies utilisées
+## Prérequis
 
-- **React 18** avec TypeScript
-- **React Router Dom** pour la navigation
-- **React Grid Layout** pour le drag & drop
-- **Tailwind CSS** pour le styling
-- **Lucide React** pour les icônes
-- **Architecture MVC** pour une organisation propre du code
+- Node.js 18+
+- [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) (contournement Cloudflare) — voir `docker-compose.yml`
 
-## 📦 Installation
+## Installation
 
 ```bash
-# Cloner le projet
 git clone <votre-repo>
-cd MyDashboard
+cd Dashboard-sama-scrapper
 
-# Installer les dépendances
-npm install
-
-# Lancer le serveur de développement
-npm start
+# Frontend + API
+npm run install:all
 ```
 
-## 🏗️ Structure du projet
+## Développement
 
-```
-src/
-├── components/          # Composants réutilisables
-│   ├── Dashboard/       # Composant principal du dashboard
-│   ├── DashboardCard/   # Composant de carte
-│   └── Navbar/          # Barre de navigation
-├── controllers/         # Logique métier
-│   └── DashboardController.ts
-├── pages/              # Pages de l'application
-│   ├── Dashboard/      # Page dashboard
-│   ├── Analytics/      # Page analytics
-│   └── Settings/       # Page paramètres
-├── services/           # Services (storage, API, etc.)
-│   └── StorageService.ts
-├── types/              # Types TypeScript
-│   └── index.ts
-└── utils/              # Utilitaires
-    └── theme.ts
+```bash
+# FlareSolverr (Docker)
+docker compose up -d flaresolverr
+
+# Frontend (port 3000) + API (port 3001)
+npm run dev
 ```
 
-## 💡 Utilisation
+Le proxy CRA redirige `/api/*` vers `http://localhost:3001`.
 
-### Ajouter une carte
-1. Cliquez sur le bouton "Add Card"
-2. Renseignez le titre et le contenu
-3. Choisissez le type de carte
-4. Validez
+Variables d'environnement optionnelles :
 
-### Réorganiser les cartes
-Utilisez le drag & drop pour déplacer et redimensionner vos cartes. La disposition est sauvegardée automatiquement.
+| Variable | Description | Défaut |
+|----------|-------------|--------|
+| `FLARESOLVERR_URL` | URL FlareSolverr (API) | `http://localhost:8191/v1` |
+| `REACT_APP_API_URL` | URL API (frontend) | `/api` |
 
-### Supprimer une carte
-Survolez une carte et cliquez sur le bouton "×" qui apparaît.
+## API Backend
 
-## 🎨 Types de cartes disponibles
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/animes` | Planning complet |
+| `GET /api/animes/today` | Animes du jour |
+| `GET /api/animes/catalogue?search=&page=&type=` | Catalogue (pagination réelle) |
+| `GET /api/animes/seasons/:slug` | Saisons d'un anime |
+| `GET /api/animes/seasons/:slug/episodes?url=` | Nombre d'épisodes d'une saison |
+| `POST /api/animes/refresh` | Force le rafraîchissement du cache planning |
+| `GET /api/config/detect-extension` | Détection du domaine actif (.to, .pw, etc.) |
 
-- **Custom** : Carte personnalisée avec contenu libre
-- **Metric** : Affichage de métriques avec mise en forme spéciale
-- **Chart** : Placeholder pour futurs graphiques
-- **Table** : Affichage sous forme de tableau
+## Structure
 
-## 📊 Analytics
+```
+src/                    # Frontend React + TypeScript
+  components/           # Pages et composants UI
+  hooks/                # useAnimeData, useAnimeSeasons
+  services/api/         # Client API et sync localStorage
+  utils/tabLogic/       # Logique planning / towatch / viewed
+api/                    # Backend Express + scrapers FlareSolverr
+  src/services/         # planning, catalog, season-scraper
+```
 
-La page Analytics vous permet de visualiser :
-- Nombre total de cartes
-- Espace de stockage utilisé
-- Nombre d'éléments dans la disposition
+## Build
 
-## ⚙️ Paramètres
+```bash
+npm run build:all
+```
 
-La page Paramètres offre :
-- Export de la configuration en JSON
-- Import d'une configuration
-- Suppression de toutes les données
+## Stockage local
 
-## 🔧 Personnalisation
+Les listes (planning, à regarder, déjà vu, saisons vues, progression épisodes) sont stockées dans le navigateur (`localStorage`). Aucune donnée utilisateur n'est envoyée à un serveur tiers.
 
-Le projet utilise une architecture modulaire permettant d'ajouter facilement :
-- Nouveaux types de cartes
-- Nouvelles pages
-- Nouveaux services de stockage
-- Intégrations API
+## Notes
 
-## 📝 Bonnes pratiques implémentées
-
-- **TypeScript** pour la sécurité des types
-- **Architecture MVC** pour la séparation des responsabilités
-- **Services centralisés** pour la gestion des données
-- **Composants réutilisables** pour la maintenabilité
-- **Responsive design** pour tous les appareils
-- **Code propre** sans commentaires superflus
+- Le lecteur intégré charge la page anime-sama en iframe ; le suivi d'épisode est manuel (numéro d'épisode sauvegardé localement).
+- Le temps de visionnage estimé : 24 min/épisode, 2 h/film.
+- FlareSolverr est requis pour le scraping (Cloudflare).

@@ -205,6 +205,61 @@ class AnimeStorageService {
     }
 
     /**
+     * Update viewed seasons for an anime (by title match)
+     */
+    updateViewedSeasons(anime: AnimePlanning, viewedSeasons: string[]): boolean {
+        const storage = this.getStorage();
+
+        if (!storage.viewed) {
+            storage.viewed = [];
+        }
+
+        const existingIndex = storage.viewed.findIndex(a =>
+            this.normalizeTitle(a.title) === this.normalizeTitle(anime.title)
+        );
+
+        const viewedAnime = {
+            ...anime,
+            viewedSeasons,
+            viewedAt: new Date().toISOString(),
+        };
+
+        if (existingIndex >= 0) {
+            storage.viewed[existingIndex] = { ...storage.viewed[existingIndex], ...viewedAnime };
+        } else {
+            storage.viewed.push(viewedAnime);
+        }
+
+        this.saveStorage(storage);
+        return true;
+    }
+
+    /**
+     * Find viewed anime by title or id
+     */
+    findViewedAnime(anime: AnimePlanning) {
+        const storage = this.getStorage();
+        return storage.viewed?.find(a =>
+            a.id === anime.id ||
+            this.normalizeTitle(a.title) === this.normalizeTitle(anime.title)
+        );
+    }
+
+    /**
+     * Remove anime from towatch and optionally mark fully viewed
+     */
+    completeViewedAnime(anime: AnimePlanning, viewedSeasons: string[]): boolean {
+        const storage = this.getStorage();
+
+        storage.towatch = (storage.towatch || []).filter(a =>
+            this.normalizeTitle(a.title) !== this.normalizeTitle(anime.title)
+        );
+
+        this.markAsViewed({ ...anime, viewedSeasons }, viewedSeasons);
+        return true;
+    }
+
+    /**
      * Mark an anime as viewed (completely or partially with selected seasons)
      */
     markAsViewed(anime: AnimePlanning, viewedSeasons?: string[]): boolean {
@@ -251,7 +306,17 @@ class AnimeStorageService {
         }
 
         const initialLength = storage.viewed.length;
-        storage.viewed = storage.viewed.filter(a => a.id !== animeId);
+        storage.viewed = storage.viewed.filter(a =>
+            a.id !== animeId &&
+            this.normalizeTitle(a.id) !== this.normalizeTitle(animeId)
+        );
+
+        // Also try matching by title if animeId looks like a title
+        if (storage.viewed.length === initialLength) {
+            storage.viewed = storage.viewed.filter(a =>
+                this.normalizeTitle(a.title) !== this.normalizeTitle(animeId)
+            );
+        }
 
         if (storage.viewed.length < initialLength) {
             this.saveStorage(storage);

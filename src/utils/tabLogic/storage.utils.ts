@@ -14,14 +14,18 @@ export const createEmptyStorage = (): AnimeStorage => ({
     lastUpdate: new Date().toISOString(),
 });
 
+export const STORAGE_CHANGE_EVENT = 'anime-storage-change';
+
 export const readStorage = (): AnimeStorage => {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return createEmptyStorage();
         const storage = JSON.parse(raw) as AnimeStorage;
-        // Migration: ajouter towatch s'il n'existe pas
         if (!storage.towatch) {
             storage.towatch = [];
+        }
+        if (!storage.viewed) {
+            storage.viewed = [];
         }
         return storage;
     } catch {
@@ -31,6 +35,7 @@ export const readStorage = (): AnimeStorage => {
 
 export const writeStorage = (storage: AnimeStorage): void => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
+    window.dispatchEvent(new CustomEvent(STORAGE_CHANGE_EVENT));
 };
 
 const getDayIndex = (dayOfWeek?: string): number => {

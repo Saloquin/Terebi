@@ -48,12 +48,15 @@ class AnimeCatalogService {
 
         const html = data.solution.response as string;
         const items = parserService.parseCatalogFromSource(html, sourceUrl);
+        const pagination = parserService.parseCatalogPagination(html, normalizedPage, items.length);
         
-        console.log(`✅ Found ${items.length} animes`);
+        console.log(`✅ Found ${items.length} animes (page ${normalizedPage}/${pagination.totalPages})`);
 
         return {
             search: normalizedSearch,
             page: normalizedPage,
+            totalPages: pagination.totalPages,
+            hasNextPage: pagination.hasNextPage,
             sourceUrl,
             items,
         };

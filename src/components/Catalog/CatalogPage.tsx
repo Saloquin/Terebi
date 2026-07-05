@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { CatalogSearch } from '../Catalog/CatalogSearch';
-import { AnimePlanning } from '../../types/anime.types';
-import { markAsToWatch, removeFromToWatch } from '../../utils/tabLogic/towatch.logic';
 import { useAnimeData } from '../../hooks/useAnimeData';
+import { AnimePlanning } from '../../types/anime.types';
 import { Snackbar, Alert } from '@mui/material';
 
 interface CatalogPageProps {
@@ -17,32 +16,15 @@ interface SnackbarState {
 }
 
 export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSelectAnime }) => {
-    const [pageTitle, setPageTitle] = useState('Catalogue');
-    const { towatch, loading } = useAnimeData();
-    const [toWatchTitles, setToWatchTitles] = useState<string[]>([]);
-    const [viewedIds, setViewedIds] = useState<string[]>([]);
+    const { towatch, viewed, markAsToWatch: addToWatch, removeFromToWatch } = useAnimeData();
     const [snackbar, setSnackbar] = useState<SnackbarState>({
         open: false,
         message: '',
         severity: 'info',
     });
 
-    useEffect(() => {
-        setToWatchTitles(towatch.map(a => a.title));
-    }, [towatch]);
-
-    // Load viewed animes on mount
-    useEffect(() => {
-        const storage = localStorage.getItem('anime_dashboard_v2');
-        if (storage) {
-            try {
-                const parsed = JSON.parse(storage);
-                setViewedIds(parsed.viewed?.map((a: any) => a.id) || []);
-            } catch {
-                // Ignore parse errors
-            }
-        }
-    }, []);
+    const toWatchTitles = towatch.map(a => a.title);
+    const viewedIds = viewed.map(a => a.id);
 
     const handleAddToWatch = (item: any) => {
         const anime: AnimePlanning = {
@@ -54,9 +36,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
             dayOfWeek: '',
             type: 'VOSTFR' as any,
         };
-        markAsToWatch(anime);
-        // Update local state immediately
-        setToWatchTitles(prev => [...prev, item.title]);
+        addToWatch(anime);
         setSnackbar({
             open: true,
             message: `"${item.title}" ajouté à "À regarder"!`,
@@ -66,8 +46,6 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
 
     const handleRemoveFromToWatch = (title: string) => {
         removeFromToWatch(title);
-        // Update local state immediately
-        setToWatchTitles(prev => prev.filter(t => t !== title));
         setSnackbar({
             open: true,
             message: `"${title}" retiré de "À regarder"!`,
@@ -89,9 +67,7 @@ export const CatalogPage: React.FC<CatalogPageProps> = ({ theme = 'light', onSel
 
                     {/* Search Component */}
                     <CatalogSearch
-                        onSearch={(query, page) => {
-                            setPageTitle(`Catalogue - Résultats pour "${query}"`);
-                        }}
+                        onSearch={() => {}}
                         onAddToWatch={handleAddToWatch}
                         onRemoveFromToWatch={handleRemoveFromToWatch}
                         toWatchTitles={toWatchTitles}

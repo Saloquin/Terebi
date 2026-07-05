@@ -18,6 +18,7 @@ class CatalogService {
         const normalizedPage = Number.isFinite(page) && page > 0 ? Math.floor(page) : 1;
 
         let allItems: any[] = [];
+        let pagination = parserService.parseCatalogPagination('', normalizedPage, 0);
 
         // Helper function to fetch from anime-sama with specific type filter
         const fetchWithType = async (typeFilter: string, typeLabel: string) => {
@@ -52,6 +53,11 @@ class CatalogService {
 
             const html = data.solution.response as string;
             const items = parserService.parseCatalogFromSource(html, sourceUrl);
+            const pageInfo = parserService.parseCatalogPagination(html, normalizedPage, items.length);
+            pagination = {
+                totalPages: Math.max(pagination.totalPages, pageInfo.totalPages),
+                hasNextPage: pagination.hasNextPage || pageInfo.hasNextPage,
+            };
             
             console.log(`✅ Fetched ${typeLabel}: found ${items.length} items`);
             if (items.length > 0) {
@@ -79,6 +85,8 @@ class CatalogService {
         return {
             search: normalizedSearch,
             page: normalizedPage,
+            totalPages: pagination.totalPages,
+            hasNextPage: pagination.hasNextPage,
             sourceUrl: `${this.baseUrl}/catalogue/`,
             items: allItems,
         };

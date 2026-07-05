@@ -210,6 +210,41 @@ export class ParserService {
         
         return items;
     }
+
+    parseCatalogPagination(html: string, currentPage: number, itemCount: number): { totalPages: number; hasNextPage: boolean } {
+        const pageNumbers = new Set<number>([currentPage]);
+
+        for (const match of html.matchAll(/[?&]page=(\d+)/g)) {
+            const page = parseInt(match[1], 10);
+            if (page > 0) pageNumbers.add(page);
+        }
+
+        const paginationBlock = html.match(/id="list_pagination"[\s\S]*?<\/div>/i)?.[0];
+        if (paginationBlock) {
+            for (const match of paginationBlock.matchAll(/>(\d{1,4})</g)) {
+                const page = parseInt(match[1], 10);
+                if (page > 0) pageNumbers.add(page);
+            }
+        }
+
+        const ITEMS_PER_PAGE = 24;
+        let totalPages = pageNumbers.size > 1 ? Math.max(...pageNumbers) : currentPage;
+
+        if (pageNumbers.size <= 1) {
+            if (itemCount >= ITEMS_PER_PAGE) {
+                totalPages = currentPage + 1;
+            } else {
+                totalPages = currentPage;
+            }
+        }
+
+        const hasNextPage = itemCount >= ITEMS_PER_PAGE || currentPage < totalPages;
+
+        return {
+            totalPages: Math.max(1, totalPages),
+            hasNextPage,
+        };
+    }
 }
 
 export const parserService = new ParserService();

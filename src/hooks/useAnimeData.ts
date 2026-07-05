@@ -2,7 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { AnimePlanning, AnimeStats, ViewMode, DayFilter, AnimeViewed } from '../types/anime.types';
 import { animeApi } from '../services/api/anime.api';
 import { animeStorage } from '../services/api/anime.storage';
+import { syncNewSeasonsToWatch } from '../services/api/season-sync.service';
 import { getToWatchAnime, markAsToWatch, removeFromToWatch as removeFromToWatchUtil, isInToWatch as isInToWatchUtil } from '../utils/tabLogic/towatch.logic';
+import { STORAGE_CHANGE_EVENT } from '../utils/tabLogic/storage.utils';
 
 interface UseAnimeDataReturn {
     // Données
@@ -80,6 +82,7 @@ export const useAnimeData = (): UseAnimeDataReturn => {
             
             if (response.success && response.data) {
                 animeStorage.syncWithApi(response.data);
+                await syncNewSeasonsToWatch(animeStorage.getViewed());
                 loadLocal();
             } else {
                 setError(response.error || 'Erreur lors de la récupération');
@@ -185,14 +188,21 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         }
     }, [current, newAnimes, old, hidden]);
 
-    // Chargement initial
+    // Chargement initial + sync entre composants
     useEffect(() => {
         loadLocal();
         refresh();
-        
-        // Rafraîchissement auto toutes les 5 minutes
+
+        const handleStorageChange = () => loadLocal();
+        window.addEventListener(STORAGE_CHANGE_EVENT, handleStorageChange);
+        window.addEventListener('storage', handleStorageChange);
+
         const interval = setInterval(refresh, 5 * 60 * 1000);
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener(STORAGE_CHANGE_EVENT, handleStorageChange);
+            window.removeEventListener('storage', handleStorageChange);
+        };
     }, [loadLocal, refresh]);
 
     return {

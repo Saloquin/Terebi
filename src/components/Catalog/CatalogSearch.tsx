@@ -103,9 +103,8 @@ export const CatalogSearch: React.FC<CatalogSearchProps> = ({
             if (data.success && data.data.items) {
                 setResults(data.data.items);
                 setHasSearched(true);
-                // Estimate total pages based on current page
-                const estimatedPages = Math.max(page + 2, 10);
-                setTotalPages(estimatedPages);
+                const pages = data.data.totalPages || page;
+                setTotalPages(Math.max(1, pages));
                 onSearch?.(finalQuery, page);
             } else {
                 setError('Aucun résultat trouvé');

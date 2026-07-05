@@ -37,6 +37,8 @@ export function migrateStorageDomain(oldExt: string, newExt: string): void {
         storage.current = migrateList(storage.current);
         storage.new = migrateList(storage.new);
         storage.old = migrateList(storage.old);
+        storage.towatch = migrateList(storage.towatch);
+        storage.viewed = migrateList(storage.viewed);
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
         localStorage.setItem(EXT_KEY, newExt);

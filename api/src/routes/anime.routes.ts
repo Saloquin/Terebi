@@ -129,6 +129,39 @@ router.get('/catalogue', async (req: Request, res: Response) => {
     }
 });
 
+// GET /api/animes/seasons/:animeSlug/episodes?url=... - Nombre d'épisodes d'une saison
+router.get('/seasons/:animeSlug/episodes', async (req: Request, res: Response) => {
+    try {
+        const seasonUrl = typeof req.query.url === 'string' ? req.query.url : '';
+        if (!seasonUrl) {
+            const response: ApiResponse<null> = {
+                success: false,
+                data: null,
+                error: 'Paramètre url requis',
+                timestamp: new Date().toISOString(),
+            };
+            res.status(400).json(response);
+            return;
+        }
+
+        const episodeCount = await scrapeSeasonEpisodes(seasonUrl);
+        const response: ApiResponse<{ episodeCount: number }> = {
+            success: true,
+            data: { episodeCount },
+            timestamp: new Date().toISOString(),
+        };
+        res.json(response);
+    } catch (error) {
+        const response: ApiResponse<null> = {
+            success: false,
+            data: null,
+            error: error instanceof Error ? error.message : 'Erreur lors du scraping des épisodes',
+            timestamp: new Date().toISOString(),
+        };
+        res.status(500).json(response);
+    }
+});
+
 // GET /api/animes/seasons/:animeSlug - Récupérer les saisons d'un anime
 router.get('/seasons/:animeSlug', async (req: Request, res: Response) => {
     try {

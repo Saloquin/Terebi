@@ -20,7 +20,7 @@ interface SnackbarState {
 
 export const ToWatchPage: React.FC<ToWatchPageProps> = ({ onSelectAnime }) => {
     const { towatch, viewed, loading, markAsViewed, removeFromViewed } = useAnimeData();
-    const [activeTab, setActiveTab] = useState<'towatch' | 'viewed'>(0 as any);
+    const [activeTab, setActiveTab] = useState<'towatch' | 'viewed'>('towatch');
     const [localTowatch, setLocalTowatch] = useState(towatch);
     const [localViewed, setLocalViewed] = useState(viewed);
     const [snackbar, setSnackbar] = useState<SnackbarState>({

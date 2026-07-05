@@ -37,6 +37,8 @@ export interface CatalogAnime {
 export interface CatalogResult {
     search: string;
     page: number;
+    totalPages: number;
+    hasNextPage: boolean;
     sourceUrl: string;
     items: CatalogAnime[];
 }

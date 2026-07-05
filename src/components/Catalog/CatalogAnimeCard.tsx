@@ -4,6 +4,7 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import PlayCircleIcon from '@mui/icons-material/PlayCircle';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import { extractCatalogSlug } from '../../utils/anime.utils';
 import Tooltip from '@mui/material/Tooltip';
 
 interface CatalogItem {
@@ -52,24 +53,25 @@ export const CatalogAnimeCard: React.FC<CatalogAnimeCardProps> = ({
     };
 
     useEffect(() => {
-        // Extract slug from fullUrl or url
-        const urlParts = item.fullUrl.split('/');
-        const slug = urlParts.find((part) => part && !part.includes('.'));
-        
-        if (slug) {
-            setLoadingSeasons(true);
-            fetch(`/api/animes/seasons/${slug}`)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success && data.data?.totalSeasons) {
-                        setSeasons(data.data.totalSeasons);
-                    }
-                })
-                .catch(() => {
-                    // Silently fail
-                })
-                .finally(() => setLoadingSeasons(false));
-        }
+        setOptimisticIsInToWatch(null);
+    }, [isInToWatch]);
+
+    useEffect(() => {
+        const slug = extractCatalogSlug(item.fullUrl || item.url);
+        if (!slug) return;
+
+        setLoadingSeasons(true);
+        fetch(`/api/animes/seasons/${slug}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.data?.totalSeasons) {
+                    setSeasons(data.data.totalSeasons);
+                }
+            })
+            .catch(() => {
+                // Silently fail
+            })
+            .finally(() => setLoadingSeasons(false));
     }, [item.fullUrl, item.url]);
 
     if (compact) {

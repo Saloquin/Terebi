@@ -1,77 +1,98 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useParams, useNavigate, useLocation } from 'react-router-dom';
 import AnimePage from './components/Anime';
 import { CatalogPage } from './components/Catalog/CatalogPage';
 import { ToWatchPage } from './components/ToWatch/ToWatchPage';
 import AnimeDetailPage from './components/AnimeDetail/AnimeDetailPage';
+import { findAnimeBySlug, extractCatalogSlug } from './utils/anime.utils';
 import { AnimePlanning } from './types/anime.types';
 
-const App: React.FC = () => {
-    const [currentPage, setCurrentPage] = useState<'anime' | 'catalog' | 'towatch' | 'detail'>('anime');
-    const [selectedAnime, setSelectedAnime] = useState<AnimePlanning | null>(null);
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `py-3 px-6 font-medium border-b-2 transition-colors ${
+        isActive
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+    }`;
+
+const AppLayout: React.FC = () => {
+    const navigate = useNavigate();
 
     const handleSelectAnime = (anime: AnimePlanning) => {
-        setSelectedAnime(anime);
-        setCurrentPage('detail');
-    };
-
-    const handleBackFromDetail = () => {
-        setSelectedAnime(null);
-        setCurrentPage('anime');
-    };
-
-    const handlePageChange = (page: 'anime' | 'catalog' | 'towatch') => {
-        // Clear selected anime when navigating away from detail
-        setSelectedAnime(null);
-        setCurrentPage(page);
+        const catalogSlug = extractCatalogSlug(anime.fullUrl || anime.url);
+        if (catalogSlug) {
+            navigate(`/anime/${catalogSlug}`, { state: { anime } });
+        }
     };
 
     return (
         <div>
-            {/* Navigation Tabs */}
             <div className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                 <div className="max-w-6xl mx-auto px-4 flex gap-4 justify-between">
                     <div className="flex gap-4">
-                        <button
-                            onClick={() => handlePageChange('anime')}
-                            className={`py-3 px-6 font-medium border-b-2 transition-colors ${
-                                currentPage === 'anime'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                            }`}
-                        >
+                        <NavLink to="/planning" className={navLinkClass}>
                             Planning
-                        </button>
-                        <button
-                            onClick={() => handlePageChange('catalog')}
-                            className={`py-3 px-6 font-medium border-b-2 transition-colors ${
-                                currentPage === 'catalog'
-                                    ? 'border-blue-600 text-blue-600'
-                                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                            }`}
-                        >
+                        </NavLink>
+                        <NavLink to="/catalog" className={navLinkClass}>
                             Catalogue
-                        </button>
+                        </NavLink>
                     </div>
-                    <button
-                        onClick={() => handlePageChange('towatch')}
-                        className={`py-3 px-6 font-medium border-b-2 transition-colors ${
-                            currentPage === 'towatch'
-                                ? 'border-blue-600 text-blue-600'
-                                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-                        }`}
-                    >
+                    <NavLink to="/towatch" className={navLinkClass}>
                         À regarder
-                    </button>
+                    </NavLink>
                 </div>
             </div>
 
-            {/* Page Content */}
-            {currentPage === 'anime' && <AnimePage selectedAnime={selectedAnime} onDeselectAnime={() => setSelectedAnime(null)} />}
-            {currentPage === 'catalog' && <CatalogPage onSelectAnime={handleSelectAnime} />}
-            {currentPage === 'towatch' && <ToWatchPage onSelectAnime={handleSelectAnime} />}
-            {currentPage === 'detail' && selectedAnime && <AnimeDetailPage anime={selectedAnime} onBack={handleBackFromDetail} theme={document.documentElement.classList.contains('dark') ? 'dark' : 'light'} />}
+            <Routes>
+                <Route path="/" element={<Navigate to="/planning" replace />} />
+                <Route path="/planning" element={<AnimePage />} />
+                <Route path="/catalog" element={<CatalogPage onSelectAnime={handleSelectAnime} />} />
+                <Route path="/towatch" element={<ToWatchPage onSelectAnime={handleSelectAnime} />} />
+                <Route path="/anime/:slug" element={<AnimeDetailRoute />} />
+                <Route path="*" element={<Navigate to="/planning" replace />} />
+            </Routes>
         </div>
     );
 };
+
+const AnimeDetailRoute: React.FC = () => {
+    const { slug } = useParams<{ slug: string }>();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const locationState = location.state as { anime?: AnimePlanning } | null;
+
+    const anime = locationState?.anime || (slug ? findAnimeBySlug(slug) : null);
+
+    if (!anime || !slug) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900">
+                <div className="text-center">
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">Anime introuvable.</p>
+                    <button
+                        onClick={() => navigate('/catalog')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+                    >
+                        Retour au catalogue
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    const theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+
+    return (
+        <AnimeDetailPage
+            anime={anime}
+            onBack={() => navigate(-1)}
+            theme={theme}
+        />
+    );
+};
+
+const App: React.FC = () => (
+    <BrowserRouter>
+        <AppLayout />
+    </BrowserRouter>
+);
 
 export default App;

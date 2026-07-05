@@ -15,6 +15,7 @@ import {
     Chip,
     Divider,
 } from '@mui/material';
+import { extractCatalogSlug } from '../../utils/anime.utils';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 interface AnimeDetailPanelProps {
@@ -30,12 +31,15 @@ export const AnimeDetailPanel: React.FC<AnimeDetailPanelProps> = ({
     isOpen,
     onClose,
 }) => {
-    const { data: seasons, loading: loadingSeasons } = useAnimeSeasons(anime?.fullUrl || '');
+    const slug = extractCatalogSlug(anime?.fullUrl || anime?.url);
+    const { data: seasons, loading: loadingSeasons } = useAnimeSeasons(slug || null);
     const [selectedSeasons, setSelectedSeasons] = useState<string[]>([]);
 
     useEffect(() => {
         if (anime?.viewedSeasons) {
             setSelectedSeasons(anime.viewedSeasons);
+        } else {
+            setSelectedSeasons([]);
         }
     }, [anime]);
 
