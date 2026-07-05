@@ -10,6 +10,10 @@ const USER_AGENT = 'Dashboard-sama-scrapper/1.0';
 const MAX_RETRIES = 3;
 const CACHE_TTL_MS = 20 * 60 * 1000;
 const SEASON_MAX_PAGES = 2;
+const API_DISABLED_MARKER = 'temporarily disabled';
+
+const API_DISABLED_MESSAGE =
+    "L'API AniList est temporairement désactivée pour maintenance. Consultez le Discord officiel AniList pour plus d'informations.";
 
 const DEFAULT_REDIRECT_URI = 'http://localhost:5173/settings/callback';
 const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
@@ -81,6 +85,16 @@ function parseRetryAfter(response: Response): number {
     if (!header) return 60;
     const seconds = parseInt(header, 10);
     return Number.isFinite(seconds) && seconds > 0 ? seconds : 60;
+}
+
+function isApiDisabledText(text: string): boolean {
+    return text.toLowerCase().includes(API_DISABLED_MARKER);
+}
+
+function throwIfApiDisabled(text: string): void {
+    if (isApiDisabledText(text)) {
+        throw new AniListApiError(API_DISABLED_MESSAGE, 503, 'ANILIST_DISABLED');
+    }
 }
 
 function getClientId(): string {
@@ -197,19 +211,23 @@ class AniListService {
         return this.exchangeCodeForToken(code);
     }
 
-    private buildHeaders(accessToken?: string): Record<string, string> {
-        const headers: Record<string, string> = {
+    private buildPublicHeaders(): Record<string, string> {
+        return {
             'Content-Type': 'application/json',
             Accept: 'application/json',
             'User-Agent': USER_AGENT,
         };
-        if (accessToken?.trim()) {
-            headers.Authorization = `Bearer ${accessToken.trim()}`;
-        }
-        return headers;
     }
 
-    private handleHttpError(status: number, retryAfter?: number): never {
+    private buildAuthHeaders(accessToken: string): Record<string, string> {
+        return {
+            ...this.buildPublicHeaders(),
+            Authorization: `Bearer ${accessToken.trim()}`,
+        };
+    }
+
+    private handleHttpError(status: number, retryAfter?: number, bodyText?: string): never {
+        if (bodyText) throwIfApiDisabled(bodyText);
         if (status === 401) {
             throw new AniListApiError(
                 'Authentification AniList refusée. Token invalide ou expiré — reconnectez votre compte.',
@@ -219,7 +237,7 @@ class AniListService {
         }
         if (status === 403) {
             throw new AniListApiError(
-                'Accès AniList refusé (403). L\'API peut bloquer certaines requêtes — réessayez plus tard.',
+                'Accès AniList refusé (403). Réessayez plus tard.',
                 403,
                 'ANILIST_FORBIDDEN'
             );
@@ -235,10 +253,10 @@ class AniListService {
         throw new AniListApiError(`Erreur AniList API: ${status}`, status);
     }
 
-    private async query<T>(
+    private async executeGraphql<T>(
         queryStr: string,
         variables: Record<string, unknown>,
-        accessToken?: string,
+        headers: Record<string, string>,
         cacheKey?: string
     ): Promise<T> {
         if (cacheKey) {
@@ -252,12 +270,15 @@ class AniListService {
             const response = await anilistQueue.enqueue(() =>
                 fetch(ANILIST_URL, {
                     method: 'POST',
-                    headers: this.buildHeaders(accessToken),
+                    headers,
                     body: JSON.stringify({ query: queryStr, variables }),
                 })
             );
 
             this.requestCount++;
+
+            const bodyText = await response.text();
+            throwIfApiDisabled(bodyText);
 
             if (response.status === 429) {
                 const retryAfter = parseRetryAfter(response);
@@ -274,29 +295,40 @@ class AniListService {
                 throw lastError;
             }
 
-            if (response.status === 401 || response.status === 403) {
-                if (accessToken?.trim()) {
+            if (response.status === 401) {
+                throw new AniListApiError(
+                    'Authentification AniList refusée. Token invalide ou expiré — reconnectez votre compte.',
+                    401,
+                    'ANILIST_AUTH'
+                );
+            }
+
+            if (response.status === 403) {
+                if (headers.Authorization) {
                     throw new AniListApiError(
-                        response.status === 401
-                            ? 'Authentification AniList refusée. Token invalide ou expiré — reconnectez votre compte.'
-                            : 'Accès AniList refusé (403). Token invalide — reconnectez votre compte ou déconnectez-vous.',
-                        response.status,
-                        response.status === 401 ? 'ANILIST_AUTH' : 'ANILIST_FORBIDDEN'
+                        'Accès AniList refusé (403). Token invalide — reconnectez votre compte ou déconnectez-vous.',
+                        403,
+                        'ANILIST_FORBIDDEN'
                     );
                 }
-                this.handleHttpError(response.status);
+                this.handleHttpError(403, undefined, bodyText);
             }
 
             if (!response.ok) {
-                this.handleHttpError(response.status);
+                this.handleHttpError(response.status, undefined, bodyText);
             }
 
-            const json = (await response.json()) as {
-                data?: T;
-                errors?: Array<{ message: string; status?: number }>;
-            };
+            let json: { data?: T; errors?: Array<{ message: string; status?: number }> };
+            try {
+                json = JSON.parse(bodyText) as typeof json;
+            } catch {
+                throw new AniListApiError('Réponse AniList invalide.', 502, 'ANILIST_BAD_RESPONSE');
+            }
 
             if (json.errors?.length) {
+                const messages = json.errors.map(e => e.message).join(', ');
+                throwIfApiDisabled(messages);
+
                 const authError = json.errors.find(e => e.status === 401);
                 if (authError) {
                     throw new AniListApiError(
@@ -305,6 +337,16 @@ class AniListService {
                         'ANILIST_AUTH'
                     );
                 }
+
+                const forbiddenError = json.errors.find(e => e.status === 403);
+                if (forbiddenError) {
+                    throw new AniListApiError(
+                        'Accès AniList refusé (403). Token invalide — reconnectez votre compte ou déconnectez-vous.',
+                        403,
+                        'ANILIST_FORBIDDEN'
+                    );
+                }
+
                 const rateLimitError = json.errors.find(e => e.status === 429);
                 if (rateLimitError) {
                     const retryAfter = parseRetryAfter(response);
@@ -320,7 +362,7 @@ class AniListService {
                     }
                     throw lastError;
                 }
-                throw new Error(json.errors.map(e => e.message).join(', '));
+                throw new Error(messages);
             }
 
             if (!json.data) {
@@ -336,8 +378,33 @@ class AniListService {
         throw lastError ?? new AniListApiError('Erreur AniList API', 500);
     }
 
+    private queryPublic<T>(
+        queryStr: string,
+        variables: Record<string, unknown>,
+        cacheKey?: string
+    ): Promise<T> {
+        return this.executeGraphql<T>(queryStr, variables, this.buildPublicHeaders(), cacheKey);
+    }
+
+    private queryAuth<T>(
+        queryStr: string,
+        variables: Record<string, unknown>,
+        accessToken: string,
+        cacheKey?: string
+    ): Promise<T> {
+        const token = accessToken.trim();
+        if (!token) {
+            throw new AniListApiError(
+                'Token AniList requis. Connectez votre compte.',
+                401,
+                'ANILIST_AUTH'
+            );
+        }
+        return this.executeGraphql<T>(queryStr, variables, this.buildAuthHeaders(token), cacheKey);
+    }
+
     async getViewer(accessToken: string): Promise<{ id: number; name: string }> {
-        const data = await this.query<{ Viewer: { id: number; name: string } | null }>(
+        const data = await this.queryAuth<{ Viewer: { id: number; name: string } | null }>(
             `query { Viewer { id name } }`,
             {},
             accessToken
@@ -359,7 +426,7 @@ class AniListService {
             let page = 1;
             let hasNext = true;
             while (hasNext) {
-                const data = await this.query<{
+                const data = await this.queryAuth<{
                     Page: {
                         pageInfo: { hasNextPage: boolean };
                         mediaList: MediaListEntry[];
@@ -394,7 +461,7 @@ class AniListService {
         progress?: number
     ): Promise<MediaListEntry> {
         anilistCache.delete(`lists:${accessToken.slice(0, 8)}`);
-        const data = await this.query<{ SaveMediaListEntry: MediaListEntry }>(
+        const data = await this.queryAuth<{ SaveMediaListEntry: MediaListEntry }>(
             `mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int) {
                 SaveMediaListEntry(mediaId: $mediaId, status: $status, progress: $progress) {
                     ${LIST_ENTRY_FIELDS}
@@ -407,7 +474,7 @@ class AniListService {
     }
 
     async deleteMediaListEntry(accessToken: string, mediaId: number): Promise<boolean> {
-        const data = await this.query<{ DeleteMediaListEntry: { deleted: boolean } | null }>(
+        const data = await this.queryAuth<{ DeleteMediaListEntry: { deleted: boolean } | null }>(
             `mutation ($mediaId: Int) {
                 DeleteMediaListEntry(mediaId: $mediaId) { deleted }
             }`,
@@ -441,7 +508,7 @@ class AniListService {
             : `season:${season}:${year}:${page}:${perPage}`;
 
         const statusFilter = status ? ', status: $status' : '';
-        const data = await this.query<{ Page: AniListPageResult }>(
+        const data = await this.queryPublic<{ Page: AniListPageResult }>(
             `query ($season: MediaSeason, $year: Int, $page: Int, $perPage: Int${status ? ', $status: MediaStatus' : ''}) {
                 Page(page: $page, perPage: $perPage) {
                     pageInfo { total currentPage lastPage hasNextPage }
@@ -451,7 +518,6 @@ class AniListService {
                 }
             }`,
             status ? { season, year, page, perPage, status } : { season, year, page, perPage },
-            undefined,
             cacheKey
         );
         return { ...data.Page, page, perPage };
@@ -477,7 +543,7 @@ class AniListService {
             : `planning-page:${season}:${year}:${page}`;
 
         if (includePrevReleasing) {
-            const data = await this.query<{
+            const data = await this.queryPublic<{
                 currentSeason: {
                     pageInfo: { hasNextPage: boolean };
                     media: AniListMedia[];
@@ -498,7 +564,6 @@ class AniListService {
                     }
                 }`,
                 { season, year, prevSeason: prev.season, prevYear: prev.year, page },
-                undefined,
                 page === 1 ? cacheKey : undefined
             );
             return {
@@ -508,7 +573,7 @@ class AniListService {
             };
         }
 
-        const data = await this.query<{
+        const data = await this.queryPublic<{
             currentSeason: {
                 pageInfo: { hasNextPage: boolean };
                 media: AniListMedia[];
@@ -523,7 +588,6 @@ class AniListService {
                 }
             }`,
             { season, year, page },
-            undefined,
             cacheKey
         );
         return {
@@ -587,7 +651,7 @@ class AniListService {
 
     async search(query: string, page = 1, perPage = 25): Promise<AniListPageResult> {
         const cacheKey = `search:${query}:${page}:${perPage}`;
-        const data = await this.query<{ Page: AniListPageResult }>(
+        const data = await this.queryPublic<{ Page: AniListPageResult }>(
             `query ($search: String, $page: Int, $perPage: Int) {
                 Page(page: $page, perPage: $perPage) {
                     pageInfo { total currentPage lastPage hasNextPage }
@@ -597,7 +661,6 @@ class AniListService {
                 }
             }`,
             { search: query, page, perPage },
-            undefined,
             cacheKey
         );
         return { ...data.Page, page, perPage };
@@ -605,12 +668,11 @@ class AniListService {
 
     async getAnime(id: number): Promise<AniListMedia | null> {
         const cacheKey = `anime:${id}`;
-        const data = await this.query<{ Media: AniListMedia | null }>(
+        const data = await this.queryPublic<{ Media: AniListMedia | null }>(
             `query ($id: Int) {
                 Media(id: $id, type: ANIME) { ${MEDIA_FIELDS} }
             }`,
             { id },
-            undefined,
             cacheKey
         );
         return data.Media;

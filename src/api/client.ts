@@ -24,6 +24,14 @@ export class ApiError extends Error {
     return this.status === 401 && this.code === 'ANILIST_AUTH';
   }
 
+  get isAnilistForbidden() {
+    return this.status === 403 && this.code === 'ANILIST_FORBIDDEN';
+  }
+
+  get isAnilistDisabled() {
+    return this.code === 'ANILIST_DISABLED';
+  }
+
   get isRateLimit() {
     return this.status === 429 && this.code === 'ANILIST_RATE_LIMIT';
   }
@@ -34,7 +42,26 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+function handleApiFailure<T>(res: Response, json: ApiResponse<T>): never {
+  if (
+    getAnilistToken() &&
+    (json.code === 'ANILIST_AUTH' || json.code === 'ANILIST_FORBIDDEN')
+  ) {
+    clearAnilistToken();
+  }
+  throw new ApiError(json.error || `Erreur API ${res.status}`, res.status, json.code);
+}
+
+async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, init);
+  const json = (await res.json()) as ApiResponse<T>;
+  if (!json.success || json.data === null) {
+    handleApiFailure(res, json);
+  }
+  return json.data;
+}
+
+async function authRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = {
     ...authHeaders(),
     ...(init?.headers as Record<string, string> | undefined),
@@ -42,7 +69,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { ...init, headers });
   const json = (await res.json()) as ApiResponse<T>;
   if (!json.success || json.data === null) {
-    throw new ApiError(json.error || `Erreur API ${res.status}`, res.status, json.code);
+    handleApiFailure(res, json);
   }
   return json.data;
 }
@@ -52,29 +79,29 @@ function planningCacheKey(season: string, year: number): string {
 }
 
 export const api = {
-  getCurrentSeason: () => request<{ season: string; year: number }>('/anilist/current-season'),
+  getCurrentSeason: () => publicRequest<{ season: string; year: number }>('/anilist/current-season'),
 
   getOAuthAuthorizeUrl: (clientId?: string) => {
     const q = clientId ? `?clientId=${encodeURIComponent(clientId)}` : '';
-    return request<{ url: string; redirectUri: string }>(`/anilist/oauth/authorize-url${q}`);
+    return publicRequest<{ url: string; redirectUri: string }>(`/anilist/oauth/authorize-url${q}`);
   },
 
   buildOAuthUrl: (clientId: string, redirectUri?: string) =>
-    request<{ url: string; redirectUri: string }>('/anilist/auth/url', {
+    publicRequest<{ url: string; redirectUri: string }>('/anilist/auth/url', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clientId, redirectUri }),
     }),
 
   exchangeAuthCode: (code: string, clientId: string, clientSecret: string, redirectUri?: string) =>
-    request<{ accessToken: string }>('/anilist/auth/token', {
+    publicRequest<{ accessToken: string }>('/anilist/auth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, clientId, clientSecret, redirectUri }),
     }),
 
   getOAuthStatus: () =>
-    request<{ connected: boolean; username?: string; userId?: number; expired?: boolean }>(
+    authRequest<{ connected: boolean; username?: string; userId?: number; expired?: boolean }>(
       '/anilist/oauth/status'
     ),
 
@@ -83,23 +110,23 @@ export const api = {
     return Promise.resolve({ disconnected: true as const });
   },
 
-  getMe: () => request<{ id: number; name: string }>('/anilist/me'),
+  getMe: () => authRequest<{ id: number; name: string }>('/anilist/me'),
 
   getLists: (statuses: MediaListStatus[]) =>
-    request<{ entries: MediaListEntry[] }>(`/anilist/lists?status=${statuses.join(',')}`),
+    authRequest<{ entries: MediaListEntry[] }>(`/anilist/lists?status=${statuses.join(',')}`),
 
   addToList: (mediaId: number, status: MediaListStatus, progress?: number) =>
-    request<MediaListEntry>(`/anilist/lists/${mediaId}`, {
+    authRequest<MediaListEntry>(`/anilist/lists/${mediaId}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status, progress }),
     }),
 
   removeFromList: (mediaId: number) =>
-    request<{ deleted: boolean }>(`/anilist/lists/${mediaId}`, { method: 'DELETE' }),
+    authRequest<{ deleted: boolean }>(`/anilist/lists/${mediaId}`, { method: 'DELETE' }),
 
   getSeason: (season: string, year: number, page = 1) =>
-    request<SeasonPageData>(`/anilist/season?season=${season}&year=${year}&page=${page}`),
+    publicRequest<SeasonPageData>(`/anilist/season?season=${season}&year=${year}&page=${page}`),
 
   getPlanning: async (season: string, year: number, signal?: AbortSignal) => {
     const key = planningCacheKey(season, year);
@@ -107,7 +134,7 @@ export const api = {
     if (cached && Date.now() < cached.expiresAt) {
       return cached.data;
     }
-    const data = await request<PlanningPageData & { anilistRequests?: number }>(
+    const data = await publicRequest<PlanningPageData & { anilistRequests?: number }>(
       `/anilist/planning?season=${season}&year=${year}`,
       { signal }
     );
@@ -120,21 +147,21 @@ export const api = {
   },
 
   search: (q: string, page = 1) =>
-    request<SeasonPageData>(`/anilist/search?q=${encodeURIComponent(q)}&page=${page}`),
+    publicRequest<SeasonPageData>(`/anilist/search?q=${encodeURIComponent(q)}&page=${page}`),
 
-  getAnime: (id: number) => request<AniListMedia>(`/anilist/anime/${id}`),
+  getAnime: (id: number) => publicRequest<AniListMedia>(`/anilist/anime/${id}`),
 
   resolveSama: (title: string, season?: number) => {
     const params = new URLSearchParams({ title });
     if (season !== undefined) params.set('season', String(season));
-    return request<SamaResolveResult>(`/sama/resolve?${params}`);
+    return publicRequest<SamaResolveResult>(`/sama/resolve?${params}`);
   },
 
   getConfig: () =>
-    request<{ extension: string; baseUrl: string }>('/config'),
+    publicRequest<{ extension: string; baseUrl: string }>('/config'),
 
   setExtension: (extension: string) =>
-    request<{ extension: string; baseUrl: string }>('/config/extension', {
+    publicRequest<{ extension: string; baseUrl: string }>('/config/extension', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ extension }),
