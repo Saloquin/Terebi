@@ -10,6 +10,7 @@ interface Props {
   actions?: React.ReactNode;
   airingTime?: string;
   airingEpisode?: number;
+  compact?: boolean;
 }
 
 export default function AnimeCard({
@@ -19,12 +20,13 @@ export default function AnimeCard({
   actions,
   airingTime,
   airingEpisode,
+  compact,
 }: Props) {
   const title = displayTitle(media);
   const cover = media.coverImage?.large || media.coverImage?.medium;
 
   return (
-    <article className="group relative bg-surface-raised border border-surface-border rounded-xl overflow-hidden hover:border-accent/50 transition-colors">
+    <article className={`group relative bg-surface-raised border border-surface-border rounded-xl overflow-hidden hover:border-accent/50 transition-colors ${compact ? 'text-xs' : ''}`}>
       <Link to={`/anime/${media.id}`} className="block">
         <div className="aspect-[2/3] bg-surface overflow-hidden">
           {cover ? (
@@ -40,8 +42,8 @@ export default function AnimeCard({
             </div>
           )}
         </div>
-        <div className="p-3">
-          <h3 className="font-medium text-sm line-clamp-2 leading-snug">{title}</h3>
+        <div className={compact ? 'p-2' : 'p-3'}>
+          <h3 className={`font-medium line-clamp-2 leading-snug ${compact ? 'text-xs' : 'text-sm'}`}>{title}</h3>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
             {airingTime && (
               <p className="text-xs text-accent font-medium">

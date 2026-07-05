@@ -4,7 +4,7 @@ import { Trash2 } from 'lucide-react';
 import { ApiError, api } from '../api/client';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { AniListMedia } from '../types/anilist';
+import type { AniListMedia, MediaListEntry, MediaListStatus } from '../types/anilist';
 import { displayTitle } from '../types/anilist';
 
 interface ListPageProps {
@@ -13,9 +13,13 @@ interface ListPageProps {
   emptyMessage: string;
 }
 
+const LIST_STATUSES: Record<ListPageProps['listType'], MediaListStatus[]> = {
+  towatch: ['CURRENT', 'PLANNING'],
+  viewed: ['COMPLETED'],
+};
+
 export default function UserListPage({ listType, title, emptyMessage }: ListPageProps) {
-  const [entries, setEntries] = useState<Array<{ anilistId: number; addedAt: string }>>([]);
-  const [mediaMap, setMediaMap] = useState<Map<number, AniListMedia>>(new Map());
+  const [entries, setEntries] = useState<MediaListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
@@ -24,18 +28,11 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
     setLoading(true);
     setError(null);
     setAuthError(false);
+
     try {
-      const list =
-        listType === 'towatch' ? await api.getToWatch() : await api.getViewed();
+      await api.getMe();
+      const { entries: list } = await api.getLists(LIST_STATUSES[listType]);
       setEntries(list);
-      const results = await Promise.allSettled(
-        list.map(e => api.getAnime(e.anilistId))
-      );
-      const map = new Map<number, AniListMedia>();
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') map.set(list[i].anilistId, r.value);
-      });
-      setMediaMap(map);
     } catch (e) {
       if (e instanceof ApiError && e.isAnilistAuth) {
         setAuthError(true);
@@ -50,15 +47,16 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
     load();
   }, [load]);
 
-  const remove = async (id: number) => {
+  const remove = async (entry: MediaListEntry) => {
     try {
-      if (listType === 'towatch') await api.removeFromWatch(id);
-      else await api.removeViewed(id);
+      await api.removeFromList(entry.mediaId);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur');
     }
   };
+
+  const getMedia = (entry: MediaListEntry): AniListMedia | undefined => entry.media;
 
   return (
     <div className="space-y-6">
@@ -76,12 +74,12 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
       {!loading && entries.length > 0 && (
         <ul className="space-y-2">
           {entries.map(entry => {
-            const media = mediaMap.get(entry.anilistId);
-            const name = media ? displayTitle(media) : `#${entry.anilistId}`;
+            const media = getMedia(entry);
+            const name = media ? displayTitle(media) : `#${entry.mediaId}`;
             const cover = media?.coverImage?.medium;
             return (
               <li
-                key={entry.anilistId}
+                key={entry.id}
                 className="flex items-center gap-4 p-3 rounded-xl bg-surface-raised border border-surface-border"
               >
                 {cover && (
@@ -89,18 +87,21 @@ export default function UserListPage({ listType, title, emptyMessage }: ListPage
                 )}
                 <div className="flex-1 min-w-0">
                   <Link
-                    to={`/anime/${entry.anilistId}`}
+                    to={`/anime/${entry.mediaId}`}
                     className="font-medium hover:text-accent truncate block"
                   >
                     {name}
                   </Link>
                   <p className="text-xs text-gray-500">
-                    Ajouté le {new Date(entry.addedAt).toLocaleDateString('fr-FR')}
+                    {entry.status}
+                    {entry.progress > 0 && ` · ${entry.progress} ép.`}
+                    {' · '}
+                    {new Date(entry.updatedAt * 1000).toLocaleDateString('fr-FR')}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => remove(entry.anilistId)}
+                  onClick={() => remove(entry)}
                   className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-red-400 px-2 py-1"
                 >
                   <Trash2 className="w-4 h-4" aria-hidden />

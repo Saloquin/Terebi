@@ -20,10 +20,12 @@ services:
       - API_PORT=3001
       - SITE_EXTENSION=to
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
+      - ANILIST_CLIENT_ID=${ANILIST_CLIENT_ID}
+      - ANILIST_CLIENT_SECRET=${ANILIST_CLIENT_SECRET}
+      - ANILIST_REDIRECT_URI=http://localhost:3001/api/anilist/auth/callback
+      - FRONTEND_URL=http://localhost
     ports:
       - "3001:3001"
-    volumes:
-      - ./api/data:/app/data
     depends_on:
       - flaresolverr
 

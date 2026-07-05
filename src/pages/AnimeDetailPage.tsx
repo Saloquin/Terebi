@@ -4,7 +4,7 @@ import { ExternalLink, Play } from 'lucide-react';
 import { ApiError, api } from '../api/client';
 import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { AniListMedia } from '../types/anilist';
+import type { AniListMedia, MediaListStatus } from '../types/anilist';
 import { displayTitle, stripHtml } from '../types/anilist';
 
 export default function AnimeDetailPage() {
@@ -12,10 +12,11 @@ export default function AnimeDetailPage() {
   const id = parseInt(anilistId || '', 10);
 
   const [media, setMedia] = useState<AniListMedia | null>(null);
-  const [inToWatch, setInToWatch] = useState(false);
-  const [inViewed, setInViewed] = useState(false);
+  const [listStatus, setListStatus] = useState<MediaListStatus | null>(null);
+  const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(false);
   const [samaLoading, setSamaLoading] = useState<'watch' | 'catalog' | null>(null);
   const [samaError, setSamaError] = useState<string | null>(null);
@@ -30,14 +31,30 @@ export default function AnimeDetailPage() {
     setError(null);
     setAuthError(false);
     try {
-      const [anime, towatch, viewed] = await Promise.all([
-        api.getAnime(id),
-        api.getToWatch(),
-        api.getViewed(),
-      ]);
+      const anime = await api.getAnime(id);
       setMedia(anime);
-      setInToWatch(towatch.some(e => e.anilistId === id));
-      setInViewed(viewed.some(e => e.anilistId === id));
+
+      try {
+        await api.getMe();
+        setIsAuthenticated(true);
+        const { entries } = await api.getLists([
+          'CURRENT',
+          'PLANNING',
+          'COMPLETED',
+          'PAUSED',
+          'DROPPED',
+        ]);
+        const entry = entries.find(e => e.mediaId === id);
+        setListStatus(entry?.status ?? null);
+        setProgress(entry?.progress ?? 0);
+      } catch (e) {
+        setIsAuthenticated(false);
+        setListStatus(null);
+        setProgress(0);
+        if (e instanceof ApiError && e.isAnilistAuth) {
+          setAuthError(true);
+        }
+      }
     } catch (e) {
       if (e instanceof ApiError && e.isAnilistAuth) {
         setAuthError(true);
@@ -58,13 +75,9 @@ export default function AnimeDetailPage() {
     setSamaError(null);
     try {
       const title = displayTitle(media);
-      const seasonNum =
-        media.season && media.seasonYear
-          ? 1
-          : 1;
       const result =
         mode === 'watch'
-          ? await api.resolveSama(title, seasonNum)
+          ? await api.resolveSama(title, 1)
           : await api.resolveSama(title);
       window.open(result.url, '_blank', 'noopener,noreferrer');
     } catch (e) {
@@ -75,21 +88,45 @@ export default function AnimeDetailPage() {
   };
 
   const toggleToWatch = async () => {
+    if (!isAuthenticated) {
+      setAuthError(true);
+      setError('Connectez votre compte AniList pour gérer vos listes.');
+      return;
+    }
     try {
-      if (inToWatch) await api.removeFromWatch(id);
-      else await api.addToWatch(id);
-      setInToWatch(!inToWatch);
+      if (inToWatch) {
+        await api.removeFromList(id);
+        setListStatus(null);
+        setProgress(0);
+      } else {
+        const entry = await api.addToList(id, 'CURRENT', progress || undefined);
+        setListStatus(entry.status);
+        setProgress(entry.progress);
+      }
     } catch (e) {
+      if (e instanceof ApiError && e.isAnilistAuth) setAuthError(true);
       setError(e instanceof Error ? e.message : 'Erreur');
     }
   };
 
   const toggleViewed = async () => {
+    if (!isAuthenticated) {
+      setAuthError(true);
+      setError('Connectez votre compte AniList pour gérer vos listes.');
+      return;
+    }
     try {
-      if (inViewed) await api.removeViewed(id);
-      else await api.addViewed(id);
-      setInViewed(!inViewed);
+      if (inViewed) {
+        await api.removeFromList(id);
+        setListStatus(null);
+        setProgress(0);
+      } else {
+        const entry = await api.addToList(id, 'COMPLETED', progress || undefined);
+        setListStatus(entry.status);
+        setProgress(entry.progress);
+      }
     } catch (e) {
+      if (e instanceof ApiError && e.isAnilistAuth) setAuthError(true);
       setError(e instanceof Error ? e.message : 'Erreur');
     }
   };
@@ -108,6 +145,8 @@ export default function AnimeDetailPage() {
   const title = displayTitle(media);
   const banner = media.bannerImage || media.coverImage?.large;
   const description = stripHtml(media.description);
+  const inToWatch = listStatus === 'CURRENT' || listStatus === 'PLANNING';
+  const inViewed = listStatus === 'COMPLETED';
 
   return (
     <div className="space-y-6">
@@ -153,6 +192,11 @@ export default function AnimeDetailPage() {
             {media.episodes != null && (
               <span className="px-2 py-0.5 rounded bg-surface-raised border border-surface-border">
                 {media.episodes} ép.
+              </span>
+            )}
+            {progress > 0 && (
+              <span className="px-2 py-0.5 rounded bg-surface-raised border border-surface-border">
+                Progression : {progress} ép.
               </span>
             )}
           </div>

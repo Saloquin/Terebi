@@ -42,6 +42,12 @@ export interface SeasonPageData {
   media: AniListMedia[];
 }
 
+export interface PlanningPageData {
+  season: AniListSeason;
+  year: number;
+  media: AniListMedia[];
+}
+
 export interface SamaResolveResult {
   title: string;
   matchedTitle?: string;
@@ -50,18 +56,21 @@ export interface SamaResolveResult {
   cached: boolean;
 }
 
-export interface UserListEntry {
-  anilistId: number;
-  addedAt: string;
-}
+export type MediaListStatus =
+  | 'CURRENT'
+  | 'PLANNING'
+  | 'COMPLETED'
+  | 'PAUSED'
+  | 'DROPPED'
+  | 'REPEATING';
 
-export interface UserSettings {
-  extension: string;
-  anilistClientId?: string;
-  anilistClientSecret?: string;
-  anilistAccessToken?: string;
-  hasClientSecret?: boolean;
-  hasAccessToken?: boolean;
+export interface MediaListEntry {
+  id: number;
+  mediaId: number;
+  status: MediaListStatus;
+  progress: number;
+  updatedAt: number;
+  media?: AniListMedia;
 }
 
 export const SEASON_LABELS: Record<AniListSeason, string> = {
@@ -104,15 +113,29 @@ export const FRENCH_WEEKDAYS = [
   'Dimanche',
 ] as const;
 
-export function weekdayIndex(date: Date): number {
-  const day = date.getDay();
-  return day === 0 ? 6 : day - 1;
+export const FRENCH_WEEKDAYS_SHORT = [
+  'Lun',
+  'Mar',
+  'Mer',
+  'Jeu',
+  'Ven',
+  'Sam',
+  'Dim',
+] as const;
+
+export const PLANNING_TIMEZONE = 'Europe/Paris';
+
+export function weekdayIndex(date: Date, timeZone = PLANNING_TIMEZONE): number {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(date);
+  const map: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 };
+  return map[weekday] ?? 0;
 }
 
-export function formatAiringTime(airingAt: number): string {
+export function formatAiringTime(airingAt: number, timeZone = PLANNING_TIMEZONE): string {
   return new Date(airingAt * 1000).toLocaleTimeString('fr-FR', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone,
   });
 }
 
@@ -125,6 +148,7 @@ export interface ScheduledAnime {
 
 export interface WeekdayGroup {
   day: string;
+  dayShort: string;
   dayIndex: number;
   items: ScheduledAnime[];
 }
@@ -144,6 +168,7 @@ export function groupMediaByWeekday(media: AniListMedia[]): {
       if (!groups.has(dayIndex)) {
         groups.set(dayIndex, {
           day: FRENCH_WEEKDAYS[dayIndex],
+          dayShort: FRENCH_WEEKDAYS_SHORT[dayIndex],
           dayIndex,
           items: [],
         });
@@ -159,12 +184,15 @@ export function groupMediaByWeekday(media: AniListMedia[]): {
     }
   }
 
-  const scheduled = Array.from(groups.values())
-    .sort((a, b) => a.dayIndex - b.dayIndex)
-    .map(g => ({
-      ...g,
-      items: g.items.sort((a, b) => a.airingAt - b.airingAt),
-    }));
+  const scheduled = FRENCH_WEEKDAYS.map((day, dayIndex) => {
+    const group = groups.get(dayIndex);
+    return {
+      day,
+      dayShort: FRENCH_WEEKDAYS_SHORT[dayIndex],
+      dayIndex,
+      items: group?.items.sort((a, b) => a.airingAt - b.airingAt) ?? [],
+    };
+  });
 
   return { scheduled, unscheduled };
 }

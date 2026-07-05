@@ -49,4 +49,28 @@ router.get('/detect', async (_req: Request, res: Response) => {
     });
 });
 
+// PUT /api/config/extension — mettre à jour l'extension anime-sama (mémoire serveur)
+router.put('/extension', (req: Request, res: Response) => {
+    const extension = typeof req.body?.extension === 'string' ? req.body.extension.trim() : '';
+    if (!extension) {
+        res.status(400).json({
+            success: false,
+            data: null,
+            error: 'Extension requise',
+            timestamp: new Date().toISOString(),
+        });
+        return;
+    }
+    animeScraperService.setExtension(extension);
+    planningService.clearCache();
+    res.json({
+        success: true,
+        data: {
+            extension: animeScraperService.getExtension(),
+            baseUrl: `https://anime-sama.${animeScraperService.getExtension()}`,
+        },
+        timestamp: new Date().toISOString(),
+    });
+});
+
 export default router;
