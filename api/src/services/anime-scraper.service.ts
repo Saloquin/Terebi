@@ -160,16 +160,17 @@ class AnimeScraperService {
                     });
                     
                     if (this.isValidAnimeEntry(title, language)) {
-                        const stableId = `${dayTitle.toLowerCase()}-${title.toLowerCase().replace(/[^a-z0-9]/g, '')}-${time || 'no-time'}-${language}`;
                         
-                        // Déterminer le type final
+                        // DÃ©terminer le type final
                         let type: 'VOSTFR' | 'VF' | 'Scan' | 'ScanVF';
                         if (contentType === 'Scan') {
-                            type = language === 'VF' ? 'ScanVF' : 'Scan';
+                            type = language === 'VF' ? 'ScanVF' : 'Scan';       
                         } else {
                             type = language as 'VOSTFR' | 'VF';
                         }
                         
+                        const stableId = `${title.toLowerCase().replace(/[^a-z0-9]/g, '')}-${type.toLowerCase()}`;
+
                         animes.push({
                             id: stableId,
                             title,

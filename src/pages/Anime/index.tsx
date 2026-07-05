@@ -87,12 +87,9 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null, onDe
 
     // Get animes for current view
     const currentViewAnimes = useMemo(() => {
-        // If selectedAnime is set, don't filter the list - show full view
-        // The selectedAnime is displayed in the detail panel above
-        let animes = getAnimesByViewMode(viewMode);
-        animes = filterBySearch(animes, searchQuery);
-        return animes;
-    }, [viewMode, searchQuery, getAnimesByViewMode, filterBySearch]);
+        const animes = getAnimesByViewMode(viewMode);
+        return filterBySearch(animes, searchQuery);
+    }, [viewMode, searchQuery, getAnimesByViewMode, filterBySearch, current, newAnimes, old, hidden]);
 
     // Counts for tabs
     const counts = useMemo(() => ({
@@ -295,7 +292,7 @@ export const AnimePage: React.FC<AnimePageProps> = ({ selectedAnime = null, onDe
                         isHiddenList={tabActions.isHiddenList}
                         isNewList={tabActions.isNewList}
                         isOldList={tabActions.isOldList}
-                        groupByDay={true}
+                        groupByDay={viewMode === 'planning'}
                         emptyMessage={tabLogic.emptyMessage}
                         toWatchTitles={towatch.map(a => a.title)}
                     />

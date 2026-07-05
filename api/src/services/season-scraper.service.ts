@@ -37,13 +37,19 @@ async function scrapeAnimeSeasons(animeSlug: string): Promise<AnimeInfo> {
 
         const html = response.data;
         const seasons: Season[] = [];
+        const seenUrls = new Set<string>(); // Track unique URLs to avoid duplicates
 
-        // Pattern: panneauAnime("Saison 1", "saison1/vostfr");
-        // ou panneauAnime("OAV", "oav/vostfr");
+        // Remove all JavaScript comments (/* ... */) and line comments (// ...)
+        let cleanHtml = html.replace(/\/\*[\s\S]*?\*\//g, ''); // Remove /* */ comments
+        cleanHtml = cleanHtml.replace(/\/\/.*$/gm, ''); // Remove // comments
+
+        // First try: Look for panneauAnime calls
         const panneauPattern = /panneauAnime\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["']\s*\)/g;
         let match;
+        let foundViapanneau = false;
         
-        while ((match = panneauPattern.exec(html)) !== null) {
+        while ((match = panneauPattern.exec(cleanHtml)) !== null) {
+            foundViapanneau = true;
             const seasonName = match[1];
             const seasonPath = match[2];
             
@@ -51,6 +57,12 @@ async function scrapeAnimeSeasons(animeSlug: string): Promise<AnimeInfo> {
             if (seasonName.toLowerCase() === 'nom' || seasonPath.toLowerCase() === 'url') {
                 continue;
             }
+            
+            // Skip if we've already seen this URL
+            if (seenUrls.has(seasonPath)) {
+                continue;
+            }
+            seenUrls.add(seasonPath);
             
             // Classifier le type de saison
             let type: 'regular' | 'oav' | 'special' | 'film' = 'regular';
@@ -71,6 +83,62 @@ async function scrapeAnimeSeasons(animeSlug: string): Promise<AnimeInfo> {
                 });
             }
         }
+
+        // Second try: If panneauAnime didn't work, look for direct season links
+        if (!foundViapanneau || seasons.length === 0) {
+            console.log(`⚠️  panneauAnime pattern failed, trying direct link pattern...`);
+            
+            // Look for patterns like /catalogue/slug/saison1/vostfr or /catalogue/slug/saison2/vostfr etc.
+            const linkPattern = new RegExp(`/catalogue/${animeSlug}/(saison\\d+|film|oav|special)(?:/vostfr)?`, 'gi');
+            let linkMatch;
+            
+            while ((linkMatch = linkPattern.exec(cleanHtml)) !== null) {
+                const fullPath = linkMatch[0];
+                const seasonPath = linkMatch[1].toLowerCase();
+                
+                if (seenUrls.has(fullPath)) {
+                    continue;
+                }
+                seenUrls.add(fullPath);
+                
+                // Extract season number or type
+                let seasonName = '';
+                let type: 'regular' | 'oav' | 'special' | 'film' = 'regular';
+                
+                if (seasonPath.startsWith('saison')) {
+                    const num = seasonPath.match(/\d+/)?.[0];
+                    seasonName = `Saison ${num}`;
+                    type = 'regular';
+                } else if (seasonPath === 'film') {
+                    seasonName = 'Film';
+                    type = 'film';
+                } else if (seasonPath === 'oav' || seasonPath === 'ova') {
+                    seasonName = 'OAV';
+                    type = 'oav';
+                } else if (seasonPath === 'special') {
+                    seasonName = 'Spécial';
+                    type = 'special';
+                }
+                
+                if (seasonName) {
+                    seasons.push({
+                        name: seasonName,
+                        url: `https://anime-sama.to${fullPath}/vostfr`,
+                        type,
+                    });
+                }
+            }
+        }
+
+        // Sort by season number for regular seasons
+        seasons.sort((a, b) => {
+            if (a.type === b.type && a.type === 'regular') {
+                const aNum = parseInt(a.name.match(/\d+/)?.[0] || '0');
+                const bNum = parseInt(b.name.match(/\d+/)?.[0] || '0');
+                return aNum - bNum;
+            }
+            return 0;
+        });
 
         const info: AnimeInfo = {
             title: animeSlug.replace(/-/g, ' ').toUpperCase(),

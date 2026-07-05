@@ -32,8 +32,10 @@ export interface AnimeStorage {
     new: AnimePlanning[];
     old: AnimePlanning[];
     hidden: string[]; // On stocke juste les IDs des animes masqués
-    towatch: AnimePlanning[];
-    viewed: AnimeViewed[]; // New: animes already watched (completely or partially)
+    towatch: AnimePlanning[]; // À regarder (pas commencé)
+    inprogress: AnimeViewed[]; // En cours (partiellement vu)
+    completed: AnimeViewed[]; // Complétés (toutes les saisons régulières vues)
+    viewed: AnimeViewed[]; // Déjà vu (entièrement fini, y compris spéciaux/films)
     lastUpdate: string;
 }
 

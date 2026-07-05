@@ -11,6 +11,9 @@ interface UseAnimeDataReturn {
     old: AnimePlanning[];
     hidden: AnimePlanning[];
     towatch: AnimePlanning[];
+    inProgress: AnimePlanning[];
+    toWatchCompleted: AnimePlanning[];
+    toWatchNotStarted: AnimePlanning[];
     viewed: AnimeViewed[];
     stats: AnimeStats;
     
@@ -32,6 +35,8 @@ interface UseAnimeDataReturn {
     clearNew: () => void;
     clearOld: () => void;
     clearAll: () => void;
+    reclassifyAndRefresh: (animeId: string) => void;
+    updateFromLocalStorage: () => void;
     
     // Filtres
     filterByDay: (animes: AnimePlanning[], day: DayFilter) => AnimePlanning[];
@@ -45,6 +50,9 @@ export const useAnimeData = (): UseAnimeDataReturn => {
     const [old, setOld] = useState<AnimePlanning[]>([]);
     const [hidden, setHidden] = useState<AnimePlanning[]>([]);
     const [towatch, setToWatch] = useState<AnimePlanning[]>([]);
+    const [inProgress, setInProgress] = useState<AnimePlanning[]>([]);
+    const [toWatchCompleted, setToWatchCompleted] = useState<AnimePlanning[]>([]);
+    const [toWatchNotStarted, setToWatchNotStarted] = useState<AnimePlanning[]>([]);
     const [viewed, setViewed] = useState<AnimeViewed[]>([]);
     const [stats, setStats] = useState<AnimeStats>({
         totalCurrent: 0,
@@ -63,8 +71,13 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         setCurrent(animeStorage.getCurrent());
         setNewAnimes(animeStorage.getNew());
         setOld(animeStorage.getOld());
-        setHidden(animeStorage.getHidden());
-        setToWatch(getToWatchAnime());
+        const hiddenAnimes = animeStorage.getHidden();
+        const uniqueHiddenAnimes = Array.from(new Map(hiddenAnimes.map(item => [item.id, item])).values());
+        setHidden(uniqueHiddenAnimes);
+        setToWatch(animeStorage.getToWatch());
+        setInProgress(animeStorage.getInProgress());
+        setToWatchCompleted(animeStorage.getCompleted());
+        setToWatchNotStarted(animeStorage.getToWatchNotStarted());
         setViewed(animeStorage.getViewed());
         setStats(animeStorage.getStats());
     }, []);
@@ -151,6 +164,32 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         loadLocal();
     }, [loadLocal]);
 
+    // Reclassifier un anime spécifique et recharger les données
+    const reclassifyAndRefresh = useCallback((animeId: string) => {
+        try {
+            animeStorage.reclassifyAnime(animeId);
+            loadLocal();
+            console.log(`🔄 Anime ${animeId} reclassifié et données rechargées`);
+        } catch (err) {
+            console.error('Erreur lors de la reclassification:', err);
+        }
+    }, [loadLocal]);
+
+    // Sauvegarder et mettre à jour localStorage
+    const updateFromLocalStorage = useCallback(() => {
+        try {
+            const raw = localStorage.getItem('anime_dashboard_v2');
+            if (raw) {
+                // Reclassifier TOUS les animes avant de charger
+                animeStorage.reclassifyAllAnimes();
+                loadLocal();
+                console.log('🔄 Données mises à jour et reclassifiées depuis localStorage');
+            }
+        } catch (err) {
+            console.error('Erreur lors de la mise à jour:', err);
+        }
+    }, [loadLocal]);
+
     // Filtres
     const filterByDay = useCallback((animes: AnimePlanning[], day: DayFilter): AnimePlanning[] => {
         if (day === 'tous') return animes;
@@ -187,6 +226,8 @@ export const useAnimeData = (): UseAnimeDataReturn => {
 
     // Chargement initial
     useEffect(() => {
+        // Reclassifier automatiquement au démarrage
+        animeStorage.reclassifyViewedAnimes();
         loadLocal();
         refresh();
         
@@ -201,6 +242,9 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         old,
         hidden,
         towatch,
+        inProgress,
+        toWatchCompleted,
+        toWatchNotStarted,
         viewed,
         stats,
         loading,
@@ -218,6 +262,8 @@ export const useAnimeData = (): UseAnimeDataReturn => {
         clearNew,
         clearOld,
         clearAll,
+        reclassifyAndRefresh,
+        updateFromLocalStorage,
         filterByDay,
         filterBySearch,
         getAnimesByViewMode,

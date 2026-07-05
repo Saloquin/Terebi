@@ -89,13 +89,15 @@ describe('tab logic', () => {
     test('getPlanningAnime: returns planning without hidden and sorted', () => {
         const storage: AnimeStorage = {
             current: [
-                { id: '2', title: 'B', image: '', url: '', dayOfWeek: 'Mardi', type: 'VOSTFR' },
-                { id: '1', title: 'A', image: '', url: '', dayOfWeek: 'Lundi', type: 'VOSTFR' },
+                { id: 'b-vostfr', title: 'B', image: '', url: '', dayOfWeek: 'Mardi', type: 'VOSTFR' },
+                { id: 'a-vostfr', title: 'A', image: '', url: '', dayOfWeek: 'Lundi', type: 'VOSTFR' },
             ],
             new: [],
             old: [],
-            hidden: ['2'],
+            hidden: ['b-vostfr'],
             towatch: [],
+            inprogress: [],
+            completed: [],
             viewed: [],
             lastUpdate: new Date().toISOString(),
         };
@@ -103,29 +105,31 @@ describe('tab logic', () => {
 
         const planning = getPlanningAnime();
         expect(planning).toHaveLength(1);
-        expect(planning[0].id).toBe('1');
+        expect(planning[0].id).toBe('a-vostfr');
     });
 
     test('new logic: getNewAnime + newMarkAsSeen', () => {
         const storage: AnimeStorage = {
             current: [],
             new: [
-                { id: 'n1', title: 'N1', image: '', url: '', dayOfWeek: 'Lundi', type: 'VOSTFR' },
-                { id: 'n2', title: 'N2', image: '', url: '', dayOfWeek: 'Mardi', type: 'VOSTFR' },
+                { id: 'n1-vostfr', title: 'N1', image: '', url: '', dayOfWeek: 'Lundi', type: 'VOSTFR' },
+                { id: 'n2-vostfr', title: 'N2', image: '', url: '', dayOfWeek: 'Mardi', type: 'VOSTFR' },
             ],
             old: [],
-            hidden: ['n2'],
+            hidden: ['n2-vostfr'],
             towatch: [],
+            inprogress: [],
+            completed: [],
             viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
 
-        expect(getNewAnime().map(a => a.id)).toEqual(['n1']);
-        expect(newMarkAsSeen('n1')).toBe(true);
+        expect(getNewAnime().map(a => a.id)).toEqual(['n1-vostfr']);
+        expect(newMarkAsSeen('n1-vostfr')).toBe(true);
 
         const after = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as AnimeStorage;
-        expect(after.new.map(a => a.id)).toEqual(['n2']);
+        expect(after.new.map(a => a.id)).toEqual(['n2-vostfr']);
     });
 
     test('old logic: getOldAnime + removeOldAnime removes hidden too', () => {
@@ -133,40 +137,44 @@ describe('tab logic', () => {
             current: [],
             new: [],
             old: [
-                { id: 'o1', title: 'O1', image: '', url: '', dayOfWeek: 'Jeudi', type: 'VOSTFR' },
-                { id: 'o2', title: 'O2', image: '', url: '', dayOfWeek: 'Vendredi', type: 'VOSTFR' },
+                { id: 'o1-vostfr', title: 'O1', image: '', url: '', dayOfWeek: 'Jeudi', type: 'VOSTFR' },
+                { id: 'o2-vostfr', title: 'O2', image: '', url: '', dayOfWeek: 'Vendredi', type: 'VOSTFR' },
             ],
-            hidden: ['o1'],
+            hidden: ['o1-vostfr'],
             towatch: [],
+            inprogress: [],
+            completed: [],
             viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
 
-        expect(getOldAnime().map(a => a.id)).toEqual(['o2']);
-        expect(removeOldAnime('o1')).toBe(true);
+        expect(getOldAnime().map(a => a.id)).toEqual(['o2-vostfr']);
+        expect(removeOldAnime('o1-vostfr')).toBe(true);
 
         const after = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as AnimeStorage;
-        expect(after.old.map(a => a.id)).toEqual(['o2']);
+        expect(after.old.map(a => a.id)).toEqual(['o2-vostfr']);
         expect(after.hidden).toEqual([]);
     });
 
     test('hidden logic: getHiddenAnime + restoreHiddenAnime', () => {
         const storage: AnimeStorage = {
-            current: [{ id: 'c1', title: 'C1', image: '', url: '', dayOfWeek: 'Lundi', type: 'VOSTFR' }],
-            new: [{ id: 'n1', title: 'N1', image: '', url: '', dayOfWeek: 'Mardi', type: 'VOSTFR' }],
-            old: [{ id: 'o1', title: 'O1', image: '', url: '', dayOfWeek: 'Mercredi', type: 'VOSTFR' }],
-            hidden: ['n1', 'o1'],
+            current: [{ id: 'c1-vostfr', title: 'C1', image: '', url: '', dayOfWeek: 'Lundi', type: 'VOSTFR' }],
+            new: [{ id: 'n1-vostfr', title: 'N1', image: '', url: '', dayOfWeek: 'Mardi', type: 'VOSTFR' }],
+            old: [{ id: 'o1-vostfr', title: 'O1', image: '', url: '', dayOfWeek: 'Mercredi', type: 'VOSTFR' }],
+            hidden: ['n1-vostfr', 'o1-vostfr'],
             towatch: [],
+            inprogress: [],
+            completed: [],
             viewed: [],
             lastUpdate: new Date().toISOString(),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(storage));
 
-        expect(getHiddenAnime().map(a => a.id)).toEqual(['n1', 'o1']);
-        expect(restoreHiddenAnime('n1')).toBe(true);
+        expect(getHiddenAnime().map(a => a.id)).toEqual(['n1-vostfr', 'o1-vostfr']);
+        expect(restoreHiddenAnime('n1-vostfr')).toBe(true);
 
         const after = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as AnimeStorage;
-        expect(after.hidden).toEqual(['o1']);
+        expect(after.hidden).toEqual(['o1-vostfr']);
     });
 });
