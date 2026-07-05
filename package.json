@@ -1,64 +1,32 @@
 {
-  "name": "my-dashboard",
-  "version": "0.1.0",
+  "name": "anime-dashboard",
+  "version": "0.2.0",
   "type": "module",
   "private": true,
-  "proxy": "http://localhost:3001",
-  "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@mui/icons-material": "^7.3.9",
-    "@mui/material": "^7.3.9",
-    "@testing-library/jest-dom": "^5.16.4",
-    "@testing-library/react": "^13.3.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.11.47",
-    "@types/react": "^18.0.15",
-    "@types/react-dom": "^18.0.6",
-    "autoprefixer": "^10.4.8",
-    "postcss": "^8.4.16",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.30.4",
-    "tailwindcss": "^3.1.8",
-    "typescript": "^4.7.4",
-    "web-vitals": "^2.1.4"
-  },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject",
+    "dev": "concurrently --names \"API,WEB\" --prefix-colors \"yellow,cyan\" \"npm run api\" \"npm run web\"",
+    "web": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "api": "cd api && npm run dev",
     "api:install": "cd api && npm install",
-    "dev": "concurrently --names \"API,WEB\" --prefix-colors \"yellow,cyan\" \"npm run api\" \"npm start\"",
     "install:all": "npm install && npm run api:install",
     "build:all": "npm run build && cd api && npm run build"
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.4"
   },
   "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
     "concurrently": "^9.2.1",
-    "electron": "^38.4.0",
-    "electron-builder": "^26.0.12",
-    "react-scripts": "^5.0.1",
-    "wait-on": "^9.0.1"
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3"
   }
 }

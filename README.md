@@ -1,72 +1,79 @@
-# Anime-Sama Dashboard
+# Anime Dashboard
 
-Dashboard personnel pour suivre le planning, le catalogue et votre liste de visionnage sur [anime-sama](https://anime-sama.pw).
+Dashboard personnel pour suivre les saisons d'anime (AniList) avec liens anime-sama à la demande.
+
+## Stack
+
+| Couche | Technologie |
+|--------|-------------|
+| Frontend | Vite + React 18 + TypeScript + Tailwind CSS |
+| Backend | Express + TypeScript + SQLite (better-sqlite3) |
+| Données anime | [AniList GraphQL API](https://anilist.co) (public) |
+| Liens streaming | anime-sama (résolution à la demande via FlareSolverr) |
 
 ## Fonctionnalités
 
-- **Planning hebdomadaire** — Animes du jour avec filtres, onglets nouveaux/anciens/masqués
-- **Catalogue** — Recherche et pagination d'animes et films VOSTFR via FlareSolverr
-- **À regarder / Déjà vu** — Listes persistantes en localStorage avec suivi par saison
-- **Fiche anime** — Saisons, marquage vu/non-vu, lecteur intégré (iframe), suivi d'épisode
-- **Sync automatique** — Détection des nouvelles saisons pour les animes déjà vus → ajout auto à « À regarder »
-- **Navigation** — React Router avec URLs partageables (`/planning`, `/catalog`, `/towatch`, `/anime/:slug`)
+- **Planning** — Saison de diffusion courante (AniList), navigation hiver/printemps/été/automne, masquer/afficher des animes (persisté SQLite)
+- **Catalogue** — Recherche AniList (plus de scrape catalogue complet)
+- **À regarder / Déjà vu** — Listes persistées en SQLite par ID AniList
+- **Fiche anime** — Détails AniList + boutons « Regarder » et « Fiche anime-sama » (résolution fuzzy + cache)
 
 ## Prérequis
 
 - Node.js 18+
-- [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) (contournement Cloudflare) — voir `docker-compose.yml`
+- FlareSolverr (uniquement pour les résolutions anime-sama) — voir `docker-compose.yml`
 
 ## Installation
 
 ```bash
 git clone <votre-repo>
 cd Dashboard-sama-scrapper
-
-# Frontend + API
 npm run install:all
 ```
 
 ## Développement
 
 ```bash
-# FlareSolverr (Docker)
+# FlareSolverr (optionnel, requis pour anime-sama)
 docker compose up -d flaresolverr
 
-# Frontend (port 3000) + API (port 3001)
+# API (port 3001) + Frontend Vite (port 5173)
 npm run dev
 ```
 
-Le proxy CRA redirige `/api/*` vers `http://localhost:3001`.
-
-Variables d'environnement optionnelles :
+Le proxy Vite redirige `/api/*` vers `http://localhost:3001`.
 
 | Variable | Description | Défaut |
 |----------|-------------|--------|
-| `FLARESOLVERR_URL` | URL FlareSolverr (API) | `http://localhost:8191/v1` |
-| `REACT_APP_API_URL` | URL API (frontend) | `/api` |
+| `FLARESOLVERR_URL` | URL FlareSolverr | `http://localhost:8191/v1` |
+| `SITE_EXTENSION` | Extension anime-sama (.to, .pw…) | `to` |
+| `API_PORT` | Port API | `3001` |
 
-## API Backend
+## API
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/animes` | Planning complet |
-| `GET /api/animes/today` | Animes du jour |
-| `GET /api/animes/catalogue?search=&page=&type=` | Catalogue (pagination réelle) |
-| `GET /api/animes/seasons/:slug` | Saisons d'un anime |
-| `GET /api/animes/seasons/:slug/episodes?url=` | Nombre d'épisodes d'une saison |
-| `POST /api/animes/refresh` | Force le rafraîchissement du cache planning |
-| `GET /api/config/detect-extension` | Détection du domaine actif (.to, .pw, etc.) |
+| `GET /api/anilist/season?season=&year=&page=` | Anime d'une saison |
+| `GET /api/anilist/search?q=` | Recherche AniList |
+| `GET /api/anilist/anime/:id` | Détail anime |
+| `GET /api/anilist/current-season` | Saison courante |
+| `GET /api/sama/resolve?title=` | URL catalogue anime-sama |
+| `GET /api/sama/resolve?title=&season=N` | URL saison VOSTFR |
+| `GET/POST/DELETE /api/user/hidden/:id` | Animes masqués (planning) |
+| `GET/POST/DELETE /api/user/towatch/:id` | Liste à regarder |
+| `GET/POST/DELETE /api/user/viewed/:id` | Liste déjà vu |
+| `GET/PUT /api/user/episode-progress` | Progression épisodes (optionnel) |
 
 ## Structure
 
 ```
-src/                    # Frontend React + TypeScript
-  components/           # Pages et composants UI
-  hooks/                # useAnimeData, useAnimeSeasons
-  services/api/         # Client API et sync localStorage
-  utils/tabLogic/       # Logique planning / towatch / viewed
-api/                    # Backend Express + scrapers FlareSolverr
-  src/services/         # planning, catalog, season-scraper
+src/                 # Frontend Vite + React
+  api/client.ts      # Client REST
+  pages/             # Planning, Catalog, ToWatch, Anime detail
+api/src/
+  services/anilist.service.ts    # Proxy AniList GraphQL
+  services/sama-resolve.service.ts  # Fuzzy match + cache
+  db/init.ts         # SQLite: hidden_animes, sama_cache, user_lists
 ```
 
 ## Build
@@ -75,12 +82,15 @@ api/                    # Backend Express + scrapers FlareSolverr
 npm run build:all
 ```
 
-## Stockage local
+## Supprimé / remplacé
 
-Les listes (planning, à regarder, déjà vu, saisons vues, progression épisodes) sont stockées dans le navigateur (`localStorage`). Aucune donnée utilisateur n'est envoyée à un serveur tiers.
+- Frontend CRA (react-scripts) → Vite + React
+- Planning scrape anime-sama comme source principale → AniList seasonal
+- Onglets new/old/current → navigation par saison AniList
+- Catalogue scrape anime-sama → recherche AniList
+- localStorage comme stockage principal → SQLite via API REST
 
 ## Notes
 
-- Le lecteur intégré charge la page anime-sama en iframe ; le suivi d'épisode est manuel (numéro d'épisode sauvegardé localement).
-- Le temps de visionnage estimé : 24 min/épisode, 2 h/film.
-- FlareSolverr est requis pour le scraping (Cloudflare).
+- FlareSolverr n'est nécessaire que pour les boutons anime-sama (résolution catalogue/saison).
+- Le planning et le catalogue fonctionnent sans FlareSolverr (AniList direct).

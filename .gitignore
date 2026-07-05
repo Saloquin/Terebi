@@ -3,6 +3,7 @@ dist/
 build/
 .env
 api/.env
+api/data/
 *.log
 debug-planning.html
 debug-one.html
