@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 
 import { anilistService, AniListApiError } from '../services/anilist.service';
+import { getPlanningWithFallback } from '../services/planning-fallback.service';
 import { AniListSeason, MediaListStatus } from '../types/anilist.types';
 import { ApiResponse } from '../types/anime.types';
 
@@ -275,11 +276,13 @@ router.get('/planning', async (req, res) => {
         const c = anilistService.getCurrentSeason();
         const season = parseSeason(req.query.season) || c.season;
         const year = parseInt(String(req.query.year || c.year), 10) || c.year;
-        anilistService.resetRequestCount();
-        const media = await anilistService.getPlanningMedia(season, year);
-        const anilistRequests = anilistService.getRequestCount();
-        console.log(`📊 Planning ${season} ${year}: ${anilistRequests} requête(s) AniList`);
-        ok(res, { season, year, media, anilistRequests });
+        const result = await getPlanningWithFallback(season, year);
+        if (result.source === 'anilist') {
+            console.log(
+                `📊 Planning ${season} ${year}: ${result.anilistRequests ?? 0} requête(s) AniList`
+            );
+        }
+        ok(res, { season, year, media: result.media, source: result.source, anilistRequests: result.anilistRequests });
     } catch (e) {
         handle(res, e);
     }

@@ -26,13 +26,13 @@ export default function PlanningPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rateLimited, setRateLimited] = useState(false);
-  const [apiDisabled, setApiDisabled] = useState(false);
+  const [planningSource, setPlanningSource] = useState<'anilist' | 'jikan' | 'kitsu'>('anilist');
 
   const load = useCallback(async (signal: AbortSignal) => {
     setLoading(true);
     setError(null);
     setRateLimited(false);
-    setApiDisabled(false);
+    setPlanningSource('anilist');
     try {
       let s: AniListSeason;
       let y: number;
@@ -54,14 +54,12 @@ export default function PlanningPage() {
       if (signal.aborted) return;
 
       setMedia(planningData.media);
+      setPlanningSource(planningData.source ?? 'anilist');
       setHiddenIds(new Set(getHiddenIds()));
     } catch (e) {
       if (signal.aborted) return;
       if (e instanceof ApiError && e.isRateLimit) {
         setRateLimited(true);
-      }
-      if (e instanceof ApiError && e.isAnilistDisabled) {
-        setApiDisabled(true);
       }
       setError(e instanceof Error ? e.message : 'Erreur de chargement');
     } finally {
@@ -141,18 +139,27 @@ export default function PlanningPage() {
       {error && (
         <ErrorMessage
           message={
-            apiDisabled
-              ? error
-              : rateLimited
-                ? `${error} AniList limite à ~30 requêtes/minute — attendez une minute avant de réessayer.`
-                : error
+            rateLimited
+              ? `${error} AniList limite à ~30 requêtes/minute — attendez une minute avant de réessayer.`
+              : error
           }
-          onRetry={apiDisabled ? undefined : retry}
+          onRetry={retry}
         />
       )}
 
       {!loading && !error && (
         <>
+          {planningSource !== 'anilist' && (
+            <div
+              role="status"
+              className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100"
+            >
+              Planning via MyAnimeList (AniList indisponible)
+              <span className="ml-2 text-xs text-amber-200/80">
+                Source : {planningSource === 'jikan' ? 'MAL/Jikan' : 'Kitsu'}
+              </span>
+            </div>
+          )}
           <div className="overflow-x-auto -mx-4 px-4 pb-2 lg:overflow-visible lg:mx-0 lg:px-0">
             <div className="flex gap-3 min-w-max lg:grid lg:grid-cols-7 lg:min-w-0">
               {scheduled.map(group => (
@@ -182,6 +189,7 @@ export default function PlanningPage() {
                           airingTime={time}
                           airingEpisode={episode}
                           compact
+                          externalLink={planningSource !== 'anilist' ? m.siteUrl : undefined}
                         />
                       ))
                     )}
@@ -207,6 +215,7 @@ export default function PlanningPage() {
                     media={m}
                     hidden={hiddenIds.has(m.id)}
                     onToggleHidden={() => toggleHidden(m.id)}
+                    externalLink={planningSource !== 'anilist' ? m.siteUrl : undefined}
                   />
                 ))}
               </div>

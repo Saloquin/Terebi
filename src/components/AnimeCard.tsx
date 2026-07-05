@@ -11,6 +11,8 @@ interface Props {
   airingTime?: string;
   airingEpisode?: number;
   compact?: boolean;
+  /** When set, card links externally (e.g. MAL during Jikan fallback) instead of /anime/:id */
+  externalLink?: string;
 }
 
 export default function AnimeCard({
@@ -21,13 +23,13 @@ export default function AnimeCard({
   airingTime,
   airingEpisode,
   compact,
+  externalLink,
 }: Props) {
   const title = displayTitle(media);
   const cover = media.coverImage?.large || media.coverImage?.medium;
 
-  return (
-    <article className={`group relative bg-surface-raised border border-surface-border rounded-xl overflow-hidden hover:border-accent/50 transition-colors ${compact ? 'text-xs' : ''}`}>
-      <Link to={`/anime/${media.id}`} className="block">
+  const cardInner = (
+    <>
         <div className="aspect-[2/3] bg-surface overflow-hidden">
           {cover ? (
             <img
@@ -48,7 +50,7 @@ export default function AnimeCard({
             {airingTime && (
               <p className="text-xs text-accent font-medium">
                 {airingTime}
-                {airingEpisode != null && ` · Ep. ${airingEpisode}`}
+                {airingEpisode != null && airingEpisode > 0 && ` · Ep. ${airingEpisode}`}
               </p>
             )}
             {media.averageScore != null && (
@@ -56,7 +58,20 @@ export default function AnimeCard({
             )}
           </div>
         </div>
-      </Link>
+    </>
+  );
+
+  return (
+    <article className={`group relative bg-surface-raised border border-surface-border rounded-xl overflow-hidden hover:border-accent/50 transition-colors ${compact ? 'text-xs' : ''}`}>
+      {externalLink ? (
+        <a href={externalLink} target="_blank" rel="noopener noreferrer" className="block">
+          {cardInner}
+        </a>
+      ) : (
+        <Link to={`/anime/${media.id}`} className="block">
+          {cardInner}
+        </Link>
+      )}
       <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {onToggleHidden && (
           <button

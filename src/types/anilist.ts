@@ -2,6 +2,7 @@ export type AniListSeason = 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL';
 
 export interface AniListMedia {
   id: number;
+  idMal?: number;
   title: { romaji?: string; english?: string; native?: string };
   coverImage?: { large?: string; medium?: string };
   bannerImage?: string;
@@ -42,10 +43,14 @@ export interface SeasonPageData {
   media: AniListMedia[];
 }
 
+export type PlanningSource = 'anilist' | 'jikan' | 'kitsu';
+
 export interface PlanningPageData {
   season: AniListSeason;
   year: number;
   media: AniListMedia[];
+  source?: PlanningSource;
+  anilistRequests?: number;
 }
 
 export interface SamaResolveResult {
