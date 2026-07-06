@@ -160,12 +160,12 @@ export default function PlanningPage() {
               </span>
             </div>
           )}
-          <div className="overflow-x-auto -mx-4 px-4 pb-2 lg:overflow-visible lg:mx-0 lg:px-0">
-            <div className="flex gap-3 min-w-max lg:grid lg:grid-cols-7 lg:min-w-0">
+          <div className="overflow-x-auto pb-2 lg:overflow-visible w-full">
+            <div className="flex gap-3 min-w-max w-full lg:grid lg:grid-cols-7 lg:min-w-0">
               {scheduled.map(group => (
                 <section
                   key={group.dayIndex}
-                  className="flex flex-col w-44 shrink-0 lg:w-auto lg:min-w-0"
+                  className="flex flex-col w-44 shrink-0 lg:w-full lg:min-w-0"
                 >
                   <h2 className="text-sm font-semibold mb-3 text-center sticky top-0 bg-surface py-1 z-10">
                     <span className="lg:hidden">{group.dayShort}</span>

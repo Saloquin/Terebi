@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { Settings } from 'lucide-react';
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -9,6 +9,9 @@ const navClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export default function Layout() {
+  const { pathname } = useLocation();
+  const isPlanning = pathname === '/planning' || pathname.startsWith('/planning/');
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-surface-border bg-surface-raised/80 backdrop-blur sticky top-0 z-50">
@@ -38,7 +41,13 @@ export default function Layout() {
           </nav>
         </div>
       </header>
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
+      <main
+        className={
+          isPlanning
+            ? 'flex-1 w-full max-w-none px-4 py-6'
+            : 'flex-1 max-w-7xl w-full mx-auto px-4 py-6'
+        }
+      >
         <Outlet />
       </main>
     </div>
