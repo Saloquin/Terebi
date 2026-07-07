@@ -8,7 +8,7 @@ import ErrorMessage from '../components/ErrorMessage';
 
 import LoadingSpinner from '../components/LoadingSpinner';
 
-import { consumeOAuthCredentials, consumeTokenFromHash, setAnilistToken, DEFAULT_ANILIST_REDIRECT_URI } from '../lib/storage';
+import { consumeOAuthCredentials, consumeTokenFromHash, getAnilistRedirectUri, setAnilistToken } from '../lib/storage';
 
 
 
@@ -86,7 +86,7 @@ export default function SettingsCallbackPage() {
 
           creds.clientSecret,
 
-          DEFAULT_ANILIST_REDIRECT_URI
+          getAnilistRedirectUri()
 
         );
 

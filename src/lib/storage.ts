@@ -11,7 +11,15 @@ const LEGACY_KEYS = [
 const OAUTH_SESSION_ID = 'anilist_oauth_client_id';
 const OAUTH_SESSION_SECRET = 'anilist_oauth_client_secret';
 
+/** @deprecated Use getAnilistRedirectUri() — kept for tests/fallback */
 export const DEFAULT_ANILIST_REDIRECT_URI = 'http://localhost:5173/settings/callback';
+
+export function getAnilistRedirectUri(): string {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}/settings/callback`;
+  }
+  return DEFAULT_ANILIST_REDIRECT_URI;
+}
 
 export function purgeLegacyStorage(): void {
   for (const key of LEGACY_KEYS) {

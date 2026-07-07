@@ -38,23 +38,26 @@ Renseignez `ANILIST_CLIENT_ID` et `ANILIST_CLIENT_SECRET` dans `.env` (voir ci-d
 
 ## Connexion AniList
 
-Les identifiants OAuth sont **uniquement côté serveur** (fichier `.env`). L'interface ne propose qu'un bouton **Connecter AniList**.
+Les identifiants OAuth sont saisis dans **Paramètres** (Client ID + Client Secret). Seul le token AniList est conservé localement.
 
 1. Créez une application sur [anilist.co/settings/developer](https://anilist.co/settings/developer)
-2. Enregistrez le Redirect URI : `http://localhost:3001/api/anilist/auth/callback`
-3. Copiez Client ID et Client Secret dans `.env`
-4. Ouvrez **Paramètres** et cliquez **Connecter AniList**
+2. Enregistrez le **Redirect URI** correspondant à votre environnement (affiché dans Paramètres) :
+   - **Développement** (`npm run dev`) : `http://localhost:5173/settings/callback`
+   - **Docker** (`docker compose up`) : `http://localhost/settings/callback`
+3. Saisissez Client ID et Client Secret dans **Paramètres**, puis cliquez **Connecter AniList**
+
+Le Redirect URI est calculé automatiquement depuis l'URL courante (`window.location.origin + '/settings/callback'`).
 
 Après autorisation, le token est stocké dans le navigateur (`localStorage` → `anilist_token`).
 
-### Variables `.env` OAuth
+### Variables `.env` OAuth (optionnel — fallback backend)
 
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| `ANILIST_CLIENT_ID` | Client ID OAuth | — (requis) |
-| `ANILIST_CLIENT_SECRET` | Client Secret OAuth | — (requis) |
-| `ANILIST_REDIRECT_URI` | URL callback OAuth | `http://localhost:3001/api/anilist/auth/callback` |
-| `FRONTEND_URL` | URL frontend (redirect post-OAuth) | `http://localhost:5173` |
+| Variable | Description | Défaut dev | Défaut Docker |
+|----------|-------------|------------|---------------|
+| `ANILIST_CLIENT_ID` | Client ID OAuth | — | — |
+| `ANILIST_CLIENT_SECRET` | Client Secret OAuth | — | — |
+| `ANILIST_REDIRECT_URI` | Fallback si non fourni par le frontend | `http://localhost:5173/settings/callback` | `http://localhost/settings/callback` |
+| `FRONTEND_URL` | URL frontend (redirect post-OAuth API callback) | `http://localhost:5173` | `http://localhost` |
 
 ## Développement
 
@@ -130,6 +133,8 @@ docker compose up -d --build
 | Frontend (nginx) | 80 | http://localhost |
 | API | 3001 | http://localhost:3001 |
 | FlareSolverr | 8191 | http://localhost:8191 |
+
+**OAuth AniList en Docker** : enregistrez `http://localhost/settings/callback` comme Redirect URI sur AniList. Nginx sert le SPA (y compris `/settings/callback`) et proxy `/api/*` vers le backend.
 
 FlareSolverr est requis uniquement pour les boutons anime-sama. Le planning et le catalogue AniList fonctionnent sans lui.
 

@@ -6,6 +6,7 @@ import ErrorMessage from '../components/ErrorMessage';
 import LoadingSpinner from '../components/LoadingSpinner';
 import {
   clearAnilistToken,
+  getAnilistRedirectUri,
   getAnilistToken,
   storeOAuthCredentials,
 } from '../lib/storage';
@@ -17,7 +18,7 @@ export default function SettingsPage() {
   const [extension, setExtension] = useState('to');
   const [connected, setConnected] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
-  const [redirectUri, setRedirectUri] = useState('http://localhost:5173/settings/callback');
+  const [redirectUri, setRedirectUri] = useState(getAnilistRedirectUri);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -238,4 +239,4 @@ export default function SettingsPage() {
     </div>
   );
 }
-
+
