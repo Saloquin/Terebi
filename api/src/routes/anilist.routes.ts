@@ -107,7 +107,7 @@ router.get('/auth/url', (_req, res) => {
 
 router.get('/auth/callback', async (req, res) => {
     const frontend = anilistService.getFrontendUrl();
-    const callbackPath = `${frontend}/settings/callback`;
+    const callbackPath = `${frontend}/callback`;
     const settingsPath = `${frontend}/settings`;
     try {
         const code = typeof req.query.code === 'string' ? req.query.code.trim() : '';

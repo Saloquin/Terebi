@@ -15,7 +15,7 @@ const API_DISABLED_MARKER = 'temporarily disabled';
 const API_DISABLED_MESSAGE =
     "L'API AniList est temporairement désactivée pour maintenance. Consultez le Discord officiel AniList pour plus d'informations.";
 
-const DEFAULT_REDIRECT_URI = 'http://localhost:5173/settings/callback';
+const DEFAULT_REDIRECT_URI = 'http://localhost:5173/callback';
 const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
 
 export class AniListApiError extends Error {

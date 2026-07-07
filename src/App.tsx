@@ -3,6 +3,7 @@ import Layout from './components/Layout';
 import AnimeDetailPage from './pages/AnimeDetailPage';
 import CatalogPage from './pages/CatalogPage';
 import PlanningPage from './pages/PlanningPage';
+import SettingsCallbackPage from './pages/SettingsCallbackPage';
 import SettingsPage from './pages/SettingsPage';
 import UserListPage from './pages/UserListPage';
 
@@ -36,6 +37,8 @@ export default function App() {
         />
         <Route path="anime/:anilistId" element={<AnimeDetailPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="settings/callback" element={<SettingsCallbackPage />} />
+        <Route path="callback" element={<SettingsCallbackPage />} />
       </Route>
     </Routes>
   );

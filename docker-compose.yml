@@ -22,7 +22,7 @@ services:
       - FLARESOLVERR_URL=http://flaresolverr:8191/v1
       - ANILIST_CLIENT_ID=${ANILIST_CLIENT_ID}
       - ANILIST_CLIENT_SECRET=${ANILIST_CLIENT_SECRET}
-      - ANILIST_REDIRECT_URI=http://localhost/settings/callback
+      - ANILIST_REDIRECT_URI=http://localhost/callback
       - FRONTEND_URL=http://localhost
     ports:
       - "3001:3001"

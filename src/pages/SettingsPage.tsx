@@ -100,7 +100,7 @@ export default function SettingsPage() {
         setError('Saisissez votre Client ID et Client Secret avant de connecter.');
         return;
       }
-      storeOAuthCredentials(id, secret);
+      storeOAuthCredentials(id, secret, redirectUri);
       const { url, redirectUri: uri } = await api.buildOAuthUrl(id, redirectUri);
       setRedirectUri(uri);
       setClientSecret('');
@@ -183,9 +183,20 @@ export default function SettingsPage() {
           Seul le token AniList est conservé localement.
         </p>
 
-        <p className="text-xs text-gray-500">
-          Redirect URI à enregistrer sur AniList :{' '}
-          <code className="bg-surface px-1.5 py-0.5 rounded">{redirectUri}</code>
+        <p className="text-xs text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          Enregistrez ce Redirect URI sur{' '}
+          <a
+            href="https://anilist.co/settings/developer"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-amber-300"
+          >
+            anilist.co/settings/developer
+          </a>{' '}
+          (doit correspondre exactement) :
+        </p>
+        <p className="text-sm">
+          <code className="bg-surface px-2 py-1 rounded break-all">{redirectUri}</code>
         </p>
 
         <div className="flex flex-wrap items-center gap-3 pt-1">

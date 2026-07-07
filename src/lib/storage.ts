@@ -10,15 +10,27 @@ const LEGACY_KEYS = [
 
 const OAUTH_SESSION_ID = 'anilist_oauth_client_id';
 const OAUTH_SESSION_SECRET = 'anilist_oauth_client_secret';
+const OAUTH_SESSION_REDIRECT = 'anilist_oauth_redirect_uri';
 
 /** @deprecated Use getAnilistRedirectUri() — kept for tests/fallback */
-export const DEFAULT_ANILIST_REDIRECT_URI = 'http://localhost:5173/settings/callback';
+export const DEFAULT_ANILIST_REDIRECT_URI = 'http://localhost:5173/callback';
 
 export function getAnilistRedirectUri(): string {
   if (typeof window !== 'undefined') {
-    return `${window.location.origin}/settings/callback`;
+    return `${window.location.origin}/callback`;
   }
   return DEFAULT_ANILIST_REDIRECT_URI;
+}
+
+/** Redirect URI matching the current OAuth callback path (supports /callback and /settings/callback). */
+export function getOAuthRedirectUriFromPath(): string {
+  if (typeof window !== 'undefined') {
+    const path = window.location.pathname;
+    if (path === '/callback' || path === '/settings/callback') {
+      return `${window.location.origin}${path}`;
+    }
+  }
+  return getAnilistRedirectUri();
 }
 
 export function purgeLegacyStorage(): void {
@@ -68,22 +80,36 @@ export function unhideAnime(id: number): number[] {
   return ids;
 }
 
-export function storeOAuthCredentials(clientId: string, clientSecret: string): void {
+export function storeOAuthCredentials(
+  clientId: string,
+  clientSecret: string,
+  redirectUri?: string,
+): void {
   sessionStorage.setItem(OAUTH_SESSION_ID, clientId.trim());
   sessionStorage.setItem(OAUTH_SESSION_SECRET, clientSecret.trim());
+  if (redirectUri?.trim()) {
+    sessionStorage.setItem(OAUTH_SESSION_REDIRECT, redirectUri.trim());
+  }
 }
 
-export function consumeOAuthCredentials(): { clientId: string; clientSecret: string } | null {
+export function consumeOAuthCredentials(): {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+} | null {
   const clientId = sessionStorage.getItem(OAUTH_SESSION_ID)?.trim();
   const clientSecret = sessionStorage.getItem(OAUTH_SESSION_SECRET)?.trim();
+  const redirectUri =
+    sessionStorage.getItem(OAUTH_SESSION_REDIRECT)?.trim() || getOAuthRedirectUriFromPath();
   clearOAuthCredentials();
   if (!clientId || !clientSecret) return null;
-  return { clientId, clientSecret };
+  return { clientId, clientSecret, redirectUri };
 }
 
 export function clearOAuthCredentials(): void {
   sessionStorage.removeItem(OAUTH_SESSION_ID);
   sessionStorage.removeItem(OAUTH_SESSION_SECRET);
+  sessionStorage.removeItem(OAUTH_SESSION_REDIRECT);
 }
 
 export function consumeTokenFromHash(): string | null {
