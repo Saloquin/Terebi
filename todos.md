@@ -1,13 +1,19 @@
-1ere Partie
+# TODOs — voir le backlog
 
-ajouter tabs deja vu dans l'onglet a voir qui seras renommer en un nom plus descriptif
-permettre de definir si on a deja vu des saison quand on dit que on a deja vu et donc si il reste des saison a voir se seras a la fois dans a voir et vu 
-faire en sorte que si ya une nouvelle saison qui sort pour un anime deja vu sa nous le met automatiquement dans a voir
-et donc que quand on clique sur les card sur catalog et celle du a voir actuelle redirige vers une page ou on voit les info de l'anime et les saisons (si elle sont deja vu et les definir comme vu ) 
+Les idées de ce fichier (tabs vu/à voir, replanif nouvelle saison, suivi par saison, lecteur
+intégré, suivi d'épisode, nombre d'épisodes, temps de visionnage total) ont été **intégrées et
+priorisées** dans le backlog produit.
 
-2e partie 
+➡️ **Source de vérité : [`docs/BACKLOG.md`](docs/BACKLOG.md)** (projet **Terebi**).
 
-faire en sorte d'avoir le lecteur intégrer dans l'app si possible 
-suivre la trace de l'episode ou on est si possible 
-connaitre le nombre d'episode d'une serie 
-calculer combien de temps de visionage total j'ai en partant du principe qu'un ep c'est 24 min et un film 2h
+Correspondances principales :
+
+| Idée d'origine | Story backlog |
+|----------------|---------------|
+| Onglets « à voir » / « déjà vu », statut par saison | US-40, US-43 |
+| Nouvelle saison d'un anime vu → auto « à voir » | US-46 |
+| Page anime avec info + saisons (définir vu/pas vu) | US-25, US-43, US-44, US-45 |
+| Lecteur intégré dans l'app | US-60 (media_kit encastré) |
+| Suivre l'épisode où on en est | US-42, US-63, US-65 |
+| Connaître le nombre d'épisodes | US-67 |
+| Temps de visionnage total (24 min/ep, 2 h/film) | US-90, US-91 |

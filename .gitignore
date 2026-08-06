@@ -1,9 +1,30 @@
-node_modules/
-dist/
+# Flutter / Dart
+.dart_tool/
+.packages
 build/
-.env
-api/.env
-api/data/
+.flutter-plugins
+.flutter-plugins-dependencies
 *.log
-debug-planning.html
-debug-one.html
+
+# Génération de code (drift) : les *.g.dart sont commités (régénérables mais utiles au diff).
+# pubspec.lock : versionné (app → reproductibilité).
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Secrets / env
+.env
+*.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Sonde / temporaire
+.tmp/
+.probe_dart/
+
+# OMC
+.omc/
