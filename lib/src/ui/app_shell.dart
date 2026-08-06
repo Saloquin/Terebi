@@ -8,6 +8,7 @@ import 'pages/catalog_page.dart';
 import 'pages/home_page.dart';
 import 'pages/library_page.dart';
 import 'pages/planning_page.dart';
+import 'pages/settings_page.dart';
 
 /// Une destination de navigation.
 class _Destination {
@@ -33,7 +34,7 @@ class _AppShellState extends State<AppShell> {
     _Destination(Icons.search, 'Catalogue', CatalogPage()),
     _Destination(Icons.calendar_month_outlined, 'Planning', PlanningPage()),
     _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPage()),
-    _Destination(Icons.settings_outlined, 'Paramètres', _Placeholder('Paramètres')),
+    _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
   ];
 
   @override
@@ -59,27 +60,6 @@ class _AppShellState extends State<AppShell> {
           ),
           const VerticalDivider(width: 1),
           Expanded(child: _destinations[_index].page),
-        ],
-      ),
-    );
-  }
-}
-
-/// Placeholder temporaire d'une section (remplacé par les vraies pages).
-class _Placeholder extends StatelessWidget {
-  final String title;
-  const _Placeholder(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.headlineMedium),
-          const SizedBox(height: 8),
-          Text('Section en construction',
-              style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );

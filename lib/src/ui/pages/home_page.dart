@@ -11,6 +11,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../widgets/media_card.dart';
 import 'media_detail_page.dart';
+import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
 // Helper saison courante (DateTime.now() toléré en UI)
@@ -193,13 +194,18 @@ class _ContinueCard extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           FilledButton.icon(
-                            onPressed: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Lancer épisode $nextEp'),
-                                ),
-                              );
-                            },
+                            onPressed: media == null
+                                ? null
+                                : () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => PlayerPage(
+                                          media: media,
+                                          episode: nextEp,
+                                          entry: entry,
+                                        ),
+                                      ),
+                                    ),
                             icon: const Icon(Icons.play_arrow, size: 16),
                             label: Text('Épisode $nextEp'),
                             style: FilledButton.styleFrom(

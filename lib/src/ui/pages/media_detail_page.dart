@@ -9,6 +9,7 @@ import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/models/media_relation.dart';
+import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -364,8 +365,21 @@ class _ActionBar extends ConsumerWidget {
         if (resumeEp != null)
           FilledButton.icon(
             onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lancer épisode $resumeEp')),
+              final currentEntry = entry ??
+                  ListEntry(
+                    mediaId: media.anilistId,
+                    status: ListStatus.current,
+                    updatedAt: DateTime.now(),
+                  );
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PlayerPage(
+                    media: media,
+                    episode: resumeEp,
+                    entry: currentEntry,
+                  ),
+                ),
               );
             },
             icon: const Icon(Icons.play_arrow),
