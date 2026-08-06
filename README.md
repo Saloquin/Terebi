@@ -1,86 +1,39 @@
-# Anime-Sama Dashboard
+# Terebi
 
-Dashboard personnel pour suivre le planning, le catalogue et votre liste de visionnage sur [anime-sama](https://anime-sama.pw).
+> **Terebi** (テレビ, « télé ») — application desktop personnelle de suivi, planning et visionnage
+> d'anime, avec lecteur vidéo intégré.
 
-## Fonctionnalités
+⚠️ **Réécriture en cours (from scratch).** Le prototype web précédent (Vite/React/Express +
+anime-sama) a été supprimé. Il reste récupérable via le tag git `proto-web-backup-2026-08-06`.
 
-- **Planning hebdomadaire** — Animes du jour avec filtres, onglets nouveaux/anciens/masqués
-- **Catalogue** — Recherche et pagination d'animes et films VOSTFR via FlareSolverr
-- **À regarder / Déjà vu** — Listes persistantes en localStorage avec suivi par saison
-- **Fiche anime** — Saisons, marquage vu/non-vu, lecteur intégré (iframe), suivi d'épisode
-- **Sync automatique** — Détection des nouvelles saisons pour les animes déjà vus → ajout auto à « À regarder »
-- **Navigation** — React Router avec URLs partageables (`/planning`, `/catalog`, `/towatch`, `/anime/:slug`)
+## Vision
 
-## Prérequis
+Terebi est un **tracker + planning + lecteur intégré** d'anime :
 
-- Node.js 18+
-- [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) (contournement Cloudflare) — voir `docker-compose.yml`
+- **Suivi** : statuts (en cours / à voir / vu / en pause / abandonné), épisode courant, timestamp,
+  progression par saison de franchise — source de vérité **locale (SQLite)**.
+- **Planning** : saisons de diffusion et calendrier hebdomadaire via AniList (airing schedule).
+- **Découverte** : catalogue, recherche, fiches, relations — métadonnées AniList + Jikan.
+- **Lecture** : lecteur vidéo **encastré** dans l'app, avec overlays et reprise au timestamp exact.
 
-## Installation
+## Stack cible
 
-```bash
-git clone <votre-repo>
-cd Dashboard-sama-scrapper
+| Couche | Technologie |
+|--------|-------------|
+| UI | **Flutter** (desktop) |
+| Lecteur | **media_kit** (libmpv) — vidéo encastrée + overlays |
+| Persistance | **SQLite** (drift) — source de vérité du suivi |
+| Métadonnées | **AniList** (GraphQL, OAuth) + **Jikan** (fallback) |
+| Résolution de source | **ani-cli** (fournit l'URL du flux ; plan B : moteur allanime intégré) |
+| Plateforme | **Windows** prioritaire, puis Linux, macOS |
 
-# Frontend + API
-npm run install:all
-```
+## Documentation
 
-## Développement
+- **Cahier des charges** : [`docs/CAHIER_DES_CHARGES_STREAMING.md`](docs/CAHIER_DES_CHARGES_STREAMING.md)
+- **Backlog produit** (source de vérité de l'implémentation) : [`docs/BACKLOG.md`](docs/BACKLOG.md)
 
-```bash
-# FlareSolverr (Docker)
-docker compose up -d flaresolverr
+## État
 
-# Frontend (port 3000) + API (port 3001)
-npm run dev
-```
-
-Le proxy CRA redirige `/api/*` vers `http://localhost:3001`.
-
-Variables d'environnement optionnelles :
-
-| Variable | Description | Défaut |
-|----------|-------------|--------|
-| `FLARESOLVERR_URL` | URL FlareSolverr (API) | `http://localhost:8191/v1` |
-| `REACT_APP_API_URL` | URL API (frontend) | `/api` |
-
-## API Backend
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /api/animes` | Planning complet |
-| `GET /api/animes/today` | Animes du jour |
-| `GET /api/animes/catalogue?search=&page=&type=` | Catalogue (pagination réelle) |
-| `GET /api/animes/seasons/:slug` | Saisons d'un anime |
-| `GET /api/animes/seasons/:slug/episodes?url=` | Nombre d'épisodes d'une saison |
-| `POST /api/animes/refresh` | Force le rafraîchissement du cache planning |
-| `GET /api/config/detect-extension` | Détection du domaine actif (.to, .pw, etc.) |
-
-## Structure
-
-```
-src/                    # Frontend React + TypeScript
-  components/           # Pages et composants UI
-  hooks/                # useAnimeData, useAnimeSeasons
-  services/api/         # Client API et sync localStorage
-  utils/tabLogic/       # Logique planning / towatch / viewed
-api/                    # Backend Express + scrapers FlareSolverr
-  src/services/         # planning, catalog, season-scraper
-```
-
-## Build
-
-```bash
-npm run build:all
-```
-
-## Stockage local
-
-Les listes (planning, à regarder, déjà vu, saisons vues, progression épisodes) sont stockées dans le navigateur (`localStorage`). Aucune donnée utilisateur n'est envoyée à un serveur tiers.
-
-## Notes
-
-- Le lecteur intégré charge la page anime-sama en iframe ; le suivi d'épisode est manuel (numéro d'épisode sauvegardé localement).
-- Le temps de visionnage estimé : 24 min/épisode, 2 h/film.
-- FlareSolverr est requis pour le scraping (Cloudflare).
+Projet en phase de démarrage. Voir le backlog pour les EPICs, user stories et la feuille de route
+(MVP → V1 → V2 → V3). Le premier jalon est un **spike technique (US-00)** validant la résolution
+d'URL de flux avant de graver le reste du MVP.

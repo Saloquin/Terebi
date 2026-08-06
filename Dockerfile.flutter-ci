@@ -1,0 +1,33 @@
+# Environnement de test/CI Flutter (Linux) — hors EDR du poste Windows.
+#
+# Objectif : compiler et tester Terebi (flutter test widgets, flutter analyze,
+# flutter build linux) dans un conteneur, puisque le poste Windows bloque
+# flutter_tester.exe (EDR) et n'a pas Visual Studio. Voir docs/BACKLOG.md §0.7.
+#
+# Usage :
+#   docker build -f Dockerfile.flutter-ci -t terebi-ci .
+#   docker run --rm -v "$PWD":/app -w /app terebi-ci flutter test
+#   docker run --rm -v "$PWD":/app -w /app terebi-ci flutter analyze
+#   docker run --rm -v "$PWD":/app -w /app terebi-ci flutter build linux --debug
+
+# Note : image épinglée sur une version stable connue. La contrainte SDK du
+# pubspec (>=3.5.0) reste compatible avec le Dart de cette image et celui de l'hôte.
+FROM instrumentisto/flutter:latest
+
+# Dépendances desktop Linux + media_kit (mpv/libmpv) + toolchain build.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      clang lld llvm \
+      cmake ninja-build pkg-config \
+      libgtk-3-dev liblzma-dev \
+      libmpv-dev mpv \
+      libsecret-1-dev libjsoncpp-dev \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Active le support desktop Linux.
+RUN flutter config --enable-linux-desktop --no-analytics || true
+
+WORKDIR /app
+
+# Par défaut, affiche la version (le vrai usage passe une commande explicite).
+CMD ["flutter", "--version"]
