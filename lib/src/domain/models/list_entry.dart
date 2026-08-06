@@ -51,6 +51,35 @@ class ListEntry {
     this.syncedAt,
   });
 
+  /// Copie l'entrée en remplaçant les champs fournis (les autres sont conservés).
+  ///
+  /// Note : ce `copyWith` ne permet pas de repasser un champ nullable à `null`
+  /// (limite volontaire, non nécessaire pour la logique de progression).
+  ListEntry copyWith({
+    int? mediaId,
+    ListStatus? status,
+    int? progress,
+    double? score,
+    bool? favorite,
+    String? notes,
+    bool? hiddenFromPlanning,
+    int? anilistEntryId,
+    DateTime? updatedAt,
+    DateTime? syncedAt,
+  }) =>
+      ListEntry(
+        mediaId: mediaId ?? this.mediaId,
+        status: status ?? this.status,
+        progress: progress ?? this.progress,
+        score: score ?? this.score,
+        favorite: favorite ?? this.favorite,
+        notes: notes ?? this.notes,
+        hiddenFromPlanning: hiddenFromPlanning ?? this.hiddenFromPlanning,
+        anilistEntryId: anilistEntryId ?? this.anilistEntryId,
+        updatedAt: updatedAt ?? this.updatedAt,
+        syncedAt: syncedAt ?? this.syncedAt,
+      );
+
   /// Parse un nœud `MediaList` de la réponse GraphQL AniList.
   ///
   /// Champs attendus : `id`, `mediaId`, `status`, `progress`, `score`,
