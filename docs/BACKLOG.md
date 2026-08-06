@@ -94,9 +94,20 @@ vidéo est un widget natif du même arbre de rendu que l'UI.
 > Visual Studio + mpv).
 
 **Blocages IT à lever pour compléter le MVP** (hors de portée du dev, à traiter en parallèle) :
-1. Exclusion antivirus/EDR sur le dossier Flutter → débloque `flutter test` + lancement app.
-2. Installation de **Visual Studio Build Tools** avec la charge « Desktop development with C++ ».
-3. Installation de **mpv** (media_kit) et **ani-cli** (via Git Bash) pour le spike et la lecture.
+1. Exclusion antivirus/EDR sur le dossier Flutter → débloque `flutter test` + lancement app **natif Windows**.
+2. Installation de **Visual Studio Build Tools** avec la charge « Desktop development with C++ » (pour builder/lancer l'app **Windows**).
+3. Installation de **mpv** (media_kit) et **ani-cli** (via Git Bash) pour le spike et la lecture native Windows.
+
+**Contournement retenu — environnement Docker (hors EDR)** :
+
+> Docker Desktop est disponible. Une image `terebi-ci` (voir `Dockerfile.flutter-ci`, base
+> `instrumentisto/flutter` + GTK/clang/ninja/mpv) fournit un environnement Linux **non soumis à
+> l'EDR**, où **`flutter test` (widgets), `flutter analyze` et `flutter build linux` fonctionnent**.
+> Scripts : `scripts/dart-test.sh` (logique pure, hôte) et `scripts/flutter-ci.sh` (widgets/build, Docker).
+>
+> → La vérification (tests widgets + compilation Linux) est donc possible **sans** débloquer l'IT.
+> Le lancement/visualisation **natif Windows** de l'app reste dépendant des points 1–3 ci-dessus.
+> Contrainte SDK abaissée à `>=3.5.0 <4.0.0` pour compatibilité hôte (Dart 3.12) / image (Dart 3.11).
 
 ---
 
