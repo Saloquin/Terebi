@@ -227,14 +227,7 @@ void main() {
 
   group('AniListClient.nextAiring', () {
     test('retourne AiringSchedule quand nextAiringEpisode présent', () async {
-      final node = _mediaNode(
-        nextAiring: {'airingAt': 1700000000, 'episode': 5},
-      );
-      final mock = MockClient(
-          (_) async => _ok(_detailResponse(node)));
-
-      // On utilise mediaDetail ici pour vérifier nextAiringEpisode dans Media.
-      // nextAiring() fait une requête séparée :
+      // nextAiring() fait une requête séparée renvoyant nextAiringEpisode :
       final airingMock = MockClient((_) async => http.Response(
             jsonEncode({
               'data': {

@@ -40,7 +40,7 @@ class MediaTable extends Table {
   TextColumn get bannerUrl => text().nullable()();
   TextColumn get description => text().nullable()();
 
-  /// Genres sérialisés en JSON string (List<String>).
+  /// Genres sérialisés en JSON string (`List&lt;String&gt;`).
   TextColumn get genresJson => text().withDefault(const Constant('[]'))();
 
   IntColumn get averageScore => integer().nullable()();

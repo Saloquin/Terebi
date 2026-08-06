@@ -63,7 +63,7 @@ void main() {
       expect(result.watched, isTrue);
       expect(result.positionSeconds, 1234.5);
       expect(result.durationSeconds, 1440.0);
-      expect(result!.completedAt?.toUtc(), DateTime.utc(2024, 4, 10));
+      expect(result.completedAt?.toUtc(), DateTime.utc(2024, 4, 10));
     });
 
     test('upsertProgress met à jour une progression existante', () async {
