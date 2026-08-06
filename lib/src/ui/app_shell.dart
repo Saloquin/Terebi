@@ -1,8 +1,13 @@
 /// Shell principal de l'application : navigation latérale (desktop) entre les
-/// grandes sections. Les pages réelles sont branchées au fur et à mesure.
+/// grandes sections.
 library;
 
 import 'package:flutter/material.dart';
+
+import 'pages/catalog_page.dart';
+import 'pages/home_page.dart';
+import 'pages/library_page.dart';
+import 'pages/planning_page.dart';
 
 /// Une destination de navigation.
 class _Destination {
@@ -24,10 +29,10 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
 
   static const _destinations = <_Destination>[
-    _Destination(Icons.home_outlined, 'Accueil', _Placeholder('Accueil')),
-    _Destination(Icons.search, 'Catalogue', _Placeholder('Catalogue')),
-    _Destination(Icons.calendar_month_outlined, 'Planning', _Placeholder('Planning')),
-    _Destination(Icons.video_library_outlined, 'Bibliothèque', _Placeholder('Bibliothèque')),
+    _Destination(Icons.home_outlined, 'Accueil', HomePage()),
+    _Destination(Icons.search, 'Catalogue', CatalogPage()),
+    _Destination(Icons.calendar_month_outlined, 'Planning', PlanningPage()),
+    _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPage()),
     _Destination(Icons.settings_outlined, 'Paramètres', _Placeholder('Paramètres')),
   ];
 

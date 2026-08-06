@@ -1,0 +1,126 @@
+/// Widget réutilisable : carte d'un média (cover + titre + badge format/épisodes).
+library;
+
+import 'package:flutter/material.dart';
+
+import '../../domain/models/anime_format.dart';
+import '../../domain/models/media.dart';
+
+/// Carte compacte affichant la couverture, le titre préféré et un badge
+/// format/épisodes. Utilisée dans la grille du Catalogue et du Planning.
+class MediaCard extends StatelessWidget {
+  final Media media;
+
+  /// Rappel optionnel au tap (navigation vers la fiche détail).
+  final VoidCallback? onTap;
+
+  const MediaCard({super.key, required this.media, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- Cover image ---
+            Expanded(
+              child: media.coverUrl != null
+                  ? Image.network(
+                      media.coverUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _CoverPlaceholder(
+                        color: colorScheme.surfaceContainerHighest,
+                      ),
+                    )
+                  : _CoverPlaceholder(
+                      color: colorScheme.surfaceContainerHighest,
+                    ),
+            ),
+
+            // --- Info bar ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    media.title.preferred,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: textTheme.bodySmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  _FormatBadge(media: media),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Badge compact montrant le format et le nombre d'épisodes.
+class _FormatBadge extends StatelessWidget {
+  final Media media;
+
+  const _FormatBadge({required this.media});
+
+  String get _label {
+    final fmt = _formatLabel(media.format);
+    final eps = media.episodes;
+    if (eps != null) return '$fmt · $eps ep';
+    return fmt;
+  }
+
+  static String _formatLabel(AnimeFormat f) => switch (f) {
+        AnimeFormat.tv => 'TV',
+        AnimeFormat.tvShort => 'TV Court',
+        AnimeFormat.movie => 'Film',
+        AnimeFormat.special => 'Spécial',
+        AnimeFormat.ova => 'OVA',
+        AnimeFormat.ona => 'ONA',
+        AnimeFormat.music => 'Musique',
+        AnimeFormat.unknown => '?',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        _label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colorScheme.onPrimaryContainer,
+            ),
+      ),
+    );
+  }
+}
+
+class _CoverPlaceholder extends StatelessWidget {
+  final Color color;
+  const _CoverPlaceholder({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: color,
+      child: const Center(child: Icon(Icons.image_not_supported_outlined)),
+    );
+  }
+}
