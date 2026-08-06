@@ -21,7 +21,11 @@ class ProcessResult {
 
 /// Lance un processus et renvoie son résultat. Implémentation réelle en prod
 /// (dart:io Process.run), mock en test.
+///
+/// [environment] fournit des variables d'environnement supplémentaires (ex.
+/// `ANI_CLI_PLAYER=debug` pour capturer l'URL de flux au lieu de jouer).
 typedef ProcessRunner = Future<ProcessResult> Function(
   String executable,
-  List<String> args,
-);
+  List<String> args, {
+  Map<String, String>? environment,
+});

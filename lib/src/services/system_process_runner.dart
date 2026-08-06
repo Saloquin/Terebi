@@ -17,9 +17,15 @@ import 'process_runner.dart';
 /// comme `missing`.
 Future<ProcessResult> systemProcessRunner(
   String executable,
-  List<String> args,
-) async {
-  final result = await io.Process.run(executable, args);
+  List<String> args, {
+  Map<String, String>? environment,
+}) async {
+  final result = await io.Process.run(
+    executable,
+    args,
+    environment: environment,
+    includeParentEnvironment: true,
+  );
   return ProcessResult(
     exitCode: result.exitCode,
     stdout: result.stdout as String? ?? '',

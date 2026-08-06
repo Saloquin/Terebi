@@ -1,11 +1,12 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Résolution de source via **ani-cli** (spike US-00). L'app pilote ani-cli
-/// pour obtenir/lancer un épisode ; ani-cli résout la source et joue via mpv.
+/// Résolution de source via **ani-cli** (spike US-00 VALIDÉ).
 ///
-/// ⚠️ Les flags exacts d'ani-cli restent à confirmer une fois le binaire installé
-/// (spike US-00). Cette classe isole la CONSTRUCTION de la commande et le
-/// PARSING de la sortie pour que ces choix soient testables et faciles à ajuster.
+/// Deux usages :
+/// - [resolveStreamUrl] : lance ani-cli avec `ANI_CLI_PLAYER=debug`, ce qui lui
+///   fait IMPRIMER l'URL du flux (HLS .m3u8) au lieu de la jouer. Terebi peut
+///   alors la lire dans le lecteur media_kit encastré. ← chemin privilégié.
+/// - [play] : laisse ani-cli lancer son lecteur externe (fallback).
 library;
 
 import 'process_runner.dart';
@@ -17,6 +18,16 @@ enum PlaybackLanguage {
 
   /// Version française doublée.
   vf,
+}
+
+/// Un lien de flux résolu par ani-cli, avec sa qualité (ex. `1080p`).
+class StreamLink {
+  final String quality;
+  final String url;
+  const StreamLink({required this.quality, required this.url});
+
+  @override
+  String toString() => '$quality → $url';
 }
 
 /// Exception levée quand ani-cli échoue ou ne renvoie pas de résultat exploitable.
@@ -40,26 +51,99 @@ class AniCliResolver {
     required this.runner,
   });
 
-  /// Construit les arguments ani-cli pour lancer [title] à l'épisode [episode]
-  /// dans la langue [language]. Non-interactif : `-e` pour l'épisode, `--dub`
-  /// pour la VF (VOSTFR = défaut sub d'ani-cli), et le titre en argument de recherche.
-  ///
-  /// Exposé (et testé) séparément car c'est le point le plus susceptible d'être
-  /// ajusté après le spike US-00.
+  /// Construit les arguments ani-cli pour l'épisode [episode] de [title].
+  /// Non-interactif : `-S 1` (1er résultat), `-e` (épisode), `--dub` (VF).
   List<String> buildArgs({
     required String title,
     required int episode,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) {
     return [
+      '-S', '1',
       '-e', '$episode',
       if (language == PlaybackLanguage.vf) '--dub',
       title,
     ];
   }
 
-  /// Lance ani-cli sur l'épisode demandé. Retourne `true` si le lancement a réussi
-  /// (exit 0). Lève [ResolveException] sinon, avec la sortie d'erreur.
+  /// Parse la sortie du mode `debug` d'ani-cli et renvoie les liens par qualité.
+  ///
+  /// Format attendu (validé au spike US-00) :
+  /// ```
+  /// All links:
+  /// 1080p >https://.../index-f1-v1-a1.m3u8
+  /// 720p >https://.../index-f2-v1-a1.m3u8
+  /// Selected link:
+  /// https://.../index-f1-v1-a1.m3u8
+  /// ```
+  List<StreamLink> parseQualityLinks(String output) {
+    final links = <StreamLink>[];
+    for (final rawLine in output.split('\n')) {
+      final line = _stripAnsi(rawLine).trim();
+      // Format "1080p >https://..." (séparateur ' >').
+      final match = RegExp(r'^(\S+?)\s*>\s*(https?://\S+)$').firstMatch(line);
+      if (match != null) {
+        links.add(StreamLink(quality: match.group(1)!, url: match.group(2)!));
+      }
+    }
+    return links;
+  }
+
+  /// Extrait l'URL sélectionnée (ligne après « Selected link: »), ou `null`.
+  String? parseSelectedLink(String output) {
+    final lines = output.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      if (_stripAnsi(lines[i]).trim().startsWith('Selected link:')) {
+        for (var j = i + 1; j < lines.length; j++) {
+          final url = _stripAnsi(lines[j]).trim();
+          if (url.startsWith('http')) return url;
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Résout l'URL du flux **sans lancer de lecteur** (mode `ANI_CLI_PLAYER=debug`).
+  /// Retourne l'URL sélectionnée (à jouer dans media_kit encastré).
+  ///
+  /// Lève [ResolveException] si ani-cli échoue ou n'imprime aucune URL.
+  Future<String> resolveStreamUrl({
+    required String title,
+    required int episode,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    final args = buildArgs(title: title, episode: episode, language: language);
+    final ProcessResult result;
+    try {
+      result = await runner(
+        aniCliPath,
+        args,
+        environment: const {'ANI_CLI_PLAYER': 'debug'},
+      );
+    } catch (e) {
+      throw ResolveException('Impossible de lancer ani-cli ($aniCliPath): $e');
+    }
+
+    final combined = '${result.stdout}\n${result.stderr}';
+    final selected = parseSelectedLink(combined);
+    if (selected != null) return selected;
+
+    // Repli : première qualité listée si « Selected link: » absent.
+    final links = parseQualityLinks(combined);
+    if (links.isNotEmpty) return links.first.url;
+
+    throw ResolveException(
+      'ani-cli n\'a renvoyé aucune URL (code ${result.exitCode}). '
+      'Sortie : ${combined.trim()}',
+    );
+  }
+
+  /// Retire les séquences d'échappement ANSI (couleurs terminal d'ani-cli).
+  static String _stripAnsi(String s) =>
+      s.replaceAll(RegExp(r'\x1B\[[0-9;]*[A-Za-z]'), '');
+
+  /// Lance ani-cli sur l'épisode demandé en laissant ani-cli ouvrir son lecteur
+  /// externe (fallback quand l'encastrement n'est pas souhaité).
   Future<bool> play({
     required String title,
     required int episode,

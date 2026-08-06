@@ -5,7 +5,7 @@ import 'package:terebi/src/services/health_service.dart';
 void main() {
   // Runner qui simule des binaires présents/absents selon un dictionnaire.
   ProcessRunner runnerWith(Map<String, ProcessResult> present) =>
-      (exe, args) async {
+      (exe, args, {Map<String, String>? environment}) async {
         final r = present[exe];
         if (r == null) throw Exception('binaire introuvable: $exe');
         return r;

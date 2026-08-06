@@ -251,7 +251,7 @@ void main() {
   group('SettingsPage', () {
     /// Construit un ProcessRunner qui retourne toujours le résultat fourni.
     ProcessRunner makeRunner(ProcessResult result) =>
-        (_, __) async => result;
+        (_, __, {Map<String, String>? environment}) async => result;
 
     /// Overrides minimaux pour SettingsPage (pas de DB réelle, storage vide).
     List<Override> settingsOverrides({
@@ -321,7 +321,8 @@ void main() {
     testWidgets(
         'affiche état missing quand le runner lève une exception (binaire absent)',
         (tester) async {
-      Future<ProcessResult> failRunner(String exe, List<String> args) =>
+      Future<ProcessResult> failRunner(String exe, List<String> args,
+              {Map<String, String>? environment}) =>
           Future.error(Exception('executable not found'));
 
       await tester.pumpWidget(ProviderScope(
