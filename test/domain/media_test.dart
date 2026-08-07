@@ -74,6 +74,32 @@ void main() {
   });
 
   group('Media round-trip JSON (cache)', () {
+    test('parse et préserve nextAiringEpisode (calendrier)', () {
+      final m = Media.fromAniList({
+        'id': 100,
+        'title': {'romaji': 'Airing Show'},
+        'format': 'TV',
+        'status': 'RELEASING',
+        'nextAiringEpisode': {'airingAt': 1700000000, 'episode': 7},
+      });
+      expect(m.nextAiringEpisode, 7);
+      expect(
+        m.nextAiringAt,
+        DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000, isUtc: true),
+      );
+
+      final restored = Media.fromJson(m.toJson());
+      expect(restored.nextAiringEpisode, 7);
+      expect(restored.nextAiringAt, m.nextAiringAt);
+    });
+
+    test('nextAiring null si absent', () {
+      final m = Media.fromAniList({'id': 1, 'title': {'romaji': 'X'}});
+      expect(m.nextAiringAt, isNull);
+      expect(m.nextAiringEpisode, isNull);
+      expect(Media.fromJson(m.toJson()).nextAiringAt, isNull);
+    });
+
     test('toJson → fromJson préserve les données', () {
       final original = Media.fromAniList({
         'id': 21,

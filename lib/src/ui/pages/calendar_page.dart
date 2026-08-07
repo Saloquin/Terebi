@@ -31,24 +31,21 @@ final _calendarRawProvider = FutureProvider<_CalendarRaw>((ref) async {
   final now = DateTime.now().toUtc();
   final cs = currentSeasonFor(now.year, now.month);
 
-  // Récupère les médias de la saison courante.
+  // Récupère les médias de la saison courante (UNE seule requête AniList).
+  // nextAiringEpisode est déjà inclus dans la réponse → pas d'appel par média
+  // (évite le rate-limit 429).
   final seasonMedia = await anilist.season(cs.season, cs.year);
 
-  // Pour chaque média, récupère le nextAiring (best-effort, en parallèle).
-  final schedules = <AiringSchedule>[];
-  await Future.wait(
-    seasonMedia.map((m) async {
-      // nextAiringEpisode déjà dans le fragment _kMediaFragment via Media :
-      // on ne l'a pas stocké dans Media, donc on appelle nextAiring() ici.
-      // Pour limiter les appels : on ne charge que les médias RELEASING.
-      try {
-        final s = await anilist.nextAiring(m.anilistId);
-        if (s != null) schedules.add(s);
-      } catch (_) {
-        // Ignore les erreurs individuelles (média terminé, rate-limit…).
-      }
-    }),
-  );
+  // Construit les diffusions à partir des données déjà reçues.
+  final schedules = <AiringSchedule>[
+    for (final m in seasonMedia)
+      if (m.nextAiringAt != null && m.nextAiringEpisode != null)
+        AiringSchedule(
+          mediaId: m.anilistId,
+          episode: m.nextAiringEpisode!,
+          airsAt: m.nextAiringAt!,
+        ),
+  ];
 
   // MediaIds des entrées PLANNING.
   final planningEntries =

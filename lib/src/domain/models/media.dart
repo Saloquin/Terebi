@@ -60,6 +60,12 @@ class Media {
   /// Score moyen 0–100 (AniList `averageScore`), ou `null`.
   final int? averageScore;
 
+  /// Date de diffusion du prochain épisode (UTC), ou `null` si non applicable.
+  final DateTime? nextAiringAt;
+
+  /// Numéro du prochain épisode à diffuser, ou `null`.
+  final int? nextAiringEpisode;
+
   const Media({
     required this.anilistId,
     this.malId,
@@ -75,6 +81,8 @@ class Media {
     this.description,
     this.genres = const [],
     this.averageScore,
+    this.nextAiringAt,
+    this.nextAiringEpisode,
   });
 
   /// `true` si c'est un film (média unique, pas d'« épisode suivant »).
@@ -102,7 +110,19 @@ class Media {
                 .toList() ??
             const [],
         averageScore: json['averageScore'] as int?,
+        nextAiringAt: _airingAtFromAniList(json['nextAiringEpisode']),
+        nextAiringEpisode:
+            (json['nextAiringEpisode'] as Map<String, dynamic>?)?['episode']
+                as int?,
       );
+
+  /// Extrait la date de diffusion (`airingAt` epoch secondes) du bloc
+  /// `nextAiringEpisode` d'AniList, en UTC, ou `null`.
+  static DateTime? _airingAtFromAniList(dynamic nae) {
+    final at = (nae as Map<String, dynamic>?)?['airingAt'] as int?;
+    if (at == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(at * 1000, isUtc: true);
+  }
 
   /// Sérialisation JSON pour le cache local (round-trip avec [Media.fromJson]).
   Map<String, dynamic> toJson() => {
@@ -120,6 +140,8 @@ class Media {
         'description': description,
         'genres': genres,
         'averageScore': averageScore,
+        'nextAiringAt': nextAiringAt?.toIso8601String(),
+        'nextAiringEpisode': nextAiringEpisode,
       };
 
   factory Media.fromJson(Map<String, dynamic> json) => Media(
@@ -143,5 +165,9 @@ class Media {
                 .toList() ??
             const [],
         averageScore: json['averageScore'] as int?,
+        nextAiringAt: (json['nextAiringAt'] as String?) == null
+            ? null
+            : DateTime.parse(json['nextAiringAt'] as String),
+        nextAiringEpisode: json['nextAiringEpisode'] as int?,
       );
 }
