@@ -10,7 +10,9 @@ import 'package:http/http.dart' as http;
 
 import '../data/local/database.dart';
 import '../data/remote/anilist_client.dart';
+import '../data/remote/cached_anilist_client.dart';
 import '../data/remote/jikan_client.dart';
+import '../data/remote/request_queue.dart';
 import '../data/repositories/list_repository.dart';
 import '../data/repositories/media_repository.dart';
 import '../data/repositories/meta_cache_repository.dart';
@@ -60,8 +62,22 @@ final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
 
 // --- Clients distants -----------------------------------------------------
 
-final aniListClientProvider = Provider<AniListClient>(
+/// File de requêtes partagée (rate-limit + retry) pour AniList → évite le 429.
+final requestQueueProvider = Provider<RequestQueue>((ref) => RequestQueue());
+
+/// Client AniList brut (accès réseau direct).
+final rawAniListClientProvider = Provider<AniListClient>(
   (ref) => AniListClient(client: ref.watch(httpClientProvider)),
+);
+
+/// Client AniList exposé à l'app : **caché** (cache-aside + TTL + file anti-429).
+/// L'UI dépend de [AniListApi], donc le cache est transparent.
+final aniListClientProvider = Provider<AniListApi>(
+  (ref) => CachedAniListClient(
+    inner: ref.watch(rawAniListClientProvider),
+    cache: ref.watch(metaCacheRepositoryProvider),
+    queue: ref.watch(requestQueueProvider),
+  ),
 );
 
 final jikanClientProvider = Provider<JikanClient>(
@@ -102,14 +118,21 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );
 
-/// Résolveur ani-cli : lit le chemin depuis les settings ou utilise 'ani-cli'.
+/// Résolveur ani-cli : chemins depuis les settings, sinon détection plateforme
+/// (sous Windows : `sh` de Git Bash + script ani-cli).
 final aniCliResolverProvider = FutureProvider<AniCliResolver>((ref) async {
   final settings = ref.watch(settingsRepositoryProvider);
-  final path =
-      await settings.get(SettingsKeys.aniCliPath, defaultValue: 'ani-cli') ??
-          'ani-cli';
+  final defaults = AniCliDefaults.detect();
+
+  final path = await settings.get(SettingsKeys.aniCliPath,
+          defaultValue: defaults.aniCliPath) ??
+      defaults.aniCliPath;
+  final shell =
+      await settings.get(SettingsKeys.shellPath, defaultValue: defaults.shell);
+
   return AniCliResolver(
     aniCliPath: path,
+    shell: (shell != null && shell.isEmpty) ? null : shell,
     runner: ref.watch(processRunnerProvider),
   );
 });

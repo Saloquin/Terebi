@@ -21,15 +21,76 @@ final _mediaDetailProvider =
   return ref.watch(aniListClientProvider).mediaDetail(id);
 });
 
-final _relationsProvider =
-    FutureProvider.family<List<MediaRelation>, int>((ref, id) async {
-  return ref.watch(aniListClientProvider).relations(id);
-});
 
 final _listEntryProvider =
     FutureProvider.family<ListEntry?, int>((ref, mediaId) async {
   return ref.watch(listRepositoryProvider).getEntry(mediaId);
 });
+
+/// Provider "Saisons" : charge toutes les saisons liées (sequel/prequel/parent)
+/// pour un média, inclut le média courant, et les trie chronologiquement.
+///
+/// Types retenus : [RelationType.sequel], [RelationType.prequel],
+/// [RelationType.parent]. Spin-off, side-story, alternative et other exclus.
+final _seasonsProvider =
+    FutureProvider.family<List<_SeasonItem>, int>((ref, anilistId) async {
+  final anilist = ref.watch(aniListClientProvider);
+  final listRepo = ref.watch(listRepositoryProvider);
+
+  final relations = await anilist.relations(anilistId);
+  final seasonRelations = relations
+      .where((r) =>
+          r.type == RelationType.sequel ||
+          r.type == RelationType.prequel ||
+          r.type == RelationType.parent)
+      .toList();
+
+  // Charge le média courant + les médias liés.
+  final items = <_SeasonItem>[];
+
+  // Média courant.
+  try {
+    final current = await anilist.mediaDetail(anilistId);
+    final entry = await listRepo.getEntry(anilistId);
+    items.add(_SeasonItem(media: current, entry: entry, isCurrent: true));
+  } catch (_) {}
+
+  // Médias liés (seasons).
+  for (final rel in seasonRelations) {
+    // Évite les doublons si le média lié est déjà dans la liste.
+    if (items.any((i) => i.media.anilistId == rel.relatedMediaId)) continue;
+    try {
+      final m = await anilist.mediaDetail(rel.relatedMediaId);
+      final entry = await listRepo.getEntry(rel.relatedMediaId);
+      items.add(_SeasonItem(media: m, entry: entry, isCurrent: false));
+    } catch (_) {}
+  }
+
+  // Tri chronologique : d'abord par seasonYear, puis par titre.
+  items.sort((a, b) {
+    final ya = a.media.seasonYear;
+    final yb = b.media.seasonYear;
+    if (ya != null && yb != null) {
+      final cmp = ya.compareTo(yb);
+      if (cmp != 0) return cmp;
+    } else if (ya != null) {
+      return -1;
+    } else if (yb != null) {
+      return 1;
+    }
+    return a.media.title.preferred.compareTo(b.media.title.preferred);
+  });
+
+  return items;
+});
+
+class _SeasonItem {
+  final Media media;
+  final ListEntry? entry;
+  final bool isCurrent;
+  const _SeasonItem(
+      {required this.media, required this.entry, required this.isCurrent});
+}
 
 /// Provider auto-replanif : calcule les suites à proposer pour [anilistId].
 ///
@@ -147,7 +208,6 @@ class _DetailBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entryAsync = ref.watch(_listEntryProvider(media.anilistId));
-    final relationsAsync = ref.watch(_relationsProvider(media.anilistId));
 
     return SingleChildScrollView(
       child: Column(
@@ -203,21 +263,8 @@ class _DetailBody extends ConsumerWidget {
                 _ReplanSection(anilistId: media.anilistId),
                 const SizedBox(height: 8),
 
-                // --- Franchise (relations) ---
-                relationsAsync.when(
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                  data: (relations) {
-                    final relevant = relations
-                        .where((r) =>
-                            r.type == RelationType.sequel ||
-                            r.type == RelationType.prequel)
-                        .toList();
-                    if (relevant.isEmpty) return const SizedBox.shrink();
-                    return _FranchiseSection(
-                        relations: relevant, currentId: media.anilistId);
-                  },
-                ),
+                // --- Saisons ---
+                _SeasonsSection(anilistId: media.anilistId),
               ],
             ),
           ),
@@ -485,6 +532,8 @@ class _StatusDropdown extends ConsumerWidget {
       onChanged: (newStatus) async {
         if (newStatus == null) return;
         final repo = ref.read(listRepositoryProvider);
+        // Sauvegarde les métadonnées du média (titre/cover) pour la bibliothèque.
+        await ref.read(mediaRepositoryProvider).upsertMedia(media);
         final existing = await repo.getEntry(media.anilistId);
         final updated = existing?.copyWith(
               status: newStatus,
@@ -529,51 +578,130 @@ class _SynopsisText extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Section franchise
+// Section Saisons
 // ---------------------------------------------------------------------------
 
-class _FranchiseSection extends StatelessWidget {
-  final List<MediaRelation> relations;
-  final int currentId;
+/// Liste toutes les saisons d'une franchise (sequel/prequel/parent + média
+/// courant), triées chronologiquement, avec badge de statut de suivi.
+class _SeasonsSection extends ConsumerWidget {
+  final int anilistId;
+  const _SeasonsSection({required this.anilistId});
 
-  const _FranchiseSection(
-      {required this.relations, required this.currentId});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final seasonsAsync = ref.watch(_seasonsProvider(anilistId));
+
+    return seasonsAsync.maybeWhen(
+      data: (items) {
+        // N'affiche la section que s'il y a au moins 2 entrées (la saison
+        // courante + au moins une autre), sinon rien d'intéressant à montrer.
+        if (items.length < 2) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Saisons', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final item in items)
+              _SeasonTile(item: item),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _SeasonTile extends StatelessWidget {
+  final _SeasonItem item;
+  const _SeasonTile({required this.item});
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Franchise', style: Theme.of(context).textTheme.titleMedium),
-        const SizedBox(height: 8),
-        for (final rel in relations)
-          ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(
-              rel.type == RelationType.sequel
-                  ? Icons.arrow_forward
-                  : Icons.arrow_back,
-            ),
-            title: Text(_typeLabel(rel.type)),
-            subtitle: Text('ID AniList : ${rel.relatedMediaId}'),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    MediaDetailPage(anilistId: rel.relatedMediaId),
+    final media = item.media;
+    final entry = item.entry;
+    final yearLabel = media.seasonYear != null ? '${media.seasonYear}' : '';
+
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: media.coverUrl != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: Image.network(
+                media.coverUrl!,
+                width: 36,
+                height: 50,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const SizedBox(width: 36, height: 50),
               ),
-            ),
-          ),
-      ],
+            )
+          : const SizedBox(width: 36, height: 50),
+      title: Text(
+        media.title.preferred,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: item.isCurrent
+            ? TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+              )
+            : null,
+      ),
+      subtitle: yearLabel.isNotEmpty ? Text(yearLabel) : null,
+      trailing: entry != null ? _StatusBadge(status: entry.status.name) : null,
+      onTap: item.isCurrent
+          ? null
+          : () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MediaDetailPage(anilistId: media.anilistId),
+                ),
+              ),
     );
   }
+}
 
-  static String _typeLabel(RelationType t) => switch (t) {
-        RelationType.sequel => 'Suite',
-        RelationType.prequel => 'Préquelle',
-        _ => t.name,
-      };
+class _StatusBadge extends StatelessWidget {
+  final String status;
+  const _StatusBadge({required this.status});
+
+  static const _labels = {
+    'current': 'En cours',
+    'planning': 'Planifié',
+    'completed': 'Terminé',
+    'paused': 'En pause',
+    'dropped': 'Abandonné',
+    'repeating': 'Re-vision',
+  };
+
+  static const _colors = {
+    'current': Colors.blue,
+    'planning': Colors.orange,
+    'completed': Colors.green,
+    'paused': Colors.grey,
+    'dropped': Colors.red,
+    'repeating': Colors.purple,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _labels[status] ?? status;
+    final color = _colors[status] ?? Colors.grey;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------

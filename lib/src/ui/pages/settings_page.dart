@@ -276,6 +276,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ],
 
               const SizedBox(height: 32),
+
+              // --- Cache ---
+              _SectionTitle('Cache des données'),
+              const SizedBox(height: 8),
+              Text(
+                'Les métadonnées AniList sont mises en cache pour accélérer '
+                'l\'app et éviter le rate-limit. Videz-le pour forcer un '
+                'rechargement complet.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await ref.read(metaCacheRepositoryProvider).clear();
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Cache vidé.')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.delete_sweep_outlined),
+                label: const Text('Vider le cache'),
+              ),
+
+              const SizedBox(height: 32),
             ],
           ),
         );

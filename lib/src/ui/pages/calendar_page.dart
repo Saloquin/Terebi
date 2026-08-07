@@ -31,24 +31,21 @@ final _calendarRawProvider = FutureProvider<_CalendarRaw>((ref) async {
   final now = DateTime.now().toUtc();
   final cs = currentSeasonFor(now.year, now.month);
 
-  // Récupère les médias de la saison courante.
+  // Récupère les médias de la saison courante (UNE seule requête AniList).
+  // nextAiringEpisode est déjà inclus dans la réponse → pas d'appel par média
+  // (évite le rate-limit 429).
   final seasonMedia = await anilist.season(cs.season, cs.year);
 
-  // Pour chaque média, récupère le nextAiring (best-effort, en parallèle).
-  final schedules = <AiringSchedule>[];
-  await Future.wait(
-    seasonMedia.map((m) async {
-      // nextAiringEpisode déjà dans le fragment _kMediaFragment via Media :
-      // on ne l'a pas stocké dans Media, donc on appelle nextAiring() ici.
-      // Pour limiter les appels : on ne charge que les médias RELEASING.
-      try {
-        final s = await anilist.nextAiring(m.anilistId);
-        if (s != null) schedules.add(s);
-      } catch (_) {
-        // Ignore les erreurs individuelles (média terminé, rate-limit…).
-      }
-    }),
-  );
+  // Construit les diffusions à partir des données déjà reçues.
+  final schedules = <AiringSchedule>[
+    for (final m in seasonMedia)
+      if (m.nextAiringAt != null && m.nextAiringEpisode != null)
+        AiringSchedule(
+          mediaId: m.anilistId,
+          episode: m.nextAiringEpisode!,
+          airsAt: m.nextAiringAt!,
+        ),
+  ];
 
   // MediaIds des entrées PLANNING.
   final planningEntries =
@@ -157,6 +154,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               onToggleView: (v) => setState(() => _showGlobal = v),
               onToggleHideUnreleased: (v) =>
                   setState(() => _hideUnreleased = v),
+              onRefresh: () async {
+                // Vide le cache et recharge depuis AniList.
+                await ref.read(metaCacheRepositoryProvider).clear();
+                ref.invalidate(_calendarRawProvider);
+              },
             ),
             Expanded(
               child: calendar.isEmpty
@@ -193,6 +195,7 @@ class _CalendarToolbar extends StatelessWidget {
   final CurrentSeason currentSeason;
   final void Function(bool) onToggleView;
   final void Function(bool) onToggleHideUnreleased;
+  final VoidCallback onRefresh;
 
   const _CalendarToolbar({
     required this.showGlobal,
@@ -200,6 +203,7 @@ class _CalendarToolbar extends StatelessWidget {
     required this.currentSeason,
     required this.onToggleView,
     required this.onToggleHideUnreleased,
+    required this.onRefresh,
   });
 
   @override
@@ -217,6 +221,12 @@ class _CalendarToolbar extends StatelessWidget {
               Text(seasonLabel,
                   style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Rafraîchir',
+                onPressed: onRefresh,
+              ),
+              const SizedBox(width: 4),
               // Toggle global / perso
               SegmentedButton<bool>(
                 segments: const [
@@ -432,10 +442,9 @@ class _SlotCard extends ConsumerWidget {
           'Ép. ${slot.schedule.episode} · $timeStr',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        trailing: isGlobal
+        trailing: (isGlobal && media != null)
             ? _PlanningButton(
-                mediaId: slot.schedule.mediaId,
-                title: title,
+                media: media!,
                 isInPlanning: isInPlanning,
               )
             : null,
@@ -458,13 +467,11 @@ class _SlotCard extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _PlanningButton extends ConsumerStatefulWidget {
-  final int mediaId;
-  final String title;
+  final Media media;
   final bool isInPlanning;
 
   const _PlanningButton({
-    required this.mediaId,
-    required this.title,
+    required this.media,
     required this.isInPlanning,
   });
 
@@ -485,13 +492,19 @@ class _PlanningButtonState extends ConsumerState<_PlanningButton> {
     final repo = ref.read(listRepositoryProvider);
     if (_inPlanning) return; // On ne retire pas depuis ici.
 
-    final existing = await repo.getEntry(widget.mediaId);
+    final mediaId = widget.media.anilistId;
+
+    // Sauvegarde les métadonnées du média pour que la bibliothèque affiche
+    // le titre/cover (et pas « ID xxxxx ») même hors-ligne / rate-limité.
+    await ref.read(mediaRepositoryProvider).upsertMedia(widget.media);
+
+    final existing = await repo.getEntry(mediaId);
     final entry = existing?.copyWith(
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         ) ??
         ListEntry(
-          mediaId: widget.mediaId,
+          mediaId: mediaId,
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         );
@@ -502,7 +515,8 @@ class _PlanningButtonState extends ConsumerState<_PlanningButton> {
       // Invalide le provider pour que le calendrier se rafraîchisse.
       ref.invalidate(_calendarRawProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('« ${widget.title} » ajouté en Planifié')),
+        SnackBar(
+            content: Text('« ${widget.media.title.preferred} » ajouté en Planifié')),
       );
     }
   }
