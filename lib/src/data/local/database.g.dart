@@ -9,340 +9,225 @@ class $MediaTableTable extends MediaTable
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $MediaTableTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _anilistIdMeta = const VerificationMeta(
-    'anilistId',
-  );
+  static const VerificationMeta _anilistIdMeta =
+      const VerificationMeta('anilistId');
   @override
   late final GeneratedColumn<int> anilistId = GeneratedColumn<int>(
-    'anilist_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
+      'anilist_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   static const VerificationMeta _malIdMeta = const VerificationMeta('malId');
   @override
   late final GeneratedColumn<int> malId = GeneratedColumn<int>(
-    'mal_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _titleRomajiMeta = const VerificationMeta(
-    'titleRomaji',
-  );
+      'mal_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _titleRomajiMeta =
+      const VerificationMeta('titleRomaji');
   @override
   late final GeneratedColumn<String> titleRomaji = GeneratedColumn<String>(
-    'title_romaji',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _titleEnglishMeta = const VerificationMeta(
-    'titleEnglish',
-  );
+      'title_romaji', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _titleEnglishMeta =
+      const VerificationMeta('titleEnglish');
   @override
   late final GeneratedColumn<String> titleEnglish = GeneratedColumn<String>(
-    'title_english',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _titleNativeMeta = const VerificationMeta(
-    'titleNative',
-  );
+      'title_english', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _titleNativeMeta =
+      const VerificationMeta('titleNative');
   @override
   late final GeneratedColumn<String> titleNative = GeneratedColumn<String>(
-    'title_native',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
+      'title_native', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _formatMeta = const VerificationMeta('format');
   @override
   late final GeneratedColumn<String> format = GeneratedColumn<String>(
-    'format',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('unknown'),
-  );
+      'format', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('unknown'));
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
-    'status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('unknown'),
-  );
-  static const VerificationMeta _episodesMeta = const VerificationMeta(
-    'episodes',
-  );
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('unknown'));
+  static const VerificationMeta _episodesMeta =
+      const VerificationMeta('episodes');
   @override
   late final GeneratedColumn<int> episodes = GeneratedColumn<int>(
-    'episodes',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _durationMinutesMeta = const VerificationMeta(
-    'durationMinutes',
-  );
+      'episodes', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _durationMinutesMeta =
+      const VerificationMeta('durationMinutes');
   @override
   late final GeneratedColumn<int> durationMinutes = GeneratedColumn<int>(
-    'duration_minutes',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
+      'duration_minutes', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   static const VerificationMeta _seasonMeta = const VerificationMeta('season');
   @override
   late final GeneratedColumn<String> season = GeneratedColumn<String>(
-    'season',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _seasonYearMeta = const VerificationMeta(
-    'seasonYear',
-  );
+      'season', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _seasonYearMeta =
+      const VerificationMeta('seasonYear');
   @override
   late final GeneratedColumn<int> seasonYear = GeneratedColumn<int>(
-    'season_year',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _coverUrlMeta = const VerificationMeta(
-    'coverUrl',
-  );
+      'season_year', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _coverUrlMeta =
+      const VerificationMeta('coverUrl');
   @override
   late final GeneratedColumn<String> coverUrl = GeneratedColumn<String>(
-    'cover_url',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _bannerUrlMeta = const VerificationMeta(
-    'bannerUrl',
-  );
+      'cover_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _bannerUrlMeta =
+      const VerificationMeta('bannerUrl');
   @override
   late final GeneratedColumn<String> bannerUrl = GeneratedColumn<String>(
-    'banner_url',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _descriptionMeta = const VerificationMeta(
-    'description',
-  );
+      'banner_url', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _descriptionMeta =
+      const VerificationMeta('description');
   @override
   late final GeneratedColumn<String> description = GeneratedColumn<String>(
-    'description',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _genresJsonMeta = const VerificationMeta(
-    'genresJson',
-  );
+      'description', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _genresJsonMeta =
+      const VerificationMeta('genresJson');
   @override
   late final GeneratedColumn<String> genresJson = GeneratedColumn<String>(
-    'genres_json',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('[]'),
-  );
-  static const VerificationMeta _averageScoreMeta = const VerificationMeta(
-    'averageScore',
-  );
+      'genres_json', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('[]'));
+  static const VerificationMeta _averageScoreMeta =
+      const VerificationMeta('averageScore');
   @override
   late final GeneratedColumn<int> averageScore = GeneratedColumn<int>(
-    'average_score',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
+      'average_score', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
   @override
   late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-    defaultValue: currentDateAndTime,
-  );
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
   @override
   List<GeneratedColumn> get $columns => [
-    anilistId,
-    malId,
-    titleRomaji,
-    titleEnglish,
-    titleNative,
-    format,
-    status,
-    episodes,
-    durationMinutes,
-    season,
-    seasonYear,
-    coverUrl,
-    bannerUrl,
-    description,
-    genresJson,
-    averageScore,
-    updatedAt,
-  ];
+        anilistId,
+        malId,
+        titleRomaji,
+        titleEnglish,
+        titleNative,
+        format,
+        status,
+        episodes,
+        durationMinutes,
+        season,
+        seasonYear,
+        coverUrl,
+        bannerUrl,
+        description,
+        genresJson,
+        averageScore,
+        updatedAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'media_table';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<MediaTableData> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<MediaTableData> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('anilist_id')) {
-      context.handle(
-        _anilistIdMeta,
-        anilistId.isAcceptableOrUnknown(data['anilist_id']!, _anilistIdMeta),
-      );
+      context.handle(_anilistIdMeta,
+          anilistId.isAcceptableOrUnknown(data['anilist_id']!, _anilistIdMeta));
     }
     if (data.containsKey('mal_id')) {
       context.handle(
-        _malIdMeta,
-        malId.isAcceptableOrUnknown(data['mal_id']!, _malIdMeta),
-      );
+          _malIdMeta, malId.isAcceptableOrUnknown(data['mal_id']!, _malIdMeta));
     }
     if (data.containsKey('title_romaji')) {
       context.handle(
-        _titleRomajiMeta,
-        titleRomaji.isAcceptableOrUnknown(
-          data['title_romaji']!,
           _titleRomajiMeta,
-        ),
-      );
+          titleRomaji.isAcceptableOrUnknown(
+              data['title_romaji']!, _titleRomajiMeta));
     }
     if (data.containsKey('title_english')) {
       context.handle(
-        _titleEnglishMeta,
-        titleEnglish.isAcceptableOrUnknown(
-          data['title_english']!,
           _titleEnglishMeta,
-        ),
-      );
+          titleEnglish.isAcceptableOrUnknown(
+              data['title_english']!, _titleEnglishMeta));
     }
     if (data.containsKey('title_native')) {
       context.handle(
-        _titleNativeMeta,
-        titleNative.isAcceptableOrUnknown(
-          data['title_native']!,
           _titleNativeMeta,
-        ),
-      );
+          titleNative.isAcceptableOrUnknown(
+              data['title_native']!, _titleNativeMeta));
     }
     if (data.containsKey('format')) {
-      context.handle(
-        _formatMeta,
-        format.isAcceptableOrUnknown(data['format']!, _formatMeta),
-      );
+      context.handle(_formatMeta,
+          format.isAcceptableOrUnknown(data['format']!, _formatMeta));
     }
     if (data.containsKey('status')) {
-      context.handle(
-        _statusMeta,
-        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
-      );
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
     }
     if (data.containsKey('episodes')) {
-      context.handle(
-        _episodesMeta,
-        episodes.isAcceptableOrUnknown(data['episodes']!, _episodesMeta),
-      );
+      context.handle(_episodesMeta,
+          episodes.isAcceptableOrUnknown(data['episodes']!, _episodesMeta));
     }
     if (data.containsKey('duration_minutes')) {
       context.handle(
-        _durationMinutesMeta,
-        durationMinutes.isAcceptableOrUnknown(
-          data['duration_minutes']!,
           _durationMinutesMeta,
-        ),
-      );
+          durationMinutes.isAcceptableOrUnknown(
+              data['duration_minutes']!, _durationMinutesMeta));
     }
     if (data.containsKey('season')) {
-      context.handle(
-        _seasonMeta,
-        season.isAcceptableOrUnknown(data['season']!, _seasonMeta),
-      );
+      context.handle(_seasonMeta,
+          season.isAcceptableOrUnknown(data['season']!, _seasonMeta));
     }
     if (data.containsKey('season_year')) {
       context.handle(
-        _seasonYearMeta,
-        seasonYear.isAcceptableOrUnknown(data['season_year']!, _seasonYearMeta),
-      );
+          _seasonYearMeta,
+          seasonYear.isAcceptableOrUnknown(
+              data['season_year']!, _seasonYearMeta));
     }
     if (data.containsKey('cover_url')) {
-      context.handle(
-        _coverUrlMeta,
-        coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta),
-      );
+      context.handle(_coverUrlMeta,
+          coverUrl.isAcceptableOrUnknown(data['cover_url']!, _coverUrlMeta));
     }
     if (data.containsKey('banner_url')) {
-      context.handle(
-        _bannerUrlMeta,
-        bannerUrl.isAcceptableOrUnknown(data['banner_url']!, _bannerUrlMeta),
-      );
+      context.handle(_bannerUrlMeta,
+          bannerUrl.isAcceptableOrUnknown(data['banner_url']!, _bannerUrlMeta));
     }
     if (data.containsKey('description')) {
       context.handle(
-        _descriptionMeta,
-        description.isAcceptableOrUnknown(
-          data['description']!,
           _descriptionMeta,
-        ),
-      );
+          description.isAcceptableOrUnknown(
+              data['description']!, _descriptionMeta));
     }
     if (data.containsKey('genres_json')) {
       context.handle(
-        _genresJsonMeta,
-        genresJson.isAcceptableOrUnknown(data['genres_json']!, _genresJsonMeta),
-      );
+          _genresJsonMeta,
+          genresJson.isAcceptableOrUnknown(
+              data['genres_json']!, _genresJsonMeta));
     }
     if (data.containsKey('average_score')) {
       context.handle(
-        _averageScoreMeta,
-        averageScore.isAcceptableOrUnknown(
-          data['average_score']!,
           _averageScoreMeta,
-        ),
-      );
+          averageScore.isAcceptableOrUnknown(
+              data['average_score']!, _averageScoreMeta));
     }
     if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
     }
     return context;
   }
@@ -353,74 +238,40 @@ class $MediaTableTable extends MediaTable
   MediaTableData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return MediaTableData(
-      anilistId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}anilist_id'],
-      )!,
-      malId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}mal_id'],
-      ),
-      titleRomaji: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}title_romaji'],
-      ),
-      titleEnglish: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}title_english'],
-      ),
-      titleNative: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}title_native'],
-      ),
-      format: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}format'],
-      )!,
-      status: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}status'],
-      )!,
-      episodes: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}episodes'],
-      ),
-      durationMinutes: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}duration_minutes'],
-      ),
-      season: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}season'],
-      ),
-      seasonYear: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}season_year'],
-      ),
-      coverUrl: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}cover_url'],
-      ),
-      bannerUrl: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}banner_url'],
-      ),
-      description: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}description'],
-      ),
-      genresJson: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}genres_json'],
-      )!,
-      averageScore: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}average_score'],
-      ),
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
+      anilistId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}anilist_id'])!,
+      malId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}mal_id']),
+      titleRomaji: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title_romaji']),
+      titleEnglish: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title_english']),
+      titleNative: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}title_native']),
+      format: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}format'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      episodes: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}episodes']),
+      durationMinutes: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}duration_minutes']),
+      season: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}season']),
+      seasonYear: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}season_year']),
+      coverUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cover_url']),
+      bannerUrl: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}banner_url']),
+      description: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}description']),
+      genresJson: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}genres_json'])!,
+      averageScore: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}average_score']),
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
   }
 
@@ -455,29 +306,28 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
   final String? bannerUrl;
   final String? description;
 
-  /// Genres sérialisés en JSON string (List<String>).
+  /// Genres sérialisés en JSON string (`List&lt;String&gt;`).
   final String genresJson;
   final int? averageScore;
   final DateTime updatedAt;
-  const MediaTableData({
-    required this.anilistId,
-    this.malId,
-    this.titleRomaji,
-    this.titleEnglish,
-    this.titleNative,
-    required this.format,
-    required this.status,
-    this.episodes,
-    this.durationMinutes,
-    this.season,
-    this.seasonYear,
-    this.coverUrl,
-    this.bannerUrl,
-    this.description,
-    required this.genresJson,
-    this.averageScore,
-    required this.updatedAt,
-  });
+  const MediaTableData(
+      {required this.anilistId,
+      this.malId,
+      this.titleRomaji,
+      this.titleEnglish,
+      this.titleNative,
+      required this.format,
+      required this.status,
+      this.episodes,
+      this.durationMinutes,
+      this.season,
+      this.seasonYear,
+      this.coverUrl,
+      this.bannerUrl,
+      this.description,
+      required this.genresJson,
+      this.averageScore,
+      required this.updatedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -528,9 +378,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
   MediaTableCompanion toCompanion(bool nullToAbsent) {
     return MediaTableCompanion(
       anilistId: Value(anilistId),
-      malId: malId == null && nullToAbsent
-          ? const Value.absent()
-          : Value(malId),
+      malId:
+          malId == null && nullToAbsent ? const Value.absent() : Value(malId),
       titleRomaji: titleRomaji == null && nullToAbsent
           ? const Value.absent()
           : Value(titleRomaji),
@@ -548,9 +397,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       durationMinutes: durationMinutes == null && nullToAbsent
           ? const Value.absent()
           : Value(durationMinutes),
-      season: season == null && nullToAbsent
-          ? const Value.absent()
-          : Value(season),
+      season:
+          season == null && nullToAbsent ? const Value.absent() : Value(season),
       seasonYear: seasonYear == null && nullToAbsent
           ? const Value.absent()
           : Value(seasonYear),
@@ -571,10 +419,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
     );
   }
 
-  factory MediaTableData.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory MediaTableData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return MediaTableData(
       anilistId: serializer.fromJson<int>(json['anilistId']),
@@ -620,58 +466,58 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
     };
   }
 
-  MediaTableData copyWith({
-    int? anilistId,
-    Value<int?> malId = const Value.absent(),
-    Value<String?> titleRomaji = const Value.absent(),
-    Value<String?> titleEnglish = const Value.absent(),
-    Value<String?> titleNative = const Value.absent(),
-    String? format,
-    String? status,
-    Value<int?> episodes = const Value.absent(),
-    Value<int?> durationMinutes = const Value.absent(),
-    Value<String?> season = const Value.absent(),
-    Value<int?> seasonYear = const Value.absent(),
-    Value<String?> coverUrl = const Value.absent(),
-    Value<String?> bannerUrl = const Value.absent(),
-    Value<String?> description = const Value.absent(),
-    String? genresJson,
-    Value<int?> averageScore = const Value.absent(),
-    DateTime? updatedAt,
-  }) => MediaTableData(
-    anilistId: anilistId ?? this.anilistId,
-    malId: malId.present ? malId.value : this.malId,
-    titleRomaji: titleRomaji.present ? titleRomaji.value : this.titleRomaji,
-    titleEnglish: titleEnglish.present ? titleEnglish.value : this.titleEnglish,
-    titleNative: titleNative.present ? titleNative.value : this.titleNative,
-    format: format ?? this.format,
-    status: status ?? this.status,
-    episodes: episodes.present ? episodes.value : this.episodes,
-    durationMinutes: durationMinutes.present
-        ? durationMinutes.value
-        : this.durationMinutes,
-    season: season.present ? season.value : this.season,
-    seasonYear: seasonYear.present ? seasonYear.value : this.seasonYear,
-    coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
-    bannerUrl: bannerUrl.present ? bannerUrl.value : this.bannerUrl,
-    description: description.present ? description.value : this.description,
-    genresJson: genresJson ?? this.genresJson,
-    averageScore: averageScore.present ? averageScore.value : this.averageScore,
-    updatedAt: updatedAt ?? this.updatedAt,
-  );
+  MediaTableData copyWith(
+          {int? anilistId,
+          Value<int?> malId = const Value.absent(),
+          Value<String?> titleRomaji = const Value.absent(),
+          Value<String?> titleEnglish = const Value.absent(),
+          Value<String?> titleNative = const Value.absent(),
+          String? format,
+          String? status,
+          Value<int?> episodes = const Value.absent(),
+          Value<int?> durationMinutes = const Value.absent(),
+          Value<String?> season = const Value.absent(),
+          Value<int?> seasonYear = const Value.absent(),
+          Value<String?> coverUrl = const Value.absent(),
+          Value<String?> bannerUrl = const Value.absent(),
+          Value<String?> description = const Value.absent(),
+          String? genresJson,
+          Value<int?> averageScore = const Value.absent(),
+          DateTime? updatedAt}) =>
+      MediaTableData(
+        anilistId: anilistId ?? this.anilistId,
+        malId: malId.present ? malId.value : this.malId,
+        titleRomaji: titleRomaji.present ? titleRomaji.value : this.titleRomaji,
+        titleEnglish:
+            titleEnglish.present ? titleEnglish.value : this.titleEnglish,
+        titleNative: titleNative.present ? titleNative.value : this.titleNative,
+        format: format ?? this.format,
+        status: status ?? this.status,
+        episodes: episodes.present ? episodes.value : this.episodes,
+        durationMinutes: durationMinutes.present
+            ? durationMinutes.value
+            : this.durationMinutes,
+        season: season.present ? season.value : this.season,
+        seasonYear: seasonYear.present ? seasonYear.value : this.seasonYear,
+        coverUrl: coverUrl.present ? coverUrl.value : this.coverUrl,
+        bannerUrl: bannerUrl.present ? bannerUrl.value : this.bannerUrl,
+        description: description.present ? description.value : this.description,
+        genresJson: genresJson ?? this.genresJson,
+        averageScore:
+            averageScore.present ? averageScore.value : this.averageScore,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
   MediaTableData copyWithCompanion(MediaTableCompanion data) {
     return MediaTableData(
       anilistId: data.anilistId.present ? data.anilistId.value : this.anilistId,
       malId: data.malId.present ? data.malId.value : this.malId,
-      titleRomaji: data.titleRomaji.present
-          ? data.titleRomaji.value
-          : this.titleRomaji,
+      titleRomaji:
+          data.titleRomaji.present ? data.titleRomaji.value : this.titleRomaji,
       titleEnglish: data.titleEnglish.present
           ? data.titleEnglish.value
           : this.titleEnglish,
-      titleNative: data.titleNative.present
-          ? data.titleNative.value
-          : this.titleNative,
+      titleNative:
+          data.titleNative.present ? data.titleNative.value : this.titleNative,
       format: data.format.present ? data.format.value : this.format,
       status: data.status.present ? data.status.value : this.status,
       episodes: data.episodes.present ? data.episodes.value : this.episodes,
@@ -679,17 +525,14 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
           ? data.durationMinutes.value
           : this.durationMinutes,
       season: data.season.present ? data.season.value : this.season,
-      seasonYear: data.seasonYear.present
-          ? data.seasonYear.value
-          : this.seasonYear,
+      seasonYear:
+          data.seasonYear.present ? data.seasonYear.value : this.seasonYear,
       coverUrl: data.coverUrl.present ? data.coverUrl.value : this.coverUrl,
       bannerUrl: data.bannerUrl.present ? data.bannerUrl.value : this.bannerUrl,
-      description: data.description.present
-          ? data.description.value
-          : this.description,
-      genresJson: data.genresJson.present
-          ? data.genresJson.value
-          : this.genresJson,
+      description:
+          data.description.present ? data.description.value : this.description,
+      genresJson:
+          data.genresJson.present ? data.genresJson.value : this.genresJson,
       averageScore: data.averageScore.present
           ? data.averageScore.value
           : this.averageScore,
@@ -723,24 +566,23 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
 
   @override
   int get hashCode => Object.hash(
-    anilistId,
-    malId,
-    titleRomaji,
-    titleEnglish,
-    titleNative,
-    format,
-    status,
-    episodes,
-    durationMinutes,
-    season,
-    seasonYear,
-    coverUrl,
-    bannerUrl,
-    description,
-    genresJson,
-    averageScore,
-    updatedAt,
-  );
+      anilistId,
+      malId,
+      titleRomaji,
+      titleEnglish,
+      titleNative,
+      format,
+      status,
+      episodes,
+      durationMinutes,
+      season,
+      seasonYear,
+      coverUrl,
+      bannerUrl,
+      description,
+      genresJson,
+      averageScore,
+      updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -860,25 +702,24 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
     });
   }
 
-  MediaTableCompanion copyWith({
-    Value<int>? anilistId,
-    Value<int?>? malId,
-    Value<String?>? titleRomaji,
-    Value<String?>? titleEnglish,
-    Value<String?>? titleNative,
-    Value<String>? format,
-    Value<String>? status,
-    Value<int?>? episodes,
-    Value<int?>? durationMinutes,
-    Value<String?>? season,
-    Value<int?>? seasonYear,
-    Value<String?>? coverUrl,
-    Value<String?>? bannerUrl,
-    Value<String?>? description,
-    Value<String>? genresJson,
-    Value<int?>? averageScore,
-    Value<DateTime>? updatedAt,
-  }) {
+  MediaTableCompanion copyWith(
+      {Value<int>? anilistId,
+      Value<int?>? malId,
+      Value<String?>? titleRomaji,
+      Value<String?>? titleEnglish,
+      Value<String?>? titleNative,
+      Value<String>? format,
+      Value<String>? status,
+      Value<int?>? episodes,
+      Value<int?>? durationMinutes,
+      Value<String?>? season,
+      Value<int?>? seasonYear,
+      Value<String?>? coverUrl,
+      Value<String?>? bannerUrl,
+      Value<String?>? description,
+      Value<String>? genresJson,
+      Value<int?>? averageScore,
+      Value<DateTime>? updatedAt}) {
     return MediaTableCompanion(
       anilistId: anilistId ?? this.anilistId,
       malId: malId ?? this.malId,
@@ -988,211 +829,143 @@ class $ListEntriesTable extends ListEntries
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $ListEntriesTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
-    'mediaId',
-  );
+  static const VerificationMeta _mediaIdMeta =
+      const VerificationMeta('mediaId');
   @override
   late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
-    'media_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
+      'media_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
-    'status',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-    defaultValue: const Constant('planning'),
-  );
-  static const VerificationMeta _progressMeta = const VerificationMeta(
-    'progress',
-  );
+      'status', aliasedName, false,
+      type: DriftSqlType.string,
+      requiredDuringInsert: false,
+      defaultValue: const Constant('planning'));
+  static const VerificationMeta _progressMeta =
+      const VerificationMeta('progress');
   @override
   late final GeneratedColumn<int> progress = GeneratedColumn<int>(
-    'progress',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0),
-  );
+      'progress', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
   static const VerificationMeta _scoreMeta = const VerificationMeta('score');
   @override
   late final GeneratedColumn<double> score = GeneratedColumn<double>(
-    'score',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _favoriteMeta = const VerificationMeta(
-    'favorite',
-  );
+      'score', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _favoriteMeta =
+      const VerificationMeta('favorite');
   @override
   late final GeneratedColumn<bool> favorite = GeneratedColumn<bool>(
-    'favorite',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("favorite" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
+      'favorite', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("favorite" IN (0, 1))'),
+      defaultValue: const Constant(false));
   static const VerificationMeta _notesMeta = const VerificationMeta('notes');
   @override
   late final GeneratedColumn<String> notes = GeneratedColumn<String>(
-    'notes',
-    aliasedName,
-    true,
-    type: DriftSqlType.string,
-    requiredDuringInsert: false,
-  );
+      'notes', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _hiddenFromPlanningMeta =
       const VerificationMeta('hiddenFromPlanning');
   @override
   late final GeneratedColumn<bool> hiddenFromPlanning = GeneratedColumn<bool>(
-    'hidden_from_planning',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("hidden_from_planning" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _anilistEntryIdMeta = const VerificationMeta(
-    'anilistEntryId',
-  );
+      'hidden_from_planning', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("hidden_from_planning" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _anilistEntryIdMeta =
+      const VerificationMeta('anilistEntryId');
   @override
   late final GeneratedColumn<int> anilistEntryId = GeneratedColumn<int>(
-    'anilist_entry_id',
-    aliasedName,
-    true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
+      'anilist_entry_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
   @override
   late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
-    'syncedAt',
-  );
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _syncedAtMeta =
+      const VerificationMeta('syncedAt');
   @override
   late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
-    'synced_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
+      'synced_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
-    mediaId,
-    status,
-    progress,
-    score,
-    favorite,
-    notes,
-    hiddenFromPlanning,
-    anilistEntryId,
-    updatedAt,
-    syncedAt,
-  ];
+        mediaId,
+        status,
+        progress,
+        score,
+        favorite,
+        notes,
+        hiddenFromPlanning,
+        anilistEntryId,
+        updatedAt,
+        syncedAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'list_entries';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<ListEntryRow> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<ListEntryRow> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('media_id')) {
-      context.handle(
-        _mediaIdMeta,
-        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
-      );
+      context.handle(_mediaIdMeta,
+          mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta));
     }
     if (data.containsKey('status')) {
-      context.handle(
-        _statusMeta,
-        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
-      );
+      context.handle(_statusMeta,
+          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
     }
     if (data.containsKey('progress')) {
-      context.handle(
-        _progressMeta,
-        progress.isAcceptableOrUnknown(data['progress']!, _progressMeta),
-      );
+      context.handle(_progressMeta,
+          progress.isAcceptableOrUnknown(data['progress']!, _progressMeta));
     }
     if (data.containsKey('score')) {
       context.handle(
-        _scoreMeta,
-        score.isAcceptableOrUnknown(data['score']!, _scoreMeta),
-      );
+          _scoreMeta, score.isAcceptableOrUnknown(data['score']!, _scoreMeta));
     }
     if (data.containsKey('favorite')) {
-      context.handle(
-        _favoriteMeta,
-        favorite.isAcceptableOrUnknown(data['favorite']!, _favoriteMeta),
-      );
+      context.handle(_favoriteMeta,
+          favorite.isAcceptableOrUnknown(data['favorite']!, _favoriteMeta));
     }
     if (data.containsKey('notes')) {
       context.handle(
-        _notesMeta,
-        notes.isAcceptableOrUnknown(data['notes']!, _notesMeta),
-      );
+          _notesMeta, notes.isAcceptableOrUnknown(data['notes']!, _notesMeta));
     }
     if (data.containsKey('hidden_from_planning')) {
       context.handle(
-        _hiddenFromPlanningMeta,
-        hiddenFromPlanning.isAcceptableOrUnknown(
-          data['hidden_from_planning']!,
           _hiddenFromPlanningMeta,
-        ),
-      );
+          hiddenFromPlanning.isAcceptableOrUnknown(
+              data['hidden_from_planning']!, _hiddenFromPlanningMeta));
     }
     if (data.containsKey('anilist_entry_id')) {
       context.handle(
-        _anilistEntryIdMeta,
-        anilistEntryId.isAcceptableOrUnknown(
-          data['anilist_entry_id']!,
           _anilistEntryIdMeta,
-        ),
-      );
+          anilistEntryId.isAcceptableOrUnknown(
+              data['anilist_entry_id']!, _anilistEntryIdMeta));
     }
     if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
     if (data.containsKey('synced_at')) {
-      context.handle(
-        _syncedAtMeta,
-        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
-      );
+      context.handle(_syncedAtMeta,
+          syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta));
     }
     return context;
   }
@@ -1203,46 +976,26 @@ class $ListEntriesTable extends ListEntries
   ListEntryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return ListEntryRow(
-      mediaId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}media_id'],
-      )!,
-      status: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}status'],
-      )!,
-      progress: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}progress'],
-      )!,
-      score: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}score'],
-      ),
-      favorite: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}favorite'],
-      )!,
-      notes: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}notes'],
-      ),
+      mediaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}media_id'])!,
+      status: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+      progress: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}progress'])!,
+      score: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}score']),
+      favorite: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}favorite'])!,
+      notes: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}notes']),
       hiddenFromPlanning: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}hidden_from_planning'],
-      )!,
-      anilistEntryId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}anilist_entry_id'],
-      ),
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
-      syncedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}synced_at'],
-      ),
+          DriftSqlType.bool, data['${effectivePrefix}hidden_from_planning'])!,
+      anilistEntryId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}anilist_entry_id']),
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+      syncedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}synced_at']),
     );
   }
 
@@ -1268,18 +1021,17 @@ class ListEntryRow extends DataClass implements Insertable<ListEntryRow> {
   final int? anilistEntryId;
   final DateTime updatedAt;
   final DateTime? syncedAt;
-  const ListEntryRow({
-    required this.mediaId,
-    required this.status,
-    required this.progress,
-    this.score,
-    required this.favorite,
-    this.notes,
-    required this.hiddenFromPlanning,
-    this.anilistEntryId,
-    required this.updatedAt,
-    this.syncedAt,
-  });
+  const ListEntryRow(
+      {required this.mediaId,
+      required this.status,
+      required this.progress,
+      this.score,
+      required this.favorite,
+      this.notes,
+      required this.hiddenFromPlanning,
+      this.anilistEntryId,
+      required this.updatedAt,
+      this.syncedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1309,13 +1061,11 @@ class ListEntryRow extends DataClass implements Insertable<ListEntryRow> {
       mediaId: Value(mediaId),
       status: Value(status),
       progress: Value(progress),
-      score: score == null && nullToAbsent
-          ? const Value.absent()
-          : Value(score),
+      score:
+          score == null && nullToAbsent ? const Value.absent() : Value(score),
       favorite: Value(favorite),
-      notes: notes == null && nullToAbsent
-          ? const Value.absent()
-          : Value(notes),
+      notes:
+          notes == null && nullToAbsent ? const Value.absent() : Value(notes),
       hiddenFromPlanning: Value(hiddenFromPlanning),
       anilistEntryId: anilistEntryId == null && nullToAbsent
           ? const Value.absent()
@@ -1327,10 +1077,8 @@ class ListEntryRow extends DataClass implements Insertable<ListEntryRow> {
     );
   }
 
-  factory ListEntryRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory ListEntryRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return ListEntryRow(
       mediaId: serializer.fromJson<int>(json['mediaId']),
@@ -1362,31 +1110,30 @@ class ListEntryRow extends DataClass implements Insertable<ListEntryRow> {
     };
   }
 
-  ListEntryRow copyWith({
-    int? mediaId,
-    String? status,
-    int? progress,
-    Value<double?> score = const Value.absent(),
-    bool? favorite,
-    Value<String?> notes = const Value.absent(),
-    bool? hiddenFromPlanning,
-    Value<int?> anilistEntryId = const Value.absent(),
-    DateTime? updatedAt,
-    Value<DateTime?> syncedAt = const Value.absent(),
-  }) => ListEntryRow(
-    mediaId: mediaId ?? this.mediaId,
-    status: status ?? this.status,
-    progress: progress ?? this.progress,
-    score: score.present ? score.value : this.score,
-    favorite: favorite ?? this.favorite,
-    notes: notes.present ? notes.value : this.notes,
-    hiddenFromPlanning: hiddenFromPlanning ?? this.hiddenFromPlanning,
-    anilistEntryId: anilistEntryId.present
-        ? anilistEntryId.value
-        : this.anilistEntryId,
-    updatedAt: updatedAt ?? this.updatedAt,
-    syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
-  );
+  ListEntryRow copyWith(
+          {int? mediaId,
+          String? status,
+          int? progress,
+          Value<double?> score = const Value.absent(),
+          bool? favorite,
+          Value<String?> notes = const Value.absent(),
+          bool? hiddenFromPlanning,
+          Value<int?> anilistEntryId = const Value.absent(),
+          DateTime? updatedAt,
+          Value<DateTime?> syncedAt = const Value.absent()}) =>
+      ListEntryRow(
+        mediaId: mediaId ?? this.mediaId,
+        status: status ?? this.status,
+        progress: progress ?? this.progress,
+        score: score.present ? score.value : this.score,
+        favorite: favorite ?? this.favorite,
+        notes: notes.present ? notes.value : this.notes,
+        hiddenFromPlanning: hiddenFromPlanning ?? this.hiddenFromPlanning,
+        anilistEntryId:
+            anilistEntryId.present ? anilistEntryId.value : this.anilistEntryId,
+        updatedAt: updatedAt ?? this.updatedAt,
+        syncedAt: syncedAt.present ? syncedAt.value : this.syncedAt,
+      );
   ListEntryRow copyWithCompanion(ListEntriesCompanion data) {
     return ListEntryRow(
       mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
@@ -1424,18 +1171,8 @@ class ListEntryRow extends DataClass implements Insertable<ListEntryRow> {
   }
 
   @override
-  int get hashCode => Object.hash(
-    mediaId,
-    status,
-    progress,
-    score,
-    favorite,
-    notes,
-    hiddenFromPlanning,
-    anilistEntryId,
-    updatedAt,
-    syncedAt,
-  );
+  int get hashCode => Object.hash(mediaId, status, progress, score, favorite,
+      notes, hiddenFromPlanning, anilistEntryId, updatedAt, syncedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1514,18 +1251,17 @@ class ListEntriesCompanion extends UpdateCompanion<ListEntryRow> {
     });
   }
 
-  ListEntriesCompanion copyWith({
-    Value<int>? mediaId,
-    Value<String>? status,
-    Value<int>? progress,
-    Value<double?>? score,
-    Value<bool>? favorite,
-    Value<String?>? notes,
-    Value<bool>? hiddenFromPlanning,
-    Value<int?>? anilistEntryId,
-    Value<DateTime>? updatedAt,
-    Value<DateTime?>? syncedAt,
-  }) {
+  ListEntriesCompanion copyWith(
+      {Value<int>? mediaId,
+      Value<String>? status,
+      Value<int>? progress,
+      Value<double?>? score,
+      Value<bool>? favorite,
+      Value<String?>? notes,
+      Value<bool>? hiddenFromPlanning,
+      Value<int?>? anilistEntryId,
+      Value<DateTime>? updatedAt,
+      Value<DateTime?>? syncedAt}) {
     return ListEntriesCompanion(
       mediaId: mediaId ?? this.mediaId,
       status: status ?? this.status,
@@ -1603,109 +1339,71 @@ class $EpisodeProgressesTable extends EpisodeProgresses
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
-    'mediaId',
-  );
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _mediaIdMeta =
+      const VerificationMeta('mediaId');
   @override
   late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
-    'media_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _episodeNumberMeta = const VerificationMeta(
-    'episodeNumber',
-  );
+      'media_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _episodeNumberMeta =
+      const VerificationMeta('episodeNumber');
   @override
   late final GeneratedColumn<double> episodeNumber = GeneratedColumn<double>(
-    'episode_number',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _watchedMeta = const VerificationMeta(
-    'watched',
-  );
+      'episode_number', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _watchedMeta =
+      const VerificationMeta('watched');
   @override
   late final GeneratedColumn<bool> watched = GeneratedColumn<bool>(
-    'watched',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("watched" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
-  static const VerificationMeta _positionSecondsMeta = const VerificationMeta(
-    'positionSeconds',
-  );
+      'watched', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("watched" IN (0, 1))'),
+      defaultValue: const Constant(false));
+  static const VerificationMeta _positionSecondsMeta =
+      const VerificationMeta('positionSeconds');
   @override
   late final GeneratedColumn<double> positionSeconds = GeneratedColumn<double>(
-    'position_seconds',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
-  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
-    'durationSeconds',
-  );
+      'position_seconds', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _durationSecondsMeta =
+      const VerificationMeta('durationSeconds');
   @override
   late final GeneratedColumn<double> durationSeconds = GeneratedColumn<double>(
-    'duration_seconds',
-    aliasedName,
-    true,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _completedAtMeta = const VerificationMeta(
-    'completedAt',
-  );
+      'duration_seconds', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _completedAtMeta =
+      const VerificationMeta('completedAt');
   @override
   late final GeneratedColumn<DateTime> completedAt = GeneratedColumn<DateTime>(
-    'completed_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
-    'updatedAt',
-  );
+      'completed_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
   @override
   late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
-    'updated_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns => [
-    id,
-    mediaId,
-    episodeNumber,
-    watched,
-    positionSeconds,
-    durationSeconds,
-    completedAt,
-    updatedAt,
-  ];
+        id,
+        mediaId,
+        episodeNumber,
+        watched,
+        positionSeconds,
+        durationSeconds,
+        completedAt,
+        updatedAt
+      ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1713,71 +1411,52 @@ class $EpisodeProgressesTable extends EpisodeProgresses
   static const String $name = 'episode_progresses';
   @override
   VerificationContext validateIntegrity(
-    Insertable<EpisodeProgressesData> instance, {
-    bool isInserting = false,
-  }) {
+      Insertable<EpisodeProgressesData> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
     if (data.containsKey('media_id')) {
-      context.handle(
-        _mediaIdMeta,
-        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
-      );
+      context.handle(_mediaIdMeta,
+          mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta));
     } else if (isInserting) {
       context.missing(_mediaIdMeta);
     }
     if (data.containsKey('episode_number')) {
       context.handle(
-        _episodeNumberMeta,
-        episodeNumber.isAcceptableOrUnknown(
-          data['episode_number']!,
           _episodeNumberMeta,
-        ),
-      );
+          episodeNumber.isAcceptableOrUnknown(
+              data['episode_number']!, _episodeNumberMeta));
     } else if (isInserting) {
       context.missing(_episodeNumberMeta);
     }
     if (data.containsKey('watched')) {
-      context.handle(
-        _watchedMeta,
-        watched.isAcceptableOrUnknown(data['watched']!, _watchedMeta),
-      );
+      context.handle(_watchedMeta,
+          watched.isAcceptableOrUnknown(data['watched']!, _watchedMeta));
     }
     if (data.containsKey('position_seconds')) {
       context.handle(
-        _positionSecondsMeta,
-        positionSeconds.isAcceptableOrUnknown(
-          data['position_seconds']!,
           _positionSecondsMeta,
-        ),
-      );
+          positionSeconds.isAcceptableOrUnknown(
+              data['position_seconds']!, _positionSecondsMeta));
     }
     if (data.containsKey('duration_seconds')) {
       context.handle(
-        _durationSecondsMeta,
-        durationSeconds.isAcceptableOrUnknown(
-          data['duration_seconds']!,
           _durationSecondsMeta,
-        ),
-      );
+          durationSeconds.isAcceptableOrUnknown(
+              data['duration_seconds']!, _durationSecondsMeta));
     }
     if (data.containsKey('completed_at')) {
       context.handle(
-        _completedAtMeta,
-        completedAt.isAcceptableOrUnknown(
-          data['completed_at']!,
           _completedAtMeta,
-        ),
-      );
+          completedAt.isAcceptableOrUnknown(
+              data['completed_at']!, _completedAtMeta));
     }
     if (data.containsKey('updated_at')) {
-      context.handle(
-        _updatedAtMeta,
-        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
-      );
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
@@ -1788,44 +1467,28 @@ class $EpisodeProgressesTable extends EpisodeProgresses
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
   List<Set<GeneratedColumn>> get uniqueKeys => [
-    {mediaId, episodeNumber},
-  ];
+        {mediaId, episodeNumber},
+      ];
   @override
   EpisodeProgressesData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return EpisodeProgressesData(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      mediaId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}media_id'],
-      )!,
-      episodeNumber: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}episode_number'],
-      )!,
-      watched: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}watched'],
-      )!,
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      mediaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}media_id'])!,
+      episodeNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}episode_number'])!,
+      watched: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}watched'])!,
       positionSeconds: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}position_seconds'],
-      )!,
+          DriftSqlType.double, data['${effectivePrefix}position_seconds'])!,
       durationSeconds: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}duration_seconds'],
-      ),
-      completedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}completed_at'],
-      ),
-      updatedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}updated_at'],
-      )!,
+          DriftSqlType.double, data['${effectivePrefix}duration_seconds']),
+      completedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}completed_at']),
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
     );
   }
 
@@ -1847,16 +1510,15 @@ class EpisodeProgressesData extends DataClass
   final double? durationSeconds;
   final DateTime? completedAt;
   final DateTime updatedAt;
-  const EpisodeProgressesData({
-    required this.id,
-    required this.mediaId,
-    required this.episodeNumber,
-    required this.watched,
-    required this.positionSeconds,
-    this.durationSeconds,
-    this.completedAt,
-    required this.updatedAt,
-  });
+  const EpisodeProgressesData(
+      {required this.id,
+      required this.mediaId,
+      required this.episodeNumber,
+      required this.watched,
+      required this.positionSeconds,
+      this.durationSeconds,
+      this.completedAt,
+      required this.updatedAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1892,10 +1554,8 @@ class EpisodeProgressesData extends DataClass
     );
   }
 
-  factory EpisodeProgressesData.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory EpisodeProgressesData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return EpisodeProgressesData(
       id: serializer.fromJson<int>(json['id']),
@@ -1923,27 +1583,27 @@ class EpisodeProgressesData extends DataClass
     };
   }
 
-  EpisodeProgressesData copyWith({
-    int? id,
-    int? mediaId,
-    double? episodeNumber,
-    bool? watched,
-    double? positionSeconds,
-    Value<double?> durationSeconds = const Value.absent(),
-    Value<DateTime?> completedAt = const Value.absent(),
-    DateTime? updatedAt,
-  }) => EpisodeProgressesData(
-    id: id ?? this.id,
-    mediaId: mediaId ?? this.mediaId,
-    episodeNumber: episodeNumber ?? this.episodeNumber,
-    watched: watched ?? this.watched,
-    positionSeconds: positionSeconds ?? this.positionSeconds,
-    durationSeconds: durationSeconds.present
-        ? durationSeconds.value
-        : this.durationSeconds,
-    completedAt: completedAt.present ? completedAt.value : this.completedAt,
-    updatedAt: updatedAt ?? this.updatedAt,
-  );
+  EpisodeProgressesData copyWith(
+          {int? id,
+          int? mediaId,
+          double? episodeNumber,
+          bool? watched,
+          double? positionSeconds,
+          Value<double?> durationSeconds = const Value.absent(),
+          Value<DateTime?> completedAt = const Value.absent(),
+          DateTime? updatedAt}) =>
+      EpisodeProgressesData(
+        id: id ?? this.id,
+        mediaId: mediaId ?? this.mediaId,
+        episodeNumber: episodeNumber ?? this.episodeNumber,
+        watched: watched ?? this.watched,
+        positionSeconds: positionSeconds ?? this.positionSeconds,
+        durationSeconds: durationSeconds.present
+            ? durationSeconds.value
+            : this.durationSeconds,
+        completedAt: completedAt.present ? completedAt.value : this.completedAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
   EpisodeProgressesData copyWithCompanion(EpisodeProgressesCompanion data) {
     return EpisodeProgressesData(
       id: data.id.present ? data.id.value : this.id,
@@ -1958,9 +1618,8 @@ class EpisodeProgressesData extends DataClass
       durationSeconds: data.durationSeconds.present
           ? data.durationSeconds.value
           : this.durationSeconds,
-      completedAt: data.completedAt.present
-          ? data.completedAt.value
-          : this.completedAt,
+      completedAt:
+          data.completedAt.present ? data.completedAt.value : this.completedAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -1981,16 +1640,8 @@ class EpisodeProgressesData extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    mediaId,
-    episodeNumber,
-    watched,
-    positionSeconds,
-    durationSeconds,
-    completedAt,
-    updatedAt,
-  );
+  int get hashCode => Object.hash(id, mediaId, episodeNumber, watched,
+      positionSeconds, durationSeconds, completedAt, updatedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2034,9 +1685,9 @@ class EpisodeProgressesCompanion
     this.durationSeconds = const Value.absent(),
     this.completedAt = const Value.absent(),
     required DateTime updatedAt,
-  }) : mediaId = Value(mediaId),
-       episodeNumber = Value(episodeNumber),
-       updatedAt = Value(updatedAt);
+  })  : mediaId = Value(mediaId),
+        episodeNumber = Value(episodeNumber),
+        updatedAt = Value(updatedAt);
   static Insertable<EpisodeProgressesData> custom({
     Expression<int>? id,
     Expression<int>? mediaId,
@@ -2059,16 +1710,15 @@ class EpisodeProgressesCompanion
     });
   }
 
-  EpisodeProgressesCompanion copyWith({
-    Value<int>? id,
-    Value<int>? mediaId,
-    Value<double>? episodeNumber,
-    Value<bool>? watched,
-    Value<double>? positionSeconds,
-    Value<double?>? durationSeconds,
-    Value<DateTime?>? completedAt,
-    Value<DateTime>? updatedAt,
-  }) {
+  EpisodeProgressesCompanion copyWith(
+      {Value<int>? id,
+      Value<int>? mediaId,
+      Value<double>? episodeNumber,
+      Value<bool>? watched,
+      Value<double>? positionSeconds,
+      Value<double?>? durationSeconds,
+      Value<DateTime?>? completedAt,
+      Value<DateTime>? updatedAt}) {
     return EpisodeProgressesCompanion(
       id: id ?? this.id,
       mediaId: mediaId ?? this.mediaId,
@@ -2136,137 +1786,89 @@ class $WatchHistoriesTable extends WatchHistories
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
-    'mediaId',
-  );
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _mediaIdMeta =
+      const VerificationMeta('mediaId');
   @override
   late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
-    'media_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _episodeNumberMeta = const VerificationMeta(
-    'episodeNumber',
-  );
+      'media_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _episodeNumberMeta =
+      const VerificationMeta('episodeNumber');
   @override
   late final GeneratedColumn<double> episodeNumber = GeneratedColumn<double>(
-    'episode_number',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _startedAtMeta = const VerificationMeta(
-    'startedAt',
-  );
+      'episode_number', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _startedAtMeta =
+      const VerificationMeta('startedAt');
   @override
   late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
-    'started_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _endedAtMeta = const VerificationMeta(
-    'endedAt',
-  );
+      'started_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _endedAtMeta =
+      const VerificationMeta('endedAt');
   @override
   late final GeneratedColumn<DateTime> endedAt = GeneratedColumn<DateTime>(
-    'ended_at',
-    aliasedName,
-    true,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: false,
-  );
-  static const VerificationMeta _watchedSecondsMeta = const VerificationMeta(
-    'watchedSeconds',
-  );
+      'ended_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _watchedSecondsMeta =
+      const VerificationMeta('watchedSeconds');
   @override
   late final GeneratedColumn<double> watchedSeconds = GeneratedColumn<double>(
-    'watched_seconds',
-    aliasedName,
-    false,
-    type: DriftSqlType.double,
-    requiredDuringInsert: false,
-    defaultValue: const Constant(0.0),
-  );
+      'watched_seconds', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
   @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    mediaId,
-    episodeNumber,
-    startedAt,
-    endedAt,
-    watchedSeconds,
-  ];
+  List<GeneratedColumn> get $columns =>
+      [id, mediaId, episodeNumber, startedAt, endedAt, watchedSeconds];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'watch_histories';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<WatchHistoryRow> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<WatchHistoryRow> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
     if (data.containsKey('media_id')) {
-      context.handle(
-        _mediaIdMeta,
-        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
-      );
+      context.handle(_mediaIdMeta,
+          mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta));
     } else if (isInserting) {
       context.missing(_mediaIdMeta);
     }
     if (data.containsKey('episode_number')) {
       context.handle(
-        _episodeNumberMeta,
-        episodeNumber.isAcceptableOrUnknown(
-          data['episode_number']!,
           _episodeNumberMeta,
-        ),
-      );
+          episodeNumber.isAcceptableOrUnknown(
+              data['episode_number']!, _episodeNumberMeta));
     } else if (isInserting) {
       context.missing(_episodeNumberMeta);
     }
     if (data.containsKey('started_at')) {
-      context.handle(
-        _startedAtMeta,
-        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
-      );
+      context.handle(_startedAtMeta,
+          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
     } else if (isInserting) {
       context.missing(_startedAtMeta);
     }
     if (data.containsKey('ended_at')) {
-      context.handle(
-        _endedAtMeta,
-        endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta),
-      );
+      context.handle(_endedAtMeta,
+          endedAt.isAcceptableOrUnknown(data['ended_at']!, _endedAtMeta));
     }
     if (data.containsKey('watched_seconds')) {
       context.handle(
-        _watchedSecondsMeta,
-        watchedSeconds.isAcceptableOrUnknown(
-          data['watched_seconds']!,
           _watchedSecondsMeta,
-        ),
-      );
+          watchedSeconds.isAcceptableOrUnknown(
+              data['watched_seconds']!, _watchedSecondsMeta));
     }
     return context;
   }
@@ -2277,30 +1879,18 @@ class $WatchHistoriesTable extends WatchHistories
   WatchHistoryRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return WatchHistoryRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      mediaId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}media_id'],
-      )!,
-      episodeNumber: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}episode_number'],
-      )!,
-      startedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}started_at'],
-      )!,
-      endedAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}ended_at'],
-      ),
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      mediaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}media_id'])!,
+      episodeNumber: attachedDatabase.typeMapping
+          .read(DriftSqlType.double, data['${effectivePrefix}episode_number'])!,
+      startedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}started_at'])!,
+      endedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}ended_at']),
       watchedSeconds: attachedDatabase.typeMapping.read(
-        DriftSqlType.double,
-        data['${effectivePrefix}watched_seconds'],
-      )!,
+          DriftSqlType.double, data['${effectivePrefix}watched_seconds'])!,
     );
   }
 
@@ -2317,14 +1907,13 @@ class WatchHistoryRow extends DataClass implements Insertable<WatchHistoryRow> {
   final DateTime startedAt;
   final DateTime? endedAt;
   final double watchedSeconds;
-  const WatchHistoryRow({
-    required this.id,
-    required this.mediaId,
-    required this.episodeNumber,
-    required this.startedAt,
-    this.endedAt,
-    required this.watchedSeconds,
-  });
+  const WatchHistoryRow(
+      {required this.id,
+      required this.mediaId,
+      required this.episodeNumber,
+      required this.startedAt,
+      this.endedAt,
+      required this.watchedSeconds});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2352,10 +1941,8 @@ class WatchHistoryRow extends DataClass implements Insertable<WatchHistoryRow> {
     );
   }
 
-  factory WatchHistoryRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory WatchHistoryRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return WatchHistoryRow(
       id: serializer.fromJson<int>(json['id']),
@@ -2379,21 +1966,21 @@ class WatchHistoryRow extends DataClass implements Insertable<WatchHistoryRow> {
     };
   }
 
-  WatchHistoryRow copyWith({
-    int? id,
-    int? mediaId,
-    double? episodeNumber,
-    DateTime? startedAt,
-    Value<DateTime?> endedAt = const Value.absent(),
-    double? watchedSeconds,
-  }) => WatchHistoryRow(
-    id: id ?? this.id,
-    mediaId: mediaId ?? this.mediaId,
-    episodeNumber: episodeNumber ?? this.episodeNumber,
-    startedAt: startedAt ?? this.startedAt,
-    endedAt: endedAt.present ? endedAt.value : this.endedAt,
-    watchedSeconds: watchedSeconds ?? this.watchedSeconds,
-  );
+  WatchHistoryRow copyWith(
+          {int? id,
+          int? mediaId,
+          double? episodeNumber,
+          DateTime? startedAt,
+          Value<DateTime?> endedAt = const Value.absent(),
+          double? watchedSeconds}) =>
+      WatchHistoryRow(
+        id: id ?? this.id,
+        mediaId: mediaId ?? this.mediaId,
+        episodeNumber: episodeNumber ?? this.episodeNumber,
+        startedAt: startedAt ?? this.startedAt,
+        endedAt: endedAt.present ? endedAt.value : this.endedAt,
+        watchedSeconds: watchedSeconds ?? this.watchedSeconds,
+      );
   WatchHistoryRow copyWithCompanion(WatchHistoriesCompanion data) {
     return WatchHistoryRow(
       id: data.id.present ? data.id.value : this.id,
@@ -2424,13 +2011,7 @@ class WatchHistoryRow extends DataClass implements Insertable<WatchHistoryRow> {
 
   @override
   int get hashCode => Object.hash(
-    id,
-    mediaId,
-    episodeNumber,
-    startedAt,
-    endedAt,
-    watchedSeconds,
-  );
+      id, mediaId, episodeNumber, startedAt, endedAt, watchedSeconds);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2465,9 +2046,9 @@ class WatchHistoriesCompanion extends UpdateCompanion<WatchHistoryRow> {
     required DateTime startedAt,
     this.endedAt = const Value.absent(),
     this.watchedSeconds = const Value.absent(),
-  }) : mediaId = Value(mediaId),
-       episodeNumber = Value(episodeNumber),
-       startedAt = Value(startedAt);
+  })  : mediaId = Value(mediaId),
+        episodeNumber = Value(episodeNumber),
+        startedAt = Value(startedAt);
   static Insertable<WatchHistoryRow> custom({
     Expression<int>? id,
     Expression<int>? mediaId,
@@ -2486,14 +2067,13 @@ class WatchHistoriesCompanion extends UpdateCompanion<WatchHistoryRow> {
     });
   }
 
-  WatchHistoriesCompanion copyWith({
-    Value<int>? id,
-    Value<int>? mediaId,
-    Value<double>? episodeNumber,
-    Value<DateTime>? startedAt,
-    Value<DateTime?>? endedAt,
-    Value<double>? watchedSeconds,
-  }) {
+  WatchHistoriesCompanion copyWith(
+      {Value<int>? id,
+      Value<int>? mediaId,
+      Value<double>? episodeNumber,
+      Value<DateTime>? startedAt,
+      Value<DateTime?>? endedAt,
+      Value<double>? watchedSeconds}) {
     return WatchHistoriesCompanion(
       id: id ?? this.id,
       mediaId: mediaId ?? this.mediaId,
@@ -2548,39 +2128,24 @@ class $MediaRelationsTable extends MediaRelations
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $MediaRelationsTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
-    'mediaId',
-  );
+  static const VerificationMeta _mediaIdMeta =
+      const VerificationMeta('mediaId');
   @override
   late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
-    'media_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _relatedMediaIdMeta = const VerificationMeta(
-    'relatedMediaId',
-  );
+      'media_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _relatedMediaIdMeta =
+      const VerificationMeta('relatedMediaId');
   @override
   late final GeneratedColumn<int> relatedMediaId = GeneratedColumn<int>(
-    'related_media_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _relationTypeMeta = const VerificationMeta(
-    'relationType',
-  );
+      'related_media_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _relationTypeMeta =
+      const VerificationMeta('relationType');
   @override
   late final GeneratedColumn<String> relationType = GeneratedColumn<String>(
-    'relation_type',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
+      'relation_type', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns => [mediaId, relatedMediaId, relationType];
   @override
@@ -2589,39 +2154,29 @@ class $MediaRelationsTable extends MediaRelations
   String get actualTableName => $name;
   static const String $name = 'media_relations';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<MediaRelationRow> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<MediaRelationRow> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('media_id')) {
-      context.handle(
-        _mediaIdMeta,
-        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
-      );
+      context.handle(_mediaIdMeta,
+          mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta));
     } else if (isInserting) {
       context.missing(_mediaIdMeta);
     }
     if (data.containsKey('related_media_id')) {
       context.handle(
-        _relatedMediaIdMeta,
-        relatedMediaId.isAcceptableOrUnknown(
-          data['related_media_id']!,
           _relatedMediaIdMeta,
-        ),
-      );
+          relatedMediaId.isAcceptableOrUnknown(
+              data['related_media_id']!, _relatedMediaIdMeta));
     } else if (isInserting) {
       context.missing(_relatedMediaIdMeta);
     }
     if (data.containsKey('relation_type')) {
       context.handle(
-        _relationTypeMeta,
-        relationType.isAcceptableOrUnknown(
-          data['relation_type']!,
           _relationTypeMeta,
-        ),
-      );
+          relationType.isAcceptableOrUnknown(
+              data['relation_type']!, _relationTypeMeta));
     } else if (isInserting) {
       context.missing(_relationTypeMeta);
     }
@@ -2634,18 +2189,12 @@ class $MediaRelationsTable extends MediaRelations
   MediaRelationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return MediaRelationRow(
-      mediaId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}media_id'],
-      )!,
-      relatedMediaId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}related_media_id'],
-      )!,
-      relationType: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}relation_type'],
-      )!,
+      mediaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}media_id'])!,
+      relatedMediaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}related_media_id'])!,
+      relationType: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}relation_type'])!,
     );
   }
 
@@ -2662,11 +2211,10 @@ class MediaRelationRow extends DataClass
 
   /// Type de relation stocké en TEXT (.name).
   final String relationType;
-  const MediaRelationRow({
-    required this.mediaId,
-    required this.relatedMediaId,
-    required this.relationType,
-  });
+  const MediaRelationRow(
+      {required this.mediaId,
+      required this.relatedMediaId,
+      required this.relationType});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -2684,10 +2232,8 @@ class MediaRelationRow extends DataClass
     );
   }
 
-  factory MediaRelationRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory MediaRelationRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return MediaRelationRow(
       mediaId: serializer.fromJson<int>(json['mediaId']),
@@ -2705,15 +2251,13 @@ class MediaRelationRow extends DataClass
     };
   }
 
-  MediaRelationRow copyWith({
-    int? mediaId,
-    int? relatedMediaId,
-    String? relationType,
-  }) => MediaRelationRow(
-    mediaId: mediaId ?? this.mediaId,
-    relatedMediaId: relatedMediaId ?? this.relatedMediaId,
-    relationType: relationType ?? this.relationType,
-  );
+  MediaRelationRow copyWith(
+          {int? mediaId, int? relatedMediaId, String? relationType}) =>
+      MediaRelationRow(
+        mediaId: mediaId ?? this.mediaId,
+        relatedMediaId: relatedMediaId ?? this.relatedMediaId,
+        relationType: relationType ?? this.relationType,
+      );
   MediaRelationRow copyWithCompanion(MediaRelationsCompanion data) {
     return MediaRelationRow(
       mediaId: data.mediaId.present ? data.mediaId.value : this.mediaId,
@@ -2763,9 +2307,9 @@ class MediaRelationsCompanion extends UpdateCompanion<MediaRelationRow> {
     required int relatedMediaId,
     required String relationType,
     this.rowid = const Value.absent(),
-  }) : mediaId = Value(mediaId),
-       relatedMediaId = Value(relatedMediaId),
-       relationType = Value(relationType);
+  })  : mediaId = Value(mediaId),
+        relatedMediaId = Value(relatedMediaId),
+        relationType = Value(relationType);
   static Insertable<MediaRelationRow> custom({
     Expression<int>? mediaId,
     Expression<int>? relatedMediaId,
@@ -2780,12 +2324,11 @@ class MediaRelationsCompanion extends UpdateCompanion<MediaRelationRow> {
     });
   }
 
-  MediaRelationsCompanion copyWith({
-    Value<int>? mediaId,
-    Value<int>? relatedMediaId,
-    Value<String>? relationType,
-    Value<int>? rowid,
-  }) {
+  MediaRelationsCompanion copyWith(
+      {Value<int>? mediaId,
+      Value<int>? relatedMediaId,
+      Value<String>? relationType,
+      Value<int>? rowid}) {
     return MediaRelationsCompanion(
       mediaId: mediaId ?? this.mediaId,
       relatedMediaId: relatedMediaId ?? this.relatedMediaId,
@@ -2833,114 +2376,76 @@ class $AiringSchedulesTable extends AiringSchedules
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<int> id = GeneratedColumn<int>(
-    'id',
-    aliasedName,
-    false,
-    hasAutoIncrement: true,
-    type: DriftSqlType.int,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'PRIMARY KEY AUTOINCREMENT',
-    ),
-  );
-  static const VerificationMeta _mediaIdMeta = const VerificationMeta(
-    'mediaId',
-  );
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _mediaIdMeta =
+      const VerificationMeta('mediaId');
   @override
   late final GeneratedColumn<int> mediaId = GeneratedColumn<int>(
-    'media_id',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _episodeMeta = const VerificationMeta(
-    'episode',
-  );
+      'media_id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _episodeMeta =
+      const VerificationMeta('episode');
   @override
   late final GeneratedColumn<int> episode = GeneratedColumn<int>(
-    'episode',
-    aliasedName,
-    false,
-    type: DriftSqlType.int,
-    requiredDuringInsert: true,
-  );
+      'episode', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
   static const VerificationMeta _airsAtMeta = const VerificationMeta('airsAt');
   @override
   late final GeneratedColumn<DateTime> airsAt = GeneratedColumn<DateTime>(
-    'airs_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _notifiedMeta = const VerificationMeta(
-    'notified',
-  );
+      'airs_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _notifiedMeta =
+      const VerificationMeta('notified');
   @override
   late final GeneratedColumn<bool> notified = GeneratedColumn<bool>(
-    'notified',
-    aliasedName,
-    false,
-    type: DriftSqlType.bool,
-    requiredDuringInsert: false,
-    defaultConstraints: GeneratedColumn.constraintIsAlways(
-      'CHECK ("notified" IN (0, 1))',
-    ),
-    defaultValue: const Constant(false),
-  );
+      'notified', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("notified" IN (0, 1))'),
+      defaultValue: const Constant(false));
   @override
-  List<GeneratedColumn> get $columns => [
-    id,
-    mediaId,
-    episode,
-    airsAt,
-    notified,
-  ];
+  List<GeneratedColumn> get $columns =>
+      [id, mediaId, episode, airsAt, notified];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'airing_schedules';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<AiringScheduleRow> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<AiringScheduleRow> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
     if (data.containsKey('media_id')) {
-      context.handle(
-        _mediaIdMeta,
-        mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta),
-      );
+      context.handle(_mediaIdMeta,
+          mediaId.isAcceptableOrUnknown(data['media_id']!, _mediaIdMeta));
     } else if (isInserting) {
       context.missing(_mediaIdMeta);
     }
     if (data.containsKey('episode')) {
-      context.handle(
-        _episodeMeta,
-        episode.isAcceptableOrUnknown(data['episode']!, _episodeMeta),
-      );
+      context.handle(_episodeMeta,
+          episode.isAcceptableOrUnknown(data['episode']!, _episodeMeta));
     } else if (isInserting) {
       context.missing(_episodeMeta);
     }
     if (data.containsKey('airs_at')) {
-      context.handle(
-        _airsAtMeta,
-        airsAt.isAcceptableOrUnknown(data['airs_at']!, _airsAtMeta),
-      );
+      context.handle(_airsAtMeta,
+          airsAt.isAcceptableOrUnknown(data['airs_at']!, _airsAtMeta));
     } else if (isInserting) {
       context.missing(_airsAtMeta);
     }
     if (data.containsKey('notified')) {
-      context.handle(
-        _notifiedMeta,
-        notified.isAcceptableOrUnknown(data['notified']!, _notifiedMeta),
-      );
+      context.handle(_notifiedMeta,
+          notified.isAcceptableOrUnknown(data['notified']!, _notifiedMeta));
     }
     return context;
   }
@@ -2951,26 +2456,16 @@ class $AiringSchedulesTable extends AiringSchedules
   AiringScheduleRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return AiringScheduleRow(
-      id: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}id'],
-      )!,
-      mediaId: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}media_id'],
-      )!,
-      episode: attachedDatabase.typeMapping.read(
-        DriftSqlType.int,
-        data['${effectivePrefix}episode'],
-      )!,
-      airsAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}airs_at'],
-      )!,
-      notified: attachedDatabase.typeMapping.read(
-        DriftSqlType.bool,
-        data['${effectivePrefix}notified'],
-      )!,
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      mediaId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}media_id'])!,
+      episode: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}episode'])!,
+      airsAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}airs_at'])!,
+      notified: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}notified'])!,
     );
   }
 
@@ -2987,13 +2482,12 @@ class AiringScheduleRow extends DataClass
   final int episode;
   final DateTime airsAt;
   final bool notified;
-  const AiringScheduleRow({
-    required this.id,
-    required this.mediaId,
-    required this.episode,
-    required this.airsAt,
-    required this.notified,
-  });
+  const AiringScheduleRow(
+      {required this.id,
+      required this.mediaId,
+      required this.episode,
+      required this.airsAt,
+      required this.notified});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3015,10 +2509,8 @@ class AiringScheduleRow extends DataClass
     );
   }
 
-  factory AiringScheduleRow.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory AiringScheduleRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return AiringScheduleRow(
       id: serializer.fromJson<int>(json['id']),
@@ -3040,19 +2532,19 @@ class AiringScheduleRow extends DataClass
     };
   }
 
-  AiringScheduleRow copyWith({
-    int? id,
-    int? mediaId,
-    int? episode,
-    DateTime? airsAt,
-    bool? notified,
-  }) => AiringScheduleRow(
-    id: id ?? this.id,
-    mediaId: mediaId ?? this.mediaId,
-    episode: episode ?? this.episode,
-    airsAt: airsAt ?? this.airsAt,
-    notified: notified ?? this.notified,
-  );
+  AiringScheduleRow copyWith(
+          {int? id,
+          int? mediaId,
+          int? episode,
+          DateTime? airsAt,
+          bool? notified}) =>
+      AiringScheduleRow(
+        id: id ?? this.id,
+        mediaId: mediaId ?? this.mediaId,
+        episode: episode ?? this.episode,
+        airsAt: airsAt ?? this.airsAt,
+        notified: notified ?? this.notified,
+      );
   AiringScheduleRow copyWithCompanion(AiringSchedulesCompanion data) {
     return AiringScheduleRow(
       id: data.id.present ? data.id.value : this.id,
@@ -3107,9 +2599,9 @@ class AiringSchedulesCompanion extends UpdateCompanion<AiringScheduleRow> {
     required int episode,
     required DateTime airsAt,
     this.notified = const Value.absent(),
-  }) : mediaId = Value(mediaId),
-       episode = Value(episode),
-       airsAt = Value(airsAt);
+  })  : mediaId = Value(mediaId),
+        episode = Value(episode),
+        airsAt = Value(airsAt);
   static Insertable<AiringScheduleRow> custom({
     Expression<int>? id,
     Expression<int>? mediaId,
@@ -3126,13 +2618,12 @@ class AiringSchedulesCompanion extends UpdateCompanion<AiringScheduleRow> {
     });
   }
 
-  AiringSchedulesCompanion copyWith({
-    Value<int>? id,
-    Value<int>? mediaId,
-    Value<int>? episode,
-    Value<DateTime>? airsAt,
-    Value<bool>? notified,
-  }) {
+  AiringSchedulesCompanion copyWith(
+      {Value<int>? id,
+      Value<int>? mediaId,
+      Value<int>? episode,
+      Value<DateTime>? airsAt,
+      Value<bool>? notified}) {
     return AiringSchedulesCompanion(
       id: id ?? this.id,
       mediaId: mediaId ?? this.mediaId,
@@ -3185,21 +2676,13 @@ class $AppSettingsTable extends AppSettings
   static const VerificationMeta _keyMeta = const VerificationMeta('key');
   @override
   late final GeneratedColumn<String> key = GeneratedColumn<String>(
-    'key',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
+      'key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
   static const VerificationMeta _valueMeta = const VerificationMeta('value');
   @override
   late final GeneratedColumn<String> value = GeneratedColumn<String>(
-    'value',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
+      'value', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns => [key, value];
   @override
@@ -3208,25 +2691,19 @@ class $AppSettingsTable extends AppSettings
   String get actualTableName => $name;
   static const String $name = 'app_settings';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<AppSetting> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<AppSetting> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('key')) {
       context.handle(
-        _keyMeta,
-        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
-      );
+          _keyMeta, key.isAcceptableOrUnknown(data['key']!, _keyMeta));
     } else if (isInserting) {
       context.missing(_keyMeta);
     }
     if (data.containsKey('value')) {
       context.handle(
-        _valueMeta,
-        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
-      );
+          _valueMeta, value.isAcceptableOrUnknown(data['value']!, _valueMeta));
     } else if (isInserting) {
       context.missing(_valueMeta);
     }
@@ -3239,14 +2716,10 @@ class $AppSettingsTable extends AppSettings
   AppSetting map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return AppSetting(
-      key: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}key'],
-      )!,
-      value: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}value'],
-      )!,
+      key: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}key'])!,
+      value: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}value'])!,
     );
   }
 
@@ -3269,13 +2742,14 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
   }
 
   AppSettingsCompanion toCompanion(bool nullToAbsent) {
-    return AppSettingsCompanion(key: Value(key), value: Value(value));
+    return AppSettingsCompanion(
+      key: Value(key),
+      value: Value(value),
+    );
   }
 
-  factory AppSetting.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory AppSetting.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return AppSetting(
       key: serializer.fromJson<String>(json['key']),
@@ -3291,8 +2765,10 @@ class AppSetting extends DataClass implements Insertable<AppSetting> {
     };
   }
 
-  AppSetting copyWith({String? key, String? value}) =>
-      AppSetting(key: key ?? this.key, value: value ?? this.value);
+  AppSetting copyWith({String? key, String? value}) => AppSetting(
+        key: key ?? this.key,
+        value: value ?? this.value,
+      );
   AppSetting copyWithCompanion(AppSettingsCompanion data) {
     return AppSetting(
       key: data.key.present ? data.key.value : this.key,
@@ -3332,8 +2808,8 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     required String key,
     required String value,
     this.rowid = const Value.absent(),
-  }) : key = Value(key),
-       value = Value(value);
+  })  : key = Value(key),
+        value = Value(value);
   static Insertable<AppSetting> custom({
     Expression<String>? key,
     Expression<String>? value,
@@ -3346,11 +2822,8 @@ class AppSettingsCompanion extends UpdateCompanion<AppSetting> {
     });
   }
 
-  AppSettingsCompanion copyWith({
-    Value<String>? key,
-    Value<String>? value,
-    Value<int>? rowid,
-  }) {
+  AppSettingsCompanion copyWith(
+      {Value<String>? key, Value<String>? value, Value<int>? rowid}) {
     return AppSettingsCompanion(
       key: key ?? this.key,
       value: value ?? this.value,
@@ -3390,39 +2863,24 @@ class $MetaCacheTable extends MetaCache
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $MetaCacheTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _cacheKeyMeta = const VerificationMeta(
-    'cacheKey',
-  );
+  static const VerificationMeta _cacheKeyMeta =
+      const VerificationMeta('cacheKey');
   @override
   late final GeneratedColumn<String> cacheKey = GeneratedColumn<String>(
-    'cache_key',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _payloadMeta = const VerificationMeta(
-    'payload',
-  );
+      'cache_key', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _payloadMeta =
+      const VerificationMeta('payload');
   @override
   late final GeneratedColumn<String> payload = GeneratedColumn<String>(
-    'payload',
-    aliasedName,
-    false,
-    type: DriftSqlType.string,
-    requiredDuringInsert: true,
-  );
-  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
-    'expiresAt',
-  );
+      'payload', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _expiresAtMeta =
+      const VerificationMeta('expiresAt');
   @override
   late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
-    'expires_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+      'expires_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
   @override
   List<GeneratedColumn> get $columns => [cacheKey, payload, expiresAt];
   @override
@@ -3431,33 +2889,25 @@ class $MetaCacheTable extends MetaCache
   String get actualTableName => $name;
   static const String $name = 'meta_cache';
   @override
-  VerificationContext validateIntegrity(
-    Insertable<MetaCacheData> instance, {
-    bool isInserting = false,
-  }) {
+  VerificationContext validateIntegrity(Insertable<MetaCacheData> instance,
+      {bool isInserting = false}) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('cache_key')) {
-      context.handle(
-        _cacheKeyMeta,
-        cacheKey.isAcceptableOrUnknown(data['cache_key']!, _cacheKeyMeta),
-      );
+      context.handle(_cacheKeyMeta,
+          cacheKey.isAcceptableOrUnknown(data['cache_key']!, _cacheKeyMeta));
     } else if (isInserting) {
       context.missing(_cacheKeyMeta);
     }
     if (data.containsKey('payload')) {
-      context.handle(
-        _payloadMeta,
-        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
-      );
+      context.handle(_payloadMeta,
+          payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta));
     } else if (isInserting) {
       context.missing(_payloadMeta);
     }
     if (data.containsKey('expires_at')) {
-      context.handle(
-        _expiresAtMeta,
-        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
-      );
+      context.handle(_expiresAtMeta,
+          expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta));
     } else if (isInserting) {
       context.missing(_expiresAtMeta);
     }
@@ -3470,18 +2920,12 @@ class $MetaCacheTable extends MetaCache
   MetaCacheData map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return MetaCacheData(
-      cacheKey: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}cache_key'],
-      )!,
-      payload: attachedDatabase.typeMapping.read(
-        DriftSqlType.string,
-        data['${effectivePrefix}payload'],
-      )!,
-      expiresAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}expires_at'],
-      )!,
+      cacheKey: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}cache_key'])!,
+      payload: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}payload'])!,
+      expiresAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}expires_at'])!,
     );
   }
 
@@ -3495,11 +2939,8 @@ class MetaCacheData extends DataClass implements Insertable<MetaCacheData> {
   final String cacheKey;
   final String payload;
   final DateTime expiresAt;
-  const MetaCacheData({
-    required this.cacheKey,
-    required this.payload,
-    required this.expiresAt,
-  });
+  const MetaCacheData(
+      {required this.cacheKey, required this.payload, required this.expiresAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -3517,10 +2958,8 @@ class MetaCacheData extends DataClass implements Insertable<MetaCacheData> {
     );
   }
 
-  factory MetaCacheData.fromJson(
-    Map<String, dynamic> json, {
-    ValueSerializer? serializer,
-  }) {
+  factory MetaCacheData.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return MetaCacheData(
       cacheKey: serializer.fromJson<String>(json['cacheKey']),
@@ -3538,15 +2977,13 @@ class MetaCacheData extends DataClass implements Insertable<MetaCacheData> {
     };
   }
 
-  MetaCacheData copyWith({
-    String? cacheKey,
-    String? payload,
-    DateTime? expiresAt,
-  }) => MetaCacheData(
-    cacheKey: cacheKey ?? this.cacheKey,
-    payload: payload ?? this.payload,
-    expiresAt: expiresAt ?? this.expiresAt,
-  );
+  MetaCacheData copyWith(
+          {String? cacheKey, String? payload, DateTime? expiresAt}) =>
+      MetaCacheData(
+        cacheKey: cacheKey ?? this.cacheKey,
+        payload: payload ?? this.payload,
+        expiresAt: expiresAt ?? this.expiresAt,
+      );
   MetaCacheData copyWithCompanion(MetaCacheCompanion data) {
     return MetaCacheData(
       cacheKey: data.cacheKey.present ? data.cacheKey.value : this.cacheKey,
@@ -3592,9 +3029,9 @@ class MetaCacheCompanion extends UpdateCompanion<MetaCacheData> {
     required String payload,
     required DateTime expiresAt,
     this.rowid = const Value.absent(),
-  }) : cacheKey = Value(cacheKey),
-       payload = Value(payload),
-       expiresAt = Value(expiresAt);
+  })  : cacheKey = Value(cacheKey),
+        payload = Value(payload),
+        expiresAt = Value(expiresAt);
   static Insertable<MetaCacheData> custom({
     Expression<String>? cacheKey,
     Expression<String>? payload,
@@ -3609,12 +3046,11 @@ class MetaCacheCompanion extends UpdateCompanion<MetaCacheData> {
     });
   }
 
-  MetaCacheCompanion copyWith({
-    Value<String>? cacheKey,
-    Value<String>? payload,
-    Value<DateTime>? expiresAt,
-    Value<int>? rowid,
-  }) {
+  MetaCacheCompanion copyWith(
+      {Value<String>? cacheKey,
+      Value<String>? payload,
+      Value<DateTime>? expiresAt,
+      Value<int>? rowid}) {
     return MetaCacheCompanion(
       cacheKey: cacheKey ?? this.cacheKey,
       payload: payload ?? this.payload,
@@ -3662,9 +3098,8 @@ abstract class _$TerebiDatabase extends GeneratedDatabase {
       $EpisodeProgressesTable(this);
   late final $WatchHistoriesTable watchHistories = $WatchHistoriesTable(this);
   late final $MediaRelationsTable mediaRelations = $MediaRelationsTable(this);
-  late final $AiringSchedulesTable airingSchedules = $AiringSchedulesTable(
-    this,
-  );
+  late final $AiringSchedulesTable airingSchedules =
+      $AiringSchedulesTable(this);
   late final $AppSettingsTable appSettings = $AppSettingsTable(this);
   late final $MetaCacheTable metaCache = $MetaCacheTable(this);
   @override
@@ -3672,57 +3107,55 @@ abstract class _$TerebiDatabase extends GeneratedDatabase {
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
-    mediaTable,
-    listEntries,
-    episodeProgresses,
-    watchHistories,
-    mediaRelations,
-    airingSchedules,
-    appSettings,
-    metaCache,
-  ];
+        mediaTable,
+        listEntries,
+        episodeProgresses,
+        watchHistories,
+        mediaRelations,
+        airingSchedules,
+        appSettings,
+        metaCache
+      ];
 }
 
-typedef $$MediaTableTableCreateCompanionBuilder =
-    MediaTableCompanion Function({
-      Value<int> anilistId,
-      Value<int?> malId,
-      Value<String?> titleRomaji,
-      Value<String?> titleEnglish,
-      Value<String?> titleNative,
-      Value<String> format,
-      Value<String> status,
-      Value<int?> episodes,
-      Value<int?> durationMinutes,
-      Value<String?> season,
-      Value<int?> seasonYear,
-      Value<String?> coverUrl,
-      Value<String?> bannerUrl,
-      Value<String?> description,
-      Value<String> genresJson,
-      Value<int?> averageScore,
-      Value<DateTime> updatedAt,
-    });
-typedef $$MediaTableTableUpdateCompanionBuilder =
-    MediaTableCompanion Function({
-      Value<int> anilistId,
-      Value<int?> malId,
-      Value<String?> titleRomaji,
-      Value<String?> titleEnglish,
-      Value<String?> titleNative,
-      Value<String> format,
-      Value<String> status,
-      Value<int?> episodes,
-      Value<int?> durationMinutes,
-      Value<String?> season,
-      Value<int?> seasonYear,
-      Value<String?> coverUrl,
-      Value<String?> bannerUrl,
-      Value<String?> description,
-      Value<String> genresJson,
-      Value<int?> averageScore,
-      Value<DateTime> updatedAt,
-    });
+typedef $$MediaTableTableCreateCompanionBuilder = MediaTableCompanion Function({
+  Value<int> anilistId,
+  Value<int?> malId,
+  Value<String?> titleRomaji,
+  Value<String?> titleEnglish,
+  Value<String?> titleNative,
+  Value<String> format,
+  Value<String> status,
+  Value<int?> episodes,
+  Value<int?> durationMinutes,
+  Value<String?> season,
+  Value<int?> seasonYear,
+  Value<String?> coverUrl,
+  Value<String?> bannerUrl,
+  Value<String?> description,
+  Value<String> genresJson,
+  Value<int?> averageScore,
+  Value<DateTime> updatedAt,
+});
+typedef $$MediaTableTableUpdateCompanionBuilder = MediaTableCompanion Function({
+  Value<int> anilistId,
+  Value<int?> malId,
+  Value<String?> titleRomaji,
+  Value<String?> titleEnglish,
+  Value<String?> titleNative,
+  Value<String> format,
+  Value<String> status,
+  Value<int?> episodes,
+  Value<int?> durationMinutes,
+  Value<String?> season,
+  Value<int?> seasonYear,
+  Value<String?> coverUrl,
+  Value<String?> bannerUrl,
+  Value<String?> description,
+  Value<String> genresJson,
+  Value<int?> averageScore,
+  Value<DateTime> updatedAt,
+});
 
 class $$MediaTableTableFilterComposer
     extends Composer<_$TerebiDatabase, $MediaTableTable> {
@@ -3734,89 +3167,56 @@ class $$MediaTableTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<int> get anilistId => $composableBuilder(
-    column: $table.anilistId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.anilistId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get malId => $composableBuilder(
-    column: $table.malId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.malId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get titleRomaji => $composableBuilder(
-    column: $table.titleRomaji,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.titleRomaji, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get titleEnglish => $composableBuilder(
-    column: $table.titleEnglish,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.titleEnglish, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get titleNative => $composableBuilder(
-    column: $table.titleNative,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.titleNative, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get format => $composableBuilder(
-    column: $table.format,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.format, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.status, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get episodes => $composableBuilder(
-    column: $table.episodes,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.episodes, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get durationMinutes => $composableBuilder(
-    column: $table.durationMinutes,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.durationMinutes,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get season => $composableBuilder(
-    column: $table.season,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.season, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get seasonYear => $composableBuilder(
-    column: $table.seasonYear,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.seasonYear, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get coverUrl => $composableBuilder(
-    column: $table.coverUrl,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.coverUrl, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get bannerUrl => $composableBuilder(
-    column: $table.bannerUrl,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.bannerUrl, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get description => $composableBuilder(
-    column: $table.description,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.description, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get genresJson => $composableBuilder(
-    column: $table.genresJson,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.genresJson, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get averageScore => $composableBuilder(
-    column: $table.averageScore,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.averageScore, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$MediaTableTableOrderingComposer
@@ -3829,89 +3229,58 @@ class $$MediaTableTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<int> get anilistId => $composableBuilder(
-    column: $table.anilistId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.anilistId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get malId => $composableBuilder(
-    column: $table.malId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.malId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get titleRomaji => $composableBuilder(
-    column: $table.titleRomaji,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.titleRomaji, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get titleEnglish => $composableBuilder(
-    column: $table.titleEnglish,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.titleEnglish,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get titleNative => $composableBuilder(
-    column: $table.titleNative,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.titleNative, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get format => $composableBuilder(
-    column: $table.format,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.format, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.status, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get episodes => $composableBuilder(
-    column: $table.episodes,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.episodes, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get durationMinutes => $composableBuilder(
-    column: $table.durationMinutes,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.durationMinutes,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get season => $composableBuilder(
-    column: $table.season,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.season, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get seasonYear => $composableBuilder(
-    column: $table.seasonYear,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.seasonYear, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get coverUrl => $composableBuilder(
-    column: $table.coverUrl,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.coverUrl, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get bannerUrl => $composableBuilder(
-    column: $table.bannerUrl,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.bannerUrl, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get description => $composableBuilder(
-    column: $table.description,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.description, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get genresJson => $composableBuilder(
-    column: $table.genresJson,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.genresJson, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get averageScore => $composableBuilder(
-    column: $table.averageScore,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.averageScore,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$MediaTableTableAnnotationComposer
@@ -3930,19 +3299,13 @@ class $$MediaTableTableAnnotationComposer
       $composableBuilder(column: $table.malId, builder: (column) => column);
 
   GeneratedColumn<String> get titleRomaji => $composableBuilder(
-    column: $table.titleRomaji,
-    builder: (column) => column,
-  );
+      column: $table.titleRomaji, builder: (column) => column);
 
   GeneratedColumn<String> get titleEnglish => $composableBuilder(
-    column: $table.titleEnglish,
-    builder: (column) => column,
-  );
+      column: $table.titleEnglish, builder: (column) => column);
 
   GeneratedColumn<String> get titleNative => $composableBuilder(
-    column: $table.titleNative,
-    builder: (column) => column,
-  );
+      column: $table.titleNative, builder: (column) => column);
 
   GeneratedColumn<String> get format =>
       $composableBuilder(column: $table.format, builder: (column) => column);
@@ -3954,17 +3317,13 @@ class $$MediaTableTableAnnotationComposer
       $composableBuilder(column: $table.episodes, builder: (column) => column);
 
   GeneratedColumn<int> get durationMinutes => $composableBuilder(
-    column: $table.durationMinutes,
-    builder: (column) => column,
-  );
+      column: $table.durationMinutes, builder: (column) => column);
 
   GeneratedColumn<String> get season =>
       $composableBuilder(column: $table.season, builder: (column) => column);
 
   GeneratedColumn<int> get seasonYear => $composableBuilder(
-    column: $table.seasonYear,
-    builder: (column) => column,
-  );
+      column: $table.seasonYear, builder: (column) => column);
 
   GeneratedColumn<String> get coverUrl =>
       $composableBuilder(column: $table.coverUrl, builder: (column) => column);
@@ -3973,45 +3332,35 @@ class $$MediaTableTableAnnotationComposer
       $composableBuilder(column: $table.bannerUrl, builder: (column) => column);
 
   GeneratedColumn<String> get description => $composableBuilder(
-    column: $table.description,
-    builder: (column) => column,
-  );
+      column: $table.description, builder: (column) => column);
 
   GeneratedColumn<String> get genresJson => $composableBuilder(
-    column: $table.genresJson,
-    builder: (column) => column,
-  );
+      column: $table.genresJson, builder: (column) => column);
 
   GeneratedColumn<int> get averageScore => $composableBuilder(
-    column: $table.averageScore,
-    builder: (column) => column,
-  );
+      column: $table.averageScore, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
-class $$MediaTableTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $MediaTableTable,
-          MediaTableData,
-          $$MediaTableTableFilterComposer,
-          $$MediaTableTableOrderingComposer,
-          $$MediaTableTableAnnotationComposer,
-          $$MediaTableTableCreateCompanionBuilder,
-          $$MediaTableTableUpdateCompanionBuilder,
-          (
-            MediaTableData,
-            BaseReferences<_$TerebiDatabase, $MediaTableTable, MediaTableData>,
-          ),
-          MediaTableData,
-          PrefetchHooks Function()
-        > {
+class $$MediaTableTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $MediaTableTable,
+    MediaTableData,
+    $$MediaTableTableFilterComposer,
+    $$MediaTableTableOrderingComposer,
+    $$MediaTableTableAnnotationComposer,
+    $$MediaTableTableCreateCompanionBuilder,
+    $$MediaTableTableUpdateCompanionBuilder,
+    (
+      MediaTableData,
+      BaseReferences<_$TerebiDatabase, $MediaTableTable, MediaTableData>
+    ),
+    MediaTableData,
+    PrefetchHooks Function()> {
   $$MediaTableTableTableManager(_$TerebiDatabase db, $MediaTableTable table)
-    : super(
-        TableManagerState(
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -4020,133 +3369,130 @@ class $$MediaTableTableTableManager
               $$MediaTableTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$MediaTableTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> anilistId = const Value.absent(),
-                Value<int?> malId = const Value.absent(),
-                Value<String?> titleRomaji = const Value.absent(),
-                Value<String?> titleEnglish = const Value.absent(),
-                Value<String?> titleNative = const Value.absent(),
-                Value<String> format = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<int?> episodes = const Value.absent(),
-                Value<int?> durationMinutes = const Value.absent(),
-                Value<String?> season = const Value.absent(),
-                Value<int?> seasonYear = const Value.absent(),
-                Value<String?> coverUrl = const Value.absent(),
-                Value<String?> bannerUrl = const Value.absent(),
-                Value<String?> description = const Value.absent(),
-                Value<String> genresJson = const Value.absent(),
-                Value<int?> averageScore = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-              }) => MediaTableCompanion(
-                anilistId: anilistId,
-                malId: malId,
-                titleRomaji: titleRomaji,
-                titleEnglish: titleEnglish,
-                titleNative: titleNative,
-                format: format,
-                status: status,
-                episodes: episodes,
-                durationMinutes: durationMinutes,
-                season: season,
-                seasonYear: seasonYear,
-                coverUrl: coverUrl,
-                bannerUrl: bannerUrl,
-                description: description,
-                genresJson: genresJson,
-                averageScore: averageScore,
-                updatedAt: updatedAt,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> anilistId = const Value.absent(),
-                Value<int?> malId = const Value.absent(),
-                Value<String?> titleRomaji = const Value.absent(),
-                Value<String?> titleEnglish = const Value.absent(),
-                Value<String?> titleNative = const Value.absent(),
-                Value<String> format = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<int?> episodes = const Value.absent(),
-                Value<int?> durationMinutes = const Value.absent(),
-                Value<String?> season = const Value.absent(),
-                Value<int?> seasonYear = const Value.absent(),
-                Value<String?> coverUrl = const Value.absent(),
-                Value<String?> bannerUrl = const Value.absent(),
-                Value<String?> description = const Value.absent(),
-                Value<String> genresJson = const Value.absent(),
-                Value<int?> averageScore = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-              }) => MediaTableCompanion.insert(
-                anilistId: anilistId,
-                malId: malId,
-                titleRomaji: titleRomaji,
-                titleEnglish: titleEnglish,
-                titleNative: titleNative,
-                format: format,
-                status: status,
-                episodes: episodes,
-                durationMinutes: durationMinutes,
-                season: season,
-                seasonYear: seasonYear,
-                coverUrl: coverUrl,
-                bannerUrl: bannerUrl,
-                description: description,
-                genresJson: genresJson,
-                averageScore: averageScore,
-                updatedAt: updatedAt,
-              ),
+          updateCompanionCallback: ({
+            Value<int> anilistId = const Value.absent(),
+            Value<int?> malId = const Value.absent(),
+            Value<String?> titleRomaji = const Value.absent(),
+            Value<String?> titleEnglish = const Value.absent(),
+            Value<String?> titleNative = const Value.absent(),
+            Value<String> format = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> episodes = const Value.absent(),
+            Value<int?> durationMinutes = const Value.absent(),
+            Value<String?> season = const Value.absent(),
+            Value<int?> seasonYear = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String?> bannerUrl = const Value.absent(),
+            Value<String?> description = const Value.absent(),
+            Value<String> genresJson = const Value.absent(),
+            Value<int?> averageScore = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              MediaTableCompanion(
+            anilistId: anilistId,
+            malId: malId,
+            titleRomaji: titleRomaji,
+            titleEnglish: titleEnglish,
+            titleNative: titleNative,
+            format: format,
+            status: status,
+            episodes: episodes,
+            durationMinutes: durationMinutes,
+            season: season,
+            seasonYear: seasonYear,
+            coverUrl: coverUrl,
+            bannerUrl: bannerUrl,
+            description: description,
+            genresJson: genresJson,
+            averageScore: averageScore,
+            updatedAt: updatedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> anilistId = const Value.absent(),
+            Value<int?> malId = const Value.absent(),
+            Value<String?> titleRomaji = const Value.absent(),
+            Value<String?> titleEnglish = const Value.absent(),
+            Value<String?> titleNative = const Value.absent(),
+            Value<String> format = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int?> episodes = const Value.absent(),
+            Value<int?> durationMinutes = const Value.absent(),
+            Value<String?> season = const Value.absent(),
+            Value<int?> seasonYear = const Value.absent(),
+            Value<String?> coverUrl = const Value.absent(),
+            Value<String?> bannerUrl = const Value.absent(),
+            Value<String?> description = const Value.absent(),
+            Value<String> genresJson = const Value.absent(),
+            Value<int?> averageScore = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              MediaTableCompanion.insert(
+            anilistId: anilistId,
+            malId: malId,
+            titleRomaji: titleRomaji,
+            titleEnglish: titleEnglish,
+            titleNative: titleNative,
+            format: format,
+            status: status,
+            episodes: episodes,
+            durationMinutes: durationMinutes,
+            season: season,
+            seasonYear: seasonYear,
+            coverUrl: coverUrl,
+            bannerUrl: bannerUrl,
+            description: description,
+            genresJson: genresJson,
+            averageScore: averageScore,
+            updatedAt: updatedAt,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$MediaTableTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $MediaTableTable,
+typedef $$MediaTableTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $MediaTableTable,
+    MediaTableData,
+    $$MediaTableTableFilterComposer,
+    $$MediaTableTableOrderingComposer,
+    $$MediaTableTableAnnotationComposer,
+    $$MediaTableTableCreateCompanionBuilder,
+    $$MediaTableTableUpdateCompanionBuilder,
+    (
       MediaTableData,
-      $$MediaTableTableFilterComposer,
-      $$MediaTableTableOrderingComposer,
-      $$MediaTableTableAnnotationComposer,
-      $$MediaTableTableCreateCompanionBuilder,
-      $$MediaTableTableUpdateCompanionBuilder,
-      (
-        MediaTableData,
-        BaseReferences<_$TerebiDatabase, $MediaTableTable, MediaTableData>,
-      ),
-      MediaTableData,
-      PrefetchHooks Function()
-    >;
-typedef $$ListEntriesTableCreateCompanionBuilder =
-    ListEntriesCompanion Function({
-      Value<int> mediaId,
-      Value<String> status,
-      Value<int> progress,
-      Value<double?> score,
-      Value<bool> favorite,
-      Value<String?> notes,
-      Value<bool> hiddenFromPlanning,
-      Value<int?> anilistEntryId,
-      required DateTime updatedAt,
-      Value<DateTime?> syncedAt,
-    });
-typedef $$ListEntriesTableUpdateCompanionBuilder =
-    ListEntriesCompanion Function({
-      Value<int> mediaId,
-      Value<String> status,
-      Value<int> progress,
-      Value<double?> score,
-      Value<bool> favorite,
-      Value<String?> notes,
-      Value<bool> hiddenFromPlanning,
-      Value<int?> anilistEntryId,
-      Value<DateTime> updatedAt,
-      Value<DateTime?> syncedAt,
-    });
+      BaseReferences<_$TerebiDatabase, $MediaTableTable, MediaTableData>
+    ),
+    MediaTableData,
+    PrefetchHooks Function()>;
+typedef $$ListEntriesTableCreateCompanionBuilder = ListEntriesCompanion
+    Function({
+  Value<int> mediaId,
+  Value<String> status,
+  Value<int> progress,
+  Value<double?> score,
+  Value<bool> favorite,
+  Value<String?> notes,
+  Value<bool> hiddenFromPlanning,
+  Value<int?> anilistEntryId,
+  required DateTime updatedAt,
+  Value<DateTime?> syncedAt,
+});
+typedef $$ListEntriesTableUpdateCompanionBuilder = ListEntriesCompanion
+    Function({
+  Value<int> mediaId,
+  Value<String> status,
+  Value<int> progress,
+  Value<double?> score,
+  Value<bool> favorite,
+  Value<String?> notes,
+  Value<bool> hiddenFromPlanning,
+  Value<int?> anilistEntryId,
+  Value<DateTime> updatedAt,
+  Value<DateTime?> syncedAt,
+});
 
 class $$ListEntriesTableFilterComposer
     extends Composer<_$TerebiDatabase, $ListEntriesTable> {
@@ -4158,54 +3504,36 @@ class $$ListEntriesTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.status, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get progress => $composableBuilder(
-    column: $table.progress,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.progress, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get score => $composableBuilder(
-    column: $table.score,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.score, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get favorite => $composableBuilder(
-    column: $table.favorite,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.favorite, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.notes, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get hiddenFromPlanning => $composableBuilder(
-    column: $table.hiddenFromPlanning,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.hiddenFromPlanning,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get anilistEntryId => $composableBuilder(
-    column: $table.anilistEntryId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.anilistEntryId,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get syncedAt => $composableBuilder(
-    column: $table.syncedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.syncedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$ListEntriesTableOrderingComposer
@@ -4218,54 +3546,36 @@ class $$ListEntriesTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get status => $composableBuilder(
-    column: $table.status,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.status, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get progress => $composableBuilder(
-    column: $table.progress,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.progress, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get score => $composableBuilder(
-    column: $table.score,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.score, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get favorite => $composableBuilder(
-    column: $table.favorite,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.favorite, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get notes => $composableBuilder(
-    column: $table.notes,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.notes, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get hiddenFromPlanning => $composableBuilder(
-    column: $table.hiddenFromPlanning,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.hiddenFromPlanning,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get anilistEntryId => $composableBuilder(
-    column: $table.anilistEntryId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.anilistEntryId,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
-    column: $table.syncedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.syncedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$ListEntriesTableAnnotationComposer
@@ -4296,14 +3606,10 @@ class $$ListEntriesTableAnnotationComposer
       $composableBuilder(column: $table.notes, builder: (column) => column);
 
   GeneratedColumn<bool> get hiddenFromPlanning => $composableBuilder(
-    column: $table.hiddenFromPlanning,
-    builder: (column) => column,
-  );
+      column: $table.hiddenFromPlanning, builder: (column) => column);
 
   GeneratedColumn<int> get anilistEntryId => $composableBuilder(
-    column: $table.anilistEntryId,
-    builder: (column) => column,
-  );
+      column: $table.anilistEntryId, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -4312,27 +3618,23 @@ class $$ListEntriesTableAnnotationComposer
       $composableBuilder(column: $table.syncedAt, builder: (column) => column);
 }
 
-class $$ListEntriesTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $ListEntriesTable,
-          ListEntryRow,
-          $$ListEntriesTableFilterComposer,
-          $$ListEntriesTableOrderingComposer,
-          $$ListEntriesTableAnnotationComposer,
-          $$ListEntriesTableCreateCompanionBuilder,
-          $$ListEntriesTableUpdateCompanionBuilder,
-          (
-            ListEntryRow,
-            BaseReferences<_$TerebiDatabase, $ListEntriesTable, ListEntryRow>,
-          ),
-          ListEntryRow,
-          PrefetchHooks Function()
-        > {
+class $$ListEntriesTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $ListEntriesTable,
+    ListEntryRow,
+    $$ListEntriesTableFilterComposer,
+    $$ListEntriesTableOrderingComposer,
+    $$ListEntriesTableAnnotationComposer,
+    $$ListEntriesTableCreateCompanionBuilder,
+    $$ListEntriesTableUpdateCompanionBuilder,
+    (
+      ListEntryRow,
+      BaseReferences<_$TerebiDatabase, $ListEntriesTable, ListEntryRow>
+    ),
+    ListEntryRow,
+    PrefetchHooks Function()> {
   $$ListEntriesTableTableManager(_$TerebiDatabase db, $ListEntriesTable table)
-    : super(
-        TableManagerState(
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -4341,101 +3643,98 @@ class $$ListEntriesTableTableManager
               $$ListEntriesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$ListEntriesTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> mediaId = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<int> progress = const Value.absent(),
-                Value<double?> score = const Value.absent(),
-                Value<bool> favorite = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                Value<bool> hiddenFromPlanning = const Value.absent(),
-                Value<int?> anilistEntryId = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-                Value<DateTime?> syncedAt = const Value.absent(),
-              }) => ListEntriesCompanion(
-                mediaId: mediaId,
-                status: status,
-                progress: progress,
-                score: score,
-                favorite: favorite,
-                notes: notes,
-                hiddenFromPlanning: hiddenFromPlanning,
-                anilistEntryId: anilistEntryId,
-                updatedAt: updatedAt,
-                syncedAt: syncedAt,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> mediaId = const Value.absent(),
-                Value<String> status = const Value.absent(),
-                Value<int> progress = const Value.absent(),
-                Value<double?> score = const Value.absent(),
-                Value<bool> favorite = const Value.absent(),
-                Value<String?> notes = const Value.absent(),
-                Value<bool> hiddenFromPlanning = const Value.absent(),
-                Value<int?> anilistEntryId = const Value.absent(),
-                required DateTime updatedAt,
-                Value<DateTime?> syncedAt = const Value.absent(),
-              }) => ListEntriesCompanion.insert(
-                mediaId: mediaId,
-                status: status,
-                progress: progress,
-                score: score,
-                favorite: favorite,
-                notes: notes,
-                hiddenFromPlanning: hiddenFromPlanning,
-                anilistEntryId: anilistEntryId,
-                updatedAt: updatedAt,
-                syncedAt: syncedAt,
-              ),
+          updateCompanionCallback: ({
+            Value<int> mediaId = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> progress = const Value.absent(),
+            Value<double?> score = const Value.absent(),
+            Value<bool> favorite = const Value.absent(),
+            Value<String?> notes = const Value.absent(),
+            Value<bool> hiddenFromPlanning = const Value.absent(),
+            Value<int?> anilistEntryId = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+            Value<DateTime?> syncedAt = const Value.absent(),
+          }) =>
+              ListEntriesCompanion(
+            mediaId: mediaId,
+            status: status,
+            progress: progress,
+            score: score,
+            favorite: favorite,
+            notes: notes,
+            hiddenFromPlanning: hiddenFromPlanning,
+            anilistEntryId: anilistEntryId,
+            updatedAt: updatedAt,
+            syncedAt: syncedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> mediaId = const Value.absent(),
+            Value<String> status = const Value.absent(),
+            Value<int> progress = const Value.absent(),
+            Value<double?> score = const Value.absent(),
+            Value<bool> favorite = const Value.absent(),
+            Value<String?> notes = const Value.absent(),
+            Value<bool> hiddenFromPlanning = const Value.absent(),
+            Value<int?> anilistEntryId = const Value.absent(),
+            required DateTime updatedAt,
+            Value<DateTime?> syncedAt = const Value.absent(),
+          }) =>
+              ListEntriesCompanion.insert(
+            mediaId: mediaId,
+            status: status,
+            progress: progress,
+            score: score,
+            favorite: favorite,
+            notes: notes,
+            hiddenFromPlanning: hiddenFromPlanning,
+            anilistEntryId: anilistEntryId,
+            updatedAt: updatedAt,
+            syncedAt: syncedAt,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$ListEntriesTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $ListEntriesTable,
+typedef $$ListEntriesTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $ListEntriesTable,
+    ListEntryRow,
+    $$ListEntriesTableFilterComposer,
+    $$ListEntriesTableOrderingComposer,
+    $$ListEntriesTableAnnotationComposer,
+    $$ListEntriesTableCreateCompanionBuilder,
+    $$ListEntriesTableUpdateCompanionBuilder,
+    (
       ListEntryRow,
-      $$ListEntriesTableFilterComposer,
-      $$ListEntriesTableOrderingComposer,
-      $$ListEntriesTableAnnotationComposer,
-      $$ListEntriesTableCreateCompanionBuilder,
-      $$ListEntriesTableUpdateCompanionBuilder,
-      (
-        ListEntryRow,
-        BaseReferences<_$TerebiDatabase, $ListEntriesTable, ListEntryRow>,
-      ),
-      ListEntryRow,
-      PrefetchHooks Function()
-    >;
-typedef $$EpisodeProgressesTableCreateCompanionBuilder =
-    EpisodeProgressesCompanion Function({
-      Value<int> id,
-      required int mediaId,
-      required double episodeNumber,
-      Value<bool> watched,
-      Value<double> positionSeconds,
-      Value<double?> durationSeconds,
-      Value<DateTime?> completedAt,
-      required DateTime updatedAt,
-    });
-typedef $$EpisodeProgressesTableUpdateCompanionBuilder =
-    EpisodeProgressesCompanion Function({
-      Value<int> id,
-      Value<int> mediaId,
-      Value<double> episodeNumber,
-      Value<bool> watched,
-      Value<double> positionSeconds,
-      Value<double?> durationSeconds,
-      Value<DateTime?> completedAt,
-      Value<DateTime> updatedAt,
-    });
+      BaseReferences<_$TerebiDatabase, $ListEntriesTable, ListEntryRow>
+    ),
+    ListEntryRow,
+    PrefetchHooks Function()>;
+typedef $$EpisodeProgressesTableCreateCompanionBuilder
+    = EpisodeProgressesCompanion Function({
+  Value<int> id,
+  required int mediaId,
+  required double episodeNumber,
+  Value<bool> watched,
+  Value<double> positionSeconds,
+  Value<double?> durationSeconds,
+  Value<DateTime?> completedAt,
+  required DateTime updatedAt,
+});
+typedef $$EpisodeProgressesTableUpdateCompanionBuilder
+    = EpisodeProgressesCompanion Function({
+  Value<int> id,
+  Value<int> mediaId,
+  Value<double> episodeNumber,
+  Value<bool> watched,
+  Value<double> positionSeconds,
+  Value<double?> durationSeconds,
+  Value<DateTime?> completedAt,
+  Value<DateTime> updatedAt,
+});
 
 class $$EpisodeProgressesTableFilterComposer
     extends Composer<_$TerebiDatabase, $EpisodeProgressesTable> {
@@ -4447,44 +3746,30 @@ class $$EpisodeProgressesTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get episodeNumber => $composableBuilder(
-    column: $table.episodeNumber,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.episodeNumber, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get watched => $composableBuilder(
-    column: $table.watched,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.watched, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get positionSeconds => $composableBuilder(
-    column: $table.positionSeconds,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.positionSeconds,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get durationSeconds => $composableBuilder(
-    column: $table.durationSeconds,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.durationSeconds,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get completedAt => $composableBuilder(
-    column: $table.completedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.completedAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$EpisodeProgressesTableOrderingComposer
@@ -4497,44 +3782,31 @@ class $$EpisodeProgressesTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get episodeNumber => $composableBuilder(
-    column: $table.episodeNumber,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.episodeNumber,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get watched => $composableBuilder(
-    column: $table.watched,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.watched, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get positionSeconds => $composableBuilder(
-    column: $table.positionSeconds,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.positionSeconds,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get durationSeconds => $composableBuilder(
-    column: $table.durationSeconds,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.durationSeconds,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get completedAt => $composableBuilder(
-    column: $table.completedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.completedAt, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
-    column: $table.updatedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$EpisodeProgressesTableAnnotationComposer
@@ -4553,59 +3825,43 @@ class $$EpisodeProgressesTableAnnotationComposer
       $composableBuilder(column: $table.mediaId, builder: (column) => column);
 
   GeneratedColumn<double> get episodeNumber => $composableBuilder(
-    column: $table.episodeNumber,
-    builder: (column) => column,
-  );
+      column: $table.episodeNumber, builder: (column) => column);
 
   GeneratedColumn<bool> get watched =>
       $composableBuilder(column: $table.watched, builder: (column) => column);
 
   GeneratedColumn<double> get positionSeconds => $composableBuilder(
-    column: $table.positionSeconds,
-    builder: (column) => column,
-  );
+      column: $table.positionSeconds, builder: (column) => column);
 
   GeneratedColumn<double> get durationSeconds => $composableBuilder(
-    column: $table.durationSeconds,
-    builder: (column) => column,
-  );
+      column: $table.durationSeconds, builder: (column) => column);
 
   GeneratedColumn<DateTime> get completedAt => $composableBuilder(
-    column: $table.completedAt,
-    builder: (column) => column,
-  );
+      column: $table.completedAt, builder: (column) => column);
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
 }
 
-class $$EpisodeProgressesTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $EpisodeProgressesTable,
-          EpisodeProgressesData,
-          $$EpisodeProgressesTableFilterComposer,
-          $$EpisodeProgressesTableOrderingComposer,
-          $$EpisodeProgressesTableAnnotationComposer,
-          $$EpisodeProgressesTableCreateCompanionBuilder,
-          $$EpisodeProgressesTableUpdateCompanionBuilder,
-          (
-            EpisodeProgressesData,
-            BaseReferences<
-              _$TerebiDatabase,
-              $EpisodeProgressesTable,
-              EpisodeProgressesData
-            >,
-          ),
-          EpisodeProgressesData,
-          PrefetchHooks Function()
-        > {
+class $$EpisodeProgressesTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $EpisodeProgressesTable,
+    EpisodeProgressesData,
+    $$EpisodeProgressesTableFilterComposer,
+    $$EpisodeProgressesTableOrderingComposer,
+    $$EpisodeProgressesTableAnnotationComposer,
+    $$EpisodeProgressesTableCreateCompanionBuilder,
+    $$EpisodeProgressesTableUpdateCompanionBuilder,
+    (
+      EpisodeProgressesData,
+      BaseReferences<_$TerebiDatabase, $EpisodeProgressesTable,
+          EpisodeProgressesData>
+    ),
+    EpisodeProgressesData,
+    PrefetchHooks Function()> {
   $$EpisodeProgressesTableTableManager(
-    _$TerebiDatabase db,
-    $EpisodeProgressesTable table,
-  ) : super(
-        TableManagerState(
+      _$TerebiDatabase db, $EpisodeProgressesTable table)
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -4614,96 +3870,88 @@ class $$EpisodeProgressesTableTableManager
               $$EpisodeProgressesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$EpisodeProgressesTableAnnotationComposer(
-                $db: db,
-                $table: table,
-              ),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<int> mediaId = const Value.absent(),
-                Value<double> episodeNumber = const Value.absent(),
-                Value<bool> watched = const Value.absent(),
-                Value<double> positionSeconds = const Value.absent(),
-                Value<double?> durationSeconds = const Value.absent(),
-                Value<DateTime?> completedAt = const Value.absent(),
-                Value<DateTime> updatedAt = const Value.absent(),
-              }) => EpisodeProgressesCompanion(
-                id: id,
-                mediaId: mediaId,
-                episodeNumber: episodeNumber,
-                watched: watched,
-                positionSeconds: positionSeconds,
-                durationSeconds: durationSeconds,
-                completedAt: completedAt,
-                updatedAt: updatedAt,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required int mediaId,
-                required double episodeNumber,
-                Value<bool> watched = const Value.absent(),
-                Value<double> positionSeconds = const Value.absent(),
-                Value<double?> durationSeconds = const Value.absent(),
-                Value<DateTime?> completedAt = const Value.absent(),
-                required DateTime updatedAt,
-              }) => EpisodeProgressesCompanion.insert(
-                id: id,
-                mediaId: mediaId,
-                episodeNumber: episodeNumber,
-                watched: watched,
-                positionSeconds: positionSeconds,
-                durationSeconds: durationSeconds,
-                completedAt: completedAt,
-                updatedAt: updatedAt,
-              ),
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> mediaId = const Value.absent(),
+            Value<double> episodeNumber = const Value.absent(),
+            Value<bool> watched = const Value.absent(),
+            Value<double> positionSeconds = const Value.absent(),
+            Value<double?> durationSeconds = const Value.absent(),
+            Value<DateTime?> completedAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              EpisodeProgressesCompanion(
+            id: id,
+            mediaId: mediaId,
+            episodeNumber: episodeNumber,
+            watched: watched,
+            positionSeconds: positionSeconds,
+            durationSeconds: durationSeconds,
+            completedAt: completedAt,
+            updatedAt: updatedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int mediaId,
+            required double episodeNumber,
+            Value<bool> watched = const Value.absent(),
+            Value<double> positionSeconds = const Value.absent(),
+            Value<double?> durationSeconds = const Value.absent(),
+            Value<DateTime?> completedAt = const Value.absent(),
+            required DateTime updatedAt,
+          }) =>
+              EpisodeProgressesCompanion.insert(
+            id: id,
+            mediaId: mediaId,
+            episodeNumber: episodeNumber,
+            watched: watched,
+            positionSeconds: positionSeconds,
+            durationSeconds: durationSeconds,
+            completedAt: completedAt,
+            updatedAt: updatedAt,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$EpisodeProgressesTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $EpisodeProgressesTable,
+typedef $$EpisodeProgressesTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $EpisodeProgressesTable,
+    EpisodeProgressesData,
+    $$EpisodeProgressesTableFilterComposer,
+    $$EpisodeProgressesTableOrderingComposer,
+    $$EpisodeProgressesTableAnnotationComposer,
+    $$EpisodeProgressesTableCreateCompanionBuilder,
+    $$EpisodeProgressesTableUpdateCompanionBuilder,
+    (
       EpisodeProgressesData,
-      $$EpisodeProgressesTableFilterComposer,
-      $$EpisodeProgressesTableOrderingComposer,
-      $$EpisodeProgressesTableAnnotationComposer,
-      $$EpisodeProgressesTableCreateCompanionBuilder,
-      $$EpisodeProgressesTableUpdateCompanionBuilder,
-      (
-        EpisodeProgressesData,
-        BaseReferences<
-          _$TerebiDatabase,
-          $EpisodeProgressesTable,
-          EpisodeProgressesData
-        >,
-      ),
-      EpisodeProgressesData,
-      PrefetchHooks Function()
-    >;
-typedef $$WatchHistoriesTableCreateCompanionBuilder =
-    WatchHistoriesCompanion Function({
-      Value<int> id,
-      required int mediaId,
-      required double episodeNumber,
-      required DateTime startedAt,
-      Value<DateTime?> endedAt,
-      Value<double> watchedSeconds,
-    });
-typedef $$WatchHistoriesTableUpdateCompanionBuilder =
-    WatchHistoriesCompanion Function({
-      Value<int> id,
-      Value<int> mediaId,
-      Value<double> episodeNumber,
-      Value<DateTime> startedAt,
-      Value<DateTime?> endedAt,
-      Value<double> watchedSeconds,
-    });
+      BaseReferences<_$TerebiDatabase, $EpisodeProgressesTable,
+          EpisodeProgressesData>
+    ),
+    EpisodeProgressesData,
+    PrefetchHooks Function()>;
+typedef $$WatchHistoriesTableCreateCompanionBuilder = WatchHistoriesCompanion
+    Function({
+  Value<int> id,
+  required int mediaId,
+  required double episodeNumber,
+  required DateTime startedAt,
+  Value<DateTime?> endedAt,
+  Value<double> watchedSeconds,
+});
+typedef $$WatchHistoriesTableUpdateCompanionBuilder = WatchHistoriesCompanion
+    Function({
+  Value<int> id,
+  Value<int> mediaId,
+  Value<double> episodeNumber,
+  Value<DateTime> startedAt,
+  Value<DateTime?> endedAt,
+  Value<double> watchedSeconds,
+});
 
 class $$WatchHistoriesTableFilterComposer
     extends Composer<_$TerebiDatabase, $WatchHistoriesTable> {
@@ -4715,34 +3963,23 @@ class $$WatchHistoriesTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get episodeNumber => $composableBuilder(
-    column: $table.episodeNumber,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.episodeNumber, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get startedAt => $composableBuilder(
-    column: $table.startedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.startedAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get endedAt => $composableBuilder(
-    column: $table.endedAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.endedAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get watchedSeconds => $composableBuilder(
-    column: $table.watchedSeconds,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.watchedSeconds,
+      builder: (column) => ColumnFilters(column));
 }
 
 class $$WatchHistoriesTableOrderingComposer
@@ -4755,34 +3992,24 @@ class $$WatchHistoriesTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get episodeNumber => $composableBuilder(
-    column: $table.episodeNumber,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.episodeNumber,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get startedAt => $composableBuilder(
-    column: $table.startedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.startedAt, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get endedAt => $composableBuilder(
-    column: $table.endedAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.endedAt, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<double> get watchedSeconds => $composableBuilder(
-    column: $table.watchedSeconds,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.watchedSeconds,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$WatchHistoriesTableAnnotationComposer
@@ -4801,9 +4028,7 @@ class $$WatchHistoriesTableAnnotationComposer
       $composableBuilder(column: $table.mediaId, builder: (column) => column);
 
   GeneratedColumn<double> get episodeNumber => $composableBuilder(
-    column: $table.episodeNumber,
-    builder: (column) => column,
-  );
+      column: $table.episodeNumber, builder: (column) => column);
 
   GeneratedColumn<DateTime> get startedAt =>
       $composableBuilder(column: $table.startedAt, builder: (column) => column);
@@ -4812,38 +4037,27 @@ class $$WatchHistoriesTableAnnotationComposer
       $composableBuilder(column: $table.endedAt, builder: (column) => column);
 
   GeneratedColumn<double> get watchedSeconds => $composableBuilder(
-    column: $table.watchedSeconds,
-    builder: (column) => column,
-  );
+      column: $table.watchedSeconds, builder: (column) => column);
 }
 
-class $$WatchHistoriesTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $WatchHistoriesTable,
-          WatchHistoryRow,
-          $$WatchHistoriesTableFilterComposer,
-          $$WatchHistoriesTableOrderingComposer,
-          $$WatchHistoriesTableAnnotationComposer,
-          $$WatchHistoriesTableCreateCompanionBuilder,
-          $$WatchHistoriesTableUpdateCompanionBuilder,
-          (
-            WatchHistoryRow,
-            BaseReferences<
-              _$TerebiDatabase,
-              $WatchHistoriesTable,
-              WatchHistoryRow
-            >,
-          ),
-          WatchHistoryRow,
-          PrefetchHooks Function()
-        > {
+class $$WatchHistoriesTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $WatchHistoriesTable,
+    WatchHistoryRow,
+    $$WatchHistoriesTableFilterComposer,
+    $$WatchHistoriesTableOrderingComposer,
+    $$WatchHistoriesTableAnnotationComposer,
+    $$WatchHistoriesTableCreateCompanionBuilder,
+    $$WatchHistoriesTableUpdateCompanionBuilder,
+    (
+      WatchHistoryRow,
+      BaseReferences<_$TerebiDatabase, $WatchHistoriesTable, WatchHistoryRow>
+    ),
+    WatchHistoryRow,
+    PrefetchHooks Function()> {
   $$WatchHistoriesTableTableManager(
-    _$TerebiDatabase db,
-    $WatchHistoriesTable table,
-  ) : super(
-        TableManagerState(
+      _$TerebiDatabase db, $WatchHistoriesTable table)
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -4852,77 +4066,74 @@ class $$WatchHistoriesTableTableManager
               $$WatchHistoriesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$WatchHistoriesTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<int> mediaId = const Value.absent(),
-                Value<double> episodeNumber = const Value.absent(),
-                Value<DateTime> startedAt = const Value.absent(),
-                Value<DateTime?> endedAt = const Value.absent(),
-                Value<double> watchedSeconds = const Value.absent(),
-              }) => WatchHistoriesCompanion(
-                id: id,
-                mediaId: mediaId,
-                episodeNumber: episodeNumber,
-                startedAt: startedAt,
-                endedAt: endedAt,
-                watchedSeconds: watchedSeconds,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required int mediaId,
-                required double episodeNumber,
-                required DateTime startedAt,
-                Value<DateTime?> endedAt = const Value.absent(),
-                Value<double> watchedSeconds = const Value.absent(),
-              }) => WatchHistoriesCompanion.insert(
-                id: id,
-                mediaId: mediaId,
-                episodeNumber: episodeNumber,
-                startedAt: startedAt,
-                endedAt: endedAt,
-                watchedSeconds: watchedSeconds,
-              ),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> mediaId = const Value.absent(),
+            Value<double> episodeNumber = const Value.absent(),
+            Value<DateTime> startedAt = const Value.absent(),
+            Value<DateTime?> endedAt = const Value.absent(),
+            Value<double> watchedSeconds = const Value.absent(),
+          }) =>
+              WatchHistoriesCompanion(
+            id: id,
+            mediaId: mediaId,
+            episodeNumber: episodeNumber,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            watchedSeconds: watchedSeconds,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int mediaId,
+            required double episodeNumber,
+            required DateTime startedAt,
+            Value<DateTime?> endedAt = const Value.absent(),
+            Value<double> watchedSeconds = const Value.absent(),
+          }) =>
+              WatchHistoriesCompanion.insert(
+            id: id,
+            mediaId: mediaId,
+            episodeNumber: episodeNumber,
+            startedAt: startedAt,
+            endedAt: endedAt,
+            watchedSeconds: watchedSeconds,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$WatchHistoriesTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $WatchHistoriesTable,
+typedef $$WatchHistoriesTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $WatchHistoriesTable,
+    WatchHistoryRow,
+    $$WatchHistoriesTableFilterComposer,
+    $$WatchHistoriesTableOrderingComposer,
+    $$WatchHistoriesTableAnnotationComposer,
+    $$WatchHistoriesTableCreateCompanionBuilder,
+    $$WatchHistoriesTableUpdateCompanionBuilder,
+    (
       WatchHistoryRow,
-      $$WatchHistoriesTableFilterComposer,
-      $$WatchHistoriesTableOrderingComposer,
-      $$WatchHistoriesTableAnnotationComposer,
-      $$WatchHistoriesTableCreateCompanionBuilder,
-      $$WatchHistoriesTableUpdateCompanionBuilder,
-      (
-        WatchHistoryRow,
-        BaseReferences<_$TerebiDatabase, $WatchHistoriesTable, WatchHistoryRow>,
-      ),
-      WatchHistoryRow,
-      PrefetchHooks Function()
-    >;
-typedef $$MediaRelationsTableCreateCompanionBuilder =
-    MediaRelationsCompanion Function({
-      required int mediaId,
-      required int relatedMediaId,
-      required String relationType,
-      Value<int> rowid,
-    });
-typedef $$MediaRelationsTableUpdateCompanionBuilder =
-    MediaRelationsCompanion Function({
-      Value<int> mediaId,
-      Value<int> relatedMediaId,
-      Value<String> relationType,
-      Value<int> rowid,
-    });
+      BaseReferences<_$TerebiDatabase, $WatchHistoriesTable, WatchHistoryRow>
+    ),
+    WatchHistoryRow,
+    PrefetchHooks Function()>;
+typedef $$MediaRelationsTableCreateCompanionBuilder = MediaRelationsCompanion
+    Function({
+  required int mediaId,
+  required int relatedMediaId,
+  required String relationType,
+  Value<int> rowid,
+});
+typedef $$MediaRelationsTableUpdateCompanionBuilder = MediaRelationsCompanion
+    Function({
+  Value<int> mediaId,
+  Value<int> relatedMediaId,
+  Value<String> relationType,
+  Value<int> rowid,
+});
 
 class $$MediaRelationsTableFilterComposer
     extends Composer<_$TerebiDatabase, $MediaRelationsTable> {
@@ -4934,19 +4145,14 @@ class $$MediaRelationsTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get relatedMediaId => $composableBuilder(
-    column: $table.relatedMediaId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.relatedMediaId,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get relationType => $composableBuilder(
-    column: $table.relationType,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.relationType, builder: (column) => ColumnFilters(column));
 }
 
 class $$MediaRelationsTableOrderingComposer
@@ -4959,19 +4165,15 @@ class $$MediaRelationsTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get relatedMediaId => $composableBuilder(
-    column: $table.relatedMediaId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.relatedMediaId,
+      builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get relationType => $composableBuilder(
-    column: $table.relationType,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.relationType,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$MediaRelationsTableAnnotationComposer
@@ -4987,43 +4189,30 @@ class $$MediaRelationsTableAnnotationComposer
       $composableBuilder(column: $table.mediaId, builder: (column) => column);
 
   GeneratedColumn<int> get relatedMediaId => $composableBuilder(
-    column: $table.relatedMediaId,
-    builder: (column) => column,
-  );
+      column: $table.relatedMediaId, builder: (column) => column);
 
   GeneratedColumn<String> get relationType => $composableBuilder(
-    column: $table.relationType,
-    builder: (column) => column,
-  );
+      column: $table.relationType, builder: (column) => column);
 }
 
-class $$MediaRelationsTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $MediaRelationsTable,
-          MediaRelationRow,
-          $$MediaRelationsTableFilterComposer,
-          $$MediaRelationsTableOrderingComposer,
-          $$MediaRelationsTableAnnotationComposer,
-          $$MediaRelationsTableCreateCompanionBuilder,
-          $$MediaRelationsTableUpdateCompanionBuilder,
-          (
-            MediaRelationRow,
-            BaseReferences<
-              _$TerebiDatabase,
-              $MediaRelationsTable,
-              MediaRelationRow
-            >,
-          ),
-          MediaRelationRow,
-          PrefetchHooks Function()
-        > {
+class $$MediaRelationsTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $MediaRelationsTable,
+    MediaRelationRow,
+    $$MediaRelationsTableFilterComposer,
+    $$MediaRelationsTableOrderingComposer,
+    $$MediaRelationsTableAnnotationComposer,
+    $$MediaRelationsTableCreateCompanionBuilder,
+    $$MediaRelationsTableUpdateCompanionBuilder,
+    (
+      MediaRelationRow,
+      BaseReferences<_$TerebiDatabase, $MediaRelationsTable, MediaRelationRow>
+    ),
+    MediaRelationRow,
+    PrefetchHooks Function()> {
   $$MediaRelationsTableTableManager(
-    _$TerebiDatabase db,
-    $MediaRelationsTable table,
-  ) : super(
-        TableManagerState(
+      _$TerebiDatabase db, $MediaRelationsTable table)
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -5032,75 +4221,68 @@ class $$MediaRelationsTableTableManager
               $$MediaRelationsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$MediaRelationsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> mediaId = const Value.absent(),
-                Value<int> relatedMediaId = const Value.absent(),
-                Value<String> relationType = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => MediaRelationsCompanion(
-                mediaId: mediaId,
-                relatedMediaId: relatedMediaId,
-                relationType: relationType,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required int mediaId,
-                required int relatedMediaId,
-                required String relationType,
-                Value<int> rowid = const Value.absent(),
-              }) => MediaRelationsCompanion.insert(
-                mediaId: mediaId,
-                relatedMediaId: relatedMediaId,
-                relationType: relationType,
-                rowid: rowid,
-              ),
+          updateCompanionCallback: ({
+            Value<int> mediaId = const Value.absent(),
+            Value<int> relatedMediaId = const Value.absent(),
+            Value<String> relationType = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MediaRelationsCompanion(
+            mediaId: mediaId,
+            relatedMediaId: relatedMediaId,
+            relationType: relationType,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required int mediaId,
+            required int relatedMediaId,
+            required String relationType,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MediaRelationsCompanion.insert(
+            mediaId: mediaId,
+            relatedMediaId: relatedMediaId,
+            relationType: relationType,
+            rowid: rowid,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$MediaRelationsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $MediaRelationsTable,
+typedef $$MediaRelationsTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $MediaRelationsTable,
+    MediaRelationRow,
+    $$MediaRelationsTableFilterComposer,
+    $$MediaRelationsTableOrderingComposer,
+    $$MediaRelationsTableAnnotationComposer,
+    $$MediaRelationsTableCreateCompanionBuilder,
+    $$MediaRelationsTableUpdateCompanionBuilder,
+    (
       MediaRelationRow,
-      $$MediaRelationsTableFilterComposer,
-      $$MediaRelationsTableOrderingComposer,
-      $$MediaRelationsTableAnnotationComposer,
-      $$MediaRelationsTableCreateCompanionBuilder,
-      $$MediaRelationsTableUpdateCompanionBuilder,
-      (
-        MediaRelationRow,
-        BaseReferences<
-          _$TerebiDatabase,
-          $MediaRelationsTable,
-          MediaRelationRow
-        >,
-      ),
-      MediaRelationRow,
-      PrefetchHooks Function()
-    >;
-typedef $$AiringSchedulesTableCreateCompanionBuilder =
-    AiringSchedulesCompanion Function({
-      Value<int> id,
-      required int mediaId,
-      required int episode,
-      required DateTime airsAt,
-      Value<bool> notified,
-    });
-typedef $$AiringSchedulesTableUpdateCompanionBuilder =
-    AiringSchedulesCompanion Function({
-      Value<int> id,
-      Value<int> mediaId,
-      Value<int> episode,
-      Value<DateTime> airsAt,
-      Value<bool> notified,
-    });
+      BaseReferences<_$TerebiDatabase, $MediaRelationsTable, MediaRelationRow>
+    ),
+    MediaRelationRow,
+    PrefetchHooks Function()>;
+typedef $$AiringSchedulesTableCreateCompanionBuilder = AiringSchedulesCompanion
+    Function({
+  Value<int> id,
+  required int mediaId,
+  required int episode,
+  required DateTime airsAt,
+  Value<bool> notified,
+});
+typedef $$AiringSchedulesTableUpdateCompanionBuilder = AiringSchedulesCompanion
+    Function({
+  Value<int> id,
+  Value<int> mediaId,
+  Value<int> episode,
+  Value<DateTime> airsAt,
+  Value<bool> notified,
+});
 
 class $$AiringSchedulesTableFilterComposer
     extends Composer<_$TerebiDatabase, $AiringSchedulesTable> {
@@ -5112,29 +4294,19 @@ class $$AiringSchedulesTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.id, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get episode => $composableBuilder(
-    column: $table.episode,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.episode, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get airsAt => $composableBuilder(
-    column: $table.airsAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.airsAt, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get notified => $composableBuilder(
-    column: $table.notified,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.notified, builder: (column) => ColumnFilters(column));
 }
 
 class $$AiringSchedulesTableOrderingComposer
@@ -5147,29 +4319,19 @@ class $$AiringSchedulesTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<int> get id => $composableBuilder(
-    column: $table.id,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.id, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get mediaId => $composableBuilder(
-    column: $table.mediaId,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.mediaId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get episode => $composableBuilder(
-    column: $table.episode,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.episode, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get airsAt => $composableBuilder(
-    column: $table.airsAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.airsAt, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get notified => $composableBuilder(
-    column: $table.notified,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.notified, builder: (column) => ColumnOrderings(column));
 }
 
 class $$AiringSchedulesTableAnnotationComposer
@@ -5197,33 +4359,24 @@ class $$AiringSchedulesTableAnnotationComposer
       $composableBuilder(column: $table.notified, builder: (column) => column);
 }
 
-class $$AiringSchedulesTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $AiringSchedulesTable,
-          AiringScheduleRow,
-          $$AiringSchedulesTableFilterComposer,
-          $$AiringSchedulesTableOrderingComposer,
-          $$AiringSchedulesTableAnnotationComposer,
-          $$AiringSchedulesTableCreateCompanionBuilder,
-          $$AiringSchedulesTableUpdateCompanionBuilder,
-          (
-            AiringScheduleRow,
-            BaseReferences<
-              _$TerebiDatabase,
-              $AiringSchedulesTable,
-              AiringScheduleRow
-            >,
-          ),
-          AiringScheduleRow,
-          PrefetchHooks Function()
-        > {
+class $$AiringSchedulesTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $AiringSchedulesTable,
+    AiringScheduleRow,
+    $$AiringSchedulesTableFilterComposer,
+    $$AiringSchedulesTableOrderingComposer,
+    $$AiringSchedulesTableAnnotationComposer,
+    $$AiringSchedulesTableCreateCompanionBuilder,
+    $$AiringSchedulesTableUpdateCompanionBuilder,
+    (
+      AiringScheduleRow,
+      BaseReferences<_$TerebiDatabase, $AiringSchedulesTable, AiringScheduleRow>
+    ),
+    AiringScheduleRow,
+    PrefetchHooks Function()> {
   $$AiringSchedulesTableTableManager(
-    _$TerebiDatabase db,
-    $AiringSchedulesTable table,
-  ) : super(
-        TableManagerState(
+      _$TerebiDatabase db, $AiringSchedulesTable table)
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -5232,75 +4385,68 @@ class $$AiringSchedulesTableTableManager
               $$AiringSchedulesTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$AiringSchedulesTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                Value<int> mediaId = const Value.absent(),
-                Value<int> episode = const Value.absent(),
-                Value<DateTime> airsAt = const Value.absent(),
-                Value<bool> notified = const Value.absent(),
-              }) => AiringSchedulesCompanion(
-                id: id,
-                mediaId: mediaId,
-                episode: episode,
-                airsAt: airsAt,
-                notified: notified,
-              ),
-          createCompanionCallback:
-              ({
-                Value<int> id = const Value.absent(),
-                required int mediaId,
-                required int episode,
-                required DateTime airsAt,
-                Value<bool> notified = const Value.absent(),
-              }) => AiringSchedulesCompanion.insert(
-                id: id,
-                mediaId: mediaId,
-                episode: episode,
-                airsAt: airsAt,
-                notified: notified,
-              ),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> mediaId = const Value.absent(),
+            Value<int> episode = const Value.absent(),
+            Value<DateTime> airsAt = const Value.absent(),
+            Value<bool> notified = const Value.absent(),
+          }) =>
+              AiringSchedulesCompanion(
+            id: id,
+            mediaId: mediaId,
+            episode: episode,
+            airsAt: airsAt,
+            notified: notified,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int mediaId,
+            required int episode,
+            required DateTime airsAt,
+            Value<bool> notified = const Value.absent(),
+          }) =>
+              AiringSchedulesCompanion.insert(
+            id: id,
+            mediaId: mediaId,
+            episode: episode,
+            airsAt: airsAt,
+            notified: notified,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$AiringSchedulesTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $AiringSchedulesTable,
+typedef $$AiringSchedulesTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $AiringSchedulesTable,
+    AiringScheduleRow,
+    $$AiringSchedulesTableFilterComposer,
+    $$AiringSchedulesTableOrderingComposer,
+    $$AiringSchedulesTableAnnotationComposer,
+    $$AiringSchedulesTableCreateCompanionBuilder,
+    $$AiringSchedulesTableUpdateCompanionBuilder,
+    (
       AiringScheduleRow,
-      $$AiringSchedulesTableFilterComposer,
-      $$AiringSchedulesTableOrderingComposer,
-      $$AiringSchedulesTableAnnotationComposer,
-      $$AiringSchedulesTableCreateCompanionBuilder,
-      $$AiringSchedulesTableUpdateCompanionBuilder,
-      (
-        AiringScheduleRow,
-        BaseReferences<
-          _$TerebiDatabase,
-          $AiringSchedulesTable,
-          AiringScheduleRow
-        >,
-      ),
-      AiringScheduleRow,
-      PrefetchHooks Function()
-    >;
-typedef $$AppSettingsTableCreateCompanionBuilder =
-    AppSettingsCompanion Function({
-      required String key,
-      required String value,
-      Value<int> rowid,
-    });
-typedef $$AppSettingsTableUpdateCompanionBuilder =
-    AppSettingsCompanion Function({
-      Value<String> key,
-      Value<String> value,
-      Value<int> rowid,
-    });
+      BaseReferences<_$TerebiDatabase, $AiringSchedulesTable, AiringScheduleRow>
+    ),
+    AiringScheduleRow,
+    PrefetchHooks Function()>;
+typedef $$AppSettingsTableCreateCompanionBuilder = AppSettingsCompanion
+    Function({
+  required String key,
+  required String value,
+  Value<int> rowid,
+});
+typedef $$AppSettingsTableUpdateCompanionBuilder = AppSettingsCompanion
+    Function({
+  Value<String> key,
+  Value<String> value,
+  Value<int> rowid,
+});
 
 class $$AppSettingsTableFilterComposer
     extends Composer<_$TerebiDatabase, $AppSettingsTable> {
@@ -5312,14 +4458,10 @@ class $$AppSettingsTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<String> get key => $composableBuilder(
-    column: $table.key,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.key, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get value => $composableBuilder(
-    column: $table.value,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.value, builder: (column) => ColumnFilters(column));
 }
 
 class $$AppSettingsTableOrderingComposer
@@ -5332,14 +4474,10 @@ class $$AppSettingsTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<String> get key => $composableBuilder(
-    column: $table.key,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.key, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get value => $composableBuilder(
-    column: $table.value,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.value, builder: (column) => ColumnOrderings(column));
 }
 
 class $$AppSettingsTableAnnotationComposer
@@ -5358,27 +4496,23 @@ class $$AppSettingsTableAnnotationComposer
       $composableBuilder(column: $table.value, builder: (column) => column);
 }
 
-class $$AppSettingsTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $AppSettingsTable,
-          AppSetting,
-          $$AppSettingsTableFilterComposer,
-          $$AppSettingsTableOrderingComposer,
-          $$AppSettingsTableAnnotationComposer,
-          $$AppSettingsTableCreateCompanionBuilder,
-          $$AppSettingsTableUpdateCompanionBuilder,
-          (
-            AppSetting,
-            BaseReferences<_$TerebiDatabase, $AppSettingsTable, AppSetting>,
-          ),
-          AppSetting,
-          PrefetchHooks Function()
-        > {
+class $$AppSettingsTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $AppSettingsTable,
+    AppSetting,
+    $$AppSettingsTableFilterComposer,
+    $$AppSettingsTableOrderingComposer,
+    $$AppSettingsTableAnnotationComposer,
+    $$AppSettingsTableCreateCompanionBuilder,
+    $$AppSettingsTableUpdateCompanionBuilder,
+    (
+      AppSetting,
+      BaseReferences<_$TerebiDatabase, $AppSettingsTable, AppSetting>
+    ),
+    AppSetting,
+    PrefetchHooks Function()> {
   $$AppSettingsTableTableManager(_$TerebiDatabase db, $AppSettingsTable table)
-    : super(
-        TableManagerState(
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -5387,61 +4521,60 @@ class $$AppSettingsTableTableManager
               $$AppSettingsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$AppSettingsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> key = const Value.absent(),
-                Value<String> value = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => AppSettingsCompanion(key: key, value: value, rowid: rowid),
-          createCompanionCallback:
-              ({
-                required String key,
-                required String value,
-                Value<int> rowid = const Value.absent(),
-              }) => AppSettingsCompanion.insert(
-                key: key,
-                value: value,
-                rowid: rowid,
-              ),
+          updateCompanionCallback: ({
+            Value<String> key = const Value.absent(),
+            Value<String> value = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AppSettingsCompanion(
+            key: key,
+            value: value,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String key,
+            required String value,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              AppSettingsCompanion.insert(
+            key: key,
+            value: value,
+            rowid: rowid,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$AppSettingsTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $AppSettingsTable,
+typedef $$AppSettingsTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $AppSettingsTable,
+    AppSetting,
+    $$AppSettingsTableFilterComposer,
+    $$AppSettingsTableOrderingComposer,
+    $$AppSettingsTableAnnotationComposer,
+    $$AppSettingsTableCreateCompanionBuilder,
+    $$AppSettingsTableUpdateCompanionBuilder,
+    (
       AppSetting,
-      $$AppSettingsTableFilterComposer,
-      $$AppSettingsTableOrderingComposer,
-      $$AppSettingsTableAnnotationComposer,
-      $$AppSettingsTableCreateCompanionBuilder,
-      $$AppSettingsTableUpdateCompanionBuilder,
-      (
-        AppSetting,
-        BaseReferences<_$TerebiDatabase, $AppSettingsTable, AppSetting>,
-      ),
-      AppSetting,
-      PrefetchHooks Function()
-    >;
-typedef $$MetaCacheTableCreateCompanionBuilder =
-    MetaCacheCompanion Function({
-      required String cacheKey,
-      required String payload,
-      required DateTime expiresAt,
-      Value<int> rowid,
-    });
-typedef $$MetaCacheTableUpdateCompanionBuilder =
-    MetaCacheCompanion Function({
-      Value<String> cacheKey,
-      Value<String> payload,
-      Value<DateTime> expiresAt,
-      Value<int> rowid,
-    });
+      BaseReferences<_$TerebiDatabase, $AppSettingsTable, AppSetting>
+    ),
+    AppSetting,
+    PrefetchHooks Function()>;
+typedef $$MetaCacheTableCreateCompanionBuilder = MetaCacheCompanion Function({
+  required String cacheKey,
+  required String payload,
+  required DateTime expiresAt,
+  Value<int> rowid,
+});
+typedef $$MetaCacheTableUpdateCompanionBuilder = MetaCacheCompanion Function({
+  Value<String> cacheKey,
+  Value<String> payload,
+  Value<DateTime> expiresAt,
+  Value<int> rowid,
+});
 
 class $$MetaCacheTableFilterComposer
     extends Composer<_$TerebiDatabase, $MetaCacheTable> {
@@ -5453,19 +4586,13 @@ class $$MetaCacheTableFilterComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnFilters<String> get cacheKey => $composableBuilder(
-    column: $table.cacheKey,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.cacheKey, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get payload => $composableBuilder(
-    column: $table.payload,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.payload, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<DateTime> get expiresAt => $composableBuilder(
-    column: $table.expiresAt,
-    builder: (column) => ColumnFilters(column),
-  );
+      column: $table.expiresAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$MetaCacheTableOrderingComposer
@@ -5478,19 +4605,13 @@ class $$MetaCacheTableOrderingComposer
     super.$removeJoinBuilderFromRootComposer,
   });
   ColumnOrderings<String> get cacheKey => $composableBuilder(
-    column: $table.cacheKey,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.cacheKey, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get payload => $composableBuilder(
-    column: $table.payload,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.payload, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
-    column: $table.expiresAt,
-    builder: (column) => ColumnOrderings(column),
-  );
+      column: $table.expiresAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$MetaCacheTableAnnotationComposer
@@ -5512,27 +4633,23 @@ class $$MetaCacheTableAnnotationComposer
       $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
-class $$MetaCacheTableTableManager
-    extends
-        RootTableManager<
-          _$TerebiDatabase,
-          $MetaCacheTable,
-          MetaCacheData,
-          $$MetaCacheTableFilterComposer,
-          $$MetaCacheTableOrderingComposer,
-          $$MetaCacheTableAnnotationComposer,
-          $$MetaCacheTableCreateCompanionBuilder,
-          $$MetaCacheTableUpdateCompanionBuilder,
-          (
-            MetaCacheData,
-            BaseReferences<_$TerebiDatabase, $MetaCacheTable, MetaCacheData>,
-          ),
-          MetaCacheData,
-          PrefetchHooks Function()
-        > {
+class $$MetaCacheTableTableManager extends RootTableManager<
+    _$TerebiDatabase,
+    $MetaCacheTable,
+    MetaCacheData,
+    $$MetaCacheTableFilterComposer,
+    $$MetaCacheTableOrderingComposer,
+    $$MetaCacheTableAnnotationComposer,
+    $$MetaCacheTableCreateCompanionBuilder,
+    $$MetaCacheTableUpdateCompanionBuilder,
+    (
+      MetaCacheData,
+      BaseReferences<_$TerebiDatabase, $MetaCacheTable, MetaCacheData>
+    ),
+    MetaCacheData,
+    PrefetchHooks Function()> {
   $$MetaCacheTableTableManager(_$TerebiDatabase db, $MetaCacheTable table)
-    : super(
-        TableManagerState(
+      : super(TableManagerState(
           db: db,
           table: table,
           createFilteringComposer: () =>
@@ -5541,55 +4658,52 @@ class $$MetaCacheTableTableManager
               $$MetaCacheTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () =>
               $$MetaCacheTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback:
-              ({
-                Value<String> cacheKey = const Value.absent(),
-                Value<String> payload = const Value.absent(),
-                Value<DateTime> expiresAt = const Value.absent(),
-                Value<int> rowid = const Value.absent(),
-              }) => MetaCacheCompanion(
-                cacheKey: cacheKey,
-                payload: payload,
-                expiresAt: expiresAt,
-                rowid: rowid,
-              ),
-          createCompanionCallback:
-              ({
-                required String cacheKey,
-                required String payload,
-                required DateTime expiresAt,
-                Value<int> rowid = const Value.absent(),
-              }) => MetaCacheCompanion.insert(
-                cacheKey: cacheKey,
-                payload: payload,
-                expiresAt: expiresAt,
-                rowid: rowid,
-              ),
+          updateCompanionCallback: ({
+            Value<String> cacheKey = const Value.absent(),
+            Value<String> payload = const Value.absent(),
+            Value<DateTime> expiresAt = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MetaCacheCompanion(
+            cacheKey: cacheKey,
+            payload: payload,
+            expiresAt: expiresAt,
+            rowid: rowid,
+          ),
+          createCompanionCallback: ({
+            required String cacheKey,
+            required String payload,
+            required DateTime expiresAt,
+            Value<int> rowid = const Value.absent(),
+          }) =>
+              MetaCacheCompanion.insert(
+            cacheKey: cacheKey,
+            payload: payload,
+            expiresAt: expiresAt,
+            rowid: rowid,
+          ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
               .toList(),
           prefetchHooksCallback: null,
-        ),
-      );
+        ));
 }
 
-typedef $$MetaCacheTableProcessedTableManager =
-    ProcessedTableManager<
-      _$TerebiDatabase,
-      $MetaCacheTable,
+typedef $$MetaCacheTableProcessedTableManager = ProcessedTableManager<
+    _$TerebiDatabase,
+    $MetaCacheTable,
+    MetaCacheData,
+    $$MetaCacheTableFilterComposer,
+    $$MetaCacheTableOrderingComposer,
+    $$MetaCacheTableAnnotationComposer,
+    $$MetaCacheTableCreateCompanionBuilder,
+    $$MetaCacheTableUpdateCompanionBuilder,
+    (
       MetaCacheData,
-      $$MetaCacheTableFilterComposer,
-      $$MetaCacheTableOrderingComposer,
-      $$MetaCacheTableAnnotationComposer,
-      $$MetaCacheTableCreateCompanionBuilder,
-      $$MetaCacheTableUpdateCompanionBuilder,
-      (
-        MetaCacheData,
-        BaseReferences<_$TerebiDatabase, $MetaCacheTable, MetaCacheData>,
-      ),
-      MetaCacheData,
-      PrefetchHooks Function()
-    >;
+      BaseReferences<_$TerebiDatabase, $MetaCacheTable, MetaCacheData>
+    ),
+    MetaCacheData,
+    PrefetchHooks Function()>;
 
 class $TerebiDatabaseManager {
   final _$TerebiDatabase _db;
