@@ -442,10 +442,9 @@ class _SlotCard extends ConsumerWidget {
           'Ép. ${slot.schedule.episode} · $timeStr',
           style: Theme.of(context).textTheme.bodySmall,
         ),
-        trailing: isGlobal
+        trailing: (isGlobal && media != null)
             ? _PlanningButton(
-                mediaId: slot.schedule.mediaId,
-                title: title,
+                media: media!,
                 isInPlanning: isInPlanning,
               )
             : null,
@@ -468,13 +467,11 @@ class _SlotCard extends ConsumerWidget {
 // ---------------------------------------------------------------------------
 
 class _PlanningButton extends ConsumerStatefulWidget {
-  final int mediaId;
-  final String title;
+  final Media media;
   final bool isInPlanning;
 
   const _PlanningButton({
-    required this.mediaId,
-    required this.title,
+    required this.media,
     required this.isInPlanning,
   });
 
@@ -495,13 +492,19 @@ class _PlanningButtonState extends ConsumerState<_PlanningButton> {
     final repo = ref.read(listRepositoryProvider);
     if (_inPlanning) return; // On ne retire pas depuis ici.
 
-    final existing = await repo.getEntry(widget.mediaId);
+    final mediaId = widget.media.anilistId;
+
+    // Sauvegarde les métadonnées du média pour que la bibliothèque affiche
+    // le titre/cover (et pas « ID xxxxx ») même hors-ligne / rate-limité.
+    await ref.read(mediaRepositoryProvider).upsertMedia(widget.media);
+
+    final existing = await repo.getEntry(mediaId);
     final entry = existing?.copyWith(
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         ) ??
         ListEntry(
-          mediaId: widget.mediaId,
+          mediaId: mediaId,
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         );
@@ -512,7 +515,8 @@ class _PlanningButtonState extends ConsumerState<_PlanningButton> {
       // Invalide le provider pour que le calendrier se rafraîchisse.
       ref.invalidate(_calendarRawProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('« ${widget.title} » ajouté en Planifié')),
+        SnackBar(
+            content: Text('« ${widget.media.title.preferred} » ajouté en Planifié')),
       );
     }
   }

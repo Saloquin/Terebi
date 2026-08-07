@@ -402,10 +402,26 @@ class _EntryTile extends ConsumerWidget {
   final ListEntry entry;
   const _EntryTile({required this.entry});
 
+  /// Récupère le média : d'abord le cache local, sinon AniList (client caché),
+  /// puis le sauvegarde. Évite l'affichage « ID xxxxx » quand seules les
+  /// entrées de liste ont été enregistrées sans leurs métadonnées.
+  Future<Media?> _resolveMedia(WidgetRef ref) async {
+    final repo = ref.read(mediaRepositoryProvider);
+    final local = await repo.getMedia(entry.mediaId);
+    if (local != null) return local;
+    try {
+      final fetched =
+          await ref.read(aniListClientProvider).mediaDetail(entry.mediaId);
+      await repo.upsertMedia(fetched);
+      return fetched;
+    } catch (_) {
+      return null; // Hors-ligne / rate-limité : on gardera le fallback ID.
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaFuture =
-        ref.watch(mediaRepositoryProvider).getMedia(entry.mediaId);
+    final mediaFuture = _resolveMedia(ref);
 
     return FutureBuilder<Media?>(
       future: mediaFuture,

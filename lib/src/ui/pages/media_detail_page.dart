@@ -532,6 +532,8 @@ class _StatusDropdown extends ConsumerWidget {
       onChanged: (newStatus) async {
         if (newStatus == null) return;
         final repo = ref.read(listRepositoryProvider);
+        // Sauvegarde les métadonnées du média (titre/cover) pour la bibliothèque.
+        await ref.read(mediaRepositoryProvider).upsertMedia(media);
         final existing = await repo.getEntry(media.anilistId);
         final updated = existing?.copyWith(
               status: newStatus,
