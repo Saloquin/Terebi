@@ -16,7 +16,7 @@ import '../../domain/models/airing_schedule.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
-import 'media_detail_page.dart';
+import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -449,14 +449,41 @@ class _SlotCard extends ConsumerWidget {
               )
             : null,
         onTap: media != null
-            ? () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        MediaDetailPage(anilistId: slot.schedule.mediaId),
-                  ),
-                )
+            ? () => _launchPlayback(context, ref, media!)
             : null,
+      ),
+    );
+  }
+
+  Future<void> _launchPlayback(
+      BuildContext context, WidgetRef ref, Media media) async {
+    final listRepo = ref.read(listRepositoryProvider);
+    final progressRepo = ref.read(progressRepositoryProvider);
+
+    // Récupère l'entrée existante ou crée une entrée PLANNING minimale.
+    final existingEntry = await listRepo.getEntry(media.anilistId);
+    final entry = existingEntry ??
+        ListEntry(
+          mediaId: media.anilistId,
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        );
+
+    // Détermine l'épisode de reprise.
+    final lastWatched = await progressRepo.lastWatched(media.anilistId);
+    final episode =
+        lastWatched != null ? lastWatched.episodeNumber.toInt() + 1 : 1;
+
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerPage(
+          media: media,
+          episode: episode,
+          entry: entry,
+        ),
       ),
     );
   }

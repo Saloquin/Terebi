@@ -23,6 +23,11 @@ abstract final class SettingsKeys {
 
   /// Chemin du script `anime_sama.py` du projet animesama-cli installé.
   static const String animeSamaScript = 'anime_sama_script';
+
+  /// Clé de la saison anime-sama choisie pour un média AniList donné
+  /// (index 1-based). Ex. `anime_sama_season:105333`.
+  static String animeSamaSeasonFor(int anilistId) =>
+      'anime_sama_season:$anilistId';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].

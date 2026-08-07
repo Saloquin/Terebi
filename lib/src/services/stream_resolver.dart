@@ -32,6 +32,25 @@ class StreamLink {
   String toString() => '$quality → $url';
 }
 
+/// Une saison telle qu'anime-sama la liste (Saison 1, 2, OAV…).
+/// [index] est la position 1-based dans la liste anime-sama (utilisée pour
+/// résoudre les épisodes de cette saison).
+class AnimeSamaSeason {
+  final int index;
+  final String name;
+  const AnimeSamaSeason({required this.index, required this.name});
+
+  @override
+  bool operator ==(Object other) =>
+      other is AnimeSamaSeason && other.index == index && other.name == name;
+
+  @override
+  int get hashCode => Object.hash(index, name);
+
+  @override
+  String toString() => '#$index $name';
+}
+
 /// Résout l'URL d'un flux vidéo jouable pour un épisode donné.
 abstract interface class StreamResolver {
   /// Résout l'URL du flux (m3u8/mp4) à jouer dans le lecteur encastré.

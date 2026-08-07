@@ -1,14 +1,13 @@
-/// Page lecteur — résout l'URL du flux via ani-cli (mode debug, spike US-00)
-/// et la joue dans le lecteur **media_kit encastré**, avec la règle
+/// Page lecteur — résout l'URL du flux via le résolveur actif (anime-sama ou
+/// ani-cli) et la joue dans le lecteur **media_kit encastré**, avec la règle
 /// « Épisode suivant » (markCurrentWatchedAndAdvance).
 ///
-/// Flux (spike US-00 validé) :
-/// 1. [AniCliResolver.resolveStreamUrl] lance ani-cli avec `ANI_CLI_PLAYER=debug`
-///    → récupère l'URL directe du flux HLS (.m3u8).
-/// 2. media_kit ([Player]/[VideoController]) ouvre cette URL → vidéo encastrée
-///    dans la page (widget [Video]) avec overlays maison.
-/// 3. Fallback : si la résolution échoue, [AniCliResolver.play] laisse ani-cli
-///    ouvrir son lecteur externe.
+/// Flux :
+/// 1. Si la source est anime-sama et aucune saison mémorisée : affiche un dialog
+///    de sélection de saison → mémorise l'index choisi via SettingsRepository.
+/// 2. [activeResolverProvider.resolveStreamUrl] → URL directe du flux HLS.
+/// 3. media_kit ([Player]/[VideoController]) ouvre cette URL → vidéo encastrée.
+/// 4. Fallback : si la résolution échoue, affiche le message d'erreur.
 library;
 
 import 'package:flutter/material.dart';
@@ -20,9 +19,7 @@ import '../../app/providers.dart';
 import '../../domain/models/episode_progress.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/media.dart' as domain;
-import '../../services/ani_cli_resolver.dart';
 import '../../services/stream_resolver.dart';
-import '../../services/title_utils.dart';
 
 /// Page de lecture d'un épisode.
 class PlayerPage extends ConsumerStatefulWidget {
@@ -76,7 +73,64 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
   }
 
-  /// Résout l'URL via ani-cli (mode debug) et l'ouvre dans le lecteur encastré.
+  /// Détermine si la source active est anime-sama.
+  Future<bool> _isAnimeSamaActive() async {
+    final settings = ref.read(settingsRepositoryProvider);
+    final source =
+        await settings.get('stream_source', defaultValue: 'animesama');
+    return source != 'ani_cli';
+  }
+
+  /// Retourne l'index de saison mémorisé, ou le demande via un dialog.
+  /// Retourne `null` si l'utilisateur annule.
+  Future<int?> _resolveSeasonIndex({required PlaybackLanguage language}) async {
+    final settingsRepo = ref.read(settingsRepositoryProvider);
+    final key = 'anime_sama_season:${widget.media.anilistId}';
+
+    // Saison déjà mémorisée ?
+    final stored = await settingsRepo.get(key);
+    if (stored != null) {
+      final parsed = int.tryParse(stored);
+      if (parsed != null) return parsed;
+    }
+
+    // Pas encore mémorisée : charger les saisons et afficher le sélecteur.
+    if (!mounted) return null;
+
+    List<AnimeSamaSeason> seasons;
+    try {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      seasons = await resolver.listSeasons(
+        title: widget.media.title.preferred,
+        language: language,
+      );
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Impossible de lister les saisons : $e')),
+      );
+      return null;
+    }
+
+    if (!mounted) return null;
+
+    // Si une seule saison, pas besoin de dialog.
+    if (seasons.length == 1) {
+      await settingsRepo.set(key, '${seasons.first.index}');
+      return seasons.first.index;
+    }
+
+    final chosen = await showDialog<AnimeSamaSeason>(
+      context: context,
+      builder: (ctx) => _SeasonPickerDialog(seasons: seasons),
+    );
+    if (chosen == null) return null;
+
+    await settingsRepo.set(key, '${chosen.index}');
+    return chosen.index;
+  }
+
+  /// Résout l'URL via le résolveur actif et l'ouvre dans le lecteur encastré.
   Future<void> _loadAndPlay() async {
     setState(() {
       _loading = true;
@@ -84,17 +138,47 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     });
 
     try {
-      final resolver = await ref.read(activeResolverProvider.future);
       final language = await _preferredLanguage();
+      final isAnimeSama = await _isAnimeSamaActive();
 
-      // Déduit le titre de base + n° de saison depuis le titre AniList
-      // (ex. « Dr Stone Saison 2 » → base « Dr Stone », saison 2).
-      final ts = parseSeasonFromTitle(widget.media.title.preferred);
+      int seasonIndex = 1;
+      if (isAnimeSama) {
+        final idx = await _resolveSeasonIndex(language: language);
+        if (idx == null) {
+          // Utilisateur a annulé.
+          setState(() => _loading = false);
+          return;
+        }
+        seasonIndex = idx;
+      }
 
+      // Borne l'épisode via listEpisodes si anime-sama.
+      if (isAnimeSama) {
+        try {
+          final resolver = await ref.read(animeSamaResolverProvider.future);
+          final eps = await resolver.listEpisodes(
+            title: widget.media.title.preferred,
+            seasonIndex: seasonIndex,
+            language: language,
+          );
+          if (eps.isNotEmpty && _currentEpisode > eps.last) {
+            if (!mounted) return;
+            setState(() {
+              _loading = false;
+              _error = 'Épisode $_currentEpisode non disponible (max : ${eps.last}).';
+            });
+            return;
+          }
+        } catch (_) {
+          // listEpisodes optionnel : on continue si ça échoue.
+        }
+      }
+
+      final resolver = await ref.read(activeResolverProvider.future);
       final url = await resolver.resolveStreamUrl(
-        title: ts.baseTitle,
+        title: widget.media.title.preferred,
         episode: _currentEpisode,
-        season: ts.season,
+        season: seasonIndex,
         language: language,
       );
 
@@ -120,9 +204,53 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
   }
 
+  /// Ré-affiche le sélecteur de saison, mémorise le nouveau choix et recharge.
+  Future<void> _changeSeason() async {
+    final settingsRepo = ref.read(settingsRepositoryProvider);
+    final key = 'anime_sama_season:${widget.media.anilistId}';
+    // Efface la saison mémorisée pour forcer le re-sélecteur.
+    await settingsRepo.delete(key);
+    setState(() {
+      _ready = false;
+      _error = null;
+    });
+    await _loadAndPlay();
+  }
+
   /// Applique la règle « Épisode suivant » : marque vu + progress++, persiste,
-  /// puis charge l'épisode suivant s'il existe.
+  /// puis charge l'épisode suivant s'il existe (ou termine si saison complète).
   Future<void> _onNextEpisode() async {
+    // Si anime-sama : vérifie la borne max de la saison courante.
+    final isAnimeSama = await _isAnimeSamaActive();
+    if (isAnimeSama) {
+      try {
+        final language = await _preferredLanguage();
+        final settingsRepo = ref.read(settingsRepositoryProvider);
+        final key = 'anime_sama_season:${widget.media.anilistId}';
+        final stored = await settingsRepo.get(key);
+        final seasonIndex = (stored != null ? int.tryParse(stored) : null) ?? 1;
+
+        final resolver = await ref.read(animeSamaResolverProvider.future);
+        final eps = await resolver.listEpisodes(
+          title: widget.media.title.preferred,
+          seasonIndex: seasonIndex,
+          language: language,
+        );
+        if (eps.isNotEmpty && _currentEpisode >= eps.last) {
+          // Dernier épisode de la saison atteint : on traite comme fin de série.
+          await _markWatched();
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Saison terminée !')),
+          );
+          Navigator.of(context).pop();
+          return;
+        }
+      } catch (_) {
+        // En cas d'erreur listEpisodes, on laisse la logique standard.
+      }
+    }
+
     final progressService = ref.read(progressServiceProvider);
     final listRepo = ref.read(listRepositoryProvider);
     final progressRepo = ref.read(progressRepositoryProvider);
@@ -164,6 +292,31 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } else {
       Navigator.of(context).pop();
     }
+  }
+
+  /// Marque l'épisode courant comme vu sans avancer (utilisé en fin de saison
+  /// anime-sama quand la borne max est atteinte).
+  Future<void> _markWatched() async {
+    final progressService = ref.read(progressServiceProvider);
+    final listRepo = ref.read(listRepositoryProvider);
+    final progressRepo = ref.read(progressRepositoryProvider);
+    final now = DateTime.now();
+
+    final outcome = progressService.markCurrentWatchedAndAdvance(
+      entry: _currentEntry,
+      media: widget.media,
+      currentEpisode: _currentEpisode,
+      now: now,
+    );
+    await listRepo.upsertEntry(outcome.updatedEntry);
+    await progressRepo.upsertProgress(EpisodeProgress(
+      mediaId: widget.media.anilistId,
+      episodeNumber: _currentEpisode.toDouble(),
+      watched: true,
+      positionSeconds: 0,
+      completedAt: now,
+      updatedAt: now,
+    ));
   }
 
   // ---------------------------------------------------------------------------
@@ -266,6 +419,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                         label: const Text('Épisode suivant'),
                       ),
                     ],
+                    const SizedBox(width: 12),
+                    TextButton.icon(
+                      onPressed: _loading ? null : _changeSeason,
+                      icon: const Icon(Icons.layers_outlined, size: 18),
+                      label: const Text('Changer de saison'),
+                    ),
                   ],
                 ),
               ],
@@ -273,6 +432,43 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dialog de sélection de saison
+// ---------------------------------------------------------------------------
+
+class _SeasonPickerDialog extends StatelessWidget {
+  final List<AnimeSamaSeason> seasons;
+
+  const _SeasonPickerDialog({required this.seasons});
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Choisir la saison'),
+      content: SizedBox(
+        width: double.minPositive,
+        child: ListView.builder(
+          shrinkWrap: true,
+          itemCount: seasons.length,
+          itemBuilder: (ctx, i) {
+            final s = seasons[i];
+            return ListTile(
+              title: Text(s.name),
+              onTap: () => Navigator.of(ctx).pop(s),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Annuler'),
+        ),
+      ],
     );
   }
 }

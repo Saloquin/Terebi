@@ -10,6 +10,7 @@ import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/models/media_relation.dart';
+import '../../services/stream_resolver.dart';
 import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -91,6 +92,14 @@ class _SeasonItem {
   const _SeasonItem(
       {required this.media, required this.entry, required this.isCurrent});
 }
+
+/// Provider saisons anime-sama : liste les saisons disponibles sur anime-sama
+/// pour un titre donné. Keyed sur le titre préféré du média.
+final _animeSamaSeasonsProvider =
+    FutureProvider.family<List<AnimeSamaSeason>, String>((ref, title) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  return resolver.listSeasons(title: title);
+});
 
 /// Provider auto-replanif : calcule les suites à proposer pour [anilistId].
 ///
@@ -263,8 +272,12 @@ class _DetailBody extends ConsumerWidget {
                 _ReplanSection(anilistId: media.anilistId),
                 const SizedBox(height: 8),
 
-                // --- Saisons ---
+                // --- Saisons AniList (sequel/prequel/parent) ---
                 _SeasonsSection(anilistId: media.anilistId),
+                const SizedBox(height: 8),
+
+                // --- Saisons anime-sama ---
+                _AnimeSamaSeasonsSection(media: media),
               ],
             ),
           ),
@@ -812,6 +825,119 @@ class _ReplanCardState extends ConsumerState<_ReplanCard> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section Saisons anime-sama
+// ---------------------------------------------------------------------------
+
+/// Liste les saisons disponibles sur anime-sama pour ce média.
+/// Un clic mémorise l'index choisi et lance la lecture à l'épisode de reprise.
+class _AnimeSamaSeasonsSection extends ConsumerWidget {
+  final Media media;
+  const _AnimeSamaSeasonsSection({required this.media});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final seasonsAsync =
+        ref.watch(_animeSamaSeasonsProvider(media.title.preferred));
+
+    return seasonsAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (err, _) {
+        // Anime-sama ne connaît pas cet anime ou le résolveur est indisponible :
+        // on affiche un message discret plutôt que de crasher.
+        final msg = err is ResolveException ? err.message : err.toString();
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            'Saisons anime-sama indisponibles : $msg',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+          ),
+        );
+      },
+      data: (seasons) {
+        if (seasons.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Saisons (anime-sama)',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final season in seasons)
+              _AnimeSamaSeasonTile(media: media, season: season),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _AnimeSamaSeasonTile extends ConsumerWidget {
+  final Media media;
+  final AnimeSamaSeason season;
+
+  const _AnimeSamaSeasonTile({
+    required this.media,
+    required this.season,
+  });
+
+  Future<void> _play(BuildContext context, WidgetRef ref) async {
+    final settingsRepo = ref.read(settingsRepositoryProvider);
+    final listRepo = ref.read(listRepositoryProvider);
+    final progressRepo = ref.read(progressRepositoryProvider);
+
+    // Mémorise la saison choisie.
+    await settingsRepo.set(
+      'anime_sama_season:${media.anilistId}',
+      '${season.index}',
+    );
+
+    // Entrée de liste existante ou PLANNING minimal.
+    final existingEntry = await listRepo.getEntry(media.anilistId);
+    final entry = existingEntry ??
+        ListEntry(
+          mediaId: media.anilistId,
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        );
+
+    // Épisode de reprise : lastWatched + 1, sinon 1.
+    final lastWatched = await progressRepo.lastWatched(media.anilistId);
+    final episode =
+        lastWatched != null ? lastWatched.episodeNumber.toInt() + 1 : 1;
+
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerPage(
+          media: media,
+          episode: episode,
+          entry: entry,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.play_circle_outline),
+      title: Text(season.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _play(context, ref),
     );
   }
 }

@@ -10,6 +10,8 @@
 /// saison est passé séparément.
 library;
 
+import 'dart:convert';
+
 import 'process_runner.dart';
 import 'stream_resolver.dart';
 import 'title_utils.dart';
@@ -38,9 +40,22 @@ class AnimeSamaResolver implements StreamResolver {
   /// Préfixes de sortie du wrapper.
   static const _okPrefix = 'RESOLVED_URL:';
   static const _errPrefix = 'RESOLVE_ERROR:';
+  static const _seasonsPrefix = 'SEASONS_JSON:';
+  static const _episodesPrefix = 'EPISODES_JSON:';
 
-  /// Construit les arguments passés à Python.
-  /// Le [title] est nettoyé via [cleanSearchTitle] (retire « Saison N »…).
+  /// Args communs (titre nettoyé + langue), pour une [action] donnée.
+  List<String> _baseArgs(String action, String title, PlaybackLanguage language) {
+    return [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', action,
+      '--title', cleanSearchTitle(title),
+      if (language == PlaybackLanguage.vf) '--vf',
+    ];
+  }
+
+  /// Construit les arguments de résolution (action `resolve`).
+  /// [season] est l'INDEX 1-based de la saison anime-sama choisie.
   List<String> buildArgs({
     required String title,
     required int episode,
@@ -48,12 +63,9 @@ class AnimeSamaResolver implements StreamResolver {
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) {
     return [
-      wrapperScriptPath,
-      '--script', animeSamaScriptPath,
-      '--title', cleanSearchTitle(title),
+      ..._baseArgs('resolve', title, language),
       '--season', '$season',
       '--episode', '$episode',
-      if (language == PlaybackLanguage.vf) '--vf',
     ];
   }
 
@@ -79,6 +91,79 @@ class AnimeSamaResolver implements StreamResolver {
     return null;
   }
 
+  /// Parse la ligne `SEASONS_JSON: [...]` en liste de saisons.
+  List<AnimeSamaSeason> parseSeasons(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_seasonsPrefix)) {
+        final jsonStr = line.substring(_seasonsPrefix.length).trim();
+        final list = jsonDecode(jsonStr) as List<dynamic>;
+        return list
+            .map((e) => AnimeSamaSeason(
+                  index: (e as Map<String, dynamic>)['index'] as int,
+                  name: e['name'] as String,
+                ))
+            .toList();
+      }
+    }
+    return const [];
+  }
+
+  /// Parse la ligne `EPISODES_JSON: [...]` en liste de numéros d'épisode.
+  List<int> parseEpisodes(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_episodesPrefix)) {
+        final jsonStr = line.substring(_episodesPrefix.length).trim();
+        final list = jsonDecode(jsonStr) as List<dynamic>;
+        return list
+            .map((e) => int.tryParse(e.toString()))
+            .whereType<int>()
+            .toList();
+      }
+    }
+    return const [];
+  }
+
+  /// Liste les saisons anime-sama d'un [title]. Lève [ResolveException] si échec.
+  Future<List<AnimeSamaSeason>> listSeasons({
+    required String title,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    final args = _baseArgs('list-seasons', title, language);
+    final combined = await _run(args);
+    final seasons = parseSeasons(combined);
+    if (seasons.isNotEmpty) return seasons;
+    throw ResolveException(parseError(combined) ?? 'Aucune saison trouvée.');
+  }
+
+  /// Liste les numéros d'épisode d'une saison (par [seasonIndex] 1-based).
+  Future<List<int>> listEpisodes({
+    required String title,
+    required int seasonIndex,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    final args = [
+      ..._baseArgs('list-episodes', title, language),
+      '--season', '$seasonIndex',
+    ];
+    final combined = await _run(args);
+    final eps = parseEpisodes(combined);
+    if (eps.isNotEmpty) return eps;
+    throw ResolveException(parseError(combined) ?? 'Aucun épisode trouvé.');
+  }
+
+  /// Lance le wrapper Python et retourne stdout+stderr combinés.
+  Future<String> _run(List<String> args) async {
+    final ProcessResult result;
+    try {
+      result = await runner(pythonPath, args);
+    } catch (e) {
+      throw ResolveException('Impossible de lancer Python ($pythonPath): $e');
+    }
+    return '${result.stdout}\n${result.stderr}';
+  }
+
   @override
   Future<String> resolveStreamUrl({
     required String title,
@@ -92,20 +177,12 @@ class AnimeSamaResolver implements StreamResolver {
       season: season,
       language: language,
     );
-    final ProcessResult result;
-    try {
-      result = await runner(pythonPath, args);
-    } catch (e) {
-      throw ResolveException('Impossible de lancer Python ($pythonPath): $e');
-    }
-
-    final combined = '${result.stdout}\n${result.stderr}';
+    final combined = await _run(args);
     final url = parseResolvedUrl(combined);
     if (url != null && url.isNotEmpty) return url;
 
-    final err = parseError(combined);
     throw ResolveException(
-      err ?? 'anime-sama n\'a renvoyé aucune URL (code ${result.exitCode}).',
+      parseError(combined) ?? 'anime-sama n\'a renvoyé aucune URL.',
     );
   }
 }

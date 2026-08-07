@@ -18,24 +18,19 @@ void main() {
   group('buildArgs', () {
     final r = _resolver(_never);
 
-    test('VOSTFR : titre nettoyé, saison, épisode, pas de --vf', () {
-      expect(
-        r.buildArgs(title: 'Dr Stone Saison 2', episode: 3, season: 2),
-        [
-          r'C:\app\animesama_resolve.py',
-          '--script', r'C:\tools\anime_sama.py',
-          '--title', 'Dr Stone',
-          '--season', '2',
-          '--episode', '3',
-        ],
-      );
+    test('VOSTFR : action resolve, titre nettoyé, saison, épisode, pas de --vf', () {
+      final args = r.buildArgs(title: 'Dr Stone Saison 2', episode: 3, season: 2);
+      expect(args, containsAllInOrder(['--action', 'resolve']));
+      expect(args, containsAllInOrder(['--title', 'Dr Stone']));
+      expect(args, containsAllInOrder(['--season', '2']));
+      expect(args, containsAllInOrder(['--episode', '3']));
+      expect(args.contains('--vf'), isFalse);
     });
 
     test('VF : ajoute --vf', () {
       final args = r.buildArgs(
           title: 'Naruto', episode: 1, season: 1, language: PlaybackLanguage.vf);
       expect(args.contains('--vf'), isTrue);
-      expect(args.sublist(args.length - 1), ['--vf']);
     });
   });
 
@@ -87,6 +82,46 @@ void main() {
         () => r.resolveStreamUrl(title: 'x', episode: 1),
         throwsA(isA<ResolveException>()),
       );
+    });
+  });
+
+  group('listSeasons', () {
+    const seasonsOut =
+        'SEASONS_JSON: [{"index":1,"name":"Saison 1"},{"index":2,"name":"Saison 2"},{"index":3,"name":"OAV"}]';
+
+    test('parse la liste des saisons', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(exitCode: 0, stdout: seasonsOut);
+      });
+      final seasons = await r.listSeasons(title: 'Dr Stone Saison 2');
+      expect(seasons.length, 3);
+      expect(seasons[1], const AnimeSamaSeason(index: 2, name: 'Saison 2'));
+      expect(captured, containsAllInOrder(['--action', 'list-seasons']));
+      expect(captured, containsAllInOrder(['--title', 'Dr Stone']));
+    });
+
+    test('lève ResolveException si erreur', () async {
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async =>
+          const ProcessResult(exitCode: 1, stdout: 'RESOLVE_ERROR: aucun anime trouvé'));
+      expect(() => r.listSeasons(title: 'zzz'),
+          throwsA(isA<ResolveException>()));
+    });
+  });
+
+  group('listEpisodes', () {
+    test('parse les numéros d\'épisode et passe l\'index de saison', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(
+            exitCode: 0, stdout: 'EPISODES_JSON: ["1","2","3"]');
+      });
+      final eps = await r.listEpisodes(title: 'Dr Stone', seasonIndex: 2);
+      expect(eps, [1, 2, 3]);
+      expect(captured, containsAllInOrder(['--action', 'list-episodes']));
+      expect(captured, containsAllInOrder(['--season', '2']));
     });
   });
 }
