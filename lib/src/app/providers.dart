@@ -19,6 +19,8 @@ import '../data/repositories/settings_repository.dart';
 import '../domain/logic/franchise_service.dart';
 import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
+import '../domain/logic/filter_sort_service.dart';
+import '../domain/logic/calendar_service.dart';
 import '../services/ani_cli_resolver.dart';
 import '../services/health_service.dart';
 import '../services/process_runner.dart';
@@ -76,6 +78,12 @@ final franchiseServiceProvider =
 
 final statsServiceProvider =
     Provider<StatsService>((ref) => const StatsService());
+
+final filterSortServiceProvider =
+    Provider<FilterSortService>((ref) => const FilterSortService());
+
+final calendarServiceProvider =
+    Provider<CalendarService>((ref) => const CalendarService());
 
 // --- Services système / lecteur -------------------------------------------
 

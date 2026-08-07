@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../domain/logic/franchise_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -28,6 +29,62 @@ final _relationsProvider =
 final _listEntryProvider =
     FutureProvider.family<ListEntry?, int>((ref, mediaId) async {
   return ref.watch(listRepositoryProvider).getEntry(mediaId);
+});
+
+/// Provider auto-replanif : calcule les suites à proposer pour [anilistId].
+///
+/// Retourne les [Media] des suites non suivies d'un média COMPLETED.
+final _sequelsToReplanProvider =
+    FutureProvider.family<List<Media>, int>((ref, anilistId) async {
+  final anilist = ref.watch(aniListClientProvider);
+  final listRepo = ref.watch(listRepositoryProvider);
+  final franchiseService = ref.watch(franchiseServiceProvider);
+
+  // Charge les relations du média courant.
+  final relations = await anilist.relations(anilistId);
+  final sequelRelations =
+      relations.where((r) => r.type == RelationType.sequel).toList();
+  if (sequelRelations.isEmpty) return const [];
+
+  // Charge les médias des suites.
+  final sequelMediaList = <Media>[];
+  for (final rel in sequelRelations) {
+    try {
+      final m = await anilist.mediaDetail(rel.relatedMediaId);
+      sequelMediaList.add(m);
+    } catch (_) {
+      // Ignore erreurs individuelles.
+    }
+  }
+  if (sequelMediaList.isEmpty) return const [];
+
+  // Construit les FranchiseItems.
+  final allMediaIds = [anilistId, ...sequelMediaList.map((m) => m.anilistId)];
+  final items = <FranchiseItem>[];
+  for (final id in allMediaIds) {
+    Media? media;
+    if (id == anilistId) {
+      // On a déjà les données du média courant via le parent, mais on refetch.
+      try {
+        media = await anilist.mediaDetail(id);
+      } catch (_) {
+        continue;
+      }
+    } else {
+      media = sequelMediaList.firstWhere((m) => m.anilistId == id);
+    }
+    final entry = await listRepo.getEntry(id);
+    items.add(FranchiseItem(media: media, entry: entry));
+  }
+
+  final toReplan = franchiseService.sequelsToReplan(
+    items: items,
+    relations: relations,
+  );
+
+  return sequelMediaList
+      .where((m) => toReplan.contains(m.anilistId))
+      .toList();
 });
 
 // ---------------------------------------------------------------------------
@@ -141,6 +198,10 @@ class _DetailBody extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                 ],
+
+                // --- Auto-replanif (suites disponibles non suivies) ---
+                _ReplanSection(anilistId: media.anilistId),
+                const SizedBox(height: 8),
 
                 // --- Franchise (relations) ---
                 relationsAsync.when(
@@ -513,4 +574,116 @@ class _FranchiseSection extends StatelessWidget {
         RelationType.prequel => 'Préquelle',
         _ => t.name,
       };
+}
+
+// ---------------------------------------------------------------------------
+// Section auto-replanif (US-46)
+// ---------------------------------------------------------------------------
+
+/// Encart "Nouvelle saison disponible" affiché si des suites sont disponibles
+/// et non encore suivies, après avoir complété le média [anilistId].
+class _ReplanSection extends ConsumerWidget {
+  final int anilistId;
+  const _ReplanSection({required this.anilistId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sequelsAsync = ref.watch(_sequelsToReplanProvider(anilistId));
+
+    return sequelsAsync.maybeWhen(
+      data: (sequels) {
+        if (sequels.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Nouvelle saison disponible',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            for (final media in sequels)
+              _ReplanCard(media: media),
+            const SizedBox(height: 8),
+          ],
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _ReplanCard extends ConsumerStatefulWidget {
+  final Media media;
+  const _ReplanCard({required this.media});
+
+  @override
+  ConsumerState<_ReplanCard> createState() => _ReplanCardState();
+}
+
+class _ReplanCardState extends ConsumerState<_ReplanCard> {
+  bool _added = false;
+
+  Future<void> _addToPlanning() async {
+    final repo = ref.read(listRepositoryProvider);
+    final existing = await repo.getEntry(widget.media.anilistId);
+    final entry = existing?.copyWith(
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        ) ??
+        ListEntry(
+          mediaId: widget.media.anilistId,
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        );
+    await repo.upsertEntry(entry);
+    if (mounted) {
+      setState(() => _added = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              '« ${widget.media.title.preferred} » ajouté en Planifié'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: widget.media.coverUrl != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  widget.media.coverUrl!,
+                  width: 40,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const SizedBox(width: 40, height: 56),
+                ),
+              )
+            : const Icon(Icons.new_releases_outlined),
+        title: Text(widget.media.title.preferred,
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          _added ? 'Ajouté en Planifié' : 'Suite disponible — Ajouter à voir ?',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        trailing: _added
+            ? const Icon(Icons.check_circle, color: Colors.green)
+            : FilledButton.tonal(
+                onPressed: _addToPlanning,
+                child: const Text('À voir'),
+              ),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                MediaDetailPage(anilistId: widget.media.anilistId),
+          ),
+        ),
+      ),
+    );
+  }
 }
