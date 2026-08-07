@@ -1,6 +1,6 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Filtrage et tri du catalogue (List<Media>) et des listes (List<ListEntry>).
+/// Filtrage et tri du catalogue (listes de `Media`) et des entrées de liste.
 /// Fonctions pures, sans I/O.
 library;
 

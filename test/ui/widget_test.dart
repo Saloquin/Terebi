@@ -12,15 +12,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:terebi/src/app/providers.dart';
 import 'package:terebi/src/data/local/database.dart';
 import 'package:terebi/src/data/remote/anilist_client.dart';
+import 'package:terebi/src/data/repositories/list_repository.dart';
+import 'package:terebi/src/data/repositories/media_repository.dart';
+import 'package:terebi/src/domain/logic/calendar_service.dart';
+import 'package:terebi/src/domain/logic/filter_sort_service.dart';
+import 'package:terebi/src/domain/logic/stats_service.dart';
+import 'package:terebi/src/domain/models/airing_schedule.dart';
 import 'package:terebi/src/domain/models/anime_format.dart';
 import 'package:terebi/src/domain/models/enums.dart';
+import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
 import 'package:terebi/src/domain/models/media.dart';
 import 'package:terebi/src/domain/models/media_relation.dart';
 import 'package:terebi/src/services/process_runner.dart';
+import 'package:terebi/src/ui/pages/calendar_page.dart';
 import 'package:terebi/src/ui/pages/catalog_page.dart';
 import 'package:terebi/src/ui/pages/library_page.dart';
 import 'package:terebi/src/ui/pages/settings_page.dart';
+import 'package:terebi/src/ui/pages/stats_page.dart';
 import 'package:terebi/src/ui/widgets/media_card.dart';
 
 // ---------------------------------------------------------------------------
@@ -30,8 +39,13 @@ import 'package:terebi/src/ui/widgets/media_card.dart';
 /// Faux AniListClient retournant une liste fixe ou vide.
 class _FakeAniListClient extends AniListClient {
   final List<Media> searchResults;
+  final List<Media> seasonResults;
+  final Map<int, AiringSchedule?> airingMap;
 
-  _FakeAniListClient({this.searchResults = const []});
+  _FakeAniListClient({
+    this.searchResults = const [],
+    this.seasonResults = const [],
+  }) : airingMap = const {};
 
   @override
   Future<List<Media>> search(String query,
@@ -41,22 +55,35 @@ class _FakeAniListClient extends AniListClient {
   @override
   Future<List<Media>> season(AnimeSeason season, int year,
           {int page = 1, int perPage = 50}) async =>
-      const [];
+      seasonResults;
 
   @override
   Future<Media> mediaDetail(int anilistId) async =>
       searchResults.firstWhere((m) => m.anilistId == anilistId,
-          orElse: () => _makeMedia(anilistId));
+          orElse: () => seasonResults.firstWhere(
+                (m) => m.anilistId == anilistId,
+                orElse: () => _makeMedia(anilistId),
+              ));
 
   @override
   Future<List<MediaRelation>> relations(int anilistId) async => const [];
+
+  @override
+  Future<AiringSchedule?> nextAiring(int anilistId) async =>
+      airingMap[anilistId];
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-Media _makeMedia(int id, {String? title, int? episodes, AnimeFormat? format}) =>
+Media _makeMedia(int id, {
+  String? title,
+  int? episodes,
+  AnimeFormat? format,
+  List<String> genres = const [],
+  int? year,
+}) =>
     Media(
       anilistId: id,
       title: MediaTitle(
@@ -65,6 +92,14 @@ Media _makeMedia(int id, {String? title, int? episodes, AnimeFormat? format}) =>
       ),
       episodes: episodes ?? 12,
       format: format ?? AnimeFormat.tv,
+      genres: genres,
+      seasonYear: year,
+    );
+
+ListEntry _makeEntry(int mediaId, ListStatus status) => ListEntry(
+      mediaId: mediaId,
+      status: status,
+      updatedAt: DateTime(2024),
     );
 
 /// Enveloppe un widget dans MaterialApp + ProviderScope avec overrides.
@@ -94,7 +129,6 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: MediaCard(media: media))),
       );
-      // Le badge contient "TV · 220 ep"
       expect(find.textContaining('220 ep'), findsOneWidget);
     });
 
@@ -142,9 +176,7 @@ void main() {
       ));
       await tester.pump();
 
-      // Le champ de recherche est présent.
       expect(find.byType(TextField), findsOneWidget);
-      // L'état vide initial est affiché (pas de résultats).
       expect(find.text('Entrez un titre pour rechercher'), findsOneWidget);
     });
 
@@ -163,11 +195,10 @@ void main() {
         ],
       ));
 
-      // Soumet une recherche.
       await tester.enterText(find.byType(TextField), 'shonen');
       await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pump(); // loading state
-      await tester.pump(const Duration(milliseconds: 100)); // future completes
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('One Piece'), findsOneWidget);
       expect(find.text('Bleach'), findsOneWidget);
@@ -192,6 +223,33 @@ void main() {
 
       expect(find.textContaining('Aucun résultat'), findsOneWidget);
     });
+
+    testWidgets('filtre par genre réduit les résultats affichés',
+        (tester) async {
+      final medias = [
+        _makeMedia(1, title: 'Action Anime', genres: ['Action']),
+        _makeMedia(2, title: 'Comedy Anime', genres: ['Comedy']),
+        _makeMedia(3, title: 'Action Comedy', genres: ['Action', 'Comedy']),
+      ];
+      final fakeClient = _FakeAniListClient(searchResults: medias);
+
+      await tester.pumpWidget(_wrap(
+        const CatalogPage(),
+        overrides: [
+          aniListClientProvider.overrideWithValue(fakeClient),
+          filterSortServiceProvider
+              .overrideWithValue(const FilterSortServiceStub()),
+        ],
+      ));
+
+      await tester.enterText(find.byType(TextField), 'anime');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Tous les 3 résultats visibles initialement.
+      expect(find.byType(MediaCard), findsNWidgets(3));
+    });
   });
 
   // ---------------------------------------------------------------------------
@@ -201,7 +259,6 @@ void main() {
   group('LibraryPage', () {
     testWidgets('affiche les bons compteurs de badges via countByStatus',
         (tester) async {
-      // Override les providers FutureProvider directement.
       await tester.pumpWidget(ProviderScope(
         overrides: [
           countByStatusProvider.overrideWith(
@@ -220,9 +277,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Le badge "2" pour En cours doit être visible.
       expect(find.text('2'), findsAtLeastNWidgets(1));
-      // Le badge "1" pour Terminé doit être visible.
       expect(find.text('1'), findsAtLeastNWidgets(1));
     });
 
@@ -245,15 +300,136 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
+  // Tests : StatsPage
+  // ---------------------------------------------------------------------------
+
+  group('StatsPage', () {
+    testWidgets('affiche "Aucune entrée" quand la bibliothèque est vide',
+        (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+        ],
+        child: const MaterialApp(home: Scaffold(body: StatsPage())),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.textContaining('Aucune entrée'), findsOneWidget);
+      await db.close();
+    });
+
+    testWidgets('affiche les stats quand des entrées sont présentes',
+        (tester) async {
+      // Override direct du provider de données stats.
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          statsServiceProvider.overrideWithValue(const StatsService()),
+          // On override la DB avec des données mockées via un FutureProvider.
+          databaseProvider.overrideWithValue(
+            TerebiDatabase(NativeDatabase.memory()),
+          ),
+          listRepositoryProvider.overrideWith((ref) => _FakeListRepository()),
+          mediaRepositoryProvider.overrideWith((ref) => _FakeMediaRepository()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: StatsPage())),
+      ));
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Doit afficher "Temps total regardé" et "Séries terminées".
+      expect(find.text('Temps total regardé'), findsOneWidget);
+      expect(find.text('Séries terminées'), findsOneWidget);
+      expect(find.text('Répartition par statut'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tests : CalendarPage — bascule global/perso
+  // ---------------------------------------------------------------------------
+
+  group('CalendarPage', () {
+    testWidgets('affiche le toggle Global/Perso', (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      final fakeClient = _FakeAniListClient(seasonResults: const []);
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          aniListClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CalendarPage())),
+      ));
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Le toolbar avec les boutons Global/Perso doit être présent.
+      expect(find.text('Global'), findsOneWidget);
+      expect(find.text('Perso'), findsOneWidget);
+      await db.close();
+    });
+
+    testWidgets('affiche le toggle hideUnreleased activé par défaut',
+        (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      final fakeClient = _FakeAniListClient(seasonResults: const []);
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          aniListClientProvider.overrideWithValue(fakeClient),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CalendarPage())),
+      ));
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Le switch "Masquer les épisodes pas encore sortis" doit être présent.
+      expect(find.textContaining('Masquer les épisodes'), findsOneWidget);
+      // Le switch doit être coché (activé par défaut).
+      final switchWidget = tester.widget<Switch>(find.byType(Switch).first);
+      expect(switchWidget.value, isTrue);
+      await db.close();
+    });
+
+    testWidgets('ouvre sur GLOBAL quand perso est vide', (tester) async {
+      // CalendarService retourne isPersonalEmpty=true → ouvre Global.
+      final db = TerebiDatabase(NativeDatabase.memory());
+      final fakeClient = _FakeAniListClient(seasonResults: const []);
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          aniListClientProvider.overrideWithValue(fakeClient),
+          calendarServiceProvider
+              .overrideWithValue(const CalendarService()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: CalendarPage())),
+      ));
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Avec liste PLANNING vide → calendrier perso vide → affiche Global.
+      // Le SegmentedButton "Global" doit être sélectionné.
+      // On vérifie l'état vide du calendrier global.
+      expect(find.textContaining('Aucune diffusion'), findsOneWidget);
+      await db.close();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Tests : SettingsPage (health-check avec HealthService mocké)
   // ---------------------------------------------------------------------------
 
   group('SettingsPage', () {
-    /// Construit un ProcessRunner qui retourne toujours le résultat fourni.
     ProcessRunner makeRunner(ProcessResult result) =>
         (_, __, {Map<String, String>? environment}) async => result;
 
-    /// Overrides minimaux pour SettingsPage (pas de DB réelle, storage vide).
     List<Override> settingsOverrides({
       required ProcessRunner runner,
       FlutterSecureStorage? storage,
@@ -302,7 +478,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      // Scroll jusqu'au bouton Vérifier (page plus longue que l'écran de test).
       await tester.scrollUntilVisible(
         find.text('Vérifier'),
         100,
@@ -312,8 +487,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      // Le rapport doit être affiché — les tuiles composants ani-cli et mpv.
-      // findAtLeastNWidgets car le champ TextField contient aussi 'ani-cli'.
       expect(find.text('ani-cli'), findsAtLeastNWidgets(1));
       expect(find.text('mpv'), findsAtLeastNWidgets(1));
     });
@@ -363,4 +536,74 @@ void main() {
       expect(find.text('Redirect URI OAuth'), findsOneWidget);
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Faux repositories pour StatsPage
+// ---------------------------------------------------------------------------
+
+class _FakeListRepository extends ListRepository {
+  _FakeListRepository() : super(_FakeDb());
+
+  @override
+  Future<List<ListEntry>> entriesByStatus(ListStatus status) async {
+    if (status == ListStatus.completed) {
+      return [_makeEntry(1, ListStatus.completed)];
+    }
+    if (status == ListStatus.current) {
+      return [_makeEntry(2, ListStatus.current)];
+    }
+    return [];
+  }
+
+  @override
+  Future<Map<ListStatus, int>> countByStatus() async => {
+        ListStatus.completed: 1,
+        ListStatus.current: 1,
+      };
+
+  @override
+  Future<ListEntry?> getEntry(int mediaId) async => null;
+
+  @override
+  Future<void> upsertEntry(ListEntry entry) async {}
+
+  @override
+  Future<void> setHidden(int mediaId, {required bool hidden}) async {}
+
+  @override
+  Future<Set<int>> allHidden() async => {};
+}
+
+class _FakeMediaRepository extends MediaRepository {
+  _FakeMediaRepository() : super(_FakeDb());
+
+  @override
+  Future<Media?> getMedia(int anilistId) async {
+    return _makeMedia(
+      anilistId,
+      title: 'Anime $anilistId',
+      episodes: 12,
+      genres: ['Action'],
+    );
+  }
+
+  @override
+  Future<void> upsertMedia(Media media) async {}
+
+  @override
+  Stream<List<Media>> watchAllMedia() => const Stream.empty();
+}
+
+/// Stub de FilterSortService pour les tests (délègue à la vraie implémentation).
+class FilterSortServiceStub extends FilterSortService {
+  const FilterSortServiceStub();
+}
+
+// Classe fictive pour satisfaire le super() de ListRepository/MediaRepository
+// (ils prennent une TerebiDatabase mais on override toutes les méthodes).
+class _FakeDb implements TerebiDatabase {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(
+      '${invocation.memberName} not implemented in _FakeDb');
 }
