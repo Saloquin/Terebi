@@ -20,10 +20,24 @@ Future<ProcessResult> systemProcessRunner(
   List<String> args, {
   Map<String, String>? environment,
 }) async {
+  final env = <String, String>{...?environment};
+
+  // Si on lance un shell POSIX (Git Bash), s'assurer que ses outils Unix
+  // (cut, sed, grep, head, curl…) situés dans le même dossier sont dans le PATH.
+  // Sinon ani-cli échoue avec « cut: command not found ».
+  if (io.Platform.isWindows &&
+      RegExp(r'(sh|bash)\.exe$', caseSensitive: false).hasMatch(executable)) {
+    final toolsDir = io.File(executable).parent.path; // …\Git\usr\bin
+    final parentPath = io.Platform.environment['PATH'] ??
+        io.Platform.environment['Path'] ??
+        '';
+    env['PATH'] = parentPath.isEmpty ? toolsDir : '$toolsDir;$parentPath';
+  }
+
   final result = await io.Process.run(
     executable,
     args,
-    environment: environment,
+    environment: env.isEmpty ? null : env,
     includeParentEnvironment: true,
   );
   return ProcessResult(
