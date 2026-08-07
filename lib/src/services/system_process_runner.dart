@@ -64,12 +64,17 @@ class AniCliDefaults {
     );
 
     // Script ani-cli : emplacements usuels (install manuelle ~/bin, scoop…).
+    // On vise le VRAI script, jamais le shim Scoop (scoop\shims\ani-cli.cmd) qui
+    // passe par WSL et casse quand aucune distribution Linux n'est installée.
     final home = io.Platform.environment['USERPROFILE'] ??
         io.Platform.environment['HOME'] ??
         '';
+    final scoop = io.Platform.environment['SCOOP'] ??
+        (home.isNotEmpty ? '$home\\scoop' : '');
     final aniCliCandidates = [
       if (home.isNotEmpty) '$home\\bin\\ani-cli',
-      if (home.isNotEmpty) '$home\\scoop\\apps\\ani-cli\\current\\ani-cli',
+      if (scoop.isNotEmpty) '$scoop\\apps\\ani-cli\\current\\ani-cli',
+      if (scoop.isNotEmpty) '$scoop\\persist\\ani-cli\\ani-cli',
     ];
     final aniCli = aniCliCandidates.firstWhere(
       (p) => io.File(p).existsSync(),

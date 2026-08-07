@@ -4,6 +4,8 @@
 /// reste dans domain/ (Dart pur) ; ici on ne fait qu'assembler.
 library;
 
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -118,17 +120,27 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );
 
-/// Résolveur ani-cli : chemins depuis les settings, sinon détection plateforme
-/// (sous Windows : `sh` de Git Bash + script ani-cli).
+/// Résolveur ani-cli : détection plateforme (sh de Git Bash + VRAI script
+/// ani-cli, en évitant le shim Scoop cassé). Un chemin saisi dans les Paramètres
+/// n'est retenu que s'il pointe un fichier réel (sinon on garde la détection).
 final aniCliResolverProvider = FutureProvider<AniCliResolver>((ref) async {
   final settings = ref.watch(settingsRepositoryProvider);
   final defaults = AniCliDefaults.detect();
 
-  final path = await settings.get(SettingsKeys.aniCliPath,
-          defaultValue: defaults.aniCliPath) ??
-      defaults.aniCliPath;
-  final shell =
-      await settings.get(SettingsKeys.shellPath, defaultValue: defaults.shell);
+  // Chemin ani-cli : préférence à la détection ; le réglage manuel ne prime que
+  // s'il désigne un fichier existant (évite un « ani-cli » nu → shim WSL cassé).
+  final manualPath = await settings.get(SettingsKeys.aniCliPath);
+  final path = (manualPath != null &&
+          manualPath.isNotEmpty &&
+          File(manualPath).existsSync())
+      ? manualPath
+      : defaults.aniCliPath;
+
+  // Shell : réglage manuel s'il existe, sinon détection.
+  final manualShell = await settings.get(SettingsKeys.shellPath);
+  final shell = (manualShell != null && manualShell.isNotEmpty)
+      ? manualShell
+      : defaults.shell;
 
   return AniCliResolver(
     aniCliPath: path,
