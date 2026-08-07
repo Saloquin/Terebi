@@ -74,8 +74,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     super.initState();
     _currentEpisode = widget.episode;
     _currentEntry = widget.entry;
+    _configurePlayer();
     // Démarre la lecture automatiquement après le premier frame.
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureStarted());
+  }
+
+  /// Configure mpv pour privilégier la MEILLEURE qualité disponible sur les
+  /// flux HLS (.m3u8 multi-variantes) : par défaut mpv démarre sur une variante
+  /// basse et adapte selon le débit. `hls-bitrate=max` force la variante la plus
+  /// haute dès le départ. Sans effet sur les flux mono-qualité (mp4 Sibnet), où
+  /// la résolution est fixée par le provider.
+  void _configurePlayer() {
+    final platform = _player.platform;
+    if (platform is NativePlayer) {
+      // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
+      platform.setProperty('hls-bitrate', 'max');
+    }
   }
 
   @override
