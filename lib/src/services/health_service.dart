@@ -46,6 +46,11 @@ class HealthService {
   final String aniCliPath;
   final String mpvPath;
 
+  /// Shell (`sh`) via lequel lancer ani-cli sous Windows. Si défini, le check
+  /// ani-cli exécute `sh <aniCliPath> --version` (comme le vrai resolver), au
+  /// lieu de `ani-cli --version` (qui tomberait sur le shim WSL cassé).
+  final String? aniCliShell;
+
   /// Renvoie `true` si un token AniList valide est présent (injecté).
   final Future<bool> Function() hasValidToken;
 
@@ -59,16 +64,22 @@ class HealthService {
     required this.runner,
     this.aniCliPath = 'ani-cli',
     this.mpvPath = 'mpv',
+    this.aniCliShell,
     required this.hasValidToken,
     required this.databaseOk,
     required this.networkOk,
   });
 
-  /// Vérifie qu'un binaire répond (via `--version`). `missing` si introuvable
-  /// (exception au lancement), `error` si présent mais code non nul.
-  Future<HealthCheck> _checkBinary(String component, String path) async {
+  /// Vérifie qu'un exécutable répond à `--version`. [prefixArgs] est inséré
+  /// avant `--version` (ex. le chemin du script quand on passe par un shell).
+  /// `missing` si introuvable (exception), `error` si code non nul.
+  Future<HealthCheck> _checkBinary(
+    String component,
+    String path, {
+    List<String> prefixArgs = const [],
+  }) async {
     try {
-      final r = await runner(path, ['--version']);
+      final r = await runner(path, [...prefixArgs, '--version']);
       if (r.ok) {
         final version = r.stdout.trim().split('\n').first;
         return HealthCheck(
@@ -114,8 +125,14 @@ class HealthService {
 
   /// Lance toutes les sondes et agrège le rapport.
   Future<HealthReport> run() async {
+    // Check ani-cli : via `sh <script> --version` si un shell est configuré
+    // (Windows), sinon `ani-cli --version` directement (Linux/macOS).
+    final aniCliCheck = (aniCliShell != null && aniCliShell!.isNotEmpty)
+        ? _checkBinary('ani-cli', aniCliShell!, prefixArgs: [aniCliPath])
+        : _checkBinary('ani-cli', aniCliPath);
+
     final checks = await Future.wait([
-      _checkBinary('ani-cli', aniCliPath),
+      aniCliCheck,
       _checkBinary('mpv', mpvPath),
       _checkBool('anilist-token', hasValidToken, 'Token AniList absent ou invalide.'),
       _checkBool('database', databaseOk, 'Base de données inaccessible.'),
