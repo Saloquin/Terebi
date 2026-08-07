@@ -102,14 +102,21 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );
 
-/// Résolveur ani-cli : lit le chemin depuis les settings ou utilise 'ani-cli'.
+/// Résolveur ani-cli : chemins depuis les settings, sinon détection plateforme
+/// (sous Windows : `sh` de Git Bash + script ani-cli).
 final aniCliResolverProvider = FutureProvider<AniCliResolver>((ref) async {
   final settings = ref.watch(settingsRepositoryProvider);
-  final path =
-      await settings.get(SettingsKeys.aniCliPath, defaultValue: 'ani-cli') ??
-          'ani-cli';
+  final defaults = AniCliDefaults.detect();
+
+  final path = await settings.get(SettingsKeys.aniCliPath,
+          defaultValue: defaults.aniCliPath) ??
+      defaults.aniCliPath;
+  final shell =
+      await settings.get(SettingsKeys.shellPath, defaultValue: defaults.shell);
+
   return AniCliResolver(
     aniCliPath: path,
+    shell: (shell != null && shell.isEmpty) ? null : shell,
     runner: ref.watch(processRunnerProvider),
   );
 });

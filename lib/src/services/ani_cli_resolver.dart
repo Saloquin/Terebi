@@ -40,19 +40,57 @@ class ResolveException implements Exception {
 
 /// Résout et lance un épisode via ani-cli.
 class AniCliResolver {
-  /// Chemin (ou nom) de l'exécutable ani-cli.
+  /// Chemin (ou nom) de l'exécutable/script ani-cli.
   final String aniCliPath;
+
+  /// Chemin d'un shell POSIX (`sh`) pour exécuter le script ani-cli.
+  ///
+  /// Sous **Windows**, ani-cli est un script shell (pas un `.exe`) : on doit le
+  /// lancer via `sh` (Git Bash : `C:\Program Files\Git\usr\bin\sh.exe`). Le shim
+  /// Scoop `ani-cli.cmd` n'est pas fiable (il passe par WSL, souvent absent).
+  /// Sous Linux/macOS, laisser `null` : ani-cli s'exécute directement.
+  final String? shell;
 
   /// Fonction d'exécution de processus (injectable pour test).
   final ProcessRunner runner;
 
   const AniCliResolver({
     this.aniCliPath = 'ani-cli',
+    this.shell,
     required this.runner,
   });
 
+  /// Nettoie un titre AniList pour la recherche ani-cli : retire les suffixes de
+  /// saison (« Saison 2 », « Season 2 », « 2nd Season », « Part 2 », chiffres
+  /// romains…) qu'ani-cli ne comprend pas (il cherche le titre de base).
+  static String cleanSearchTitle(String title) {
+    var t = title.trim();
+    // Retire les motifs de saison/partie en fin de titre (insensible à la casse).
+    final patterns = <RegExp>[
+      RegExp(r'\s+(saison|season)\s+\d+$', caseSensitive: false),
+      RegExp(r'\s+\d+(st|nd|rd|th)\s+season$', caseSensitive: false),
+      RegExp(r'\s+(part|partie)\s+\d+$', caseSensitive: false),
+      RegExp(r'\s+(season|saison)\s+[ivx]+$', caseSensitive: false),
+      RegExp(r'\s*:\s*.*$'), // sous-titre après ':' (souvent le nom d'arc)
+    ];
+    for (final p in patterns) {
+      t = t.replaceAll(p, '');
+    }
+    return t.trim();
+  }
+
+  /// Décompose l'appel effectif en (exécutable, arguments) selon [shell].
+  /// Avec un shell défini : `sh <script> <args…>`. Sinon : `<script> <args…>`.
+  (String, List<String>) _command(List<String> aniCliArgs) {
+    if (shell != null && shell!.isNotEmpty) {
+      return (shell!, [aniCliPath, ...aniCliArgs]);
+    }
+    return (aniCliPath, aniCliArgs);
+  }
+
   /// Construit les arguments ani-cli pour l'épisode [episode] de [title].
   /// Non-interactif : `-S 1` (1er résultat), `-e` (épisode), `--dub` (VF).
+  /// Le titre est nettoyé de ses suffixes de saison via [cleanSearchTitle].
   List<String> buildArgs({
     required String title,
     required int episode,
@@ -62,7 +100,7 @@ class AniCliResolver {
       '-S', '1',
       '-e', '$episode',
       if (language == PlaybackLanguage.vf) '--dub',
-      title,
+      cleanSearchTitle(title),
     ];
   }
 
@@ -113,15 +151,16 @@ class AniCliResolver {
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     final args = buildArgs(title: title, episode: episode, language: language);
+    final (exe, cmdArgs) = _command(args);
     final ProcessResult result;
     try {
       result = await runner(
-        aniCliPath,
-        args,
+        exe,
+        cmdArgs,
         environment: const {'ANI_CLI_PLAYER': 'debug'},
       );
     } catch (e) {
-      throw ResolveException('Impossible de lancer ani-cli ($aniCliPath): $e');
+      throw ResolveException('Impossible de lancer ani-cli ($exe): $e');
     }
 
     final combined = '${result.stdout}\n${result.stderr}';
@@ -150,11 +189,12 @@ class AniCliResolver {
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     final args = buildArgs(title: title, episode: episode, language: language);
+    final (exe, cmdArgs) = _command(args);
     final ProcessResult result;
     try {
-      result = await runner(aniCliPath, args);
+      result = await runner(exe, cmdArgs);
     } catch (e) {
-      throw ResolveException('Impossible de lancer ani-cli ($aniCliPath): $e');
+      throw ResolveException('Impossible de lancer ani-cli ($exe): $e');
     }
     if (!result.ok) {
       throw ResolveException(

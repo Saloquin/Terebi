@@ -11,6 +11,9 @@ abstract final class SettingsKeys {
   static const String aniCliPath = 'ani_cli_path';
   static const String mpvPath = 'mpv_path';
   static const String playbackLanguage = 'playback_language';
+
+  /// Chemin d'un shell POSIX (`sh`) pour exécuter le script ani-cli sous Windows.
+  static const String shellPath = 'shell_path';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].

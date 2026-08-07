@@ -32,6 +32,74 @@ void main() {
         ['-S', '1', '-e', '12', '--dub', 'Naruto'],
       );
     });
+
+    test('nettoie le suffixe de saison du titre', () {
+      expect(
+        resolver.buildArgs(title: 'Clevatess Saison 2', episode: 3),
+        ['-S', '1', '-e', '3', 'Clevatess'],
+      );
+    });
+  });
+
+  group('cleanSearchTitle', () {
+    test('retire « Saison N » / « Season N »', () {
+      expect(AniCliResolver.cleanSearchTitle('Clevatess Saison 2'), 'Clevatess');
+      expect(AniCliResolver.cleanSearchTitle('Bleach Season 3'), 'Bleach');
+    });
+
+    test('retire « Nth Season »', () {
+      expect(AniCliResolver.cleanSearchTitle('Overlord 2nd Season'), 'Overlord');
+    });
+
+    test('retire « Part N » / « Partie N »', () {
+      expect(AniCliResolver.cleanSearchTitle('Attack on Titan Part 2'), 'Attack on Titan');
+    });
+
+    test('retire un sous-titre après « : »', () {
+      expect(
+        AniCliResolver.cleanSearchTitle('Fate/stay night: Heaven\'s Feel'),
+        'Fate/stay night',
+      );
+    });
+
+    test('laisse un titre simple intact', () {
+      expect(AniCliResolver.cleanSearchTitle('One Piece'), 'One Piece');
+    });
+  });
+
+  group('mode shell (Windows)', () {
+    test('sans shell : exécute ani-cli directement', () async {
+      String? capturedExe;
+      List<String>? capturedArgs;
+      final resolver = AniCliResolver(
+        aniCliPath: 'ani-cli',
+        runner: (exe, args, {Map<String, String>? environment}) async {
+          capturedExe = exe;
+          capturedArgs = args;
+          return const ProcessResult(exitCode: 0, stdout: _debugOutput);
+        },
+      );
+      await resolver.resolveStreamUrl(title: 'X', episode: 1);
+      expect(capturedExe, 'ani-cli');
+      expect(capturedArgs, ['-S', '1', '-e', '1', 'X']);
+    });
+
+    test('avec shell : exécute sh <script> <args>', () async {
+      String? capturedExe;
+      List<String>? capturedArgs;
+      final resolver = AniCliResolver(
+        aniCliPath: r'C:\Users\me\bin\ani-cli',
+        shell: r'C:\Program Files\Git\usr\bin\sh.exe',
+        runner: (exe, args, {Map<String, String>? environment}) async {
+          capturedExe = exe;
+          capturedArgs = args;
+          return const ProcessResult(exitCode: 0, stdout: _debugOutput);
+        },
+      );
+      await resolver.resolveStreamUrl(title: 'X', episode: 1);
+      expect(capturedExe, r'C:\Program Files\Git\usr\bin\sh.exe');
+      expect(capturedArgs, [r'C:\Users\me\bin\ani-cli', '-S', '1', '-e', '1', 'X']);
+    });
   });
 
   group('parsing de la sortie debug (spike US-00)', () {
