@@ -28,6 +28,11 @@ abstract final class SettingsKeys {
   /// (index 1-based). Ex. `anime_sama_season:105333`.
   static String animeSamaSeasonFor(int anilistId) =>
       'anime_sama_season:$anilistId';
+
+  /// Clé du cache titre anime-sama (normalisé) → anilistId. Évite de relancer
+  /// une recherche AniList à chaque fois. Ex. `anime_sama_anilist:drstone`.
+  static String animeSamaAniListFor(String normalizedTitle) =>
+      'anime_sama_anilist:$normalizedTitle';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].

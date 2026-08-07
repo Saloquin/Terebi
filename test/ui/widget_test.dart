@@ -11,19 +11,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:terebi/src/app/providers.dart';
 import 'package:terebi/src/data/local/database.dart';
-import 'package:terebi/src/data/remote/anilist_client.dart';
 import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/media_repository.dart';
-import 'package:terebi/src/domain/logic/calendar_service.dart';
-import 'package:terebi/src/domain/logic/filter_sort_service.dart';
 import 'package:terebi/src/domain/logic/stats_service.dart';
-import 'package:terebi/src/domain/models/airing_schedule.dart';
 import 'package:terebi/src/domain/models/anime_format.dart';
-import 'package:terebi/src/domain/models/enums.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
 import 'package:terebi/src/domain/models/media.dart';
-import 'package:terebi/src/domain/models/media_relation.dart';
+import 'package:terebi/src/services/animesama_resolver.dart';
 import 'package:terebi/src/services/process_runner.dart';
 import 'package:terebi/src/ui/pages/calendar_page.dart';
 import 'package:terebi/src/ui/pages/catalog_page.dart';
@@ -31,47 +26,6 @@ import 'package:terebi/src/ui/pages/library_page.dart';
 import 'package:terebi/src/ui/pages/settings_page.dart';
 import 'package:terebi/src/ui/pages/stats_page.dart';
 import 'package:terebi/src/ui/widgets/media_card.dart';
-
-// ---------------------------------------------------------------------------
-// Fakes
-// ---------------------------------------------------------------------------
-
-/// Faux AniListClient retournant une liste fixe ou vide.
-class _FakeAniListClient extends AniListClient {
-  final List<Media> searchResults;
-  final List<Media> seasonResults;
-  final Map<int, AiringSchedule?> airingMap;
-
-  _FakeAniListClient({
-    this.searchResults = const [],
-    this.seasonResults = const [],
-  }) : airingMap = const {};
-
-  @override
-  Future<List<Media>> search(String query,
-          {int page = 1, int perPage = 20}) async =>
-      searchResults;
-
-  @override
-  Future<List<Media>> season(AnimeSeason season, int year,
-          {int page = 1, int perPage = 50}) async =>
-      seasonResults;
-
-  @override
-  Future<Media> mediaDetail(int anilistId) async =>
-      searchResults.firstWhere((m) => m.anilistId == anilistId,
-          orElse: () => seasonResults.firstWhere(
-                (m) => m.anilistId == anilistId,
-                orElse: () => _makeMedia(anilistId),
-              ));
-
-  @override
-  Future<List<MediaRelation>> relations(int anilistId) async => const [];
-
-  @override
-  Future<AiringSchedule?> nextAiring(int anilistId) async =>
-      airingMap[anilistId];
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -100,6 +54,16 @@ ListEntry _makeEntry(int mediaId, ListStatus status) => ListEntry(
       mediaId: mediaId,
       status: status,
       updatedAt: DateTime(2024),
+    );
+
+/// Construit un [AnimeSamaResolver] dont le runner renvoie [stdout] figé.
+/// Sert à tester Catalogue/Planning sans réseau ni Python réel.
+AnimeSamaResolver _fakeResolver(String stdout) => AnimeSamaResolver(
+      pythonPath: 'python',
+      wrapperScriptPath: 'w.py',
+      animeSamaScriptPath: 'a.py',
+      runner: (exe, args, {Map<String, String>? environment}) async =>
+          ProcessResult(exitCode: 0, stdout: stdout),
     );
 
 /// Enveloppe un widget dans MaterialApp + ProviderScope avec overrides.
@@ -167,31 +131,34 @@ void main() {
   group('CatalogPage', () {
     testWidgets('affiche l\'état vide au démarrage (aucune recherche)',
         (tester) async {
-      final fakeClient = _FakeAniListClient();
+      final db = TerebiDatabase(NativeDatabase.memory());
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
-          aniListClientProvider.overrideWithValue(fakeClient),
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver('CATALOGUE_JSON: []')),
         ],
       ));
       await tester.pump();
 
       expect(find.byType(TextField), findsOneWidget);
       expect(find.text('Entrez un titre pour rechercher'), findsOneWidget);
+      await db.close();
     });
 
-    testWidgets('affiche les MediaCard quand le client renvoie des résultats',
+    testWidgets('affiche les résultats anime-sama après recherche',
         (tester) async {
-      final medias = [
-        _makeMedia(1, title: 'One Piece', episodes: 1000),
-        _makeMedia(2, title: 'Bleach', episodes: 366),
-      ];
-      final fakeClient = _FakeAniListClient(searchResults: medias);
-
+      final db = TerebiDatabase(NativeDatabase.memory());
+      const out =
+          'CATALOGUE_JSON: [{"title":"One Piece","url":"/catalogue/one-piece/"},'
+          '{"title":"Bleach","url":"/catalogue/bleach/"}]';
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
-          aniListClientProvider.overrideWithValue(fakeClient),
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver(out)),
         ],
       ));
 
@@ -202,17 +169,18 @@ void main() {
 
       expect(find.text('One Piece'), findsOneWidget);
       expect(find.text('Bleach'), findsOneWidget);
-      expect(find.byType(MediaCard), findsNWidgets(2));
+      await db.close();
     });
 
-    testWidgets('affiche "Aucun résultat" quand le client renvoie une liste vide',
+    testWidgets('affiche "Aucun résultat" quand anime-sama renvoie une liste vide',
         (tester) async {
-      final fakeClient = _FakeAniListClient(searchResults: []);
-
+      final db = TerebiDatabase(NativeDatabase.memory());
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
-          aniListClientProvider.overrideWithValue(fakeClient),
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver('CATALOGUE_JSON: []')),
         ],
       ));
 
@@ -222,33 +190,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.textContaining('Aucun résultat'), findsOneWidget);
-    });
-
-    testWidgets('filtre par genre réduit les résultats affichés',
-        (tester) async {
-      final medias = [
-        _makeMedia(1, title: 'Action Anime', genres: ['Action']),
-        _makeMedia(2, title: 'Comedy Anime', genres: ['Comedy']),
-        _makeMedia(3, title: 'Action Comedy', genres: ['Action', 'Comedy']),
-      ];
-      final fakeClient = _FakeAniListClient(searchResults: medias);
-
-      await tester.pumpWidget(_wrap(
-        const CatalogPage(),
-        overrides: [
-          aniListClientProvider.overrideWithValue(fakeClient),
-          filterSortServiceProvider
-              .overrideWithValue(const FilterSortServiceStub()),
-        ],
-      ));
-
-      await tester.enterText(find.byType(TextField), 'anime');
-      await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      // Tous les 3 résultats visibles initialement.
-      expect(find.byType(MediaCard), findsNWidgets(3));
+      await db.close();
     });
   });
 
@@ -351,36 +293,18 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('CalendarPage', () {
-    testWidgets('affiche le toggle Global/Perso', (tester) async {
-      final db = TerebiDatabase(NativeDatabase.memory());
-      final fakeClient = _FakeAniListClient(seasonResults: const []);
-
-      await tester.pumpWidget(ProviderScope(
-        overrides: [
-          databaseProvider.overrideWithValue(db),
-          aniListClientProvider.overrideWithValue(fakeClient),
-        ],
-        child: const MaterialApp(home: Scaffold(body: CalendarPage())),
-      ));
-
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
-
-      // Le toolbar avec les boutons Global/Perso doit être présent.
-      expect(find.text('Global'), findsOneWidget);
-      expect(find.text('Perso'), findsOneWidget);
-      await db.close();
-    });
-
-    testWidgets('affiche le toggle hideUnreleased activé par défaut',
+    testWidgets('affiche les jours et anime du planning anime-sama',
         (tester) async {
       final db = TerebiDatabase(NativeDatabase.memory());
-      final fakeClient = _FakeAniListClient(seasonResults: const []);
+      const out =
+          'PLANNING_JSON: [{"day":"Lundi","time":"18h00","title":"Dr Stone","url":"/catalogue/dr-stone/"},'
+          '{"day":"Mardi","time":"20h00","title":"One Piece","url":"/catalogue/one-piece/"}]';
 
       await tester.pumpWidget(ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
-          aniListClientProvider.overrideWithValue(fakeClient),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver(out)),
         ],
         child: const MaterialApp(home: Scaffold(body: CalendarPage())),
       ));
@@ -388,25 +312,22 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      // Le switch "Masquer les épisodes pas encore sortis" doit être présent.
-      expect(find.textContaining('Masquer les épisodes'), findsOneWidget);
-      // Le switch doit être coché (activé par défaut).
-      final switchWidget = tester.widget<Switch>(find.byType(Switch).first);
-      expect(switchWidget.value, isTrue);
+      expect(find.text('Lundi'), findsOneWidget);
+      expect(find.text('Mardi'), findsOneWidget);
+      expect(find.text('Dr Stone'), findsOneWidget);
+      expect(find.text('One Piece'), findsOneWidget);
+      expect(find.text('18h00'), findsOneWidget);
       await db.close();
     });
 
-    testWidgets('ouvre sur GLOBAL quand perso est vide', (tester) async {
-      // CalendarService retourne isPersonalEmpty=true → ouvre Global.
+    testWidgets('affiche l\'état vide quand le planning est vide',
+        (tester) async {
       final db = TerebiDatabase(NativeDatabase.memory());
-      final fakeClient = _FakeAniListClient(seasonResults: const []);
-
       await tester.pumpWidget(ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
-          aniListClientProvider.overrideWithValue(fakeClient),
-          calendarServiceProvider
-              .overrideWithValue(const CalendarService()),
+          animeSamaResolverProvider.overrideWith(
+              (ref) async => _fakeResolver('RESOLVE_ERROR: planning vide')),
         ],
         child: const MaterialApp(home: Scaffold(body: CalendarPage())),
       ));
@@ -414,10 +335,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      // Avec liste PLANNING vide → calendrier perso vide → affiche Global.
-      // Le SegmentedButton "Global" doit être sélectionné.
-      // On vérifie l'état vide du calendrier global.
-      expect(find.textContaining('Aucune diffusion'), findsOneWidget);
+      // planning() lève ResolveException → état d'erreur.
+      expect(find.textContaining('Planning indisponible'), findsOneWidget);
       await db.close();
     });
   });
@@ -593,11 +512,6 @@ class _FakeMediaRepository extends MediaRepository {
 
   @override
   Stream<List<Media>> watchAllMedia() => const Stream.empty();
-}
-
-/// Stub de FilterSortService pour les tests (délègue à la vraie implémentation).
-class FilterSortServiceStub extends FilterSortService {
-  const FilterSortServiceStub();
 }
 
 // Classe fictive pour satisfaire le super() de ListRepository/MediaRepository

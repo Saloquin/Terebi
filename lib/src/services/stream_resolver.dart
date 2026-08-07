@@ -51,6 +51,57 @@ class AnimeSamaSeason {
   String toString() => '#$index $name';
 }
 
+/// Un anime du catalogue anime-sama (résultat de recherche).
+/// [url] est le path catalogue (ex. `/catalogue/dr-stone/`).
+class AnimeSamaCatalogueItem {
+  final String title;
+  final String url;
+  const AnimeSamaCatalogueItem({required this.title, required this.url});
+
+  @override
+  bool operator ==(Object other) =>
+      other is AnimeSamaCatalogueItem &&
+      other.title == title &&
+      other.url == url;
+
+  @override
+  int get hashCode => Object.hash(title, url);
+
+  @override
+  String toString() => '$title ($url)';
+}
+
+/// Une entrée du planning hebdomadaire anime-sama.
+/// [day] = nom du jour (ex. « Lundi »), [time] = « HHhMM » ou vide si inconnue,
+/// [url] = path catalogue de l'anime.
+class AnimeSamaPlanningItem {
+  final String day;
+  final String time;
+  final String title;
+  final String url;
+
+  const AnimeSamaPlanningItem({
+    required this.day,
+    required this.time,
+    required this.title,
+    required this.url,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      other is AnimeSamaPlanningItem &&
+      other.day == day &&
+      other.time == time &&
+      other.title == title &&
+      other.url == url;
+
+  @override
+  int get hashCode => Object.hash(day, time, title, url);
+
+  @override
+  String toString() => '$day $time — $title';
+}
+
 /// Résout l'URL d'un flux vidéo jouable pour un épisode donné.
 abstract interface class StreamResolver {
   /// Résout l'URL du flux (m3u8/mp4) à jouer dans le lecteur encastré.

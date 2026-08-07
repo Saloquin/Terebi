@@ -32,6 +32,7 @@ import '../services/process_runner.dart';
 import '../services/resolver_assets.dart';
 import '../services/stream_resolver.dart';
 import '../services/system_process_runner.dart';
+import '../services/title_matcher.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
 /// `ProviderScope(overrides: [databaseProvider.overrideWithValue(db)])`
@@ -179,6 +180,15 @@ final animeSamaResolverProvider =
     runner: ref.watch(processRunnerProvider),
   );
 });
+
+/// Rematch titre anime-sama → Media AniList (avec cache titre→anilistId).
+final titleMatcherProvider = Provider<TitleMatcher>(
+  (ref) => TitleMatcher(
+    anilist: ref.watch(aniListClientProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+    mediaRepo: ref.watch(mediaRepositoryProvider),
+  ),
+);
 
 /// Résolveur actif selon le réglage `streamSource` (défaut : anime-sama VOSTFR).
 final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {

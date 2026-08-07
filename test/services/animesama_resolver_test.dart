@@ -124,4 +124,69 @@ void main() {
       expect(captured, containsAllInOrder(['--season', '2']));
     });
   });
+
+  group('search', () {
+    test('parse le catalogue et passe la requête brute', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(
+            exitCode: 0,
+            stdout:
+                'CATALOGUE_JSON: [{"title":"Dr Stone","url":"/catalogue/dr-stone/"},'
+                '{"title":"Dr Stone: Stone Wars","url":"/catalogue/dr-stone/"}]');
+      });
+      final items = await r.search(query: 'dr stone');
+      expect(items.length, 2);
+      expect(items.first,
+          const AnimeSamaCatalogueItem(title: 'Dr Stone', url: '/catalogue/dr-stone/'));
+      expect(captured, containsAllInOrder(['--action', 'search']));
+      // La requête n'est PAS nettoyée (pas de cleanSearchTitle ici).
+      expect(captured, containsAllInOrder(['--title', 'dr stone']));
+    });
+
+    test('liste vide si aucun résultat (pas d\'exception)', () async {
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async =>
+          const ProcessResult(exitCode: 0, stdout: 'CATALOGUE_JSON: []'));
+      final items = await r.search(query: 'zzzz');
+      expect(items, isEmpty);
+    });
+
+    test('lève ResolveException sur RESOLVE_ERROR', () async {
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async =>
+          const ProcessResult(exitCode: 1, stdout: 'RESOLVE_ERROR: catalogue KO'));
+      expect(() => r.search(query: 'x'),
+          throwsA(isA<ResolveException>()));
+    });
+  });
+
+  group('planning', () {
+    const out =
+        'PLANNING_JSON: [{"day":"Lundi","time":"18h00","title":"Dr Stone","url":"/catalogue/dr-stone/"},'
+        '{"day":"Mardi","time":"","title":"One Piece","url":"/catalogue/one-piece/"}]';
+
+    test('parse les items jour/heure/titre/url', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(exitCode: 0, stdout: out);
+      });
+      final items = await r.planning();
+      expect(items.length, 2);
+      expect(items.first,
+          const AnimeSamaPlanningItem(
+              day: 'Lundi',
+              time: '18h00',
+              title: 'Dr Stone',
+              url: '/catalogue/dr-stone/'));
+      expect(items[1].time, ''); // heure inconnue tolérée
+      expect(captured, containsAllInOrder(['--action', 'planning']));
+    });
+
+    test('lève ResolveException si planning vide/erreur', () async {
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async =>
+          const ProcessResult(exitCode: 1, stdout: 'RESOLVE_ERROR: planning KO'));
+      expect(() => r.planning(), throwsA(isA<ResolveException>()));
+    });
+  });
 }

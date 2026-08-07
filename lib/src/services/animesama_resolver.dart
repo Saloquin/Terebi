@@ -42,6 +42,8 @@ class AnimeSamaResolver implements StreamResolver {
   static const _errPrefix = 'RESOLVE_ERROR:';
   static const _seasonsPrefix = 'SEASONS_JSON:';
   static const _episodesPrefix = 'EPISODES_JSON:';
+  static const _cataloguePrefix = 'CATALOGUE_JSON:';
+  static const _planningPrefix = 'PLANNING_JSON:';
 
   /// Args communs (titre nettoyé + langue), pour une [action] donnée.
   List<String> _baseArgs(String action, String title, PlaybackLanguage language) {
@@ -125,6 +127,44 @@ class AnimeSamaResolver implements StreamResolver {
     return const [];
   }
 
+  /// Parse la ligne `CATALOGUE_JSON: [...]` en liste d'items catalogue.
+  List<AnimeSamaCatalogueItem> parseCatalogue(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_cataloguePrefix)) {
+        final jsonStr = line.substring(_cataloguePrefix.length).trim();
+        final list = jsonDecode(jsonStr) as List<dynamic>;
+        return list
+            .map((e) => AnimeSamaCatalogueItem(
+                  title: (e as Map<String, dynamic>)['title'] as String,
+                  url: e['url'] as String,
+                ))
+            .toList();
+      }
+    }
+    return const [];
+  }
+
+  /// Parse la ligne `PLANNING_JSON: [...]` en liste d'items de planning.
+  List<AnimeSamaPlanningItem> parsePlanning(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_planningPrefix)) {
+        final jsonStr = line.substring(_planningPrefix.length).trim();
+        final list = jsonDecode(jsonStr) as List<dynamic>;
+        return list
+            .map((e) => AnimeSamaPlanningItem(
+                  day: (e as Map<String, dynamic>)['day'] as String? ?? '',
+                  time: e['time'] as String? ?? '',
+                  title: e['title'] as String? ?? '',
+                  url: e['url'] as String? ?? '',
+                ))
+            .toList();
+      }
+    }
+    return const [];
+  }
+
   /// Liste les saisons anime-sama d'un [title]. Lève [ResolveException] si échec.
   Future<List<AnimeSamaSeason>> listSeasons({
     required String title,
@@ -151,6 +191,44 @@ class AnimeSamaResolver implements StreamResolver {
     final eps = parseEpisodes(combined);
     if (eps.isNotEmpty) return eps;
     throw ResolveException(parseError(combined) ?? 'Aucun épisode trouvé.');
+  }
+
+  /// Recherche dans le catalogue anime-sama. [query] est utilisé tel quel
+  /// (pas de nettoyage de suffixe de saison, contrairement à `resolve`).
+  Future<List<AnimeSamaCatalogueItem>> search({
+    required String query,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    final args = [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', 'search',
+      '--title', query,
+      if (language == PlaybackLanguage.vf) '--vf',
+    ];
+    final combined = await _run(args);
+    final items = parseCatalogue(combined);
+    if (items.isNotEmpty) return items;
+    // Une recherche sans résultat n'est pas une erreur : liste vide.
+    final err = parseError(combined);
+    if (err != null) throw ResolveException(err);
+    return const [];
+  }
+
+  /// Liste le planning hebdomadaire anime-sama (jour + heure + titre + url).
+  Future<List<AnimeSamaPlanningItem>> planning({
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    final args = [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', 'planning',
+      if (language == PlaybackLanguage.vf) '--vf',
+    ];
+    final combined = await _run(args);
+    final items = parsePlanning(combined);
+    if (items.isNotEmpty) return items;
+    throw ResolveException(parseError(combined) ?? 'Planning indisponible.');
   }
 
   /// Lance le wrapper Python et retourne stdout+stderr combinés.
