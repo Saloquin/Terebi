@@ -74,6 +74,43 @@ void main() {
       expect(cal[DateTime.wednesday]!.length, 1);
     });
 
+    test('hideUnreleased : série EN COURS (ep>=2) reste affichée même si le '
+        'prochain épisode est futur', () {
+      // Un anime déjà commencé : prochain épisode = 5, diffusé plus tard.
+      final ongoing = [sched(50, DateTime.utc(2024, 6, 5, 20), episode: 5)];
+      final now = DateTime.utc(2024, 6, 3); // le prochain ép (mercredi) est futur
+      final cal = svc.weeklyCalendar(
+        schedules: ongoing,
+        localOffset: Duration.zero,
+        now: now,
+        hideUnreleased: true,
+      );
+      expect(cal[DateTime.wednesday]!.length, 1,
+          reason: 'la série a déjà commencé (ep 1-4 sortis) → affichée');
+    });
+
+    test('hideUnreleased : nouvelle saison (ep 1 futur) est masquée (cas Dr. Stone)', () {
+      // Saison qui n'a pas encore commencé : épisode 1 à venir.
+      final upcoming = [sched(60, DateTime.utc(2024, 4, 22, 16), episode: 1)];
+      final weekBefore = DateTime.utc(2024, 4, 15); // une semaine avant
+      final cal = svc.weeklyCalendar(
+        schedules: upcoming,
+        localOffset: Duration.zero,
+        now: weekBefore,
+        hideUnreleased: true,
+      );
+      expect(cal.isEmpty, isTrue, reason: 'épisode 1 pas encore sorti → masquée');
+
+      // Sans le filtre, elle apparaît.
+      final calShown = svc.weeklyCalendar(
+        schedules: upcoming,
+        localOffset: Duration.zero,
+        now: weekBefore,
+        hideUnreleased: false,
+      );
+      expect(calShown.isEmpty, isFalse);
+    });
+
     test('personalOnly ne garde que les mediaIds PLANNING', () {
       final cal = svc.weeklyCalendar(
         schedules: schedules,

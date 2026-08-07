@@ -38,8 +38,10 @@ class CalendarService {
   /// [now]            : instant de référence (UTC) pour le filtre « pas encore sorti ».
   /// [planningMediaIds] : mediaIds en statut PLANNING → calendrier perso.
   /// [personalOnly]   : si vrai, ne garde que les diffusions perso.
-  /// [hideUnreleased] : si vrai (défaut), masque les épisodes dont `airsAt` est
-  ///                    dans le futur par rapport à [now].
+  /// [hideUnreleased] : si vrai (défaut), masque les séries **pas encore
+  ///                    commencées** (dont l'épisode 1 n'est pas diffusé). Une
+  ///                    série déjà en cours reste affichée (voir
+  ///                    [AiringSchedule.hasSeriesStarted]).
   ///
   /// Retourne une map { weekday(1..7) → slots triés par heure locale }.
   Map<Weekday, List<CalendarSlot>> weeklyCalendar({
@@ -54,7 +56,9 @@ class CalendarService {
 
     for (final s in schedules) {
       if (personalOnly && !planningMediaIds.contains(s.mediaId)) continue;
-      if (hideUnreleased && !s.hasAired(now)) continue;
+      // « Masquer pas encore sortis » = masquer les séries pas encore commencées
+      // (dont l'épisode 1 n'est pas diffusé). Une série en cours reste affichée.
+      if (hideUnreleased && !s.hasSeriesStarted(now)) continue;
 
       final local = s.airsAt.toUtc().add(localOffset);
       final weekday = local.weekday; // 1..7

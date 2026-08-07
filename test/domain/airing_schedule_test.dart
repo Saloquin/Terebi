@@ -41,6 +41,26 @@ void main() {
     });
   });
 
+  group('AiringSchedule.hasSeriesStarted', () {
+    final avant = DateTime.utc(2024, 1, 15, 9);
+    final apres = DateTime.utc(2024, 1, 15, 11);
+
+    test('série en cours (prochain ép >= 2) : commencée même si ép futur', () {
+      final s = AiringSchedule(mediaId: 1, episode: 5, airsAt: dateDiffusion);
+      expect(s.hasSeriesStarted(avant), isTrue);
+    });
+
+    test('nouvelle saison (ép 1) pas encore diffusé : pas commencée', () {
+      final s = AiringSchedule(mediaId: 1, episode: 1, airsAt: dateDiffusion);
+      expect(s.hasSeriesStarted(avant), isFalse);
+    });
+
+    test('nouvelle saison (ép 1) déjà diffusé : commencée', () {
+      final s = AiringSchedule(mediaId: 1, episode: 1, airsAt: dateDiffusion);
+      expect(s.hasSeriesStarted(apres), isTrue);
+    });
+  });
+
   group('AiringSchedule round-trip JSON', () {
     test('toJson → fromJson préserve tous les champs', () {
       final original = AiringSchedule(

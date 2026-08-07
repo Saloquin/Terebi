@@ -30,6 +30,18 @@ class AiringSchedule {
   /// (pas d'appel à `DateTime.now()` dans le domaine).
   bool hasAired(DateTime now) => airsAt.isBefore(now) || airsAt == now;
 
+  /// Retourne `true` si la **série a déjà commencé** à être diffusée à [now],
+  /// c.-à-d. qu'au moins l'épisode 1 est sorti.
+  ///
+  /// Comme [airsAt]/[episode] décrivent le *prochain* épisode :
+  /// - si [episode] ≥ 2, les épisodes précédents sont déjà sortis → commencée ;
+  /// - si [episode] == 1, la série commence seulement quand l'épisode 1 sort.
+  ///
+  /// Utilisé pour le filtre « masquer les animes pas encore sortis » : une
+  /// nouvelle saison dont l'épisode 1 est à venir est masquée ; une série déjà
+  /// en cours (prochain épisode = 5, par ex.) reste affichée.
+  bool hasSeriesStarted(DateTime now) => episode >= 2 || hasAired(now);
+
   /// Parse un nœud `AiringSchedule` de la réponse GraphQL AniList.
   ///
   /// Champs attendus : `airingAt` (epoch secondes), `episode`.
