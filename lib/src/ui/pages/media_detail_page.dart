@@ -433,6 +433,7 @@ class _ActionBar extends ConsumerWidget {
                       media: media,
                       episode: resumeEp,
                       entry: currentEntry,
+                      cameFromDetail: true,
                     ),
                   ),
                 );
@@ -732,6 +733,7 @@ class _AnimeSamaSeasonTile extends ConsumerWidget {
           media: media,
           episode: episode,
           entry: entry,
+          cameFromDetail: true,
         ),
       ),
     );

@@ -32,11 +32,18 @@ class PlayerPage extends ConsumerStatefulWidget {
   final int episode;
   final ListEntry entry;
 
+  /// `true` si le lecteur a été ouvert DEPUIS la fiche : le bouton « fiche »
+  /// revient alors à la fiche existante (pop) plutôt que d'en empiler une autre.
+  /// `false` (défaut) quand on vient d'ailleurs (planning) : le bouton remplace
+  /// le lecteur par la fiche (pushReplacement).
+  final bool cameFromDetail;
+
   const PlayerPage({
     super.key,
     required this.media,
     required this.episode,
     required this.entry,
+    this.cameFromDetail = false,
   });
 
   @override
@@ -279,12 +286,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   void _openDetail() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MediaDetailPage(anilistId: widget.media.anilistId),
-      ),
-    );
+    // Dans tous les cas, quitter le lecteur le dispose → _player.dispose()
+    // stoppe la lecture (pas de vidéo qui continue derrière la fiche).
+    if (widget.cameFromDetail && Navigator.canPop(context)) {
+      // On venait de la fiche : y revenir sans en empiler une seconde.
+      Navigator.pop(context);
+    } else {
+      // On venait d'ailleurs (planning…) : remplacer le lecteur par la fiche.
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MediaDetailPage(anilistId: widget.media.anilistId),
+        ),
+      );
+    }
   }
 
   // ---------------------------------------------------------------------------
