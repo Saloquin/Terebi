@@ -1,13 +1,16 @@
 /// Page lecteur — résout l'URL du flux via le résolveur actif (anime-sama ou
-/// ani-cli) et la joue dans le lecteur **media_kit encastré**, avec la règle
-/// « Épisode suivant » (markCurrentWatchedAndAdvance).
+/// ani-cli) et la joue dans le lecteur **media_kit encastré**.
 ///
-/// Flux :
-/// 1. Si la source est anime-sama et aucune saison mémorisée : affiche un dialog
-///    de sélection de saison → mémorise l'index choisi via SettingsRepository.
-/// 2. [activeResolverProvider.resolveStreamUrl] → URL directe du flux HLS.
-/// 3. media_kit ([Player]/[VideoController]) ouvre cette URL → vidéo encastrée.
-/// 4. Fallback : si la résolution échoue, affiche le message d'erreur.
+/// Comportement (retours utilisateur) :
+/// - On arrive avec une **saison** (mémorisée pour ce média, défaut index 1 ;
+///   le choix de saison se fait UNIQUEMENT sur la fiche) et un **épisode** déjà
+///   sélectionnés (le dernier épisode vu, passé par l'appelant).
+/// - La lecture démarre automatiquement au premier affichage.
+/// - Sous la vidéo : une barre de contrôle avec le **nom de la saison** + un
+///   bouton vers la **fiche**, et une navigation d'épisode **`<` / menu
+///   déroulant (épisode courant) / `>`**.
+/// - Avancer (`>` ou choix d'un épisode supérieur) marque l'épisode courant vu
+///   (règle « épisode suivant ») ; reculer ne modifie pas la progression.
 library;
 
 import 'package:flutter/material.dart';
@@ -16,10 +19,12 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../app/providers.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/episode_progress.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../services/stream_resolver.dart';
+import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.
 class PlayerPage extends ConsumerStatefulWidget {
@@ -44,16 +49,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   bool _loading = false;
   bool _ready = false;
+  bool _started = false;
   String? _error;
 
   late int _currentEpisode;
   late ListEntry _currentEntry;
+
+  /// Épisodes disponibles pour la saison courante (anime-sama). Vide si inconnu
+  /// ou si la source est ani-cli.
+  List<int> _episodes = const [];
+
+  /// Nom lisible de la saison courante (anime-sama), ou `null`.
+  String? _seasonName;
 
   @override
   void initState() {
     super.initState();
     _currentEpisode = widget.episode;
     _currentEntry = widget.entry;
+    // Démarre la lecture automatiquement après le premier frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureStarted());
   }
 
   @override
@@ -66,68 +81,34 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   // Logique métier
   // ---------------------------------------------------------------------------
 
+  void _ensureStarted() {
+    if (_started) return;
+    _started = true;
+    _loadAndPlay();
+  }
+
   Future<PlaybackLanguage> _preferredLanguage() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
-    final langStr =
-        await settingsRepo.get('playback_language', defaultValue: 'vostfr');
+    final langStr = await settingsRepo.get(SettingsKeys.playbackLanguage,
+        defaultValue: 'vostfr');
     return langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
   }
 
   /// Détermine si la source active est anime-sama.
   Future<bool> _isAnimeSamaActive() async {
     final settings = ref.read(settingsRepositoryProvider);
-    final source =
-        await settings.get('stream_source', defaultValue: 'animesama');
+    final source = await settings.get(SettingsKeys.streamSource,
+        defaultValue: 'animesama');
     return source != 'ani_cli';
   }
 
-  /// Retourne l'index de saison mémorisé, ou le demande via un dialog.
-  /// Retourne `null` si l'utilisateur annule.
-  Future<int?> _resolveSeasonIndex({required PlaybackLanguage language}) async {
+  /// Index de saison mémorisé pour ce média, ou 1 par défaut.
+  /// Le CHOIX de saison se fait sur la fiche (pas ici).
+  Future<int> _seasonIndex() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
-    final key = 'anime_sama_season:${widget.media.anilistId}';
-
-    // Saison déjà mémorisée ?
+    final key = SettingsKeys.animeSamaSeasonFor(widget.media.anilistId);
     final stored = await settingsRepo.get(key);
-    if (stored != null) {
-      final parsed = int.tryParse(stored);
-      if (parsed != null) return parsed;
-    }
-
-    // Pas encore mémorisée : charger les saisons et afficher le sélecteur.
-    if (!mounted) return null;
-
-    List<AnimeSamaSeason> seasons;
-    try {
-      final resolver = await ref.read(animeSamaResolverProvider.future);
-      seasons = await resolver.listSeasons(
-        title: widget.media.title.preferred,
-        language: language,
-      );
-    } catch (e) {
-      if (!mounted) return null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Impossible de lister les saisons : $e')),
-      );
-      return null;
-    }
-
-    if (!mounted) return null;
-
-    // Si une seule saison, pas besoin de dialog.
-    if (seasons.length == 1) {
-      await settingsRepo.set(key, '${seasons.first.index}');
-      return seasons.first.index;
-    }
-
-    final chosen = await showDialog<AnimeSamaSeason>(
-      context: context,
-      builder: (ctx) => _SeasonPickerDialog(seasons: seasons),
-    );
-    if (chosen == null) return null;
-
-    await settingsRepo.set(key, '${chosen.index}');
-    return chosen.index;
+    return (stored != null ? int.tryParse(stored) : null) ?? 1;
   }
 
   /// Résout l'URL via le résolveur actif et l'ouvre dans le lecteur encastré.
@@ -143,34 +124,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
       int seasonIndex = 1;
       if (isAnimeSama) {
-        final idx = await _resolveSeasonIndex(language: language);
-        if (idx == null) {
-          // Utilisateur a annulé.
-          setState(() => _loading = false);
-          return;
-        }
-        seasonIndex = idx;
-      }
+        seasonIndex = await _seasonIndex();
+        // Charge (best-effort) le nom de la saison + la liste des épisodes.
+        await _loadSeasonMeta(seasonIndex: seasonIndex, language: language);
 
-      // Borne l'épisode via listEpisodes si anime-sama.
-      if (isAnimeSama) {
-        try {
-          final resolver = await ref.read(animeSamaResolverProvider.future);
-          final eps = await resolver.listEpisodes(
-            title: widget.media.title.preferred,
-            seasonIndex: seasonIndex,
-            language: language,
-          );
-          if (eps.isNotEmpty && _currentEpisode > eps.last) {
-            if (!mounted) return;
-            setState(() {
-              _loading = false;
-              _error = 'Épisode $_currentEpisode non disponible (max : ${eps.last}).';
-            });
-            return;
-          }
-        } catch (_) {
-          // listEpisodes optionnel : on continue si ça échoue.
+        // Borne l'épisode courant à la liste connue.
+        if (_episodes.isNotEmpty && _currentEpisode > _episodes.last) {
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+            _error =
+                'Épisode $_currentEpisode non disponible (max : ${_episodes.last}).';
+          });
+          return;
         }
       }
 
@@ -204,119 +170,121 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
   }
 
-  /// Ré-affiche le sélecteur de saison, mémorise le nouveau choix et recharge.
-  Future<void> _changeSeason() async {
-    final settingsRepo = ref.read(settingsRepositoryProvider);
-    final key = 'anime_sama_season:${widget.media.anilistId}';
-    // Efface la saison mémorisée pour forcer le re-sélecteur.
-    await settingsRepo.delete(key);
+  /// Charge le nom de la saison et la liste des épisodes (anime-sama).
+  /// Best-effort : en cas d'échec on garde les valeurs par défaut.
+  Future<void> _loadSeasonMeta({
+    required int seasonIndex,
+    required PlaybackLanguage language,
+  }) async {
+    try {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      final title = widget.media.title.preferred;
+
+      // Nom de la saison (une seule fois, si pas encore connu).
+      if (_seasonName == null) {
+        try {
+          final seasons = await resolver.listSeasons(
+            title: title,
+            language: language,
+          );
+          final match = seasons
+              .where((s) => s.index == seasonIndex)
+              .cast<AnimeSamaSeason?>()
+              .firstWhere((_) => true, orElse: () => null);
+          _seasonName = match?.name ?? 'Saison $seasonIndex';
+        } catch (_) {
+          _seasonName = 'Saison $seasonIndex';
+        }
+      }
+
+      // Liste des épisodes de la saison.
+      final eps = await resolver.listEpisodes(
+        title: title,
+        seasonIndex: seasonIndex,
+        language: language,
+      );
+      if (eps.isNotEmpty) _episodes = eps;
+    } catch (_) {
+      // listSeasons/listEpisodes optionnels : on continue sans.
+    }
+  }
+
+  /// Marque l'épisode courant comme vu et fait avancer la progression.
+  /// Utilisé quand l'utilisateur passe à un épisode supérieur.
+  Future<void> _markCurrentWatched() async {
+    final progressService = ref.read(progressServiceProvider);
+    final listRepo = ref.read(listRepositoryProvider);
+    final progressRepo = ref.read(progressRepositoryProvider);
+    final now = DateTime.now();
+
+    final outcome = progressService.markCurrentWatchedAndAdvance(
+      entry: _currentEntry,
+      media: widget.media,
+      currentEpisode: _currentEpisode,
+      now: now,
+    );
+    await listRepo.upsertEntry(outcome.updatedEntry);
+    await progressRepo.upsertProgress(EpisodeProgress(
+      mediaId: widget.media.anilistId,
+      episodeNumber: _currentEpisode.toDouble(),
+      watched: true,
+      positionSeconds: 0,
+      completedAt: now,
+      updatedAt: now,
+    ));
+    _currentEntry = outcome.updatedEntry;
+
+    if (outcome.justCompleted && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Série terminée !')),
+      );
+    }
+  }
+
+  /// Navigue vers un épisode. Avancer marque l'épisode courant comme vu ;
+  /// reculer ne modifie pas la progression.
+  Future<void> _goToEpisode(int ep) async {
+    if (ep == _currentEpisode) return;
+    if (ep > _currentEpisode) {
+      await _markCurrentWatched();
+    }
+    if (!mounted) return;
     setState(() {
+      _currentEpisode = ep;
       _ready = false;
       _error = null;
     });
     await _loadAndPlay();
   }
 
-  /// Applique la règle « Épisode suivant » : marque vu + progress++, persiste,
-  /// puis charge l'épisode suivant s'il existe (ou termine si saison complète).
-  Future<void> _onNextEpisode() async {
-    // Si anime-sama : vérifie la borne max de la saison courante.
-    final isAnimeSama = await _isAnimeSamaActive();
-    if (isAnimeSama) {
-      try {
-        final language = await _preferredLanguage();
-        final settingsRepo = ref.read(settingsRepositoryProvider);
-        final key = 'anime_sama_season:${widget.media.anilistId}';
-        final stored = await settingsRepo.get(key);
-        final seasonIndex = (stored != null ? int.tryParse(stored) : null) ?? 1;
-
-        final resolver = await ref.read(animeSamaResolverProvider.future);
-        final eps = await resolver.listEpisodes(
-          title: widget.media.title.preferred,
-          seasonIndex: seasonIndex,
-          language: language,
-        );
-        if (eps.isNotEmpty && _currentEpisode >= eps.last) {
-          // Dernier épisode de la saison atteint : on traite comme fin de série.
-          await _markWatched();
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Saison terminée !')),
-          );
-          Navigator.of(context).pop();
-          return;
-        }
-      } catch (_) {
-        // En cas d'erreur listEpisodes, on laisse la logique standard.
-      }
+  /// Épisode précédent dans [_episodes], ou `null` si on est au premier.
+  int? get _prevEpisode {
+    if (_episodes.isEmpty) {
+      return _currentEpisode > 1 ? _currentEpisode - 1 : null;
     }
-
-    final progressService = ref.read(progressServiceProvider);
-    final listRepo = ref.read(listRepositoryProvider);
-    final progressRepo = ref.read(progressRepositoryProvider);
-    final now = DateTime.now();
-
-    final outcome = progressService.markCurrentWatchedAndAdvance(
-      entry: _currentEntry,
-      media: widget.media,
-      currentEpisode: _currentEpisode,
-      now: now,
-    );
-
-    await listRepo.upsertEntry(outcome.updatedEntry);
-    await progressRepo.upsertProgress(EpisodeProgress(
-      mediaId: widget.media.anilistId,
-      episodeNumber: _currentEpisode.toDouble(),
-      watched: true,
-      positionSeconds: 0,
-      completedAt: now,
-      updatedAt: now,
-    ));
-
-    if (!mounted) return;
-
-    if (outcome.justCompleted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Série terminée !')),
-      );
-    }
-
-    if (outcome.nextEpisode != null) {
-      setState(() {
-        _currentEpisode = outcome.nextEpisode!;
-        _currentEntry = outcome.updatedEntry;
-        _ready = false;
-        _error = null;
-      });
-      await _loadAndPlay();
-    } else {
-      Navigator.of(context).pop();
-    }
+    final idx = _episodes.indexOf(_currentEpisode);
+    if (idx > 0) return _episodes[idx - 1];
+    return null;
   }
 
-  /// Marque l'épisode courant comme vu sans avancer (utilisé en fin de saison
-  /// anime-sama quand la borne max est atteinte).
-  Future<void> _markWatched() async {
-    final progressService = ref.read(progressServiceProvider);
-    final listRepo = ref.read(listRepositoryProvider);
-    final progressRepo = ref.read(progressRepositoryProvider);
-    final now = DateTime.now();
+  /// Épisode suivant dans [_episodes], ou `null` si on est au dernier.
+  int? get _nextEpisode {
+    if (_episodes.isEmpty) {
+      // Sans liste connue, on autorise toujours l'avance (borne serveur).
+      return _currentEpisode + 1;
+    }
+    final idx = _episodes.indexOf(_currentEpisode);
+    if (idx >= 0 && idx < _episodes.length - 1) return _episodes[idx + 1];
+    return null;
+  }
 
-    final outcome = progressService.markCurrentWatchedAndAdvance(
-      entry: _currentEntry,
-      media: widget.media,
-      currentEpisode: _currentEpisode,
-      now: now,
+  void _openDetail() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaDetailPage(anilistId: widget.media.anilistId),
+      ),
     );
-    await listRepo.upsertEntry(outcome.updatedEntry);
-    await progressRepo.upsertProgress(EpisodeProgress(
-      mediaId: widget.media.anilistId,
-      episodeNumber: _currentEpisode.toDouble(),
-      watched: true,
-      positionSeconds: 0,
-      completedAt: now,
-      updatedAt: now,
-    ));
   }
 
   // ---------------------------------------------------------------------------
@@ -326,15 +294,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   @override
   Widget build(BuildContext context) {
     final title = widget.media.title.preferred;
-    final totalEp = widget.media.episodes;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          '$title — Épisode $_currentEpisode'
-          '${totalEp != null ? ' / $totalEp' : ''}',
-          overflow: TextOverflow.ellipsis,
-        ),
+        title: Text(title, overflow: TextOverflow.ellipsis),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -368,13 +331,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
-                Text(
-                  'Épisode $_currentEpisode'
-                  '${totalEp != null ? ' sur $totalEp' : ''}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
+                // --- Barre de contrôle : saison + fiche | < menu > ---
+                _ControlBar(
+                  seasonName: _seasonName,
+                  currentEpisode: _currentEpisode,
+                  episodes: _episodes,
+                  enabled: !_loading,
+                  onOpenDetail: _openDetail,
+                  onPrev: _prevEpisode != null
+                      ? () => _goToEpisode(_prevEpisode!)
+                      : null,
+                  onNext: _nextEpisode != null
+                      ? () => _goToEpisode(_nextEpisode!)
+                      : null,
+                  onSelect: (ep) => _goToEpisode(ep),
                 ),
 
                 if (_error != null) ...[
@@ -385,48 +357,25 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                       color: Theme.of(context).colorScheme.errorContainer,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      _error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
-                      textAlign: TextAlign.center,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: TextStyle(
+                              color:
+                                  Theme.of(context).colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _loading ? null : _loadAndPlay,
+                          child: const Text('Réessayer'),
+                        ),
+                      ],
                     ),
                   ),
                 ],
-
-                const SizedBox(height: 20),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: _loading ? null : _loadAndPlay,
-                      icon: _loading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.play_arrow),
-                      label: Text(_ready ? 'Recharger' : 'Lancer l\'épisode'),
-                    ),
-                    if (_ready) ...[
-                      const SizedBox(width: 12),
-                      OutlinedButton.icon(
-                        onPressed: _loading ? null : _onNextEpisode,
-                        icon: const Icon(Icons.skip_next),
-                        label: const Text('Épisode suivant'),
-                      ),
-                    ],
-                    const SizedBox(width: 12),
-                    TextButton.icon(
-                      onPressed: _loading ? null : _changeSeason,
-                      icon: const Icon(Icons.layers_outlined, size: 18),
-                      label: const Text('Changer de saison'),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -437,36 +386,84 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 }
 
 // ---------------------------------------------------------------------------
-// Dialog de sélection de saison
+// Barre de contrôle (saison + fiche | navigation d'épisode)
 // ---------------------------------------------------------------------------
 
-class _SeasonPickerDialog extends StatelessWidget {
-  final List<AnimeSamaSeason> seasons;
+class _ControlBar extends StatelessWidget {
+  final String? seasonName;
+  final int currentEpisode;
+  final List<int> episodes;
+  final bool enabled;
+  final VoidCallback onOpenDetail;
+  final VoidCallback? onPrev;
+  final VoidCallback? onNext;
+  final ValueChanged<int> onSelect;
 
-  const _SeasonPickerDialog({required this.seasons});
+  const _ControlBar({
+    required this.seasonName,
+    required this.currentEpisode,
+    required this.episodes,
+    required this.enabled,
+    required this.onOpenDetail,
+    required this.onPrev,
+    required this.onNext,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Choisir la saison'),
-      content: SizedBox(
-        width: double.minPositive,
-        child: ListView.builder(
-          shrinkWrap: true,
-          itemCount: seasons.length,
-          itemBuilder: (ctx, i) {
-            final s = seasons[i];
-            return ListTile(
-              title: Text(s.name),
-              onTap: () => Navigator.of(ctx).pop(s),
-            );
-          },
+    // Le menu déroulant a besoin que la valeur courante figure dans les items.
+    final items = <int>[
+      if (!episodes.contains(currentEpisode)) currentEpisode,
+      ...episodes,
+    ]..sort();
+
+    return Row(
+      children: [
+        // --- Nom de la saison + accès fiche ---
+        Expanded(
+          child: Row(
+            children: [
+              Flexible(
+                child: Text(
+                  seasonName ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Fiche de l\'anime',
+                onPressed: onOpenDetail,
+              ),
+            ],
+          ),
         ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Annuler'),
+
+        // --- Navigation d'épisode : < menu > ---
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          tooltip: 'Épisode précédent',
+          onPressed: enabled ? onPrev : null,
+        ),
+        DropdownButton<int>(
+          value: currentEpisode,
+          underline: const SizedBox.shrink(),
+          onChanged: enabled
+              ? (ep) {
+                  if (ep != null) onSelect(ep);
+                }
+              : null,
+          items: [
+            for (final ep in items)
+              DropdownMenuItem(value: ep, child: Text('Épisode $ep')),
+          ],
+        ),
+        IconButton(
+          icon: const Icon(Icons.chevron_right),
+          tooltip: 'Épisode suivant',
+          onPressed: enabled ? onNext : null,
         ),
       ],
     );
