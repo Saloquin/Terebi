@@ -46,11 +46,24 @@ class AniListException implements Exception {
       : 'AniListException: $message';
 }
 
+/// Interface commune des sources de données AniList (client direct ou caché).
+///
+/// Permet de substituer un [CachedAniListClient] au [AniListClient] de façon
+/// transparente pour l'UI.
+abstract interface class AniListApi {
+  Future<List<Media>> search(String query, {int page, int perPage});
+  Future<List<Media>> season(AnimeSeason season, int year,
+      {int page, int perPage});
+  Future<Media> mediaDetail(int anilistId);
+  Future<List<MediaRelation>> relations(int anilistId);
+  Future<AiringSchedule?> nextAiring(int anilistId);
+}
+
 /// Client AniList GraphQL.
 ///
 /// Injectez un [http.Client] personnalisé (ex. [MockClient]) pour les tests.
 /// Par défaut, un [http.Client()] réel est utilisé.
-class AniListClient {
+class AniListClient implements AniListApi {
   final http.Client _http;
 
   AniListClient({http.Client? client}) : _http = client ?? http.Client();
@@ -89,6 +102,7 @@ class AniListClient {
   /// Recherche des médias par titre.
   ///
   /// Retourne jusqu'à [perPage] résultats pour la [page] donnée.
+  @override
   Future<List<Media>> search(
     String query, {
     int page = 1,
@@ -111,6 +125,7 @@ class AniListClient {
   }
 
   /// Récupère les animes d'une saison donnée, triés par popularité décroissante.
+  @override
   Future<List<Media>> season(
     AnimeSeason season,
     int year, {
@@ -140,6 +155,7 @@ class AniListClient {
   }
 
   /// Récupère le détail complet d'un média par son ID AniList.
+  @override
   Future<Media> mediaDetail(int anilistId) async {
     const gql = '''
       query(\$id: Int) {
@@ -153,6 +169,7 @@ class AniListClient {
   }
 
   /// Récupère les relations d'un média (suites, préquelles, spin-offs…).
+  @override
   Future<List<MediaRelation>> relations(int anilistId) async {
     const gql = '''
       query(\$id: Int) {
@@ -185,6 +202,7 @@ class AniListClient {
   /// Récupère le prochain épisode à diffuser pour un média.
   ///
   /// Retourne `null` si aucun épisode n'est planifié (média terminé ou film).
+  @override
   Future<AiringSchedule?> nextAiring(int anilistId) async {
     const gql = '''
       query(\$id: Int) {

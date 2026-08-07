@@ -154,6 +154,11 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
               onToggleView: (v) => setState(() => _showGlobal = v),
               onToggleHideUnreleased: (v) =>
                   setState(() => _hideUnreleased = v),
+              onRefresh: () async {
+                // Vide le cache et recharge depuis AniList.
+                await ref.read(metaCacheRepositoryProvider).clear();
+                ref.invalidate(_calendarRawProvider);
+              },
             ),
             Expanded(
               child: calendar.isEmpty
@@ -190,6 +195,7 @@ class _CalendarToolbar extends StatelessWidget {
   final CurrentSeason currentSeason;
   final void Function(bool) onToggleView;
   final void Function(bool) onToggleHideUnreleased;
+  final VoidCallback onRefresh;
 
   const _CalendarToolbar({
     required this.showGlobal,
@@ -197,6 +203,7 @@ class _CalendarToolbar extends StatelessWidget {
     required this.currentSeason,
     required this.onToggleView,
     required this.onToggleHideUnreleased,
+    required this.onRefresh,
   });
 
   @override
@@ -214,6 +221,12 @@ class _CalendarToolbar extends StatelessWidget {
               Text(seasonLabel,
                   style: Theme.of(context).textTheme.titleMedium),
               const Spacer(),
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Rafraîchir',
+                onPressed: onRefresh,
+              ),
+              const SizedBox(width: 4),
               // Toggle global / perso
               SegmentedButton<bool>(
                 segments: const [

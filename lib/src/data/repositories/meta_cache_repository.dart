@@ -46,4 +46,9 @@ class MetaCacheRepository {
           ..where((t) => t.expiresAt.isSmallerOrEqualValue(now)))
         .go();
   }
+
+  /// Supprime TOUTES les entrées de cache (bouton « vider le cache »).
+  Future<void> clear() async {
+    await _db.delete(_db.metaCache).go();
+  }
 }
