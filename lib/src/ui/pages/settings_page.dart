@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/health_service.dart';
+import '../../services/system_process_runner.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -112,6 +113,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ref.invalidate(aniCliResolverProvider);
     ref.invalidate(animeSamaResolverProvider);
     ref.invalidate(activeResolverProvider);
+    // Invalide le cache de chargement pour que la page relise les valeurs
+    // sauvegardées à la prochaine ouverture (sinon champs re-remplis à vide).
+    ref.invalidate(_settingsLoadProvider);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -136,9 +140,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final httpClient = ref.read(httpClientProvider);
       final runner = ref.read(processRunnerProvider);
 
+      // Utilise la même détection que le resolver (sh + vrai script sous Windows)
+      // pour que le health-check reflète le lancement réel d'ani-cli.
+      final aniDefaults = AniCliDefaults.detect();
+      final aniCliPath = aniCli.isEmpty ? aniDefaults.aniCliPath : aniCli;
+
       final service = HealthService(
         runner: runner,
-        aniCliPath: aniCli.isEmpty ? 'ani-cli' : aniCli,
+        aniCliPath: aniCliPath,
+        aniCliShell: aniDefaults.shell,
         mpvPath: mpv.isEmpty ? 'mpv' : mpv,
         hasValidToken: () async {
           final token = await storage.read(key: 'anilist_token');
