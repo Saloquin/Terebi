@@ -4,11 +4,12 @@ library;
 
 import 'package:flutter/material.dart';
 
+import 'pages/calendar_page.dart';
 import 'pages/catalog_page.dart';
 import 'pages/home_page.dart';
 import 'pages/library_page.dart';
-import 'pages/planning_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/stats_page.dart';
 
 /// Une destination de navigation.
 class _Destination {
@@ -32,8 +33,9 @@ class _AppShellState extends State<AppShell> {
   static const _destinations = <_Destination>[
     _Destination(Icons.home_outlined, 'Accueil', HomePage()),
     _Destination(Icons.search, 'Catalogue', CatalogPage()),
-    _Destination(Icons.calendar_month_outlined, 'Planning', PlanningPage()),
+    _Destination(Icons.calendar_month_outlined, 'Calendrier', CalendarPage()),
     _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPage()),
+    _Destination(Icons.bar_chart, 'Stats', StatsPage()),
     _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
   ];
 
