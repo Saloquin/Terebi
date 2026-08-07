@@ -1,5 +1,6 @@
 import 'package:test/test.dart';
 import 'package:terebi/src/services/process_runner.dart';
+import 'package:terebi/src/services/stream_resolver.dart';
 import 'package:terebi/src/services/ani_cli_resolver.dart';
 
 /// Sortie réelle capturée au spike US-00 (mode ANI_CLI_PLAYER=debug), avec
@@ -38,32 +39,6 @@ void main() {
         resolver.buildArgs(title: 'Clevatess Saison 2', episode: 3),
         ['-S', '1', '-e', '3', 'Clevatess'],
       );
-    });
-  });
-
-  group('cleanSearchTitle', () {
-    test('retire « Saison N » / « Season N »', () {
-      expect(AniCliResolver.cleanSearchTitle('Clevatess Saison 2'), 'Clevatess');
-      expect(AniCliResolver.cleanSearchTitle('Bleach Season 3'), 'Bleach');
-    });
-
-    test('retire « Nth Season »', () {
-      expect(AniCliResolver.cleanSearchTitle('Overlord 2nd Season'), 'Overlord');
-    });
-
-    test('retire « Part N » / « Partie N »', () {
-      expect(AniCliResolver.cleanSearchTitle('Attack on Titan Part 2'), 'Attack on Titan');
-    });
-
-    test('retire un sous-titre après « : »', () {
-      expect(
-        AniCliResolver.cleanSearchTitle('Fate/stay night: Heaven\'s Feel'),
-        'Fate/stay night',
-      );
-    });
-
-    test('laisse un titre simple intact', () {
-      expect(AniCliResolver.cleanSearchTitle('One Piece'), 'One Piece');
     });
   });
 

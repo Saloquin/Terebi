@@ -25,6 +25,10 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
       SettingsKeys.playbackLanguage,
       defaultValue: 'vostfr',
     ),
+    SettingsKeys.streamSource:
+        await repo.get(SettingsKeys.streamSource, defaultValue: 'animesama'),
+    SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
+    SettingsKeys.animeSamaScript: await repo.get(SettingsKeys.animeSamaScript),
   };
 });
 
@@ -43,7 +47,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   final _aniCliCtrl = TextEditingController();
   final _mpvCtrl = TextEditingController();
   final _tokenCtrl = TextEditingController();
+  final _pythonCtrl = TextEditingController();
+  final _animeSamaCtrl = TextEditingController();
   bool _isVf = false;
+  // Source de lecture : 'animesama' (VOSTFR/VF) ou 'ani_cli' (anglais).
+  String _source = 'animesama';
   bool _initialized = false;
 
   // Health-check state
@@ -56,6 +64,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _aniCliCtrl.dispose();
     _mpvCtrl.dispose();
     _tokenCtrl.dispose();
+    _pythonCtrl.dispose();
+    _animeSamaCtrl.dispose();
     super.dispose();
   }
 
@@ -73,6 +83,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _aniCliCtrl.text = settings[SettingsKeys.aniCliPath] ?? 'ani-cli';
     _mpvCtrl.text = settings[SettingsKeys.mpvPath] ?? 'mpv';
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
+    _source = settings[SettingsKeys.streamSource] ?? 'animesama';
+    _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
+    _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
   }
 
   Future<void> _save() async {
@@ -83,6 +96,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       SettingsKeys.playbackLanguage,
       _isVf ? 'vf' : 'vostfr',
     );
+    await repo.set(SettingsKeys.streamSource, _source);
+    await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
+    await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
     final token = _tokenCtrl.text.trim();
     final storage = ref.read(secureStorageProvider);
@@ -92,8 +108,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       await storage.write(key: 'anilist_token', value: token);
     }
 
-    // Invalide le resolver pour qu'il recharge les chemins.
+    // Invalide les resolvers pour qu'ils rechargent chemins et source.
     ref.invalidate(aniCliResolverProvider);
+    ref.invalidate(animeSamaResolverProvider);
+    ref.invalidate(activeResolverProvider);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -185,6 +203,40 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             children: [
               Text('Paramètres',
                   style: Theme.of(context).textTheme.headlineMedium),
+              const SizedBox(height: 24),
+
+              // --- Source de lecture ---
+              _SectionTitle('Source de lecture'),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                      value: 'animesama',
+                      label: Text('Anime-sama (VOSTFR/VF)')),
+                  ButtonSegment(
+                      value: 'ani_cli', label: Text('ani-cli (anglais)')),
+                ],
+                selected: {_source},
+                onSelectionChanged: (s) => setState(() => _source = s.first),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Anime-sama fournit du VOSTFR/VF (nécessite Python + le projet '
+                'animesama-cli). ani-cli fournit de la VO sous-titrée anglais.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              _PathField(
+                label: 'Chemin Python (optionnel)',
+                hint: 'python',
+                controller: _pythonCtrl,
+              ),
+              const SizedBox(height: 12),
+              _PathField(
+                label: 'Chemin anime_sama.py (si non détecté)',
+                hint: r'…\animesama-cli\anime_sama.py',
+                controller: _animeSamaCtrl,
+              ),
               const SizedBox(height: 24),
 
               // --- Chemins externes ---

@@ -26,8 +26,11 @@ import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
 import '../domain/logic/calendar_service.dart';
 import '../services/ani_cli_resolver.dart';
+import '../services/animesama_resolver.dart';
 import '../services/health_service.dart';
 import '../services/process_runner.dart';
+import '../services/resolver_assets.dart';
+import '../services/stream_resolver.dart';
 import '../services/system_process_runner.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
@@ -147,6 +150,45 @@ final aniCliResolverProvider = FutureProvider<AniCliResolver>((ref) async {
     shell: (shell != null && shell.isEmpty) ? null : shell,
     runner: ref.watch(processRunnerProvider),
   );
+});
+
+/// Résolveur anime-sama (VOSTFR/VF) via le wrapper Python.
+/// Chemins Python/anime_sama.py depuis les Paramètres, sinon détection auto.
+final animeSamaResolverProvider =
+    FutureProvider<AnimeSamaResolver>((ref) async {
+  final settings = ref.watch(settingsRepositoryProvider);
+  final defaults = AnimeSamaDefaults.detect();
+
+  final manualPython = await settings.get(SettingsKeys.pythonPath);
+  final python = (manualPython != null && manualPython.isNotEmpty)
+      ? manualPython
+      : defaults.pythonPath;
+
+  final manualScript = await settings.get(SettingsKeys.animeSamaScript);
+  final animeSamaScript = (manualScript != null && manualScript.isNotEmpty)
+      ? manualScript
+      : defaults.animeSamaScriptPath;
+
+  // Wrapper Python extrait des assets vers le disque.
+  final wrapper = await ensureWrapperScript();
+
+  return AnimeSamaResolver(
+    pythonPath: python,
+    wrapperScriptPath: wrapper,
+    animeSamaScriptPath: animeSamaScript,
+    runner: ref.watch(processRunnerProvider),
+  );
+});
+
+/// Résolveur actif selon le réglage `streamSource` (défaut : anime-sama VOSTFR).
+final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {
+  final settings = ref.watch(settingsRepositoryProvider);
+  final source = await settings.get(SettingsKeys.streamSource,
+      defaultValue: 'animesama');
+  if (source == 'ani_cli') {
+    return ref.watch(aniCliResolverProvider.future);
+  }
+  return ref.watch(animeSamaResolverProvider.future);
 });
 
 /// Service health-check câblé sur toutes les sondes réelles.

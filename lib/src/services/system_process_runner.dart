@@ -47,6 +47,77 @@ Future<ProcessResult> systemProcessRunner(
   );
 }
 
+/// Valeurs par défaut pour AnimeSamaResolver : Python + chemin anime_sama.py.
+///
+/// Détection automatique au démarrage ; si un chemin est introuvable il reste
+/// vide (`''`) et l'utilisateur devra le renseigner dans les Paramètres.
+class AnimeSamaDefaults {
+  /// Exécutable Python (`python` sous Windows, `python3` sinon, ou path absolu).
+  final String pythonPath;
+
+  /// Chemin du script `anime_sama.py` du projet animesama-cli installé.
+  /// Vide (`''`) si introuvable — à renseigner dans les Paramètres.
+  final String animeSamaScriptPath;
+
+  const AnimeSamaDefaults({
+    required this.pythonPath,
+    required this.animeSamaScriptPath,
+  });
+
+  /// Détecte Python et anime_sama.py sur la machine courante.
+  ///
+  /// **Python** : sous Windows on préfère `python` (Microsoft Store / officiel) ;
+  /// sous Linux/macOS on préfère `python3`.
+  ///
+  /// **anime_sama.py** : cherche dans les emplacements plausibles d'une install
+  /// pipx ou scoop d'animesama-cli. Si introuvable, renvoie `''`.
+  static AnimeSamaDefaults detect() {
+    final python = io.Platform.isWindows ? 'python' : 'python3';
+
+    final home = io.Platform.environment['USERPROFILE'] ??
+        io.Platform.environment['HOME'] ??
+        '';
+    final scoop = io.Platform.environment['SCOOP'] ??
+        (home.isNotEmpty ? '$home\\scoop' : '');
+    final localAppData = io.Platform.environment['LOCALAPPDATA'] ?? '';
+
+    // Emplacements plausibles d'anime_sama.py (pipx, scoop, install manuelle).
+    final candidates = <String>[
+      // pipx sous Windows (%LOCALAPPDATA%\pipx\venvs\animesama-cli\...)
+      if (localAppData.isNotEmpty)
+        '$localAppData\\pipx\\venvs\\animesama-cli\\Lib\\site-packages\\anime_sama.py',
+      // pipx sous Linux/macOS (~/.local/pipx/venvs/...)
+      if (home.isNotEmpty)
+        '$home/.local/pipx/venvs/animesama-cli/lib/python3.12/site-packages/anime_sama.py',
+      if (home.isNotEmpty)
+        '$home/.local/pipx/venvs/animesama-cli/lib/python3.11/site-packages/anime_sama.py',
+      if (home.isNotEmpty)
+        '$home/.local/pipx/venvs/animesama-cli/lib/python3.10/site-packages/anime_sama.py',
+      // scoop sous Windows
+      if (scoop.isNotEmpty)
+        '$scoop\\apps\\animesama-cli\\current\\anime_sama.py',
+      // install manuelle dans ~/bin ou ~/.local/bin
+      if (home.isNotEmpty) '$home\\bin\\anime_sama.py',
+      if (home.isNotEmpty) '$home/.local/bin/anime_sama.py',
+      // site-packages standard (pip install --user)
+      if (home.isNotEmpty)
+        '$home/AppData/Roaming/Python/Python312/site-packages/anime_sama.py',
+      if (home.isNotEmpty)
+        '$home/AppData/Roaming/Python/Python311/site-packages/anime_sama.py',
+    ];
+
+    final scriptPath = candidates.firstWhere(
+      (p) => io.File(p).existsSync(),
+      orElse: () => '',
+    );
+
+    return AnimeSamaDefaults(
+      pythonPath: python,
+      animeSamaScriptPath: scriptPath,
+    );
+  }
+}
+
 /// Valeurs par défaut plateforme pour lancer ani-cli.
 ///
 /// Sous **Windows**, ani-cli est un script shell exécuté via `sh` (Git Bash) ;

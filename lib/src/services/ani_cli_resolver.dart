@@ -10,36 +10,11 @@
 library;
 
 import 'process_runner.dart';
-
-/// Langue de piste demandée à ani-cli.
-enum PlaybackLanguage {
-  /// Version originale sous-titrée français.
-  vostfr,
-
-  /// Version française doublée.
-  vf,
-}
-
-/// Un lien de flux résolu par ani-cli, avec sa qualité (ex. `1080p`).
-class StreamLink {
-  final String quality;
-  final String url;
-  const StreamLink({required this.quality, required this.url});
-
-  @override
-  String toString() => '$quality → $url';
-}
-
-/// Exception levée quand ani-cli échoue ou ne renvoie pas de résultat exploitable.
-class ResolveException implements Exception {
-  final String message;
-  const ResolveException(this.message);
-  @override
-  String toString() => 'ResolveException: $message';
-}
+import 'stream_resolver.dart';
+import 'title_utils.dart';
 
 /// Résout et lance un épisode via ani-cli.
-class AniCliResolver {
+class AniCliResolver implements StreamResolver {
   /// Chemin (ou nom) de l'exécutable/script ani-cli.
   final String aniCliPath;
 
@@ -60,24 +35,8 @@ class AniCliResolver {
     required this.runner,
   });
 
-  /// Nettoie un titre AniList pour la recherche ani-cli : retire les suffixes de
-  /// saison (« Saison 2 », « Season 2 », « 2nd Season », « Part 2 », chiffres
-  /// romains…) qu'ani-cli ne comprend pas (il cherche le titre de base).
-  static String cleanSearchTitle(String title) {
-    var t = title.trim();
-    // Retire les motifs de saison/partie en fin de titre (insensible à la casse).
-    final patterns = <RegExp>[
-      RegExp(r'\s+(saison|season)\s+\d+$', caseSensitive: false),
-      RegExp(r'\s+\d+(st|nd|rd|th)\s+season$', caseSensitive: false),
-      RegExp(r'\s+(part|partie)\s+\d+$', caseSensitive: false),
-      RegExp(r'\s+(season|saison)\s+[ivx]+$', caseSensitive: false),
-      RegExp(r'\s*:\s*.*$'), // sous-titre après ':' (souvent le nom d'arc)
-    ];
-    for (final p in patterns) {
-      t = t.replaceAll(p, '');
-    }
-    return t.trim();
-  }
+  /// Nettoie un titre pour la recherche ani-cli (délègue à [cleanSearchTitle]).
+  static String cleanTitle(String title) => cleanSearchTitle(title);
 
   /// Décompose l'appel effectif en (exécutable, arguments) selon [shell].
   /// Avec un shell défini : `sh <script> <args…>`. Sinon : `<script> <args…>`.
@@ -144,10 +103,13 @@ class AniCliResolver {
   /// Résout l'URL du flux **sans lancer de lecteur** (mode `ANI_CLI_PLAYER=debug`).
   /// Retourne l'URL sélectionnée (à jouer dans media_kit encastré).
   ///
+  /// [season] est ignoré : ani-cli/allanime utilise une numérotation absolue.
   /// Lève [ResolveException] si ani-cli échoue ou n'imprime aucune URL.
+  @override
   Future<String> resolveStreamUrl({
     required String title,
     required int episode,
+    int season = 1,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     final args = buildArgs(title: title, episode: episode, language: language);

@@ -170,6 +170,28 @@ Terebi capture pour alimenter le lecteur encastré.
 
 ---
 
+## VOSTFR (anime-sama) — source de lecture française
+
+Par défaut, Terebi lit en **VOSTFR/VF** via **anime-sama**, en s'appuyant sur le projet
+**animesama-cli** (Python). ani-cli reste disponible en secours (VO sous-titrée **anglais**).
+
+1. **Python 3** : <https://www.python.org/downloads/> (ou `winget install Python.Python.3.12`).
+2. **Dépendances Python** :
+   ```powershell
+   pip install requests beautifulsoup4
+   ```
+3. **animesama-cli** (fournit `anime_sama.py`) : <https://github.com/Miro-sh/animesama-cli>
+   ```powershell
+   pipx install animesama-cli   # ou : git clone puis noter le chemin de anime_sama.py
+   ```
+4. Dans **Terebi → Paramètres → Source de lecture** : choisir « Anime-sama (VOSTFR/VF) ».
+   Si le chemin de `anime_sama.py` n'est pas détecté automatiquement, renseigne-le dans le
+   champ prévu (ex. le fichier `anime_sama.py` du dépôt cloné ou de l'install pipx).
+
+> Pour basculer en anglais (ani-cli) : Paramètres → Source de lecture → « ani-cli (anglais) ».
+
+---
+
 ## Références
 
 - Flutter (install Windows desktop) : <https://docs.flutter.dev/get-started/install/windows/desktop>

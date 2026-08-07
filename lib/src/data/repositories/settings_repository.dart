@@ -14,6 +14,15 @@ abstract final class SettingsKeys {
 
   /// Chemin d'un shell POSIX (`sh`) pour exécuter le script ani-cli sous Windows.
   static const String shellPath = 'shell_path';
+
+  /// Source de lecture active : 'animesama' (défaut) | 'ani_cli'.
+  static const String streamSource = 'stream_source';
+
+  /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
+  static const String pythonPath = 'python_path';
+
+  /// Chemin du script `anime_sama.py` du projet animesama-cli installé.
+  static const String animeSamaScript = 'anime_sama_script';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].

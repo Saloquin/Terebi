@@ -21,6 +21,8 @@ import '../../domain/models/episode_progress.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../services/ani_cli_resolver.dart';
+import '../../services/stream_resolver.dart';
+import '../../services/title_utils.dart';
 
 /// Page de lecture d'un épisode.
 class PlayerPage extends ConsumerStatefulWidget {
@@ -82,12 +84,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     });
 
     try {
-      final resolver = await ref.read(aniCliResolverProvider.future);
+      final resolver = await ref.read(activeResolverProvider.future);
       final language = await _preferredLanguage();
 
+      // Déduit le titre de base + n° de saison depuis le titre AniList
+      // (ex. « Dr Stone Saison 2 » → base « Dr Stone », saison 2).
+      final ts = parseSeasonFromTitle(widget.media.title.preferred);
+
       final url = await resolver.resolveStreamUrl(
-        title: widget.media.title.preferred,
+        title: ts.baseTitle,
         episode: _currentEpisode,
+        season: ts.season,
         language: language,
       );
 
