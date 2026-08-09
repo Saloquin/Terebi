@@ -271,8 +271,9 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
   bool _busy = false;
 
   /// Rematch AniList à la demande (utilise le cache du provider si déjà résolu).
-  Future<Media?> _resolveMedia() =>
-      ref.read(titleMatcherProvider).match(widget.item.title);
+  /// Résout le média (jamais null) : AniList si connu, sinon Media anime-sama.
+  Future<Media> _resolveMedia() =>
+      ref.read(titleMatcherProvider).resolve(widget.item.title);
 
   Future<void> _launch() async {
     if (_busy) return;
@@ -280,12 +281,6 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final media = await _resolveMedia();
-      if (media == null) {
-        messenger.showSnackBar(SnackBar(
-          content: Text('« ${widget.item.title} » introuvable sur AniList.'),
-        ));
-        return;
-      }
       await _memorizeCurrentSeason(media.anilistId);
 
       final listRepo = ref.read(listRepositoryProvider);
@@ -339,12 +334,6 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final media = await _resolveMedia();
-      if (media == null) {
-        messenger.showSnackBar(SnackBar(
-          content: Text('« ${widget.item.title} » introuvable sur AniList.'),
-        ));
-        return;
-      }
       final listRepo = ref.read(listRepositoryProvider);
       await ref.read(mediaRepositoryProvider).upsertMedia(media);
       final existing = await listRepo.getEntry(media.anilistId);

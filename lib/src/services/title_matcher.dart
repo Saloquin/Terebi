@@ -64,4 +64,27 @@ class TitleMatcher {
     final norm = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
     return SettingsKeys.animeSamaAniListFor(norm);
   }
+
+  /// Résout un titre anime-sama en [Media] exploitable — **jamais null**.
+  ///
+  /// anime-sama est la source de vérité : si AniList reconnaît le titre, on
+  /// enrichit avec ses métadonnées (image/description) ; sinon on fabrique un
+  /// [Media.fromAnimeSama] avec un id négatif stable. Dans les deux cas le
+  /// média porte [animeSamaTitle] et est persisté localement.
+  Future<Media> resolve(String animeSamaTitle) async {
+    Media? matched;
+    try {
+      matched = await match(animeSamaTitle);
+    } catch (_) {
+      matched = null; // AniList indisponible → fallback anime-sama.
+    }
+
+    final media = (matched != null)
+        ? matched.withAnimeSamaTitle(animeSamaTitle)
+        : Media.fromAnimeSama(title: animeSamaTitle);
+
+    // Persiste (met à jour animeSamaTitle / crée l'entrée fallback).
+    await mediaRepo.upsertMedia(media);
+    return media;
+  }
 }

@@ -6,11 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
-import '../../domain/logic/franchise_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
-import '../../domain/models/media_relation.dart';
 import '../../services/stream_resolver.dart';
 import 'library_page.dart';
 import 'player_page.dart';
@@ -19,9 +17,22 @@ import 'player_page.dart';
 // Providers locaux
 // ---------------------------------------------------------------------------
 
+/// Charge le média : **cache local d'abord** (source de vérité anime-sama), puis
+/// AniList seulement en bonus si absent du cache ET id réel (> 0). Retourne
+/// `null` si rien trouvé → le widget fabrique un Media minimal depuis le titre.
 final _mediaDetailProvider =
-    FutureProvider.family<Media, int>((ref, id) async {
-  return ref.watch(aniListClientProvider).mediaDetail(id);
+    FutureProvider.family<Media?, int>((ref, id) async {
+  final local = await ref.watch(mediaRepositoryProvider).getMedia(id);
+  if (local != null) return local;
+  // Id négatif = anime hors-AniList → ne pas appeler AniList.
+  if (id <= 0) return null;
+  try {
+    final media = await ref.watch(aniListClientProvider).mediaDetail(id);
+    await ref.read(mediaRepositoryProvider).upsertMedia(media);
+    return media;
+  } catch (_) {
+    return null; // AniList indisponible → fiche minimale.
+  }
 });
 
 
@@ -36,62 +47,6 @@ final _animeSamaSeasonsProvider =
     FutureProvider.family<List<AnimeSamaSeason>, String>((ref, title) async {
   final resolver = await ref.watch(animeSamaResolverProvider.future);
   return resolver.listSeasons(title: title);
-});
-
-/// Provider auto-replanif : calcule les suites à proposer pour [anilistId].
-///
-/// Retourne les [Media] des suites non suivies d'un média COMPLETED.
-final _sequelsToReplanProvider =
-    FutureProvider.family<List<Media>, int>((ref, anilistId) async {
-  final anilist = ref.watch(aniListClientProvider);
-  final listRepo = ref.watch(listRepositoryProvider);
-  final franchiseService = ref.watch(franchiseServiceProvider);
-
-  // Charge les relations du média courant.
-  final relations = await anilist.relations(anilistId);
-  final sequelRelations =
-      relations.where((r) => r.type == RelationType.sequel).toList();
-  if (sequelRelations.isEmpty) return const [];
-
-  // Charge les médias des suites.
-  final sequelMediaList = <Media>[];
-  for (final rel in sequelRelations) {
-    try {
-      final m = await anilist.mediaDetail(rel.relatedMediaId);
-      sequelMediaList.add(m);
-    } catch (_) {
-      // Ignore erreurs individuelles.
-    }
-  }
-  if (sequelMediaList.isEmpty) return const [];
-
-  // Construit les FranchiseItems.
-  final allMediaIds = [anilistId, ...sequelMediaList.map((m) => m.anilistId)];
-  final items = <FranchiseItem>[];
-  for (final id in allMediaIds) {
-    Media? media;
-    if (id == anilistId) {
-      // On a déjà les données du média courant via le parent, mais on refetch.
-      try {
-        media = await anilist.mediaDetail(id);
-      } catch (_) {
-        continue;
-      }
-    } else {
-      media = sequelMediaList.firstWhere((m) => m.anilistId == id);
-    }
-    final entry = await listRepo.getEntry(id);
-    items.add(FranchiseItem(media: media, entry: entry));
-  }
-
-  final toReplan = franchiseService.sequelsToReplan(
-    items: items,
-    relations: relations,
-  );
-
-  return sequelMediaList
-      .where((m) => toReplan.contains(m.anilistId))
-      .toList();
 });
 
 /// Titres normalisés présents au planning anime-sama (diffusion en cours).
@@ -136,39 +91,34 @@ class MediaDetailPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: displayTitle != null
-            ? Text(displayTitle!, overflow: TextOverflow.ellipsis)
-            : mediaAsync.maybeWhen(
-                data: (m) =>
-                    Text(m.title.preferred, overflow: TextOverflow.ellipsis),
-                orElse: () => const Text('Détail'),
-              ),
+        title: Text(
+          _titleFor(mediaAsync.asData?.value),
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       body: mediaAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.error_outline,
-                    size: 48, color: Colors.redAccent),
-                const SizedBox(height: 12),
-                Text('Impossible de charger le média',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(err.toString(),
-                    textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall),
-              ],
-            ),
-          ),
+        // Jamais bloquant : en cas d'erreur, on retombe sur un média minimal.
+        error: (_, __) => _DetailBody(
+          media: _fallbackMedia(),
+          displayTitle: displayTitle,
         ),
-        data: (media) => _DetailBody(media: media, displayTitle: displayTitle),
+        data: (media) => _DetailBody(
+          media: media ?? _fallbackMedia(),
+          displayTitle: displayTitle,
+        ),
       ),
     );
   }
+
+  /// Titre affiché : priorité au titre anime-sama (source de vérité).
+  String _titleFor(Media? m) =>
+      displayTitle ?? m?.animeSamaTitle ?? m?.title.preferred ?? 'Détail';
+
+  /// Média minimal quand AniList ne fournit rien (id négatif ou hors-ligne).
+  Media _fallbackMedia() => displayTitle != null
+      ? Media.fromAnimeSama(title: displayTitle!)
+      : Media(anilistId: anilistId, title: const MediaTitle(romaji: 'Anime'));
 }
 
 // ---------------------------------------------------------------------------
@@ -234,10 +184,6 @@ class _DetailBody extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                 ],
-
-                // --- Auto-replanif (suites disponibles non suivies) ---
-                _ReplanSection(anilistId: media.anilistId),
-                const SizedBox(height: 8),
 
                 // --- Saisons anime-sama (seul point de choix de saison) ---
                 _AnimeSamaSeasonsSection(
@@ -568,118 +514,6 @@ class _SynopsisText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(_clean, style: Theme.of(context).textTheme.bodyMedium);
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Section auto-replanif (US-46)
-// ---------------------------------------------------------------------------
-
-/// Encart "Nouvelle saison disponible" affiché si des suites sont disponibles
-/// et non encore suivies, après avoir complété le média [anilistId].
-class _ReplanSection extends ConsumerWidget {
-  final int anilistId;
-  const _ReplanSection({required this.anilistId});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sequelsAsync = ref.watch(_sequelsToReplanProvider(anilistId));
-
-    return sequelsAsync.maybeWhen(
-      data: (sequels) {
-        if (sequels.isEmpty) return const SizedBox.shrink();
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Nouvelle saison disponible',
-                style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            for (final media in sequels)
-              _ReplanCard(media: media),
-            const SizedBox(height: 8),
-          ],
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _ReplanCard extends ConsumerStatefulWidget {
-  final Media media;
-  const _ReplanCard({required this.media});
-
-  @override
-  ConsumerState<_ReplanCard> createState() => _ReplanCardState();
-}
-
-class _ReplanCardState extends ConsumerState<_ReplanCard> {
-  bool _added = false;
-
-  Future<void> _addToPlanning() async {
-    final repo = ref.read(listRepositoryProvider);
-    final existing = await repo.getEntry(widget.media.anilistId);
-    final entry = existing?.copyWith(
-          status: ListStatus.planning,
-          updatedAt: DateTime.now(),
-        ) ??
-        ListEntry(
-          mediaId: widget.media.anilistId,
-          status: ListStatus.planning,
-          updatedAt: DateTime.now(),
-        );
-    await repo.upsertEntry(entry);
-    if (mounted) {
-      setState(() => _added = true);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-              '« ${widget.media.title.preferred} » ajouté en Planifié'),
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      color: Theme.of(context).colorScheme.secondaryContainer,
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: widget.media.coverUrl != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  widget.media.coverUrl!,
-                  width: 40,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const SizedBox(width: 40, height: 56),
-                ),
-              )
-            : const Icon(Icons.new_releases_outlined),
-        title: Text(widget.media.title.preferred,
-            maxLines: 1, overflow: TextOverflow.ellipsis),
-        subtitle: Text(
-          _added ? 'Ajouté en Planifié' : 'Suite disponible — Ajouter à voir ?',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        trailing: _added
-            ? const Icon(Icons.check_circle, color: Colors.green)
-            : FilledButton.tonal(
-                onPressed: _addToPlanning,
-                child: const Text('À voir'),
-              ),
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) =>
-                MediaDetailPage(anilistId: widget.media.anilistId),
-          ),
-        ),
-      ),
-    );
   }
 }
 

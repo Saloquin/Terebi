@@ -38,6 +38,7 @@ class MediaRepository {
         description: Value(m.description),
         genresJson: Value(jsonEncode(m.genres)),
         averageScore: Value(m.averageScore),
+        animeSamaTitle: Value(m.animeSamaTitle),
         updatedAt: Value(DateTime.now().toUtc()),
       );
 
@@ -64,6 +65,7 @@ class MediaRepository {
             .map((e) => e as String)
             .toList(),
         averageScore: row.averageScore,
+        animeSamaTitle: row.animeSamaTitle,
       );
 
   // ---------------------------------------------------------------------------

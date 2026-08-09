@@ -5,6 +5,7 @@ library;
 
 import 'anime_format.dart';
 import 'enums.dart';
+import '../logic/anime_id.dart';
 
 /// Titres d'un média dans ses différentes langues.
 class MediaTitle {
@@ -66,6 +67,10 @@ class Media {
   /// Numéro du prochain épisode à diffuser, ou `null`.
   final int? nextAiringEpisode;
 
+  /// Titre anime-sama de référence (source de vérité pour la résolution des
+  /// saisons/épisodes). `null` si le média vient uniquement d'AniList.
+  final String? animeSamaTitle;
+
   const Media({
     required this.anilistId,
     this.malId,
@@ -83,7 +88,22 @@ class Media {
     this.averageScore,
     this.nextAiringAt,
     this.nextAiringEpisode,
+    this.animeSamaTitle,
   });
+
+  /// Construit un [Media] minimal depuis un titre **anime-sama**, quand aucune
+  /// correspondance AniList n'existe. L'identité ([anilistId]) est un entier
+  /// négatif stable dérivé du titre (cf. [animeSamaIdFor]).
+  factory Media.fromAnimeSama({
+    required String title,
+    String? coverUrl,
+  }) =>
+      Media(
+        anilistId: animeSamaIdFor(title),
+        title: MediaTitle(romaji: title, english: title),
+        coverUrl: coverUrl,
+        animeSamaTitle: title,
+      );
 
   /// `true` si c'est un film (média unique, pas d'« épisode suivant »).
   bool get isMovie => format == AnimeFormat.movie;
@@ -124,6 +144,27 @@ class Media {
     return DateTime.fromMillisecondsSinceEpoch(at * 1000, isUtc: true);
   }
 
+  /// Retourne une copie du média avec le [animeSamaTitle] renseigné.
+  Media withAnimeSamaTitle(String samaTitle) => Media(
+        anilistId: anilistId,
+        malId: malId,
+        title: title,
+        format: format,
+        status: status,
+        episodes: episodes,
+        durationMinutes: durationMinutes,
+        season: season,
+        seasonYear: seasonYear,
+        coverUrl: coverUrl,
+        bannerUrl: bannerUrl,
+        description: description,
+        genres: genres,
+        averageScore: averageScore,
+        nextAiringAt: nextAiringAt,
+        nextAiringEpisode: nextAiringEpisode,
+        animeSamaTitle: samaTitle,
+      );
+
   /// Sérialisation JSON pour le cache local (round-trip avec [Media.fromJson]).
   Map<String, dynamic> toJson() => {
         'anilistId': anilistId,
@@ -142,6 +183,7 @@ class Media {
         'averageScore': averageScore,
         'nextAiringAt': nextAiringAt?.toIso8601String(),
         'nextAiringEpisode': nextAiringEpisode,
+        'animeSamaTitle': animeSamaTitle,
       };
 
   factory Media.fromJson(Map<String, dynamic> json) => Media(
@@ -169,5 +211,6 @@ class Media {
             ? null
             : DateTime.parse(json['nextAiringAt'] as String),
         nextAiringEpisode: json['nextAiringEpisode'] as int?,
+        animeSamaTitle: json['animeSamaTitle'] as String?,
       );
 }

@@ -179,13 +179,9 @@ class _CatalogTileState extends ConsumerState<_CatalogTile> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final matcher = ref.read(titleMatcherProvider);
-      final media = await matcher.match(widget.item.title);
-      if (media == null) {
-        messenger.showSnackBar(SnackBar(
-          content: Text('« ${widget.item.title} » introuvable sur AniList.'),
-        ));
-        return;
-      }
+      // anime-sama = source de vérité : resolve() ne bloque jamais (fabrique un
+      // Media minimal si AniList ne connaît pas le titre).
+      final media = await matcher.resolve(widget.item.title);
       if (!mounted) return;
       Navigator.push(
         context,

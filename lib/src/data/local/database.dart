@@ -46,6 +46,10 @@ class MediaTable extends Table {
   IntColumn get averageScore => integer().nullable()();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
+  /// Titre anime-sama de référence (source de vérité pour saisons/épisodes).
+  /// NULL pour les médias importés uniquement depuis AniList. Ajouté en v2.
+  TextColumn get animeSamaTitle => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {anilistId};
 }
@@ -167,10 +171,16 @@ class TerebiDatabase extends _$TerebiDatabase {
   TerebiDatabase(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // v1 → v2 : ajout de la colonne animeSamaTitle sur media_table.
+          if (from < 2) {
+            await m.addColumn(mediaTable, mediaTable.animeSamaTitle);
+          }
+        },
       );
 }
