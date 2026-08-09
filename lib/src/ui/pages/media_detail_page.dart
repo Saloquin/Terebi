@@ -17,21 +17,34 @@ import 'player_page.dart';
 // Providers locaux
 // ---------------------------------------------------------------------------
 
-/// Charge le média : **cache local d'abord** (source de vérité anime-sama), puis
-/// AniList seulement en bonus si absent du cache ET id réel (> 0). Retourne
-/// `null` si rien trouvé → le widget fabrique un Media minimal depuis le titre.
+/// Charge le média : **cache local d'abord** (source de vérité anime-sama).
+/// Si absent du cache et qu'on a un titre anime-sama, on enrichit via
+/// [TitleMatcher.resolve] (image/description AniList si titre similaire) en
+/// arrière-plan. Pour un id AniList réel (>0) sans titre, on lit AniList direct.
+/// Retourne `null` si rien trouvé → le widget fabrique un Media minimal.
 final _mediaDetailProvider =
-    FutureProvider.family<Media?, int>((ref, id) async {
-  final local = await ref.watch(mediaRepositoryProvider).getMedia(id);
+    FutureProvider.family<Media?, ({int id, String? title})>((ref, arg) async {
+  final local = await ref.watch(mediaRepositoryProvider).getMedia(arg.id);
+  if (local != null && local.coverUrl != null) return local;
+
+  // Enrichissement via le titre anime-sama (id négatif ou média incomplet).
+  if (arg.title != null) {
+    try {
+      return await ref.read(titleMatcherProvider).resolve(arg.title!);
+    } catch (_) {
+      return local; // au pire, ce qu'on avait en cache.
+    }
+  }
   if (local != null) return local;
-  // Id négatif = anime hors-AniList → ne pas appeler AniList.
-  if (id <= 0) return null;
+
+  // Pas de titre : id AniList réel → lecture directe (bonus).
+  if (arg.id <= 0) return null;
   try {
-    final media = await ref.watch(aniListClientProvider).mediaDetail(id);
+    final media = await ref.watch(aniListClientProvider).mediaDetail(arg.id);
     await ref.read(mediaRepositoryProvider).upsertMedia(media);
     return media;
   } catch (_) {
-    return null; // AniList indisponible → fiche minimale.
+    return null;
   }
 });
 
@@ -89,7 +102,8 @@ class MediaDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaAsync = ref.watch(_mediaDetailProvider(anilistId));
+    final mediaAsync =
+        ref.watch(_mediaDetailProvider((id: anilistId, title: displayTitle)));
 
     return Scaffold(
       appBar: AppBar(

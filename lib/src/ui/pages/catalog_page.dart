@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/logic/anime_id.dart';
 import '../../services/stream_resolver.dart';
 import 'media_detail_page.dart';
 
@@ -162,57 +163,32 @@ class _ResultsView extends ConsumerWidget {
 // Ligne de résultat : clic → rematch AniList → fiche
 // ---------------------------------------------------------------------------
 
-class _CatalogTile extends ConsumerStatefulWidget {
+class _CatalogTile extends StatelessWidget {
   final AnimeSamaCatalogueItem item;
   const _CatalogTile({required this.item});
 
-  @override
-  ConsumerState<_CatalogTile> createState() => _CatalogTileState();
-}
-
-class _CatalogTileState extends ConsumerState<_CatalogTile> {
-  bool _loading = false;
-
-  Future<void> _openDetail() async {
-    if (_loading) return;
-    setState(() => _loading = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final matcher = ref.read(titleMatcherProvider);
-      // anime-sama = source de vérité : resolve() ne bloque jamais (fabrique un
-      // Media minimal si AniList ne connaît pas le titre).
-      final media = await matcher.resolve(widget.item.title);
-      if (!mounted) return;
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => MediaDetailPage(
-            anilistId: media.anilistId,
-            displayTitle: widget.item.title,
-          ),
+  void _openDetail(BuildContext context) {
+    // Navigation IMMÉDIATE (pas d'attente réseau) : l'identité est l'id
+    // anime-sama dérivé du titre (instantané). La fiche charge l'enrichissement
+    // AniList (image/description) en arrière-plan via son propre provider.
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaDetailPage(
+          anilistId: animeSamaIdFor(item.title),
+          displayTitle: item.title,
         ),
-      );
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Fiche indisponible : $e')));
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: const Icon(Icons.movie_outlined),
-      title: Text(widget.item.title,
-          maxLines: 2, overflow: TextOverflow.ellipsis),
-      trailing: _loading
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.chevron_right),
-      onTap: _loading ? null : _openDetail,
+      title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => _openDetail(context),
     );
   }
 }
