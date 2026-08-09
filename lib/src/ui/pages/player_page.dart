@@ -61,7 +61,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   bool _loading = false;
   bool _ready = false;
-  bool _started = false;
   String? _error;
 
   late int _currentEpisode;
@@ -80,8 +79,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _currentEpisode = widget.episode;
     _currentEntry = widget.entry;
     _configurePlayer();
-    // Démarre la lecture automatiquement après le premier frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureStarted());
+    // La lecture ne démarre PAS automatiquement : l'utilisateur clique « Lancer ».
   }
 
   /// Configure mpv pour privilégier la MEILLEURE qualité disponible sur les
@@ -106,12 +104,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   // ---------------------------------------------------------------------------
   // Logique métier
   // ---------------------------------------------------------------------------
-
-  void _ensureStarted() {
-    if (_started) return;
-    _started = true;
-    _loadAndPlay();
-  }
 
   Future<PlaybackLanguage> _preferredLanguage() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
@@ -359,9 +351,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                         else if (_loading)
                           const Center(child: CircularProgressIndicator())
                         else
-                          const Center(
-                            child: Icon(Icons.movie_outlined,
-                                color: Colors.white24, size: 64),
+                          Center(
+                            child: FilledButton.icon(
+                              onPressed: _loadAndPlay,
+                              icon: const Icon(Icons.play_arrow),
+                              label: const Text('Lancer'),
+                            ),
                           ),
                       ],
                     ),
