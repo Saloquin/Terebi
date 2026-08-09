@@ -110,12 +110,38 @@ class CalendarPage extends ConsumerStatefulWidget {
 }
 
 class _CalendarPageState extends ConsumerState<CalendarPage> {
-  // true = GLOBAL (tout le planning), false = PERSO (anime planifiés seulement).
+  // true = GLOBAL (tout le planning), false = PERSO (anime suivis seulement).
   bool _showGlobal = true;
+  // À l'ouverture, on choisit l'onglet par défaut UNE fois : Perso si non vide.
+  bool _defaultChosen = false;
+
+  /// `true` si au moins un anime du planning est dans le calendrier perso
+  /// (présent en biblio, hors Abandonné).
+  bool _persoHasContent(
+      List<AnimeSamaPlanningItem> items, Set<int> persoIds) {
+    if (persoIds.isEmpty) return false;
+    for (final it in items) {
+      if (persoIds.contains(animeSamaIdFor(it.title))) return true;
+    }
+    return false;
+  }
 
   @override
   Widget build(BuildContext context) {
     final planningAsync = ref.watch(_planningProvider);
+    final persoIds = ref.watch(_persoIdsProvider).asData?.value;
+
+    // Choix de l'onglet par défaut, une seule fois, quand les deux données
+    // sont prêtes : Perso s'il a du contenu, sinon Global.
+    if (!_defaultChosen && persoIds != null) {
+      final items = planningAsync.asData?.value;
+      if (items != null) {
+        _defaultChosen = true;
+        if (_persoHasContent(items, persoIds)) {
+          _showGlobal = false;
+        }
+      }
+    }
 
     return Column(
       children: [
