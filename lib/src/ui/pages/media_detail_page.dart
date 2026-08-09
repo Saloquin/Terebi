@@ -11,6 +11,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/models/media_relation.dart';
 import '../../services/stream_resolver.dart';
+import 'library_page.dart';
 import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -441,6 +442,9 @@ class _ActionBar extends ConsumerWidget {
 
     await ref.read(listRepositoryProvider).deleteEntry(media.anilistId);
     ref.invalidate(_listEntryProvider(media.anilistId));
+    // Rafraîchit la bibliothèque (onglets + compteurs).
+    ref.invalidate(entriesByStatusProvider);
+    ref.invalidate(countByStatusProvider);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('« ${media.title.preferred} » retiré')),
@@ -516,8 +520,10 @@ class _StatusDropdown extends ConsumerWidget {
               updatedAt: DateTime.now(),
             );
         await repo.upsertEntry(updated);
-        // Invalide le provider d'entrée pour rafraîchir l'UI.
+        // Invalide le provider d'entrée + la bibliothèque (onglets + compteurs).
         ref.invalidate(_listEntryProvider(media.anilistId));
+        ref.invalidate(entriesByStatusProvider);
+        ref.invalidate(countByStatusProvider);
 
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
