@@ -118,6 +118,24 @@ def _search_catalogue(dl, title, vf):
     return None
 
 
+def _is_real_season(s):
+    """Vrai si l'entrée est une VRAIE saison de l'anime courant (et non un
+    anime recommandé / « voir aussi »). get_seasons capte TOUS les appels
+    panneauAnime(...) de la page, y compris ceux de blocs de recommandations
+    d'AUTRES animes → d'où « 10 saisons + OAV ». Une vraie saison a un chemin
+    RELATIF court (ex. « saison1/vostfr », « oav/vf ») ; une reco pointe une
+    autre page (http, //, /catalogue/, plusieurs segments de slug)."""
+    url = (s.get('url') or '').strip().lower()
+    if not url:
+        return False
+    if url.startswith('http') or url.startswith('//') or 'catalogue' in url:
+        return False
+    # Chemin relatif : on retire un éventuel suffixe de langue, il doit rester
+    # au plus un segment (le nom de saison : saison1, oav, film, scan…).
+    core = re.sub(r'/(vostfr|vf|va|vcn|vkr|vqc)\b', '', url).strip('/')
+    return core != '' and core.count('/') == 0
+
+
 def _seasons_for(mod, dl, title, vf):
     """Retourne (anime_url, seasons[]) ou lève une erreur via _fail."""
     import requests
@@ -127,6 +145,9 @@ def _seasons_for(mod, dl, title, vf):
     _, anime_url = found
     resp = requests.get(anime_url, headers=mod.HEADERS_BASE, timeout=15)
     seasons = mod.get_seasons(resp.text)
+    # Ne garde que les vraies saisons (exclut les animes recommandés captés par
+    # get_seasons), puis déduplique les variantes de langue.
+    seasons = [s for s in seasons if _is_real_season(s)]
     if not seasons:
         _fail("aucune saison trouvée")
     return anime_url, _dedupe_seasons(seasons)
