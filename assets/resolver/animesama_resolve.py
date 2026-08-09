@@ -136,15 +136,43 @@ def _is_real_season(s):
     return core != '' and core.count('/') == 0
 
 
+def _url_has_id(url):
+    """Vrai si l'URL vidéo contient un identifiant NON vide. anime-sama génère
+    des URLs « coquilles » pour les épisodes annoncés mais non fournis :
+      https://video.sibnet.ru/shell.php?videoid=   (videoid vide)
+      https://ansembed.net/embed-.html             (id vide)
+      https://sendvid.com/embed/                    (rien après /embed/)
+      https://vk.com/video_ext.php?oid=&hd=3        (oid vide)
+    On les détecte pour ne pas compter ces épisodes fantômes comme jouables."""
+    u = (url or '').strip()
+    if not u:
+        return False
+    low = u.lower()
+    # Motifs de coquille : paramètre id vide, embed vide, chemin embed terminal.
+    empty_patterns = [
+        r'videoid=(?:&|$)',        # ...videoid=  (ou videoid=&)
+        r'[?&]oid=(?:&|$)',        # ...oid=&hd=3
+        r'embed-\.html',           # embed-.html
+        r'/embed-?/?(?:\?|#|$)',   # /embed/ ou /embed terminal
+        r'[?&#][a-z_]+=(?:&|$)',   # tout param clé= vide en fin
+    ]
+    for p in empty_patterns:
+        if re.search(p, low):
+            return False
+    # Sinon : URL avec un identifiant réel (chemin/param non vide après le motif).
+    return True
+
+
 def _playable_episode_count(eps):
-    """Nombre d'épisodes RÉELLEMENT jouables : ceux ayant au moins une URL vidéo
-    non vide. anime-sama déclare parfois des épisodes « fantômes » (1 clé mais
-    liste d'URLs vide) pour des saisons annoncées mais pas encore sorties."""
+    """Nombre d'épisodes RÉELLEMENT jouables : au moins une URL vidéo avec un
+    identifiant non vide (cf. [_url_has_id]). Écarte les épisodes « fantômes »
+    (URLs-coquilles) qu'anime-sama déclare pour des saisons annoncées mais dont
+    la vidéo n'est pas encore fournie."""
     if not eps:
         return 0
     count = 0
-    for _key, urls in eps.items():
-        if urls and any((u or '').strip() for u in urls):
+    for _key, urls in (eps or {}).items():
+        if any(_url_has_id(u) for u in (urls or [])):
             count += 1
     return count
 
