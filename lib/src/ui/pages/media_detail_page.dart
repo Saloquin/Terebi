@@ -36,7 +36,9 @@ final _mediaDetailProvider =
 });
 
 
-final _listEntryProvider =
+/// Entrée de liste (statut/progression) d'un média. Public pour que d'autres
+/// pages (bibliothèque) puissent l'invalider après un changement de statut.
+final listEntryProvider =
     FutureProvider.family<ListEntry?, int>((ref, mediaId) async {
   return ref.watch(listRepositoryProvider).getEntry(mediaId);
 });
@@ -133,7 +135,7 @@ class _DetailBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entryAsync = ref.watch(_listEntryProvider(media.anilistId));
+    final entryAsync = ref.watch(listEntryProvider(media.anilistId));
 
     return SingleChildScrollView(
       child: Column(
@@ -404,7 +406,7 @@ class _ActionBar extends ConsumerWidget {
     if (confirmed != true) return;
 
     await ref.read(listRepositoryProvider).deleteEntry(media.anilistId);
-    ref.invalidate(_listEntryProvider(media.anilistId));
+    ref.invalidate(listEntryProvider(media.anilistId));
     // Rafraîchit la bibliothèque (onglets + compteurs).
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
@@ -454,6 +456,27 @@ class _StatusDropdown extends ConsumerWidget {
     ListStatus.repeating: 'Re-vision',
   };
 
+  /// Marque toutes les saisons anime-sama comme entièrement vues (dernier
+  /// épisode = total). Best-effort : ignore les erreurs réseau.
+  Future<void> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
+    try {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+      final title = media.animeSamaTitle ?? media.title.preferred;
+      final seasons = await resolver.listSeasons(title: title);
+      for (final s in seasons) {
+        try {
+          final eps =
+              await resolver.listEpisodes(title: title, seasonIndex: s.index);
+          if (eps.isNotEmpty) {
+            await seasonProgress.setLastWatched(
+                media.anilistId, s.index, eps.length);
+          }
+        } catch (_) {/* saison ignorée */}
+      }
+    } catch (_) {/* best-effort */}
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = entry?.status;
@@ -483,8 +506,16 @@ class _StatusDropdown extends ConsumerWidget {
               updatedAt: DateTime.now(),
             );
         await repo.upsertEntry(updated);
+
+        // « Terminé » manuel → marque toutes les saisons anime-sama à fond,
+        // pour que les barres affichent « Terminée » et que le recheck ne
+        // redégrade pas l'anime en « En cours ». Best-effort.
+        if (newStatus == ListStatus.completed) {
+          await _markAllSeasonsWatched(ref, media);
+        }
+
         // Invalide le provider d'entrée + la bibliothèque (onglets + compteurs).
-        ref.invalidate(_listEntryProvider(media.anilistId));
+        ref.invalidate(listEntryProvider(media.anilistId));
         ref.invalidate(entriesByStatusProvider);
         ref.invalidate(countByStatusProvider);
 

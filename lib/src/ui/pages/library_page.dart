@@ -164,6 +164,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     if (changed && mounted) {
       ref.invalidate(countByStatusProvider);
       ref.invalidate(entriesByStatusProvider);
+      // La fiche a son propre provider d'entrée : l'invalider aussi pour éviter
+      // un statut incohérent entre la bibliothèque et la page de détail.
+      ref.invalidate(listEntryProvider);
     }
   }
 
