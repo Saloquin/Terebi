@@ -133,15 +133,23 @@ def _seasons_for(mod, dl, title, vf):
 
 
 def _dedupe_seasons(seasons):
-    """Retire les doublons (get_seasons renvoie parfois plusieurs fois la même
-    saison, ex. variantes VF/VOSTFR ou blocs répétés). Déduplique par url puis
-    par nom normalisé, en conservant l'ordre d'apparition."""
+    """Retire les doublons. get_seasons renvoie souvent la MÊME saison plusieurs
+    fois : doublon exact, ou variantes de langue (« saison1/vostfr » et
+    « saison1/vf ») — c'est la cause du « trop de saisons ». On déduplique donc
+    par l'URL SANS son suffixe de langue (/vostfr, /vf), en repli sur le nom
+    normalisé. Ordre d'apparition conservé."""
+    def _season_key(s):
+        url = (s.get('url') or '').strip().lower().rstrip('/')
+        # Retire un éventuel segment de langue final pour fusionner VF/VOSTFR.
+        url = re.sub(r'/(vostfr|vf|va|vcn|vkr|vqc)$', '', url)
+        if url:
+            return url
+        return re.sub(r'[^a-z0-9]', '', (s.get('name') or '').lower())
+
     seen = set()
     result = []
     for s in seasons:
-        url = (s.get('url') or '').strip().lower().rstrip('/')
-        name = re.sub(r'[^a-z0-9]', '', (s.get('name') or '').lower())
-        key = url or name
+        key = _season_key(s)
         if not key or key in seen:
             continue
         seen.add(key)
