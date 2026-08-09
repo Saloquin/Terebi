@@ -55,4 +55,43 @@ void main() {
       expect(back.coverUrl, 'http://x/c.jpg');
     });
   });
+
+  group('titlesSimilar (garde-fou anti mauvais-match)', () {
+    test('titres identiques → similaires', () {
+      expect(titlesSimilar('Demon Slayer', 'Demon Slayer'), isTrue);
+    });
+
+    test('inclusion / suffixe de saison → similaires', () {
+      expect(titlesSimilar('Demon Slayer', 'Demon Slayer: Mugen Train'), isTrue);
+      expect(titlesSimilar('Dr Stone', 'Dr. Stone Season 3'), isTrue);
+    });
+
+    test('titres sans rapport → NON similaires (demon slayer vs onigiri)', () {
+      expect(titlesSimilar('Demon Slayer', 'Onigiri'), isFalse);
+      expect(titlesSimilar('The Brilliant Healer', 'Naruto'), isFalse);
+    });
+
+    test('chevauchement partiel insuffisant → NON similaire', () {
+      expect(titlesSimilar('Attack on Titan', 'Attack'), isTrue); // inclusion
+      expect(titlesSimilar('One Piece', 'Two Pieces of Cake'), isFalse);
+    });
+  });
+
+  group('enrichedWith', () {
+    test('garde l\'identité anime-sama, prend cover/description AniList', () {
+      final sama = Media.fromAnimeSama(title: 'Demon Slayer');
+      final anilist = Media(
+        anilistId: 999, // vrai id AniList — NE DOIT PAS être adopté
+        title: const MediaTitle(english: 'Onigiri'),
+        coverUrl: 'http://a/cover.jpg',
+        description: 'desc',
+      );
+      final merged = sama.enrichedWith(anilist);
+      expect(merged.anilistId, sama.anilistId); // identité conservée
+      expect(merged.animeSamaTitle, 'Demon Slayer');
+      expect(merged.title.preferred, 'Demon Slayer'); // titre conservé
+      expect(merged.coverUrl, 'http://a/cover.jpg'); // image AniList
+      expect(merged.description, 'desc');
+    });
+  });
 }

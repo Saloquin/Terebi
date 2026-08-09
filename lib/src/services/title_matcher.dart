@@ -1,21 +1,20 @@
-/// Rematch d'un titre anime-sama vers une entrée AniList (pour obtenir un
-/// [Media] riche : synopsis, note, image, et surtout un `anilistId` exploitable
-/// par la fiche / le lecteur / la progression).
+/// Résout un titre anime-sama en [Media] exploitable.
 ///
-/// anime-sama ne fournit qu'un titre + une URL catalogue ; le reste de l'app est
-/// indexé par `anilistId`. On recherche donc le titre sur AniList et on prend le
-/// **1er résultat** (décision produit validée : auto-match, sans garde-fou).
-///
-/// Le mapping titre→anilistId est mémorisé dans les settings pour éviter de
-/// relancer une recherche AniList (et limiter les 429).
+/// **anime-sama est la source de vérité** : l'identité d'un anime dérive TOUJOURS
+/// de son titre anime-sama ([animeSamaIdFor], id négatif stable), jamais de
+/// l'`anilistId`. AniList n'est qu'un **enrichissement optionnel** (image +
+/// description) appliqué UNIQUEMENT si le titre trouvé ressemble vraiment au
+/// titre cherché ([titlesSimilar]). Un mauvais match AniList (ex.
+/// « demon slayer » → « onigiri ») n'affecte donc jamais l'identité ni la
+/// bibliothèque : au pire, il n'y a pas d'image/description.
 library;
 
 import '../data/remote/anilist_client.dart';
 import '../data/repositories/media_repository.dart';
 import '../data/repositories/settings_repository.dart';
+import '../domain/logic/anime_id.dart';
 import '../domain/models/media.dart';
 
-/// Résout un titre anime-sama en [Media] AniList (1er résultat), avec cache.
 class TitleMatcher {
   final AniListApi anilist;
   final SettingsRepository settings;
@@ -27,64 +26,69 @@ class TitleMatcher {
     required this.mediaRepo,
   });
 
-  /// Retourne le [Media] AniList correspondant à [title], ou `null` si aucun
-  /// résultat. Utilise le cache titre→anilistId quand disponible.
+  /// Résout un titre anime-sama en [Media] — **jamais null**.
+  ///
+  /// - Identité = `Media.fromAnimeSama(title)` (id négatif stable).
+  /// - Enrichissement AniList (cover/description) seulement si un résultat de
+  ///   recherche a un titre **similaire** au titre cherché.
+  Future<Media> resolve(String animeSamaTitle) async {
+    // Base : le média anime-sama fait foi (identité stable).
+    var media = Media.fromAnimeSama(title: animeSamaTitle);
+
+    // Cache local : si on a déjà enrichi ce média, on le réutilise.
+    final cached = await mediaRepo.getMedia(media.anilistId);
+    if (cached != null && cached.coverUrl != null) return cached;
+
+    // Enrichissement AniList optionnel (best-effort, non bloquant).
+    final enrich = await _fetchEnrichment(animeSamaTitle);
+    if (enrich != null) media = media.enrichedWith(enrich);
+
+    await mediaRepo.upsertMedia(media);
+    return media;
+  }
+
+  /// Cherche sur AniList un média dont le titre **ressemble** à [query].
+  /// Retourne `null` si rien de fiable (aucun résultat, ou 1er résultat trop
+  /// différent → évite le faux match). N'écrit rien : simple lecture.
+  Future<Media?> _fetchEnrichment(String query) async {
+    try {
+      final results = await anilist.search(query);
+      for (final m in results) {
+        final candidate = m.title.english ?? m.title.romaji ?? m.title.native;
+        if (candidate != null && titlesSimilar(query, candidate)) {
+          return m;
+        }
+      }
+    } catch (_) {
+      // AniList indisponible / rate-limité → pas d'enrichissement.
+    }
+    return null;
+  }
+
+  /// Recherche AniList directe (1er résultat), sans garde-fou. Conservé pour un
+  /// éventuel usage où l'identité AniList est explicitement voulue. Cache le
+  /// mapping titre→anilistId dans les settings.
   Future<Media?> match(String title) async {
     final key = _cacheKey(title);
-
-    // 1) Cache : anilistId déjà connu pour ce titre ?
     final cachedId = await settings.get(key);
     if (cachedId != null) {
       final id = int.tryParse(cachedId);
       if (id != null) {
-        // Média persisté localement en priorité (évite un appel réseau).
         final local = await mediaRepo.getMedia(id);
         if (local != null) return local;
         try {
           return await anilist.mediaDetail(id);
-        } catch (_) {
-          // Cache périmé/injoignable : on retombe sur une recherche fraîche.
-        }
+        } catch (_) {/* recherche fraîche */}
       }
     }
-
-    // 2) Recherche AniList : 1er résultat.
     final results = await anilist.search(title);
     if (results.isEmpty) return null;
     final media = results.first;
-
-    // Mémorise le mapping + les métadonnées (pour la biblio hors-ligne).
     await settings.set(key, '${media.anilistId}');
     await mediaRepo.upsertMedia(media);
     return media;
   }
 
-  /// Clé de cache stable dérivée du titre normalisé.
-  String _cacheKey(String title) {
-    final norm = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-    return SettingsKeys.animeSamaAniListFor(norm);
-  }
-
-  /// Résout un titre anime-sama en [Media] exploitable — **jamais null**.
-  ///
-  /// anime-sama est la source de vérité : si AniList reconnaît le titre, on
-  /// enrichit avec ses métadonnées (image/description) ; sinon on fabrique un
-  /// [Media.fromAnimeSama] avec un id négatif stable. Dans les deux cas le
-  /// média porte [animeSamaTitle] et est persisté localement.
-  Future<Media> resolve(String animeSamaTitle) async {
-    Media? matched;
-    try {
-      matched = await match(animeSamaTitle);
-    } catch (_) {
-      matched = null; // AniList indisponible → fallback anime-sama.
-    }
-
-    final media = (matched != null)
-        ? matched.withAnimeSamaTitle(animeSamaTitle)
-        : Media.fromAnimeSama(title: animeSamaTitle);
-
-    // Persiste (met à jour animeSamaTitle / crée l'entrée fallback).
-    await mediaRepo.upsertMedia(media);
-    return media;
-  }
+  String _cacheKey(String title) =>
+      SettingsKeys.animeSamaAniListFor(normalizeAnimeTitle(title));
 }

@@ -33,3 +33,31 @@ int animeSamaIdFor(String title) {
   final nonZero = positive == 0 ? 1 : positive;
   return -nonZero;
 }
+
+/// Découpe un titre en jetons alphanumériques minuscules (>= 2 lettres).
+Set<String> _titleTokens(String title) => title
+    .toLowerCase()
+    .split(RegExp(r'[^a-z0-9]+'))
+    .where((t) => t.length >= 2)
+    .toSet();
+
+/// Décide si deux titres désignent probablement le même anime.
+///
+/// Garde-fou anti mauvais-match AniList (ex. « demon slayer » ≠ « onigiri »).
+/// Vrai si, après normalisation, l'un contient l'autre, OU si une part
+/// suffisante des jetons du titre recherché se retrouve dans le candidat.
+bool titlesSimilar(String query, String candidate) {
+  final a = normalizeAnimeTitle(query);
+  final b = normalizeAnimeTitle(candidate);
+  if (a.isEmpty || b.isEmpty) return false;
+  // Inclusion directe (sous-titres, suffixes de saison…).
+  if (a.contains(b) || b.contains(a)) return true;
+
+  // Chevauchement de jetons : au moins la moitié des jetons de la requête
+  // (et au minimum un) doivent apparaître dans le candidat.
+  final qt = _titleTokens(query);
+  final ct = _titleTokens(candidate);
+  if (qt.isEmpty || ct.isEmpty) return false;
+  final common = qt.intersection(ct).length;
+  return common >= 1 && common * 2 >= qt.length;
+}

@@ -60,7 +60,24 @@ def _seasons_for(mod, dl, title, vf):
     seasons = mod.get_seasons(resp.text)
     if not seasons:
         _fail("aucune saison trouvée")
-    return anime_url, seasons
+    return anime_url, _dedupe_seasons(seasons)
+
+
+def _dedupe_seasons(seasons):
+    """Retire les doublons (get_seasons renvoie parfois plusieurs fois la même
+    saison, ex. variantes VF/VOSTFR ou blocs répétés). Déduplique par url puis
+    par nom normalisé, en conservant l'ordre d'apparition."""
+    seen = set()
+    result = []
+    for s in seasons:
+        url = (s.get('url') or '').strip().lower().rstrip('/')
+        name = re.sub(r'[^a-z0-9]', '', (s.get('name') or '').lower())
+        key = url or name
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        result.append(s)
+    return result
 
 
 def _episodes_for(mod, dl, anime_url, season, vf):

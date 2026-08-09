@@ -165,6 +165,30 @@ class Media {
         animeSamaTitle: samaTitle,
       );
 
+  /// Retourne une copie enrichie des seules métadonnées d'affichage AniList
+  /// (cover/banner/description/genres/score), en **conservant l'identité**
+  /// (anilistId, title, animeSamaTitle). Utilisé quand anime-sama est la source
+  /// de vérité et AniList n'apporte que l'image/description.
+  Media enrichedWith(Media anilist) => Media(
+        anilistId: anilistId,
+        malId: anilist.malId ?? malId,
+        title: title,
+        format: format,
+        status: status,
+        episodes: episodes,
+        durationMinutes: durationMinutes,
+        season: season,
+        seasonYear: seasonYear,
+        coverUrl: anilist.coverUrl ?? coverUrl,
+        bannerUrl: anilist.bannerUrl ?? bannerUrl,
+        description: anilist.description ?? description,
+        genres: anilist.genres.isNotEmpty ? anilist.genres : genres,
+        averageScore: anilist.averageScore ?? averageScore,
+        nextAiringAt: nextAiringAt,
+        nextAiringEpisode: nextAiringEpisode,
+        animeSamaTitle: animeSamaTitle,
+      );
+
   /// Sérialisation JSON pour le cache local (round-trip avec [Media.fromJson]).
   Map<String, dynamic> toJson() => {
         'anilistId': anilistId,
