@@ -97,10 +97,20 @@ final _sequelsToReplanProvider =
 // ---------------------------------------------------------------------------
 
 /// Page de détail d'un anime identifié par son [anilistId] AniList.
+///
+/// [displayTitle] (optionnel) : titre à afficher à la place du titre AniList.
+/// Fourni depuis le catalogue/planning anime-sama pour montrer le titre propre
+/// (« Dr Stone » plutôt que « Dr Stone Saison 2 ») tout en gardant les infos
+/// AniList (synopsis, note, image). `null` ailleurs → titre AniList.
 class MediaDetailPage extends ConsumerWidget {
   final int anilistId;
+  final String? displayTitle;
 
-  const MediaDetailPage({super.key, required this.anilistId});
+  const MediaDetailPage({
+    super.key,
+    required this.anilistId,
+    this.displayTitle,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -108,10 +118,13 @@ class MediaDetailPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: mediaAsync.maybeWhen(
-          data: (m) => Text(m.title.preferred, overflow: TextOverflow.ellipsis),
-          orElse: () => const Text('Détail'),
-        ),
+        title: displayTitle != null
+            ? Text(displayTitle!, overflow: TextOverflow.ellipsis)
+            : mediaAsync.maybeWhen(
+                data: (m) =>
+                    Text(m.title.preferred, overflow: TextOverflow.ellipsis),
+                orElse: () => const Text('Détail'),
+              ),
       ),
       body: mediaAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -134,7 +147,7 @@ class MediaDetailPage extends ConsumerWidget {
             ),
           ),
         ),
-        data: (media) => _DetailBody(media: media),
+        data: (media) => _DetailBody(media: media, displayTitle: displayTitle),
       ),
     );
   }
@@ -146,8 +159,9 @@ class MediaDetailPage extends ConsumerWidget {
 
 class _DetailBody extends ConsumerWidget {
   final Media media;
+  final String? displayTitle;
 
-  const _DetailBody({required this.media});
+  const _DetailBody({required this.media, this.displayTitle});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -158,7 +172,7 @@ class _DetailBody extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // --- Banner / cover header ---
-          _Header(media: media),
+          _Header(media: media, displayTitle: displayTitle),
 
           Padding(
             padding: const EdgeInsets.all(16),
@@ -208,7 +222,8 @@ class _DetailBody extends ConsumerWidget {
                 const SizedBox(height: 8),
 
                 // --- Saisons anime-sama (seul point de choix de saison) ---
-                _AnimeSamaSeasonsSection(media: media),
+                _AnimeSamaSeasonsSection(
+                    media: media, displayTitle: displayTitle),
               ],
             ),
           ),
@@ -224,7 +239,8 @@ class _DetailBody extends ConsumerWidget {
 
 class _Header extends StatelessWidget {
   final Media media;
-  const _Header({required this.media});
+  final String? displayTitle;
+  const _Header({required this.media, this.displayTitle});
 
   @override
   Widget build(BuildContext context) {
@@ -290,7 +306,7 @@ class _Header extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        media.title.preferred,
+                        displayTitle ?? media.title.preferred,
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -647,12 +663,15 @@ class _ReplanCardState extends ConsumerState<_ReplanCard> {
 /// Un clic mémorise l'index choisi et lance la lecture à l'épisode de reprise.
 class _AnimeSamaSeasonsSection extends ConsumerWidget {
   final Media media;
-  const _AnimeSamaSeasonsSection({required this.media});
+  final String? displayTitle;
+  const _AnimeSamaSeasonsSection({required this.media, this.displayTitle});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final seasonsAsync =
-        ref.watch(_animeSamaSeasonsProvider(media.title.preferred));
+    // Titre de recherche anime-sama : privilégie le titre propre (anime-sama)
+    // quand on arrive du catalogue/planning, sinon le titre AniList.
+    final searchTitle = displayTitle ?? media.title.preferred;
+    final seasonsAsync = ref.watch(_animeSamaSeasonsProvider(searchTitle));
 
     return seasonsAsync.when(
       loading: () => const Padding(

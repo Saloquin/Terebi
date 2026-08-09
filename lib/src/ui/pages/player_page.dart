@@ -38,12 +38,17 @@ class PlayerPage extends ConsumerStatefulWidget {
   /// le lecteur par la fiche (pushReplacement).
   final bool cameFromDetail;
 
+  /// Titre propre anime-sama (ex. « Dr Stone »), transmis à la fiche pour
+  /// l'afficher au lieu du titre AniList. `null` si inconnu.
+  final String? animeSamaTitle;
+
   const PlayerPage({
     super.key,
     required this.media,
     required this.episode,
     required this.entry,
     this.cameFromDetail = false,
+    this.animeSamaTitle,
   });
 
   @override
@@ -310,7 +315,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => MediaDetailPage(anilistId: widget.media.anilistId),
+          builder: (_) => MediaDetailPage(
+            anilistId: widget.media.anilistId,
+            displayTitle: widget.animeSamaTitle,
+          ),
         ),
       );
     }

@@ -225,6 +225,7 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
             media: media,
             episode: episode,
             entry: entry,
+            animeSamaTitle: widget.item.title,
           ),
         ),
       );

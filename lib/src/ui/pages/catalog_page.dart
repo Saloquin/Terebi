@@ -190,7 +190,10 @@ class _CatalogTileState extends ConsumerState<_CatalogTile> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => MediaDetailPage(anilistId: media.anilistId),
+          builder: (_) => MediaDetailPage(
+            anilistId: media.anilistId,
+            displayTitle: widget.item.title,
+          ),
         ),
       );
     } catch (e) {
