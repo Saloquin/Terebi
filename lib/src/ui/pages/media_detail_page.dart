@@ -416,54 +416,11 @@ class _ActionBar extends ConsumerWidget {
 
   const _ActionBar({required this.media, required this.entry});
 
-  /// Épisode à (re)lancer : le **dernier épisode vu** (reprise), ou 1 si aucun.
-  Future<int> _resumeEpisode(WidgetRef ref) async {
-    final progressRepo = ref.read(progressRepositoryProvider);
-    final last = await progressRepo.lastWatched(media.anilistId);
-    return last?.episodeNumber.toInt() ?? 1;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Wrap(
-      spacing: 12,
-      runSpacing: 8,
-      children: [
-        // Bouton Reprendre (épisode = dernier vu, défaut 1)
-        FutureBuilder<int>(
-          future: _resumeEpisode(ref),
-          builder: (context, snapshot) {
-            final resumeEp = snapshot.data ?? 1;
-            return FilledButton.icon(
-              onPressed: () {
-                final currentEntry = entry ??
-                    ListEntry(
-                      mediaId: media.anilistId,
-                      status: ListStatus.current,
-                      updatedAt: DateTime.now(),
-                    );
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => PlayerPage(
-                      media: media,
-                      episode: resumeEp,
-                      entry: currentEntry,
-                      cameFromDetail: true,
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.play_arrow),
-              label: Text('Épisode $resumeEp'),
-            );
-          },
-        ),
-
-        // Sélecteur de statut
-        _StatusDropdown(media: media, entry: entry),
-      ],
-    );
+    // La lecture se lance depuis la section « Saisons (anime-sama) » ci-dessous
+    // (choix de saison + reprise au dernier épisode vu). Ici : juste le statut.
+    return _StatusDropdown(media: media, entry: entry);
   }
 }
 
