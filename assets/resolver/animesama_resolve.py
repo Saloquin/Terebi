@@ -136,13 +136,27 @@ def _is_real_season(s):
     return core != '' and core.count('/') == 0
 
 
+def _playable_episode_count(eps):
+    """Nombre d'épisodes RÉELLEMENT jouables : ceux ayant au moins une URL vidéo
+    non vide. anime-sama déclare parfois des épisodes « fantômes » (1 clé mais
+    liste d'URLs vide) pour des saisons annoncées mais pas encore sorties."""
+    if not eps:
+        return 0
+    count = 0
+    for _key, urls in eps.items():
+        if urls and any((u or '').strip() for u in urls):
+            count += 1
+    return count
+
+
 def _season_has_episodes(mod, dl, anime_url, season, vf):
-    """Vrai si la saison a au moins un épisode réel. anime-sama expose souvent
-    « Saison 1..10 » alors qu'une seule existe : les factices n'ont pas
-    d'épisodes. C'est le SEUL critère fiable pour les distinguer."""
+    """Vrai si la saison a au moins un épisode réellement JOUABLE (avec une URL
+    vidéo). anime-sama expose « Saison 1..10 » alors qu'une seule existe, et des
+    saisons annoncées avec 1 épisode « fantôme » (sans lien vidéo) : le critère
+    fiable est la présence d'au moins un épisode ayant une URL."""
     try:
         eps = _episodes_for(mod, dl, anime_url, season, vf)
-        return bool(eps)
+        return _playable_episode_count(eps) > 0
     except Exception:
         return False
 
@@ -250,9 +264,11 @@ def action_debug_seasons(mod, dl, args):
         try:
             eps = _episodes_for(mod, dl, anime_url, s, args.vf)
             n = len(eps) if eps else 0
+            playable = _playable_episode_count(eps)
         except Exception as e:
             n = f"ERR({type(e).__name__})"
-        print(f"  name={s.get('name')!r}  episodes={n}")
+            playable = 0
+        print(f"  name={s.get('name')!r}  clés={n}  jouables={playable}")
     sys.exit(0)
 
 
