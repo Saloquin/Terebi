@@ -146,20 +146,36 @@ class AnimeSamaResolver implements StreamResolver {
   }
 
   /// Parse la ligne `PLANNING_JSON: [...]` en liste d'items de planning.
+  /// Déduplique (filet de sécurité) par jour + titre normalisé : anime-sama
+  /// liste parfois le même anime en VF ET en VOSTFR.
   List<AnimeSamaPlanningItem> parsePlanning(String output) {
     for (final raw in output.split('\n')) {
       final line = raw.trim();
       if (line.startsWith(_planningPrefix)) {
         final jsonStr = line.substring(_planningPrefix.length).trim();
         final list = jsonDecode(jsonStr) as List<dynamic>;
-        return list
-            .map((e) => AnimeSamaPlanningItem(
-                  day: (e as Map<String, dynamic>)['day'] as String? ?? '',
-                  time: e['time'] as String? ?? '',
-                  title: e['title'] as String? ?? '',
-                  url: e['url'] as String? ?? '',
-                ))
-            .toList();
+        final result = <AnimeSamaPlanningItem>[];
+        final seen = <String>{};
+        for (final e in list) {
+          final m = e as Map<String, dynamic>;
+          final day = m['day'] as String? ?? '';
+          final rawTitle = m['title'] as String? ?? '';
+          // Retire un éventuel suffixe de version pour la comparaison.
+          final title = rawTitle
+              .replaceAll(RegExp(r'\s+(VOSTFR|VF)\s*$', caseSensitive: false), '')
+              .trim();
+          final norm = title.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+          final key = '$day|$norm';
+          if (seen.contains(key)) continue;
+          seen.add(key);
+          result.add(AnimeSamaPlanningItem(
+            day: day,
+            time: m['time'] as String? ?? '',
+            title: title,
+            url: m['url'] as String? ?? '',
+          ));
+        }
+        return result;
       }
     }
     return const [];

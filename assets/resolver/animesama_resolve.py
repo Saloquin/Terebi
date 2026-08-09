@@ -212,6 +212,7 @@ def action_planning(mod, dl, args):
     times = _planning_times(mod)
 
     items = []
+    seen = {}  # (jour, titre_normalisé) -> index dans items
     for i in range(1, len(day_sections), 2):
         current_day = day_sections[i].strip()
         day_content = day_sections[i + 1]
@@ -230,13 +231,37 @@ def action_planning(mod, dl, args):
             # Ignore les scans (mangas) — on ne garde que les animes.
             if hasattr(mod, '_is_scan_url') and mod._is_scan_url(card_url):
                 continue
-            title = card_title.strip()
+            raw_title = card_title.strip()
+            url = card_url.strip()
+            # anime-sama liste souvent le même anime en VF ET en VOSTFR : on
+            # nettoie un éventuel suffixe de version et on déduplique par jour.
+            title = re.sub(r'\s+(VOSTFR|VF)\s*$', '', raw_title, flags=re.I).strip()
+            is_vf = ('/vf' in url.lower()) or bool(re.search(r'\bvf\b', raw_title, re.I))
+            key = (current_day, _norm(title))
+            if key in seen:
+                # Doublon : on privilégie la version VOSTFR (remplace une VF déjà vue).
+                idx = seen[key]
+                if items[idx].get("_vf") and not is_vf:
+                    items[idx] = {
+                        "day": current_day,
+                        "time": times.get(_norm(title), ""),
+                        "title": title,
+                        "url": url,
+                        "_vf": is_vf,
+                    }
+                continue
+            seen[key] = len(items)
             items.append({
                 "day": current_day,
                 "time": times.get(_norm(title), ""),
                 "title": title,
-                "url": card_url.strip(),
+                "url": url,
+                "_vf": is_vf,
             })
+
+    # Retire le champ interne _vf avant la sortie.
+    for it in items:
+        it.pop("_vf", None)
 
     print(f"PLANNING_JSON: {json.dumps(items, ensure_ascii=False)}")
     sys.exit(0)

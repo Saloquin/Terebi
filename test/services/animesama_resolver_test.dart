@@ -188,5 +188,20 @@ void main() {
           const ProcessResult(exitCode: 1, stdout: 'RESOLVE_ERROR: planning KO'));
       expect(() => r.planning(), throwsA(isA<ResolveException>()));
     });
+
+    test('déduplique les doublons VF/VOSTFR du même jour', () async {
+      const dup =
+          'PLANNING_JSON: [{"day":"Lundi","time":"18h00","title":"Naruto VOSTFR","url":"/catalogue/naruto/vostfr/"},'
+          '{"day":"Lundi","time":"18h00","title":"Naruto VF","url":"/catalogue/naruto/vf/"},'
+          '{"day":"Mardi","time":"","title":"Naruto VOSTFR","url":"/catalogue/naruto/vostfr/"}]';
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async =>
+          const ProcessResult(exitCode: 0, stdout: dup));
+      final items = await r.planning();
+      // Lundi : un seul Naruto (VF/VOSTFR fusionnés) ; Mardi : un autre.
+      expect(items.length, 2);
+      expect(items.where((i) => i.day == 'Lundi').length, 1);
+      // Le suffixe de version est retiré du titre affiché.
+      expect(items.first.title, 'Naruto');
+    });
   });
 }
