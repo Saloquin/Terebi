@@ -49,51 +49,82 @@ def _fail(msg):
     sys.exit(1)
 
 
+_STOPWORDS = {
+    'the', 'a', 'an', 'of', 'to', 'in', 'and', 'le', 'la', 'les', 'un', 'une',
+    'de', 'des', 'du', 'et', 'no', 'wa', 'ga', 'season', 'saison', 'part',
+}
+
+
 def _norm_title(s):
     return re.sub(r'[^a-z0-9]', '', (s or '').lower())
 
 
 def _title_tokens(s):
-    return {t for t in re.split(r'[^a-z0-9]+', (s or '').lower()) if len(t) >= 2}
+    """Jetons significatifs (>=2 lettres, hors mots vides)."""
+    return {
+        t for t in re.split(r'[^a-z0-9]+', (s or '').lower())
+        if len(t) >= 2 and t not in _STOPWORDS
+    }
 
 
 def _best_catalogue_index(query, animes):
-    """Index du meilleur résultat catalogue pour [query].
+    """Index du meilleur résultat catalogue pour [query], ou None si aucun n'est
+    fiable.
 
-    get_catalogue renvoie plusieurs animes (résultats de recherche). Prendre le
-    1er aveuglément peut tomber sur une grosse franchise sans rapport (d'où
-    « 10 saisons + OAV »). On choisit le titre le plus proche : correspondance
-    exacte normalisée > inclusion > plus grand chevauchement de jetons > 1er.
+    get_catalogue renvoie plusieurs animes. Prendre le 1er (ou un simple
+    chevauchement de mots courants comme « the »/« princess ») peut tomber sur
+    une grosse franchise sans rapport (d'où « 10 saisons + OAV »). On exige donc
+    une correspondance FORTE : exacte > inclusion > chevauchement significatif
+    (>= la moitié des jetons utiles de la requête). Sinon None (pas de match).
     """
     if not animes:
-        return 0
+        return None
     qn = _norm_title(query)
     qt = _title_tokens(query)
-    exact, contains, best_overlap_i, best_overlap = None, None, 0, -1
+    best_i, best_overlap = None, 0
     for i, name in enumerate(animes):
         nn = _norm_title(name)
-        if nn == qn and exact is None:
-            exact = i
-        if (qn and nn and (qn in nn or nn in qn)) and contains is None:
-            contains = i
+        if nn == qn:
+            return i  # correspondance exacte
+        if qn and nn and (qn in nn or nn in qn):
+            return i  # inclusion (sous-titre / suffixe)
         overlap = len(qt & _title_tokens(name))
         if overlap > best_overlap:
-            best_overlap, best_overlap_i = overlap, i
-    if exact is not None:
-        return exact
-    if contains is not None:
-        return contains
-    return best_overlap_i
+            best_overlap, best_i = overlap, i
+    # Chevauchement significatif requis : au moins la moitié des jetons utiles
+    # de la requête (et >= 1), pour éviter les faux positifs.
+    if qt and best_overlap >= 1 and best_overlap * 2 >= len(qt):
+        return best_i
+    return None
+
+
+def _search_catalogue(dl, title, vf):
+    """Cherche [title] ; si aucun match fiable, réessaie avec des requêtes plus
+    courtes (mots significatifs). Retourne (anime_name, anime_url) ou None."""
+    # Requêtes candidates : titre complet, puis 3 puis 2 premiers mots utiles.
+    tokens = [t for t in re.split(r'[^A-Za-z0-9]+', title) if t]
+    queries = [title]
+    if len(tokens) > 3:
+        queries.append(' '.join(tokens[:3]))
+    if len(tokens) > 2:
+        queries.append(' '.join(tokens[:2]))
+    for q in queries:
+        animes, urls = dl.get_catalogue(q, vf=vf)
+        if not animes:
+            continue
+        idx = _best_catalogue_index(title, animes)
+        if idx is not None and idx < len(urls):
+            return animes[idx], urls[idx]
+    return None
 
 
 def _seasons_for(mod, dl, title, vf):
     """Retourne (anime_url, seasons[]) ou lève une erreur via _fail."""
     import requests
-    animes, urls = dl.get_catalogue(title, vf=vf)
-    if not animes:
-        _fail(f"aucun anime trouvé pour « {title} »")
-    idx = _best_catalogue_index(title, animes)
-    anime_url = urls[idx] if idx < len(urls) else urls[0]
+    found = _search_catalogue(dl, title, vf)
+    if found is None:
+        _fail(f"aucun anime correspondant à « {title} »")
+    _, anime_url = found
     resp = requests.get(anime_url, headers=mod.HEADERS_BASE, timeout=15)
     seasons = mod.get_seasons(resp.text)
     if not seasons:
