@@ -73,6 +73,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Nom lisible de la saison courante (anime-sama), ou `null`.
   String? _seasonName;
 
+  /// Index de saison anime-sama courant (résolu au 1er `_prepareMeta`).
+  int _seasonIndex = 1;
+
+  /// `true` une fois l'épisode initial calculé (dernier vu + 1), pour ne le
+  /// faire qu'une seule fois (à l'arrivée).
+  bool _initialEpisodeResolved = false;
+
   @override
   void initState() {
     super.initState();
@@ -85,12 +92,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
-  /// pour que la barre de contrôle soit renseignée dès l'arrivée.
+  /// et calcule l'épisode initial = **dernier vu de la saison + 1** (borné).
   Future<void> _prepareMeta() async {
     if (!await _isAnimeSamaActive()) return;
     final language = await _preferredLanguage();
-    final seasonIndex = await _seasonIndex();
-    await _loadSeasonMeta(seasonIndex: seasonIndex, language: language);
+    _seasonIndex = await _storedSeasonIndex();
+    await _loadSeasonMeta(seasonIndex: _seasonIndex, language: language);
+
+    // Épisode initial : reprendre à (dernier vu de la saison) + 1.
+    if (!_initialEpisodeResolved) {
+      _initialEpisodeResolved = true;
+      final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+      final lastWatched =
+          await seasonProgress.lastWatched(widget.media.anilistId, _seasonIndex);
+      var target = lastWatched + 1;
+      if (_episodes.isNotEmpty) {
+        // Borne au total ; si saison finie, on reste sur le dernier épisode.
+        if (target > _episodes.last) target = _episodes.last;
+      }
+      _currentEpisode = target;
+    }
     if (mounted) setState(() {});
   }
 
@@ -134,7 +155,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Index de saison mémorisé pour ce média, ou 1 par défaut.
   /// Le CHOIX de saison se fait sur la fiche (pas ici).
-  Future<int> _seasonIndex() async {
+  Future<int> _storedSeasonIndex() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
     final key = SettingsKeys.animeSamaSeasonFor(widget.media.anilistId);
     final stored = await settingsRepo.get(key);
@@ -154,7 +175,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
       int seasonIndex = 1;
       if (isAnimeSama) {
-        seasonIndex = await _seasonIndex();
+        seasonIndex = await _storedSeasonIndex();
+        _seasonIndex = seasonIndex;
         // Charge (best-effort) le nom de la saison + la liste des épisodes.
         await _loadSeasonMeta(seasonIndex: seasonIndex, language: language);
 
@@ -240,8 +262,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Marque l'épisode courant comme vu et fait avancer la progression.
-  /// Utilisé quand l'utilisateur passe à un épisode supérieur.
+  /// Met à jour la progression PAR SAISON (compteur N/total) et la progression
+  /// globale (EpisodeProgress + entry) pour la cohérence avec la bibliothèque.
   Future<void> _markCurrentWatched() async {
+    // Progression par saison anime-sama (pour la barre N/total sur la fiche).
+    await ref.read(seasonProgressRepositoryProvider).markWatched(
+          widget.media.anilistId,
+          _seasonIndex,
+          _currentEpisode,
+        );
+
     final progressService = ref.read(progressServiceProvider);
     final listRepo = ref.read(listRepositoryProvider);
     final progressRepo = ref.read(progressRepositoryProvider);
@@ -263,12 +293,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       updatedAt: now,
     ));
     _currentEntry = outcome.updatedEntry;
-
-    if (outcome.justCompleted && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Série terminée !')),
-      );
-    }
   }
 
   /// Navigue vers un épisode. Avancer marque l'épisode courant comme vu ;
@@ -286,6 +310,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     });
     await _loadAndPlay();
   }
+
+  /// Valide la fin de saison : marque le dernier épisode vu (compteur = total).
+  Future<void> _finishSeason() async {
+    await _markCurrentWatched();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Saison terminée ! 🎉')),
+    );
+    setState(() {}); // rafraîchit l'état des boutons.
+  }
+
+  /// `true` si l'épisode courant est le dernier de la saison.
+  bool get _isLastEpisode =>
+      _episodes.isNotEmpty && _currentEpisode >= _episodes.last;
 
   /// Épisode précédent dans [_episodes], ou `null` si on est au premier.
   int? get _prevEpisode {
@@ -391,6 +429,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                       ? () => _goToEpisode(_nextEpisode!)
                       : null,
                   onSelect: (ep) => _goToEpisode(ep),
+                  isLastEpisode: _isLastEpisode,
+                  onFinish: _finishSeason,
                 ),
 
                 if (_error != null) ...[
@@ -442,6 +482,8 @@ class _ControlBar extends StatelessWidget {
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
   final ValueChanged<int> onSelect;
+  final bool isLastEpisode;
+  final VoidCallback onFinish;
 
   const _ControlBar({
     required this.seasonName,
@@ -452,6 +494,8 @@ class _ControlBar extends StatelessWidget {
     required this.onPrev,
     required this.onNext,
     required this.onSelect,
+    required this.isLastEpisode,
+    required this.onFinish,
   });
 
   @override
@@ -510,11 +554,21 @@ class _ControlBar extends StatelessWidget {
               DropdownMenuItem(value: ep, child: Text('Épisode $ep')),
           ],
         ),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          tooltip: 'Épisode suivant',
-          onPressed: enabled ? onNext : null,
-        ),
+        // Dernier épisode → bouton ✓ « valider fin de saison ».
+        // Sinon → flèche « épisode suivant ».
+        if (isLastEpisode)
+          IconButton(
+            icon: const Icon(Icons.check_circle),
+            color: Colors.green,
+            tooltip: 'Valider : saison terminée',
+            onPressed: enabled ? onFinish : null,
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            tooltip: 'Épisode suivant',
+            onPressed: enabled ? onNext : null,
+          ),
       ],
     );
   }

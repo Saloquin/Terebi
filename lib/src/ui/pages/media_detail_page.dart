@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/franchise_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -712,7 +713,11 @@ class _AnimeSamaSeasonsSection extends ConsumerWidget {
                 style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             for (final season in seasons)
-              _AnimeSamaSeasonTile(media: media, season: season),
+              _AnimeSamaSeasonTile(
+                media: media,
+                season: season,
+                searchTitle: searchTitle,
+              ),
             const SizedBox(height: 8),
           ],
         );
@@ -721,63 +726,152 @@ class _AnimeSamaSeasonsSection extends ConsumerWidget {
   }
 }
 
-class _AnimeSamaSeasonTile extends ConsumerWidget {
+class _AnimeSamaSeasonTile extends ConsumerStatefulWidget {
   final Media media;
   final AnimeSamaSeason season;
+  final String searchTitle;
 
   const _AnimeSamaSeasonTile({
     required this.media,
     required this.season,
+    required this.searchTitle,
   });
 
-  Future<void> _play(BuildContext context, WidgetRef ref) async {
-    final settingsRepo = ref.read(settingsRepositoryProvider);
-    final listRepo = ref.read(listRepositoryProvider);
-    final progressRepo = ref.read(progressRepositoryProvider);
+  @override
+  ConsumerState<_AnimeSamaSeasonTile> createState() =>
+      _AnimeSamaSeasonTileState();
+}
 
-    // Mémorise la saison choisie.
+class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
+  int _lastWatched = 0; // dernier épisode vu de cette saison (0 = rien)
+  int? _total; // nombre d'épisodes anime-sama de la saison
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProgress());
+  }
+
+  Future<void> _loadProgress() async {
+    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+    final last = await seasonProgress.lastWatched(
+        widget.media.anilistId, widget.season.index);
+
+    int? total;
+    try {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      final eps = await resolver.listEpisodes(
+        title: widget.searchTitle,
+        seasonIndex: widget.season.index,
+      );
+      if (eps.isNotEmpty) total = eps.length;
+    } catch (_) {/* total inconnu → barre indéterminée */}
+
+    if (mounted) {
+      setState(() {
+        _lastWatched = last;
+        _total = total;
+        _loaded = true;
+      });
+    }
+  }
+
+  Future<void> _play() async {
+    final settingsRepo = ref.read(settingsRepositoryProvider);
+    // Mémorise la saison choisie (le lecteur lira dernier vu + 1 tout seul).
     await settingsRepo.set(
-      'anime_sama_season:${media.anilistId}',
-      '${season.index}',
+      SettingsKeys.animeSamaSeasonFor(widget.media.anilistId),
+      '${widget.season.index}',
     );
 
-    // Entrée de liste existante ou PLANNING minimal.
-    final existingEntry = await listRepo.getEntry(media.anilistId);
+    final listRepo = ref.read(listRepositoryProvider);
+    final existingEntry = await listRepo.getEntry(widget.media.anilistId);
     final entry = existingEntry ??
         ListEntry(
-          mediaId: media.anilistId,
+          mediaId: widget.media.anilistId,
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         );
 
-    // Épisode de reprise : dernier épisode vu, sinon 1.
-    final lastWatched = await progressRepo.lastWatched(media.anilistId);
-    final episode = lastWatched?.episodeNumber.toInt() ?? 1;
-
-    if (!context.mounted) return;
-
+    if (!mounted) return;
+    // Le lecteur recalcule l'épisode (dernier vu + 1) ; on passe une valeur
+    // cohérente au cas où (source non-anime-sama).
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerPage(
-          media: media,
-          episode: episode,
+          media: widget.media,
+          episode: _lastWatched + 1,
           entry: entry,
           cameFromDetail: true,
+          animeSamaTitle: widget.searchTitle,
         ),
       ),
-    );
+    ).then((_) {
+      // Au retour du lecteur, la progression a pu changer → recharger la barre.
+      _loadProgress();
+    });
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ListTile(
-      dense: true,
-      contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.play_circle_outline),
-      title: Text(season.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => _play(context, ref),
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final total = _total;
+    final done = total != null && total > 0 && _lastWatched >= total;
+    final ratio = (total != null && total > 0)
+        ? (_lastWatched / total).clamp(0.0, 1.0)
+        : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: InkWell(
+        onTap: _play,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  done ? Icons.check_circle : Icons.play_circle_outline,
+                  color: done ? Colors.green : null,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(widget.season.name,
+                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                ),
+                Text(
+                  !_loaded
+                      ? '…'
+                      : done
+                          ? 'Terminée'
+                          : total != null
+                              ? '$_lastWatched/$total'
+                              : '$_lastWatched vu(s)',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: done
+                        ? Colors.green
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontWeight: done ? FontWeight.bold : null,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: ratio, // null → barre indéterminée si total inconnu
+                minHeight: 5,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                color: done ? Colors.green : theme.colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

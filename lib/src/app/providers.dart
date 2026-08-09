@@ -21,7 +21,7 @@ import '../data/repositories/meta_cache_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/franchise_service.dart';
-import '../domain/logic/progress_service.dart';
+import '../domain/season_progress_repository.dart';import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
 import '../domain/logic/calendar_service.dart';
@@ -122,6 +122,11 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
 /// Repository paramètres applicatifs (chemins ani-cli/mpv, langue…).
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
+);
+
+/// Progression PAR saison anime-sama (dernier épisode vu par saison).
+final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
+  (ref) => SeasonProgressRepository(ref.watch(settingsRepositoryProvider)),
 );
 
 /// Résolveur ani-cli : détection plateforme (sh de Git Bash + VRAI script

@@ -33,6 +33,11 @@ abstract final class SettingsKeys {
   /// une recherche AniList à chaque fois. Ex. `anime_sama_anilist:drstone`.
   static String animeSamaAniListFor(String normalizedTitle) =>
       'anime_sama_anilist:$normalizedTitle';
+
+  /// Clé du dernier épisode VU d'une saison anime-sama (int, 0 = rien vu).
+  /// Progression PAR saison. Ex. `anime_sama_watched:105333:2`.
+  static String animeSamaWatchedFor(int anilistId, int seasonIndex) =>
+      'anime_sama_watched:$anilistId:$seasonIndex';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].
