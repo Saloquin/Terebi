@@ -136,21 +136,46 @@ def _is_real_season(s):
     return core != '' and core.count('/') == 0
 
 
+def _season_has_episodes(mod, dl, anime_url, season, vf):
+    """Vrai si la saison a au moins un épisode réel. anime-sama expose souvent
+    « Saison 1..10 » alors qu'une seule existe : les factices n'ont pas
+    d'épisodes. C'est le SEUL critère fiable pour les distinguer."""
+    try:
+        eps = _episodes_for(mod, dl, anime_url, season, vf)
+        return bool(eps)
+    except Exception:
+        return False
+
+
 def _seasons_for(mod, dl, title, vf):
-    """Retourne (anime_url, seasons[]) ou lève une erreur via _fail."""
+    """Retourne (anime_url, seasons[]) ou lève une erreur via _fail.
+
+    Ne conserve que les saisons RÉELLES : chemin relatif valide (exclut les
+    recommandations) ET ayant au moins un épisode (exclut les « Saison N »
+    factices générées par anime-sama). On valide dans l'ordre et on s'arrête à
+    la première saison vide après en avoir trouvé au moins une valide (les
+    factices sont contiguës en fin de liste) — limite le nombre de requêtes."""
     import requests
     found = _search_catalogue(dl, title, vf)
     if found is None:
         _fail(f"aucun anime correspondant à « {title} »")
     _, anime_url = found
     resp = requests.get(anime_url, headers=mod.HEADERS_BASE, timeout=15)
-    seasons = mod.get_seasons(resp.text)
-    # Ne garde que les vraies saisons (exclut les animes recommandés captés par
-    # get_seasons), puis déduplique les variantes de langue.
-    seasons = [s for s in seasons if _is_real_season(s)]
-    if not seasons:
-        _fail("aucune saison trouvée")
-    return anime_url, _dedupe_seasons(seasons)
+    raw = mod.get_seasons(resp.text)
+    candidates = _dedupe_seasons([s for s in raw if _is_real_season(s)])
+
+    real = []
+    for s in candidates:
+        if _season_has_episodes(mod, dl, anime_url, s, vf):
+            real.append(s)
+        elif real:
+            # On a déjà des saisons valides et celle-ci est vide → fin des
+            # vraies saisons (les suivantes sont factices). Arrêt anticipé.
+            break
+
+    if not real:
+        _fail("aucune saison avec épisodes trouvée")
+    return anime_url, real
 
 
 def _dedupe_seasons(seasons):
@@ -219,9 +244,15 @@ def action_debug_seasons(mod, dl, args):
     for s in raw:
         print(f"  name={s.get('name')!r}  url={s.get('url')!r}")
     kept = [s for s in raw if _is_real_season(s)]
-    print(f"APRES FILTRE ({len(kept)}): {[s.get('name') for s in kept]}")
-    dedup = _dedupe_seasons(kept)
-    print(f"APRES DEDUP ({len(dedup)}): {[s.get('name') for s in dedup]}")
+    kept = _dedupe_seasons(kept)
+    print(f"APRES FILTRE+DEDUP ({len(kept)}):")
+    for s in kept:
+        try:
+            eps = _episodes_for(mod, dl, anime_url, s, args.vf)
+            n = len(eps) if eps else 0
+        except Exception as e:
+            n = f"ERR({type(e).__name__})"
+        print(f"  name={s.get('name')!r}  episodes={n}")
     sys.exit(0)
 
 
