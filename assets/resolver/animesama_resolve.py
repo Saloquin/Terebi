@@ -197,10 +197,31 @@ def _pick_by_index(seasons, index):
 def action_list_seasons(mod, dl, args):
     _, seasons = _seasons_for(mod, dl, args.title, args.vf)
     payload = [
-        {"index": i, "name": s.get('name', f'Saison {i}')}
+        {"index": i, "name": s.get('name', f'Saison {i}'), "url": s.get('url', '')}
         for i, s in enumerate(seasons, 1)
     ]
     print(f"SEASONS_JSON: {json.dumps(payload, ensure_ascii=False)}")
+    sys.exit(0)
+
+
+def action_debug_seasons(mod, dl, args):
+    """Debug : affiche les saisons BRUTES (avant filtre/dédup) pour diagnostiquer
+    le « trop de saisons ». Montre nom + url exacts renvoyés par get_seasons."""
+    import requests
+    found = _search_catalogue(dl, args.title, args.vf)
+    if found is None:
+        _fail(f"aucun anime correspondant à « {args.title} »")
+    name, anime_url = found
+    print(f"ANIME: {name}  ->  {anime_url}")
+    resp = requests.get(anime_url, headers=mod.HEADERS_BASE, timeout=15)
+    raw = mod.get_seasons(resp.text)
+    print(f"RAW ({len(raw)}):")
+    for s in raw:
+        print(f"  name={s.get('name')!r}  url={s.get('url')!r}")
+    kept = [s for s in raw if _is_real_season(s)]
+    print(f"APRES FILTRE ({len(kept)}): {[s.get('name') for s in kept]}")
+    dedup = _dedupe_seasons(kept)
+    print(f"APRES DEDUP ({len(dedup)}): {[s.get('name') for s in dedup]}")
     sys.exit(0)
 
 
@@ -387,7 +408,7 @@ def main():
     parser.add_argument("--script", required=True, help="Chemin vers anime_sama.py")
     parser.add_argument("--action", default="resolve",
                         choices=["resolve", "list-seasons", "list-episodes",
-                                 "search", "planning"])
+                                 "search", "planning", "debug-seasons"])
     parser.add_argument("--title", default="", help="Titre de recherche")
     parser.add_argument("--season", type=int, default=1,
                         help="Index de saison (1-based, cf. list-seasons)")
@@ -406,6 +427,8 @@ def main():
             action_search(mod, dl, args)
         elif args.action == "planning":
             action_planning(mod, dl, args)
+        elif args.action == "debug-seasons":
+            action_debug_seasons(mod, dl, args)
         else:
             action_resolve(mod, dl, args)
     except SystemExit:
