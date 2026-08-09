@@ -296,7 +296,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Navigue vers un épisode. Avancer marque l'épisode courant comme vu ;
-  /// reculer ne modifie pas la progression.
+  /// reculer ne modifie pas la progression. Ne lance PAS la lecture : le
+  /// bouton « Lancer » réapparaît pour le nouvel épisode.
   Future<void> _goToEpisode(int ep) async {
     if (ep == _currentEpisode) return;
     if (ep > _currentEpisode) {
@@ -308,7 +309,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _ready = false;
       _error = null;
     });
-    await _loadAndPlay();
+    await _player.stop();
   }
 
   /// Valide la fin de saison : marque le dernier épisode vu (compteur = total).

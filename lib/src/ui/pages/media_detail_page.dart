@@ -94,6 +94,22 @@ final _sequelsToReplanProvider =
       .toList();
 });
 
+/// Titres normalisés présents au planning anime-sama (diffusion en cours).
+/// Sert à décider « À jour » (au planning) vs « Terminée » (hors planning).
+final _planningTitlesProvider = FutureProvider<Set<String>>((ref) async {
+  try {
+    final resolver = await ref.watch(animeSamaResolverProvider.future);
+    final items = await resolver.planning();
+    return items.map((e) => _normTitle(e.title)).toSet();
+  } catch (_) {
+    return <String>{};
+  }
+});
+
+/// Normalise un titre pour comparaison (minuscule, alphanumérique).
+String _normTitle(String t) =>
+    t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -717,6 +733,7 @@ class _AnimeSamaSeasonsSection extends ConsumerWidget {
                 media: media,
                 season: season,
                 searchTitle: searchTitle,
+                isLastSeason: season.index == seasons.last.index,
               ),
             const SizedBox(height: 8),
           ],
@@ -730,11 +747,13 @@ class _AnimeSamaSeasonTile extends ConsumerStatefulWidget {
   final Media media;
   final AnimeSamaSeason season;
   final String searchTitle;
+  final bool isLastSeason;
 
   const _AnimeSamaSeasonTile({
     required this.media,
     required this.season,
     required this.searchTitle,
+    required this.isLastSeason,
   });
 
   @override
@@ -823,6 +842,16 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         ? (_lastWatched / total).clamp(0.0, 1.0)
         : null;
 
+    // « À jour » si saison finie + dernière saison + anime au planning
+    // (nouveaux épisodes possibles) ; sinon « Terminée ».
+    final planningTitles = ref.watch(_planningTitlesProvider).maybeWhen(
+          data: (s) => s,
+          orElse: () => const <String>{},
+        );
+    final atPlanning = planningTitles.contains(_normTitle(widget.searchTitle));
+    final doneLabel =
+        (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: InkWell(
@@ -846,7 +875,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
                   !_loaded
                       ? '…'
                       : done
-                          ? 'Terminée'
+                          ? doneLabel
                           : total != null
                               ? '$_lastWatched/$total'
                               : '$_lastWatched vu(s)',

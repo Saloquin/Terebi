@@ -44,11 +44,18 @@ final _mediaForTitleProvider =
   return matcher.match(title);
 });
 
-/// IDs des médias en statut PLANNING (pour le toggle Perso + l'état des boutons).
+/// IDs des médias présents dans la bibliothèque, TOUS statuts SAUF Abandonné.
+/// Le calendrier PERSO montre automatiquement ces anime (pas besoin d'ajout
+/// manuel) ; le bouton d'ajout sert à mettre un anime hors-biblio en Planifié.
 final _planningIdsProvider = FutureProvider<Set<int>>((ref) async {
   final listRepo = ref.watch(listRepositoryProvider);
-  final entries = await listRepo.entriesByStatus(ListStatus.planning);
-  return entries.map((e) => e.mediaId).toSet();
+  final ids = <int>{};
+  for (final status in ListStatus.values) {
+    if (status == ListStatus.dropped) continue;
+    final entries = await listRepo.entriesByStatus(status);
+    ids.addAll(entries.map((e) => e.mediaId));
+  }
+  return ids;
 });
 
 // ---------------------------------------------------------------------------
@@ -173,21 +180,20 @@ class _PlanningColumns extends ConsumerWidget {
       list.sort((a, b) => _timeRank(a.time).compareTo(_timeRank(b.time)));
     }
 
-    return SingleChildScrollView(
+    // ListView horizontal (borne la hauteur → les colonnes peuvent utiliser
+    // Expanded pour défiler verticalement, chacune indépendamment).
+    return ListView(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final day in days)
-            _DayColumn(
-              day: day,
-              items: byDay[day]!,
-              showGlobal: showGlobal,
-              planningIds: planningIds,
-            ),
-        ],
-      ),
+      children: [
+        for (final day in days)
+          _DayColumn(
+            day: day,
+            items: byDay[day]!,
+            showGlobal: showGlobal,
+            planningIds: planningIds,
+          ),
+      ],
     );
   }
 }
@@ -223,12 +229,20 @@ class _DayColumn extends StatelessWidget {
                   ),
             ),
           ),
-          for (final item in items)
-            _PlanningCard(
-              item: item,
-              showGlobal: showGlobal,
-              planningIds: planningIds,
+          // Liste scrollable verticalement (chaque jour défile indépendamment).
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final item in items)
+                  _PlanningCard(
+                    item: item,
+                    showGlobal: showGlobal,
+                    planningIds: planningIds,
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );

@@ -9,6 +9,7 @@ import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
+import '../../services/animesama_resolver.dart';
 import 'media_detail_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -76,6 +77,70 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _statusOrder.length, vsync: this);
+    // Revalide les anime « Terminé » : si une nouvelle saison/épisode est dispo
+    // sur anime-sama (dernier vu < total), on les repasse « En cours ».
+    WidgetsBinding.instance.addPostFrameCallback((_) => _recheckCompleted());
+  }
+
+  Future<void> _recheckCompleted() async {
+    try {
+      await _recheckCompletedImpl();
+    } catch (_) {
+      // Best-effort : un recheck qui échoue ne doit jamais casser la page.
+    }
+  }
+
+  Future<void> _recheckCompletedImpl() async {
+    final listRepo = ref.read(listRepositoryProvider);
+    final mediaRepo = ref.read(mediaRepositoryProvider);
+    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+
+    final completed = await listRepo.entriesByStatus(ListStatus.completed);
+    if (completed.isEmpty) return;
+
+    final AnimeSamaResolver resolver;
+    try {
+      resolver = await ref.read(animeSamaResolverProvider.future);
+    } catch (_) {
+      return; // résolveur indisponible → pas de recheck.
+    }
+
+    var changed = false;
+    for (final entry in completed) {
+      try {
+        final media = await mediaRepo.getMedia(entry.mediaId);
+        final title = media?.title.preferred;
+        if (title == null) continue;
+
+        final seasons = await resolver.listSeasons(title: title);
+        if (seasons.isEmpty) continue;
+        final last = seasons.last;
+
+        final eps = await resolver.listEpisodes(
+          title: title,
+          seasonIndex: last.index,
+        );
+        if (eps.isEmpty) continue;
+
+        final watched =
+            await seasonProgress.lastWatched(entry.mediaId, last.index);
+        if (watched < eps.length) {
+          // Il reste des épisodes non vus → l'anime n'est plus « Terminé ».
+          await listRepo.upsertEntry(entry.copyWith(
+            status: ListStatus.current,
+            updatedAt: DateTime.now(),
+          ));
+          changed = true;
+        }
+      } catch (_) {
+        // Ignore les erreurs individuelles (réseau, anime introuvable…).
+      }
+    }
+
+    if (changed && mounted) {
+      ref.invalidate(countByStatusProvider);
+      ref.invalidate(entriesByStatusProvider);
+    }
   }
 
   @override
