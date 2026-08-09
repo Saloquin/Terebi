@@ -269,6 +269,12 @@ def action_debug_seasons(mod, dl, args):
             n = f"ERR({type(e).__name__})"
             playable = 0
         print(f"  name={s.get('name')!r}  clés={n}  jouables={playable}")
+        # Affiche les URLs vidéo brutes pour repérer une duplication (fantômes).
+        try:
+            for k in sorted(eps.keys(), key=lambda x: int(x) if x.isdigit() else 0)[:3]:
+                print(f"      ep{k}: {eps[k]}")
+        except Exception:
+            pass
     sys.exit(0)
 
 
