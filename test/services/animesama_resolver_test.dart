@@ -18,10 +18,12 @@ void main() {
   group('buildArgs', () {
     final r = _resolver(_never);
 
-    test('VOSTFR : action resolve, titre nettoyé, saison, épisode, pas de --vf', () {
+    test('VOSTFR : action resolve, titre TEL QUEL, saison, épisode, pas de --vf', () {
       final args = r.buildArgs(title: 'Dr Stone Saison 2', episode: 3, season: 2);
       expect(args, containsAllInOrder(['--action', 'resolve']));
-      expect(args, containsAllInOrder(['--title', 'Dr Stone']));
+      // Le titre est passé tel quel (anime-sama = source de vérité, pas de
+      // nettoyage type AniList qui casserait les titres longs / sous-titres).
+      expect(args, containsAllInOrder(['--title', 'Dr Stone Saison 2']));
       expect(args, containsAllInOrder(['--season', '2']));
       expect(args, containsAllInOrder(['--episode', '3']));
       expect(args.contains('--vf'), isFalse);
@@ -99,7 +101,8 @@ void main() {
       expect(seasons.length, 3);
       expect(seasons[1], const AnimeSamaSeason(index: 2, name: 'Saison 2'));
       expect(captured, containsAllInOrder(['--action', 'list-seasons']));
-      expect(captured, containsAllInOrder(['--title', 'Dr Stone']));
+      // Titre passé tel quel (pas de nettoyage).
+      expect(captured, containsAllInOrder(['--title', 'Dr Stone Saison 2']));
     });
 
     test('lève ResolveException si erreur', () async {

@@ -14,7 +14,6 @@ import 'dart:convert';
 
 import 'process_runner.dart';
 import 'stream_resolver.dart';
-import 'title_utils.dart';
 
 /// Résout un flux VOSTFR/VF via le wrapper Python anime-sama.
 class AnimeSamaResolver implements StreamResolver {
@@ -45,13 +44,19 @@ class AnimeSamaResolver implements StreamResolver {
   static const _cataloguePrefix = 'CATALOGUE_JSON:';
   static const _planningPrefix = 'PLANNING_JSON:';
 
-  /// Args communs (titre nettoyé + langue), pour une [action] donnée.
+  /// Args communs (titre + langue), pour une [action] donnée.
+  ///
+  /// Le titre est passé TEL QUEL : anime-sama est la source de vérité, le titre
+  /// reçu est déjà le titre exact anime-sama. On ne le nettoie PAS (le nettoyage
+  /// type AniList couperait les sous-titres après « : » ou « Part N » et ferait
+  /// tomber la recherche sur un mauvais anime). Le wrapper Python gère le
+  /// matching (correspondance forte + repli sur mots significatifs).
   List<String> _baseArgs(String action, String title, PlaybackLanguage language) {
     return [
       wrapperScriptPath,
       '--script', animeSamaScriptPath,
       '--action', action,
-      '--title', cleanSearchTitle(title),
+      '--title', title.trim(),
       if (language == PlaybackLanguage.vf) '--vf',
     ];
   }
