@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -91,18 +92,35 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   }
 
   Future<void> _recheckCompletedImpl() async {
+    final settings = ref.read(settingsRepositoryProvider);
+
+    // Garde 1×/jour : le recheck fait plusieurs requêtes anime-sama par anime
+    // « Terminé » ; inutile de le refaire à chaque ouverture de la biblio.
+    final lastRaw = await settings.get(SettingsKeys.lastCompletedRecheck);
+    if (lastRaw != null) {
+      final last = DateTime.tryParse(lastRaw);
+      if (last != null &&
+          DateTime.now().difference(last) < const Duration(days: 1)) {
+        return; // déjà fait dans les dernières 24 h.
+      }
+    }
+
     final listRepo = ref.read(listRepositoryProvider);
     final mediaRepo = ref.read(mediaRepositoryProvider);
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
 
     final completed = await listRepo.entriesByStatus(ListStatus.completed);
-    if (completed.isEmpty) return;
+    if (completed.isEmpty) {
+      await settings.set(
+          SettingsKeys.lastCompletedRecheck, DateTime.now().toIso8601String());
+      return;
+    }
 
     final AnimeSamaResolver resolver;
     try {
       resolver = await ref.read(animeSamaResolverProvider.future);
     } catch (_) {
-      return; // résolveur indisponible → pas de recheck.
+      return; // résolveur indisponible → pas de recheck (ne marque pas la date).
     }
 
     var changed = false;
@@ -135,7 +153,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       } catch (_) {
         // Ignore les erreurs individuelles (réseau, anime introuvable…).
       }
+      // Espace les requêtes pour ne pas se faire throttle par anime-sama.
+      await Future.delayed(const Duration(milliseconds: 400));
     }
+
+    // Mémorise la date du recheck (réussi) pour la garde 1×/jour.
+    await settings.set(
+        SettingsKeys.lastCompletedRecheck, DateTime.now().toIso8601String());
 
     if (changed && mounted) {
       ref.invalidate(countByStatusProvider);

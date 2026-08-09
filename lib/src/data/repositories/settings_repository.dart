@@ -38,6 +38,10 @@ abstract final class SettingsKeys {
   /// Progression PAR saison. Ex. `anime_sama_watched:105333:2`.
   static String animeSamaWatchedFor(int anilistId, int seasonIndex) =>
       'anime_sama_watched:$anilistId:$seasonIndex';
+
+  /// Date (ISO 8601) du dernier recheck des « Terminé » de la bibliothèque.
+  /// Sert à ne relancer ce recheck (coûteux en requêtes anime-sama) qu'1×/jour.
+  static const String lastCompletedRecheck = 'last_completed_recheck';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].
