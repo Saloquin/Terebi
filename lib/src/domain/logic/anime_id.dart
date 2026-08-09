@@ -34,30 +34,56 @@ int animeSamaIdFor(String title) {
   return -nonZero;
 }
 
-/// Découpe un titre en jetons alphanumériques minuscules (>= 2 lettres).
+/// Mots vides ignorés pour la comparaison de titres (ils gonflent le
+/// dénominateur et font échouer les titres longs sans vraie divergence).
+const _titleStopwords = {
+  'the', 'a', 'an', 'of', 'to', 'in', 'and', 'le', 'la', 'les', 'un', 'une',
+  'de', 'des', 'du', 'et', 'no', 'wa', 'ga', 'season', 'saison', 'part',
+  'decided', 'take',
+};
+
+/// Découpe un titre en jetons significatifs (>= 2 lettres, hors mots vides).
 Set<String> _titleTokens(String title) => title
     .toLowerCase()
     .split(RegExp(r'[^a-z0-9]+'))
-    .where((t) => t.length >= 2)
+    .where((t) => t.length >= 2 && !_titleStopwords.contains(t))
     .toSet();
 
 /// Décide si deux titres désignent probablement le même anime.
 ///
-/// Garde-fou anti mauvais-match AniList (ex. « demon slayer » ≠ « onigiri »).
-/// Vrai si, après normalisation, l'un contient l'autre, OU si une part
-/// suffisante des jetons du titre recherché se retrouve dans le candidat.
+/// Garde-fou anti mauvais-match AniList (ex. « demon slayer » ≠ « onigiri »),
+/// mais assez souple pour accepter les variantes de traduction/formatage.
+/// Vrai si, après normalisation, l'un contient l'autre, OU s'ils partagent un
+/// préfixe fort, OU si une part suffisante des jetons SIGNIFICATIFS de la
+/// requête se retrouve dans le candidat.
 bool titlesSimilar(String query, String candidate) {
   final a = normalizeAnimeTitle(query);
   final b = normalizeAnimeTitle(candidate);
   if (a.isEmpty || b.isEmpty) return false;
+
   // Inclusion directe (sous-titres, suffixes de saison…).
   if (a.contains(b) || b.contains(a)) return true;
 
-  // Chevauchement de jetons : au moins la moitié des jetons de la requête
-  // (et au minimum un) doivent apparaître dans le candidat.
+  // Préfixe commun fort (>= 8 caractères normalisés) : titres longs qui
+  // commencent pareil mais divergent en fin (sous-titre traduit…).
+  final prefix = _commonPrefixLength(a, b);
+  if (prefix >= 8) return true;
+
+  // Chevauchement de jetons significatifs : au moins ~40% des jetons de la
+  // requête (et au minimum un) présents dans le candidat.
   final qt = _titleTokens(query);
   final ct = _titleTokens(candidate);
   if (qt.isEmpty || ct.isEmpty) return false;
   final common = qt.intersection(ct).length;
-  return common >= 1 && common * 2 >= qt.length;
+  return common >= 1 && common * 5 >= qt.length * 2; // >= 40%
+}
+
+/// Longueur du plus long préfixe commun entre deux chaînes.
+int _commonPrefixLength(String a, String b) {
+  final n = a.length < b.length ? a.length : b.length;
+  var i = 0;
+  while (i < n && a.codeUnitAt(i) == b.codeUnitAt(i)) {
+    i++;
+  }
+  return i;
 }

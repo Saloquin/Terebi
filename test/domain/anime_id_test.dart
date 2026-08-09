@@ -75,6 +75,25 @@ void main() {
       expect(titlesSimilar('Attack on Titan', 'Attack'), isTrue); // inclusion
       expect(titlesSimilar('One Piece', 'Two Pieces of Cake'), isFalse);
     });
+
+    test('assoupli : titres longs partageant les mots significatifs → similaires', () {
+      // Sous-titre / formatage différents mais mots-clés communs.
+      expect(
+        titlesSimilar('The Furious Princess Decided to Take Revenge',
+            'Furious Princess: Revenge Arc'),
+        isTrue,
+      );
+    });
+
+    test('assoupli : fort préfixe commun → similaires', () {
+      expect(titlesSimilar('Kaguya-sama Love is War', 'Kaguya-sama wa Kokurasetai'),
+          isTrue);
+    });
+
+    test('assoupli ne casse pas le garde-fou (aucun mot-clé commun → non)', () {
+      expect(titlesSimilar('Demon Slayer Kimetsu no Yaiba', 'Onigiri Princess'),
+          isFalse);
+    });
   });
 
   group('enrichedWith', () {

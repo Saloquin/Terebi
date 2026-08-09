@@ -17,25 +17,24 @@ import 'player_page.dart';
 // Providers locaux
 // ---------------------------------------------------------------------------
 
-/// Charge le média : **cache local d'abord** (source de vérité anime-sama).
-/// Si le média n'a jamais été résolu (pas d'`animeSamaTitle` en cache) et qu'on
-/// a un titre, on enrichit UNE fois via [TitleMatcher.resolve] (image/desc
-/// AniList si titre similaire). Un média déjà résolu SANS image est réutilisé
-/// tel quel (évite de re-chercher indéfiniment les anime qu'AniList ignore).
+/// Charge le média. Si on a un titre anime-sama, on délègue à
+/// [TitleMatcher.resolve] qui gère le cache ET le réessai d'enrichissement
+/// (image AniList) : réutilise le cache si déjà enrichi ou si « pas de match »
+/// définitif, mais retente si l'échec précédent était réseau. Sans titre : id
+/// AniList réel → lecture directe. `null` → le widget fabrique un Media minimal.
 final _mediaDetailProvider =
     FutureProvider.family<Media?, ({int id, String? title})>((ref, arg) async {
-  final local = await ref.watch(mediaRepositoryProvider).getMedia(arg.id);
-  // Déjà résolu (peu importe qu'il ait une image ou non) → on réutilise.
-  if (local != null && local.animeSamaTitle != null) return local;
-
-  // Première résolution via le titre anime-sama.
+  // Avec titre : resolve() est la source de vérité (cache + réessai gérés).
   if (arg.title != null) {
     try {
       return await ref.read(titleMatcherProvider).resolve(arg.title!);
     } catch (_) {
+      final local = await ref.read(mediaRepositoryProvider).getMedia(arg.id);
       return local ?? Media.fromAnimeSama(title: arg.title!);
     }
   }
+
+  final local = await ref.watch(mediaRepositoryProvider).getMedia(arg.id);
   if (local != null) return local;
 
   // Pas de titre : id AniList réel → lecture directe (bonus).

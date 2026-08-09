@@ -35,36 +35,69 @@ class TitleMatcher {
     // Base : le média anime-sama fait foi (identité stable).
     var media = Media.fromAnimeSama(title: animeSamaTitle);
 
-    // Cache local : si ce média a DÉJÀ été résolu (présent en base), on le
-    // réutilise tel quel — même sans image. Évite de relancer une recherche
-    // AniList à chaque affichage pour les anime qu'AniList ne reconnaît pas.
+    // Cache local : si ce média a déjà été résolu AVEC image, on le réutilise.
+    // Sans image, on ne réessaie que si l'échec précédent était RÉSEAU (pour
+    // récupérer l'image ratée à cause d'un 429), pas si « pas de match ».
     final cached = await mediaRepo.getMedia(media.anilistId);
-    if (cached != null && cached.animeSamaTitle != null) return cached;
+    if (cached != null && cached.animeSamaTitle != null) {
+      if (cached.coverUrl != null) return cached; // déjà enrichi
+      final failedNoMatch = await _isMarkedNoMatch(animeSamaTitle);
+      if (failedNoMatch) return cached; // rien à gagner à réessayer
+      // sinon : échec réseau précédent → on retente l'enrichissement ci-dessous
+    }
 
-    // Première résolution : enrichissement AniList optionnel (best-effort).
-    final enrich = await _fetchEnrichment(animeSamaTitle);
+    // Enrichissement AniList (best-effort). networkFailed distingue
+    // « pas de résultat fiable » (définitif) d'un « échec réseau » (temporaire).
+    final (enrich, networkFailed) = await _fetchEnrichment(animeSamaTitle);
     if (enrich != null) media = media.enrichedWith(enrich);
 
     await mediaRepo.upsertMedia(media);
+    // Mémorise « pas de match » seulement si la recherche a abouti sans trouver
+    // (pas d'échec réseau) → évite de réessayer inutilement plus tard.
+    await _markNoMatch(animeSamaTitle, enrich == null && !networkFailed);
     return media;
   }
 
-  /// Cherche sur AniList un média dont le titre **ressemble** à [query].
-  /// Retourne `null` si rien de fiable (aucun résultat, ou 1er résultat trop
-  /// différent → évite le faux match). N'écrit rien : simple lecture.
-  Future<Media?> _fetchEnrichment(String query) async {
+  static const _noMatchPrefix = 'anime_sama_nomatch:';
+
+  Future<bool> _isMarkedNoMatch(String title) async {
+    final v = await settings.get(_noMatchPrefix + normalizeAnimeTitle(title));
+    return v == '1';
+  }
+
+  Future<void> _markNoMatch(String title, bool noMatch) async {
+    final key = _noMatchPrefix + normalizeAnimeTitle(title);
+    if (noMatch) {
+      await settings.set(key, '1');
+    } else {
+      await settings.delete(key); // match trouvé ou échec réseau → réessai permis
+    }
+  }
+
+  /// Cherche sur AniList un média dont un des titres (anglais/romaji/natif)
+  /// **ressemble** à [query]. Retourne (media|null, networkFailed) :
+  /// - (media, false) : match fiable trouvé ;
+  /// - (null, false)  : recherche OK mais aucun résultat similaire (définitif) ;
+  /// - (null, true)   : échec réseau / rate-limit (à retenter plus tard).
+  Future<(Media?, bool)> _fetchEnrichment(String query) async {
     try {
       final results = await anilist.search(query);
       for (final m in results) {
-        final candidate = m.title.english ?? m.title.romaji ?? m.title.native;
-        if (candidate != null && titlesSimilar(query, candidate)) {
-          return m;
+        final candidates = [
+          m.title.english,
+          m.title.romaji,
+          m.title.native,
+        ];
+        for (final c in candidates) {
+          if (c != null && titlesSimilar(query, c)) {
+            return (m, false);
+          }
         }
       }
+      return (null, false); // recherche aboutie, pas de match
     } catch (_) {
-      // AniList indisponible / rate-limité → pas d'enrichissement.
+      return (null, true); // AniList indisponible / rate-limité
     }
-    return null;
   }
 
   /// Recherche AniList directe (1er résultat), sans garde-fou. Conservé pour un
