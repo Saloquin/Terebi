@@ -561,9 +561,12 @@ class _AnimeSamaSeasonsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Titre de recherche anime-sama : privilégie le titre propre (anime-sama)
-    // quand on arrive du catalogue/planning, sinon le titre AniList.
-    final searchTitle = displayTitle ?? media.title.preferred;
+    // Titre de recherche anime-sama : le titre anime-sama exact fait foi
+    // (displayTitle transmis, ou animeSamaTitle stocké). Le titre AniList
+    // (title.preferred) n'est utilisé qu'en dernier recours car il peut différer
+    // et provoquer un mauvais match (ex. « 10 saisons + OAV » d'un autre anime).
+    final searchTitle =
+        displayTitle ?? media.animeSamaTitle ?? media.title.preferred;
     final seasonsAsync = ref.watch(_animeSamaSeasonsProvider(searchTitle));
 
     return seasonsAsync.when(

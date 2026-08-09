@@ -49,13 +49,51 @@ def _fail(msg):
     sys.exit(1)
 
 
+def _norm_title(s):
+    return re.sub(r'[^a-z0-9]', '', (s or '').lower())
+
+
+def _title_tokens(s):
+    return {t for t in re.split(r'[^a-z0-9]+', (s or '').lower()) if len(t) >= 2}
+
+
+def _best_catalogue_index(query, animes):
+    """Index du meilleur résultat catalogue pour [query].
+
+    get_catalogue renvoie plusieurs animes (résultats de recherche). Prendre le
+    1er aveuglément peut tomber sur une grosse franchise sans rapport (d'où
+    « 10 saisons + OAV »). On choisit le titre le plus proche : correspondance
+    exacte normalisée > inclusion > plus grand chevauchement de jetons > 1er.
+    """
+    if not animes:
+        return 0
+    qn = _norm_title(query)
+    qt = _title_tokens(query)
+    exact, contains, best_overlap_i, best_overlap = None, None, 0, -1
+    for i, name in enumerate(animes):
+        nn = _norm_title(name)
+        if nn == qn and exact is None:
+            exact = i
+        if (qn and nn and (qn in nn or nn in qn)) and contains is None:
+            contains = i
+        overlap = len(qt & _title_tokens(name))
+        if overlap > best_overlap:
+            best_overlap, best_overlap_i = overlap, i
+    if exact is not None:
+        return exact
+    if contains is not None:
+        return contains
+    return best_overlap_i
+
+
 def _seasons_for(mod, dl, title, vf):
     """Retourne (anime_url, seasons[]) ou lève une erreur via _fail."""
     import requests
     animes, urls = dl.get_catalogue(title, vf=vf)
     if not animes:
         _fail(f"aucun anime trouvé pour « {title} »")
-    anime_url = urls[0]
+    idx = _best_catalogue_index(title, animes)
+    anime_url = urls[idx] if idx < len(urls) else urls[0]
     resp = requests.get(anime_url, headers=mod.HEADERS_BASE, timeout=15)
     seasons = mod.get_seasons(resp.text)
     if not seasons:
