@@ -180,20 +180,26 @@ class _PlanningColumns extends ConsumerWidget {
       list.sort((a, b) => _timeRank(a.time).compareTo(_timeRank(b.time)));
     }
 
-    // ListView horizontal (borne la hauteur → les colonnes peuvent utiliser
-    // Expanded pour défiler verticalement, chacune indépendamment).
-    return ListView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      children: [
-        for (final day in days)
-          _DayColumn(
-            day: day,
-            items: byDay[day]!,
-            showGlobal: showGlobal,
-            planningIds: planningIds,
-          ),
-      ],
+    // Un seul scroll vertical GLOBAL pour toute la page ; scroll horizontal
+    // pour parcourir les jours. Les colonnes ont leur hauteur naturelle.
+    return SingleChildScrollView(
+      scrollDirection: Axis.vertical,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final day in days)
+              _DayColumn(
+                day: day,
+                items: byDay[day]!,
+                showGlobal: showGlobal,
+                planningIds: planningIds,
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -217,6 +223,7 @@ class _DayColumn extends StatelessWidget {
       margin: const EdgeInsets.only(right: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
@@ -229,20 +236,13 @@ class _DayColumn extends StatelessWidget {
                   ),
             ),
           ),
-          // Liste scrollable verticalement (chaque jour défile indépendamment).
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                for (final item in items)
-                  _PlanningCard(
-                    item: item,
-                    showGlobal: showGlobal,
-                    planningIds: planningIds,
-                  ),
-              ],
+          // Cartes à hauteur naturelle : le scroll vertical est GLOBAL (parent).
+          for (final item in items)
+            _PlanningCard(
+              item: item,
+              showGlobal: showGlobal,
+              planningIds: planningIds,
             ),
-          ),
         ],
       ),
     );
