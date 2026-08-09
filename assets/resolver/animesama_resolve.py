@@ -29,10 +29,26 @@ Usage :
   python animesama_resolve.py --script <anime_sama.py> --action planning [--vf]
 """
 import argparse
+import contextlib
 import importlib.util
 import json
+import os
 import re
 import sys
+
+
+@contextlib.contextmanager
+def _silence_output():
+    """Étouffe stdout/stderr le temps d'un bloc. Le module anime_sama imprime des
+    erreurs (« 404 … episodes.js ») pendant la validation des saisons ; on ne
+    veut pas polluer notre sortie (préfixée SEASONS_JSON/…)."""
+    with open(os.devnull, 'w') as devnull:
+        old_out, old_err = sys.stdout, sys.stderr
+        try:
+            sys.stdout, sys.stderr = devnull, devnull
+            yield
+        finally:
+            sys.stdout, sys.stderr = old_out, old_err
 
 
 def _load_anime_sama(script_path):
@@ -183,7 +199,8 @@ def _season_has_episodes(mod, dl, anime_url, season, vf):
     saisons annoncées avec 1 épisode « fantôme » (sans lien vidéo) : le critère
     fiable est la présence d'au moins un épisode ayant une URL."""
     try:
-        eps = _episodes_for(mod, dl, anime_url, season, vf)
+        with _silence_output():
+            eps = _episodes_for(mod, dl, anime_url, season, vf)
         return _playable_episode_count(eps) > 0
     except Exception:
         return False
