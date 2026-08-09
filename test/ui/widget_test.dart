@@ -11,13 +11,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:terebi/src/app/providers.dart';
 import 'package:terebi/src/data/local/database.dart';
+import 'package:terebi/src/data/remote/anilist_client.dart';
 import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/media_repository.dart';
 import 'package:terebi/src/domain/logic/stats_service.dart';
+import 'package:terebi/src/domain/models/airing_schedule.dart';
 import 'package:terebi/src/domain/models/anime_format.dart';
+import 'package:terebi/src/domain/models/enums.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
 import 'package:terebi/src/domain/models/media.dart';
+import 'package:terebi/src/domain/models/media_relation.dart';
 import 'package:terebi/src/services/animesama_resolver.dart';
 import 'package:terebi/src/services/process_runner.dart';
 import 'package:terebi/src/ui/pages/calendar_page.dart';
@@ -26,6 +30,25 @@ import 'package:terebi/src/ui/pages/library_page.dart';
 import 'package:terebi/src/ui/pages/settings_page.dart';
 import 'package:terebi/src/ui/pages/stats_page.dart';
 import 'package:terebi/src/ui/widgets/media_card.dart';
+
+/// Faux AniListApi minimal : la recherche ne renvoie rien (le rematch des
+/// cartes du planning/catalogue échoue silencieusement → carte textuelle).
+class _StubAniList implements AniListApi {
+  const _StubAniList();
+  @override
+  Future<List<Media>> search(String query, {int page = 1, int perPage = 20}) async => const [];
+  @override
+  Future<List<Media>> season(AnimeSeason season, int year,
+          {int page = 1, int perPage = 50}) async =>
+      const [];
+  @override
+  Future<Media> mediaDetail(int anilistId) async =>
+      throw UnimplementedError();
+  @override
+  Future<List<MediaRelation>> relations(int anilistId) async => const [];
+  @override
+  Future<AiringSchedule?> nextAiring(int anilistId) async => null;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -303,6 +326,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
+          aniListClientProvider.overrideWithValue(const _StubAniList()),
           animeSamaResolverProvider
               .overrideWith((ref) async => _fakeResolver(out)),
         ],

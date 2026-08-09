@@ -2,9 +2,11 @@
 ///
 /// - Le planning vient d'anime-sama (jour + heure), pas d'AniList.
 /// - Affichage en **colonnes de jour** (Lundi → Dimanche), items triés par heure.
-/// - Un clic lance la **lecture directe** : on rematch le titre vers AniList
-///   (pour un [Media] exploitable), on mémorise la **saison en cours de sortie**
-///   (la plus récente sur anime-sama), et on ouvre le lecteur au dernier épisode vu.
+/// - Chaque carte **rematch** son titre vers AniList (lazy, avec cache) pour
+///   afficher la **vignette** et permettre l'ajout au planning perso.
+/// - Toggle **Global / Perso** : Perso = uniquement les anime du planning que
+///   tu as marqués « Planifié ».
+/// - Un clic lance la **lecture directe** (saison en cours, dernier épisode vu).
 library;
 
 import 'package:flutter/material.dart';
@@ -14,11 +16,12 @@ import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
+import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
 import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
-// Provider planning anime-sama
+// Providers
 // ---------------------------------------------------------------------------
 
 /// Planning hebdomadaire anime-sama, regroupé par jour (ordre anime-sama).
@@ -31,6 +34,21 @@ final _planningProvider =
   final language =
       langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
   return resolver.planning(language: language);
+});
+
+/// Rematch (lazy, caché) d'un titre anime-sama vers un [Media] AniList.
+/// Chaque carte du planning résout le sien → vignette + ajout perso.
+final _mediaForTitleProvider =
+    FutureProvider.family<Media?, String>((ref, title) async {
+  final matcher = ref.watch(titleMatcherProvider);
+  return matcher.match(title);
+});
+
+/// IDs des médias en statut PLANNING (pour le toggle Perso + l'état des boutons).
+final _planningIdsProvider = FutureProvider<Set<int>>((ref) async {
+  final listRepo = ref.watch(listRepositoryProvider);
+  final entries = await listRepo.entriesByStatus(ListStatus.planning);
+  return entries.map((e) => e.mediaId).toSet();
 });
 
 // ---------------------------------------------------------------------------
@@ -65,11 +83,19 @@ int _timeRank(String time) {
 // Page
 // ---------------------------------------------------------------------------
 
-class CalendarPage extends ConsumerWidget {
+class CalendarPage extends ConsumerStatefulWidget {
   const CalendarPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CalendarPage> createState() => _CalendarPageState();
+}
+
+class _CalendarPageState extends ConsumerState<CalendarPage> {
+  // true = GLOBAL (tout le planning), false = PERSO (anime planifiés seulement).
+  bool _showGlobal = true;
+
+  @override
+  Widget build(BuildContext context) {
     final planningAsync = ref.watch(_planningProvider);
 
     return Column(
@@ -83,7 +109,22 @@ class CalendarPage extends ConsumerWidget {
               IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Rafraîchir',
-                onPressed: () => ref.invalidate(_planningProvider),
+                onPressed: () {
+                  ref.invalidate(_planningProvider);
+                  ref.invalidate(_planningIdsProvider);
+                },
+              ),
+              const SizedBox(width: 4),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(value: true, label: Text('Global')),
+                  ButtonSegment(value: false, label: Text('Perso')),
+                ],
+                selected: {_showGlobal},
+                onSelectionChanged: (s) => setState(() => _showGlobal = s.first),
+                style: const ButtonStyle(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
             ],
           ),
@@ -96,7 +137,7 @@ class CalendarPage extends ConsumerWidget {
             ),
             data: (items) {
               if (items.isEmpty) return const _PlanningEmpty();
-              return _PlanningColumns(items: items);
+              return _PlanningColumns(items: items, showGlobal: _showGlobal);
             },
           ),
         ),
@@ -109,23 +150,27 @@ class CalendarPage extends ConsumerWidget {
 // Colonnes de jour
 // ---------------------------------------------------------------------------
 
-class _PlanningColumns extends StatelessWidget {
+class _PlanningColumns extends ConsumerWidget {
   final List<AnimeSamaPlanningItem> items;
-  const _PlanningColumns({required this.items});
+  final bool showGlobal;
+  const _PlanningColumns({required this.items, required this.showGlobal});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // En mode Perso, on ne garde que les anime déjà planifiés. Comme le statut
+    // dépend du rematch AniList (async), on lit les IDs planifiés et on filtre
+    // via le Media résolu par carte (les cartes non planifiées se masquent).
+    final planningIds =
+        ref.watch(_planningIdsProvider).maybeWhen(data: (s) => s, orElse: () => <int>{});
+
     // Regroupe par jour.
     final byDay = <String, List<AnimeSamaPlanningItem>>{};
     for (final item in items) {
       byDay.putIfAbsent(item.day, () => []).add(item);
     }
 
-    // Jours présents, ordonnés Lundi→Dimanche.
     final days = byDay.keys.toList()
       ..sort((a, b) => _dayRank(a).compareTo(_dayRank(b)));
-
-    // Tri intra-jour par heure croissante (heures vides en dernier).
     for (final list in byDay.values) {
       list.sort((a, b) => _timeRank(a.time).compareTo(_timeRank(b.time)));
     }
@@ -137,7 +182,12 @@ class _PlanningColumns extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final day in days)
-            _DayColumn(day: day, items: byDay[day]!),
+            _DayColumn(
+              day: day,
+              items: byDay[day]!,
+              showGlobal: showGlobal,
+              planningIds: planningIds,
+            ),
         ],
       ),
     );
@@ -147,7 +197,14 @@ class _PlanningColumns extends StatelessWidget {
 class _DayColumn extends StatelessWidget {
   final String day;
   final List<AnimeSamaPlanningItem> items;
-  const _DayColumn({required this.day, required this.items});
+  final bool showGlobal;
+  final Set<int> planningIds;
+  const _DayColumn({
+    required this.day,
+    required this.items,
+    required this.showGlobal,
+    required this.planningIds,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +223,12 @@ class _DayColumn extends StatelessWidget {
                   ),
             ),
           ),
-          for (final item in items) _PlanningCard(item: item),
+          for (final item in items)
+            _PlanningCard(
+              item: item,
+              showGlobal: showGlobal,
+              planningIds: planningIds,
+            ),
         ],
       ),
     );
@@ -179,7 +241,13 @@ class _DayColumn extends StatelessWidget {
 
 class _PlanningCard extends ConsumerStatefulWidget {
   final AnimeSamaPlanningItem item;
-  const _PlanningCard({required this.item});
+  final bool showGlobal;
+  final Set<int> planningIds;
+  const _PlanningCard({
+    required this.item,
+    required this.showGlobal,
+    required this.planningIds,
+  });
 
   @override
   ConsumerState<_PlanningCard> createState() => _PlanningCardState();
@@ -188,21 +256,11 @@ class _PlanningCard extends ConsumerStatefulWidget {
 class _PlanningCardState extends ConsumerState<_PlanningCard> {
   bool _launching = false;
 
-  Future<void> _launch() async {
+  Future<void> _launch(Media media) async {
     if (_launching) return;
     setState(() => _launching = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
-      final matcher = ref.read(titleMatcherProvider);
-      final media = await matcher.match(widget.item.title);
-      if (media == null) {
-        messenger.showSnackBar(SnackBar(
-          content: Text('« ${widget.item.title} » introuvable sur AniList.'),
-        ));
-        return;
-      }
-
-      // Saison « en cours de sortie » = la plus récente sur anime-sama.
       await _memorizeCurrentSeason(media.anilistId);
 
       final listRepo = ref.read(listRepositoryProvider);
@@ -253,14 +311,79 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     }
   }
 
+  Future<void> _addToPlanning(Media media) async {
+    final listRepo = ref.read(listRepositoryProvider);
+    await ref.read(mediaRepositoryProvider).upsertMedia(media);
+    final existing = await listRepo.getEntry(media.anilistId);
+    final entry = existing?.copyWith(
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        ) ??
+        ListEntry(
+          mediaId: media.anilistId,
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        );
+    await listRepo.upsertEntry(entry);
+    ref.invalidate(_planningIdsProvider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('« ${widget.item.title} » ajouté au planning perso')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+    final mediaAsync = ref.watch(_mediaForTitleProvider(item.title));
+
+    return mediaAsync.when(
+      loading: () => _cardShell(context, media: null, loadingMedia: true),
+      error: (_, __) => _cardShell(context, media: null, loadingMedia: false),
+      data: (media) {
+        final isPlanned =
+            media != null && widget.planningIds.contains(media.anilistId);
+        // En mode Perso, masquer les cartes non planifiées.
+        if (!widget.showGlobal && !isPlanned) return const SizedBox.shrink();
+        return _cardShell(
+          context,
+          media: media,
+          loadingMedia: false,
+          isPlanned: isPlanned,
+        );
+      },
+    );
+  }
+
+  Widget _cardShell(
+    BuildContext context, {
+    required Media? media,
+    required bool loadingMedia,
+    bool isPlanned = false,
+  }) {
+    final item = widget.item;
+    final coverUrl = media?.coverUrl;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       child: ListTile(
         dense: true,
-        leading: const Icon(Icons.play_circle_outline),
+        leading: coverUrl != null
+            ? ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: Image.network(
+                  coverUrl,
+                  width: 40,
+                  height: 56,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      const _CoverPlaceholder(),
+                ),
+              )
+            : (loadingMedia
+                ? const _CoverPlaceholder(loading: true)
+                : const _CoverPlaceholder()),
         title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
         subtitle: item.time.isNotEmpty ? Text(item.time) : null,
         trailing: _launching
@@ -269,9 +392,42 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            : null,
-        onTap: _launching ? null : _launch,
+            : (media != null
+                ? IconButton(
+                    icon: Icon(
+                      isPlanned ? Icons.bookmark : Icons.bookmark_add_outlined,
+                      color: isPlanned ? Colors.orange : null,
+                    ),
+                    tooltip: isPlanned
+                        ? 'Déjà au planning perso'
+                        : 'Ajouter au planning perso',
+                    onPressed: isPlanned ? null : () => _addToPlanning(media),
+                  )
+                : null),
+        onTap: (media != null && !_launching) ? () => _launch(media) : null,
       ),
+    );
+  }
+}
+
+class _CoverPlaceholder extends StatelessWidget {
+  final bool loading;
+  const _CoverPlaceholder({this.loading = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 40,
+      height: 56,
+      child: loading
+          ? const Center(
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          : const Icon(Icons.play_circle_outline, color: Colors.white38),
     );
   }
 }

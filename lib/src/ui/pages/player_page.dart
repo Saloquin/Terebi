@@ -80,6 +80,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _currentEntry = widget.entry;
     _configurePlayer();
     // La lecture ne démarre PAS automatiquement : l'utilisateur clique « Lancer ».
+    // On charge tout de même le nom de saison + la liste d'épisodes pour la barre.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prepareMeta());
+  }
+
+  /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
+  /// pour que la barre de contrôle soit renseignée dès l'arrivée.
+  Future<void> _prepareMeta() async {
+    if (!await _isAnimeSamaActive()) return;
+    final language = await _preferredLanguage();
+    final seasonIndex = await _seasonIndex();
+    await _loadSeasonMeta(seasonIndex: seasonIndex, language: language);
+    if (mounted) setState(() {});
   }
 
   /// Configure mpv pour privilégier la MEILLEURE qualité disponible sur les
@@ -456,12 +468,18 @@ class _ControlBar extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
+              Icon(Icons.layers_outlined,
+                  size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 4),
               Flexible(
                 child: Text(
-                  seasonName ?? '',
+                  seasonName ?? 'Saison…',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                 ),
               ),
               IconButton(
