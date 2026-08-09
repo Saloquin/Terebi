@@ -1,12 +1,12 @@
 /// Page Planning hebdomadaire — source **anime-sama** (retour utilisateur).
 ///
 /// - Le planning vient d'anime-sama (jour + heure), pas d'AniList.
-/// - Affichage en **colonnes de jour** (Lundi → Dimanche), items triés par heure.
-/// - Chaque carte **rematch** son titre vers AniList (lazy, avec cache) pour
-///   afficher la **vignette** et permettre l'ajout au planning perso.
-/// - Toggle **Global / Perso** : Perso = uniquement les anime du planning que
-///   tu as marqués « Planifié ».
-/// - Un clic lance la **lecture directe** (saison en cours, dernier épisode vu).
+/// - Affichage en **colonnes de jour** (Lundi → Dimanche), cartes « poster ».
+/// - Chaque carte s'affiche et reste **cliquable immédiatement** (titre + heure) ;
+///   la **vignette** AniList se charge en fond (rematch lazy caché). Le rematch
+///   se fait aussi au clic (lecture) / à l'ajout perso s'il n'est pas encore prêt.
+/// - Toggle **Global / Perso** : Perso = uniquement les anime du planning que tu
+///   as marqués « Planifié ».
 library;
 
 import 'package:flutter/material.dart';
@@ -37,7 +37,7 @@ final _planningProvider =
 });
 
 /// Rematch (lazy, caché) d'un titre anime-sama vers un [Media] AniList.
-/// Chaque carte du planning résout le sien → vignette + ajout perso.
+/// Sert à afficher la vignette ; le clic n'en dépend pas.
 final _mediaForTitleProvider =
     FutureProvider.family<Media?, String>((ref, title) async {
   final matcher = ref.watch(titleMatcherProvider);
@@ -157,13 +157,11 @@ class _PlanningColumns extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // En mode Perso, on ne garde que les anime déjà planifiés. Comme le statut
-    // dépend du rematch AniList (async), on lit les IDs planifiés et on filtre
-    // via le Media résolu par carte (les cartes non planifiées se masquent).
-    final planningIds =
-        ref.watch(_planningIdsProvider).maybeWhen(data: (s) => s, orElse: () => <int>{});
+    final planningIds = ref.watch(_planningIdsProvider).maybeWhen(
+          data: (s) => s,
+          orElse: () => <int>{},
+        );
 
-    // Regroupe par jour.
     final byDay = <String, List<AnimeSamaPlanningItem>>{};
     for (final item in items) {
       byDay.putIfAbsent(item.day, () => []).add(item);
@@ -209,7 +207,7 @@ class _DayColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 260,
+      width: 190,
       margin: const EdgeInsets.only(right: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -218,8 +216,10 @@ class _DayColumn extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
               day,
+              textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.bold,
                   ),
             ),
           ),
@@ -236,7 +236,7 @@ class _DayColumn extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Carte d'un anime du planning
+// Carte « poster » d'un anime du planning
 // ---------------------------------------------------------------------------
 
 class _PlanningCard extends ConsumerStatefulWidget {
@@ -254,13 +254,24 @@ class _PlanningCard extends ConsumerStatefulWidget {
 }
 
 class _PlanningCardState extends ConsumerState<_PlanningCard> {
-  bool _launching = false;
+  bool _busy = false;
 
-  Future<void> _launch(Media media) async {
-    if (_launching) return;
-    setState(() => _launching = true);
+  /// Rematch AniList à la demande (utilise le cache du provider si déjà résolu).
+  Future<Media?> _resolveMedia() =>
+      ref.read(titleMatcherProvider).match(widget.item.title);
+
+  Future<void> _launch() async {
+    if (_busy) return;
+    setState(() => _busy = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
+      final media = await _resolveMedia();
+      if (media == null) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('« ${widget.item.title} » introuvable sur AniList.'),
+        ));
+        return;
+      }
       await _memorizeCurrentSeason(media.anilistId);
 
       final listRepo = ref.read(listRepositoryProvider);
@@ -290,46 +301,55 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Lecture impossible : $e')));
     } finally {
-      if (mounted) setState(() => _launching = false);
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  /// Mémorise la saison la plus récente d'anime-sama pour ce média (best-effort).
+  /// Mémorise la saison la plus récente d'anime-sama (best-effort).
   Future<void> _memorizeCurrentSeason(int anilistId) async {
     try {
       final resolver = await ref.read(animeSamaResolverProvider.future);
       final seasons = await resolver.listSeasons(title: widget.item.title);
       if (seasons.isNotEmpty) {
-        final settings = ref.read(settingsRepositoryProvider);
-        await settings.set(
-          SettingsKeys.animeSamaSeasonFor(anilistId),
-          '${seasons.last.index}',
-        );
+        await ref.read(settingsRepositoryProvider).set(
+              SettingsKeys.animeSamaSeasonFor(anilistId),
+              '${seasons.last.index}',
+            );
       }
-    } catch (_) {
-      // best-effort : le lecteur retombera sur la saison par défaut.
-    }
+    } catch (_) {/* best-effort */}
   }
 
-  Future<void> _addToPlanning(Media media) async {
-    final listRepo = ref.read(listRepositoryProvider);
-    await ref.read(mediaRepositoryProvider).upsertMedia(media);
-    final existing = await listRepo.getEntry(media.anilistId);
-    final entry = existing?.copyWith(
-          status: ListStatus.planning,
-          updatedAt: DateTime.now(),
-        ) ??
-        ListEntry(
-          mediaId: media.anilistId,
-          status: ListStatus.planning,
-          updatedAt: DateTime.now(),
-        );
-    await listRepo.upsertEntry(entry);
-    ref.invalidate(_planningIdsProvider);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('« ${widget.item.title} » ajouté au planning perso')),
-      );
+  Future<void> _togglePlanning() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final media = await _resolveMedia();
+      if (media == null) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('« ${widget.item.title} » introuvable sur AniList.'),
+        ));
+        return;
+      }
+      final listRepo = ref.read(listRepositoryProvider);
+      await ref.read(mediaRepositoryProvider).upsertMedia(media);
+      final existing = await listRepo.getEntry(media.anilistId);
+      final entry = existing?.copyWith(
+            status: ListStatus.planning,
+            updatedAt: DateTime.now(),
+          ) ??
+          ListEntry(
+            mediaId: media.anilistId,
+            status: ListStatus.planning,
+            updatedAt: DateTime.now(),
+          );
+      await listRepo.upsertEntry(entry);
+      ref.invalidate(_planningIdsProvider);
+      messenger.showSnackBar(SnackBar(
+        content: Text('« ${widget.item.title} » ajouté au planning perso'),
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -337,97 +357,130 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
   Widget build(BuildContext context) {
     final item = widget.item;
     final mediaAsync = ref.watch(_mediaForTitleProvider(item.title));
+    final media = mediaAsync.asData?.value;
+    final isPlanned =
+        media != null && widget.planningIds.contains(media.anilistId);
 
-    return mediaAsync.when(
-      loading: () => _cardShell(context, media: null, loadingMedia: true),
-      error: (_, __) => _cardShell(context, media: null, loadingMedia: false),
-      data: (media) {
-        final isPlanned =
-            media != null && widget.planningIds.contains(media.anilistId);
-        // En mode Perso, masquer les cartes non planifiées.
-        if (!widget.showGlobal && !isPlanned) return const SizedBox.shrink();
-        return _cardShell(
-          context,
-          media: media,
-          loadingMedia: false,
-          isPlanned: isPlanned,
-        );
-      },
-    );
-  }
+    // Mode Perso : on ne montre que ce qui est explicitement planifié.
+    // (Une carte dont le rematch n'a pas encore résolu n'est pas « planifiée ».)
+    if (!widget.showGlobal && !isPlanned) return const SizedBox.shrink();
 
-  Widget _cardShell(
-    BuildContext context, {
-    required Media? media,
-    required bool loadingMedia,
-    bool isPlanned = false,
-  }) {
-    final item = widget.item;
+    final theme = Theme.of(context);
     final coverUrl = media?.coverUrl;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 6),
-      child: ListTile(
-        dense: true,
-        leading: coverUrl != null
-            ? ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: Image.network(
-                  coverUrl,
-                  width: 40,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const _CoverPlaceholder(),
-                ),
-              )
-            : (loadingMedia
-                ? const _CoverPlaceholder(loading: true)
-                : const _CoverPlaceholder()),
-        title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-        subtitle: item.time.isNotEmpty ? Text(item.time) : null,
-        trailing: _launching
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : (media != null
-                ? IconButton(
-                    icon: Icon(
-                      isPlanned ? Icons.bookmark : Icons.bookmark_add_outlined,
-                      color: isPlanned ? Colors.orange : null,
+      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 10),
+      child: InkWell(
+        onTap: _busy ? null : _launch,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // --- Poster ---
+            AspectRatio(
+              aspectRatio: 2 / 3,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(color: theme.colorScheme.surfaceContainerHighest),
+                  if (coverUrl != null)
+                    Image.network(
+                      coverUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (ctx, child, progress) => progress == null
+                          ? child
+                          : const Center(
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            ),
+                      errorBuilder: (_, __, ___) => const Center(
+                        child: Icon(Icons.broken_image_outlined,
+                            color: Colors.white38),
+                      ),
+                    )
+                  else
+                    Center(
+                      child: mediaAsync.isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.movie_outlined,
+                              color: Colors.white38, size: 32),
                     ),
-                    tooltip: isPlanned
-                        ? 'Déjà au planning perso'
-                        : 'Ajouter au planning perso',
-                    onPressed: isPlanned ? null : () => _addToPlanning(media),
-                  )
-                : null),
-        onTap: (media != null && !_launching) ? () => _launch(media) : null,
-      ),
-    );
-  }
-}
 
-class _CoverPlaceholder extends StatelessWidget {
-  final bool loading;
-  const _CoverPlaceholder({this.loading = false});
+                  // Overlay play + busy.
+                  if (_busy)
+                    Container(
+                      color: Colors.black38,
+                      child: const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
 
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 40,
-      height: 56,
-      child: loading
-          ? const Center(
-              child: SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                  // Bouton ajout planning perso (coin haut-droit).
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Material(
+                      color: Colors.black45,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        iconSize: 18,
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          isPlanned
+                              ? Icons.bookmark
+                              : Icons.bookmark_add_outlined,
+                          color: isPlanned ? Colors.orange : Colors.white,
+                        ),
+                        tooltip: isPlanned
+                            ? 'Déjà au planning perso'
+                            : 'Ajouter au planning perso',
+                        onPressed:
+                            (_busy || isPlanned) ? null : _togglePlanning,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            )
-          : const Icon(Icons.play_circle_outline, color: Colors.white38),
+            ),
+            // --- Titre + heure ---
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  if (item.time.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        children: [
+                          Icon(Icons.schedule,
+                              size: 13, color: theme.colorScheme.primary),
+                          const SizedBox(width: 4),
+                          Text(item.time, style: theme.textTheme.bodySmall),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
