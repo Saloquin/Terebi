@@ -35,11 +35,13 @@ class TitleMatcher {
     // Base : le média anime-sama fait foi (identité stable).
     var media = Media.fromAnimeSama(title: animeSamaTitle);
 
-    // Cache local : si on a déjà enrichi ce média, on le réutilise.
+    // Cache local : si ce média a DÉJÀ été résolu (présent en base), on le
+    // réutilise tel quel — même sans image. Évite de relancer une recherche
+    // AniList à chaque affichage pour les anime qu'AniList ne reconnaît pas.
     final cached = await mediaRepo.getMedia(media.anilistId);
-    if (cached != null && cached.coverUrl != null) return cached;
+    if (cached != null && cached.animeSamaTitle != null) return cached;
 
-    // Enrichissement AniList optionnel (best-effort, non bloquant).
+    // Première résolution : enrichissement AniList optionnel (best-effort).
     final enrich = await _fetchEnrichment(animeSamaTitle);
     if (enrich != null) media = media.enrichedWith(enrich);
 

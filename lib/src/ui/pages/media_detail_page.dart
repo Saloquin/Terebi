@@ -18,21 +18,22 @@ import 'player_page.dart';
 // ---------------------------------------------------------------------------
 
 /// Charge le média : **cache local d'abord** (source de vérité anime-sama).
-/// Si absent du cache et qu'on a un titre anime-sama, on enrichit via
-/// [TitleMatcher.resolve] (image/description AniList si titre similaire) en
-/// arrière-plan. Pour un id AniList réel (>0) sans titre, on lit AniList direct.
-/// Retourne `null` si rien trouvé → le widget fabrique un Media minimal.
+/// Si le média n'a jamais été résolu (pas d'`animeSamaTitle` en cache) et qu'on
+/// a un titre, on enrichit UNE fois via [TitleMatcher.resolve] (image/desc
+/// AniList si titre similaire). Un média déjà résolu SANS image est réutilisé
+/// tel quel (évite de re-chercher indéfiniment les anime qu'AniList ignore).
 final _mediaDetailProvider =
     FutureProvider.family<Media?, ({int id, String? title})>((ref, arg) async {
   final local = await ref.watch(mediaRepositoryProvider).getMedia(arg.id);
-  if (local != null && local.coverUrl != null) return local;
+  // Déjà résolu (peu importe qu'il ait une image ou non) → on réutilise.
+  if (local != null && local.animeSamaTitle != null) return local;
 
-  // Enrichissement via le titre anime-sama (id négatif ou média incomplet).
+  // Première résolution via le titre anime-sama.
   if (arg.title != null) {
     try {
       return await ref.read(titleMatcherProvider).resolve(arg.title!);
     } catch (_) {
-      return local; // au pire, ce qu'on avait en cache.
+      return local ?? Media.fromAnimeSama(title: arg.title!);
     }
   }
   if (local != null) return local;
@@ -112,17 +113,13 @@ class MediaDetailPage extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
       ),
-      body: mediaAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        // Jamais bloquant : en cas d'erreur, on retombe sur un média minimal.
-        error: (_, __) => _DetailBody(
-          media: _fallbackMedia(),
-          displayTitle: displayTitle,
-        ),
-        data: (media) => _DetailBody(
-          media: media ?? _fallbackMedia(),
-          displayTitle: displayTitle,
-        ),
+      // Affichage IMMÉDIAT : on montre le corps (titre + saisons anime-sama)
+      // sans attendre l'enrichissement AniList. L'image/description se
+      // remplissent quand la résolution arrive (data). Jamais de spinner plein
+      // écran ni de chargement bloquant.
+      body: _DetailBody(
+        media: mediaAsync.asData?.value ?? _fallbackMedia(),
+        displayTitle: displayTitle,
       ),
     );
   }
