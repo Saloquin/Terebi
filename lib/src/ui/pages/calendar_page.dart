@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/logic/anime_id.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -36,18 +37,29 @@ final _planningProvider =
   return resolver.planning(language: language);
 });
 
-/// Rematch (lazy, caché) d'un titre anime-sama vers un [Media] AniList.
-/// Sert à afficher la vignette ; le clic n'en dépend pas.
+/// Résout (lazy, caché) un titre anime-sama en [Media] pour la vignette.
+/// Utilise resolve() : identité anime-sama stable + enrichissement AniList
+/// (cover) si titre similaire.
 final _mediaForTitleProvider =
     FutureProvider.family<Media?, String>((ref, title) async {
   final matcher = ref.watch(titleMatcherProvider);
-  return matcher.match(title);
+  return matcher.resolve(title);
 });
 
-/// IDs des médias présents dans la bibliothèque, TOUS statuts SAUF Abandonné.
-/// Le calendrier PERSO montre automatiquement ces anime (pas besoin d'ajout
-/// manuel) ; le bouton d'ajout sert à mettre un anime hors-biblio en Planifié.
-final _planningIdsProvider = FutureProvider<Set<int>>((ref) async {
+/// IDs des médias présents dans la bibliothèque (TOUS statuts). Sert à savoir
+/// si l'anime est **déjà suivi** (bouton d'ajout désactivé si oui).
+final _libraryIdsProvider = FutureProvider<Set<int>>((ref) async {
+  final listRepo = ref.watch(listRepositoryProvider);
+  final ids = <int>{};
+  for (final status in ListStatus.values) {
+    final entries = await listRepo.entriesByStatus(status);
+    ids.addAll(entries.map((e) => e.mediaId));
+  }
+  return ids;
+});
+
+/// IDs affichés dans le calendrier PERSO : biblio SAUF Abandonné.
+final _persoIdsProvider = FutureProvider<Set<int>>((ref) async {
   final listRepo = ref.watch(listRepositoryProvider);
   final ids = <int>{};
   for (final status in ListStatus.values) {
@@ -118,7 +130,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 tooltip: 'Rafraîchir',
                 onPressed: () {
                   ref.invalidate(_planningProvider);
-                  ref.invalidate(_planningIdsProvider);
+                  ref.invalidate(_persoIdsProvider);
+                  ref.invalidate(_libraryIdsProvider);
                 },
               ),
               const SizedBox(width: 4),
@@ -164,7 +177,11 @@ class _PlanningColumns extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final planningIds = ref.watch(_planningIdsProvider).maybeWhen(
+    final persoIds = ref.watch(_persoIdsProvider).maybeWhen(
+          data: (s) => s,
+          orElse: () => <int>{},
+        );
+    final libraryIds = ref.watch(_libraryIdsProvider).maybeWhen(
           data: (s) => s,
           orElse: () => <int>{},
         );
@@ -195,7 +212,8 @@ class _PlanningColumns extends ConsumerWidget {
                 day: day,
                 items: byDay[day]!,
                 showGlobal: showGlobal,
-                planningIds: planningIds,
+                persoIds: persoIds,
+                libraryIds: libraryIds,
               ),
           ],
         ),
@@ -208,12 +226,14 @@ class _DayColumn extends StatelessWidget {
   final String day;
   final List<AnimeSamaPlanningItem> items;
   final bool showGlobal;
-  final Set<int> planningIds;
+  final Set<int> persoIds;
+  final Set<int> libraryIds;
   const _DayColumn({
     required this.day,
     required this.items,
     required this.showGlobal,
-    required this.planningIds,
+    required this.persoIds,
+    required this.libraryIds,
   });
 
   @override
@@ -241,7 +261,8 @@ class _DayColumn extends StatelessWidget {
             _PlanningCard(
               item: item,
               showGlobal: showGlobal,
-              planningIds: planningIds,
+              persoIds: persoIds,
+              libraryIds: libraryIds,
             ),
         ],
       ),
@@ -256,11 +277,13 @@ class _DayColumn extends StatelessWidget {
 class _PlanningCard extends ConsumerStatefulWidget {
   final AnimeSamaPlanningItem item;
   final bool showGlobal;
-  final Set<int> planningIds;
+  final Set<int> persoIds;
+  final Set<int> libraryIds;
   const _PlanningCard({
     required this.item,
     required this.showGlobal,
-    required this.planningIds,
+    required this.persoIds,
+    required this.libraryIds,
   });
 
   @override
@@ -347,9 +370,10 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
             updatedAt: DateTime.now(),
           );
       await listRepo.upsertEntry(entry);
-      ref.invalidate(_planningIdsProvider);
+      ref.invalidate(_persoIdsProvider);
+      ref.invalidate(_libraryIdsProvider);
       messenger.showSnackBar(SnackBar(
-        content: Text('« ${widget.item.title} » ajouté au planning perso'),
+        content: Text('« ${widget.item.title} » ajouté en Planifié'),
       ));
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -361,12 +385,15 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     final item = widget.item;
     final mediaAsync = ref.watch(_mediaForTitleProvider(item.title));
     final media = mediaAsync.asData?.value;
-    final isPlanned =
-        media != null && widget.planningIds.contains(media.anilistId);
 
-    // Mode Perso : on ne montre que ce qui est explicitement planifié.
-    // (Une carte dont le rematch n'a pas encore résolu n'est pas « planifiée ».)
-    if (!widget.showGlobal && !isPlanned) return const SizedBox.shrink();
+    // Identité stable de l'anime (id anime-sama dérivé du titre) : indépendante
+    // du rematch AniList, disponible immédiatement.
+    final id = animeSamaIdFor(item.title);
+    final inLibrary = widget.libraryIds.contains(id);
+    final inPerso = widget.persoIds.contains(id);
+
+    // Mode Perso : n'afficher que les anime suivis (biblio sauf Abandonné).
+    if (!widget.showGlobal && !inPerso) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
     final coverUrl = media?.coverUrl;
@@ -437,16 +464,16 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
                         iconSize: 18,
                         visualDensity: VisualDensity.compact,
                         icon: Icon(
-                          isPlanned
+                          inLibrary
                               ? Icons.bookmark
                               : Icons.bookmark_add_outlined,
-                          color: isPlanned ? Colors.orange : Colors.white,
+                          color: inLibrary ? Colors.orange : Colors.white,
                         ),
-                        tooltip: isPlanned
-                            ? 'Déjà au planning perso'
-                            : 'Ajouter au planning perso',
+                        tooltip: inLibrary
+                            ? 'Déjà dans ta bibliothèque'
+                            : 'Ajouter en Planifié',
                         onPressed:
-                            (_busy || isPlanned) ? null : _togglePlanning,
+                            (_busy || inLibrary) ? null : _togglePlanning,
                       ),
                     ),
                   ),
