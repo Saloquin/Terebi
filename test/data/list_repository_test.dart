@@ -87,6 +87,23 @@ void main() {
       expect(result!.progress, 10);
     });
 
+    test('deleteEntry retire l\'entrée (getEntry → null)', () async {
+      await repo.upsertEntry(_entry(mediaId: 7));
+      expect(await repo.getEntry(7), isNotNull);
+
+      await repo.deleteEntry(7);
+      expect(await repo.getEntry(7), isNull);
+    });
+
+    test('deleteEntry ne touche pas les autres entrées', () async {
+      await repo.upsertEntry(_entry(mediaId: 1));
+      await repo.upsertEntry(_entry(mediaId: 2));
+
+      await repo.deleteEntry(1);
+      expect(await repo.getEntry(1), isNull);
+      expect(await repo.getEntry(2), isNotNull);
+    });
+
     test('entriesByStatus filtre correctement', () async {
       await repo.upsertEntry(_entry(mediaId: 1, status: ListStatus.current));
       await repo.upsertEntry(_entry(mediaId: 2, status: ListStatus.planning));

@@ -64,6 +64,14 @@ class ListRepository {
     return row == null ? null : _fromRow(row);
   }
 
+  /// Retire l'entrée de liste pour [mediaId] (retrait de la bibliothèque).
+  /// N'efface PAS la progression d'épisodes (table séparée).
+  Future<void> deleteEntry(int mediaId) async {
+    await (_db.delete(_db.listEntries)
+          ..where((t) => t.mediaId.equals(mediaId)))
+        .go();
+  }
+
   /// Toutes les entrées pour un [status] donné.
   Future<List<ListEntry>> entriesByStatus(ListStatus status) async {
     final rows = await (_db.select(_db.listEntries)

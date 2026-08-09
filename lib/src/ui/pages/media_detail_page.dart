@@ -416,11 +416,59 @@ class _ActionBar extends ConsumerWidget {
 
   const _ActionBar({required this.media, required this.entry});
 
+  Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Retirer de la bibliothèque ?'),
+        content: Text(
+          '« ${media.title.preferred} » sera retiré de tes listes. '
+          'Ta progression (épisodes vus) est conservée.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Retirer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await ref.read(listRepositoryProvider).deleteEntry(media.anilistId);
+    ref.invalidate(_listEntryProvider(media.anilistId));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('« ${media.title.preferred} » retiré')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // La lecture se lance depuis la section « Saisons (anime-sama) » ci-dessous
-    // (choix de saison + reprise au dernier épisode vu). Ici : juste le statut.
-    return _StatusDropdown(media: media, entry: entry);
+    // La lecture se lance depuis la section « Saisons (anime-sama) » ci-dessous.
+    // Ici : statut + retrait de la bibliothèque.
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _StatusDropdown(media: media, entry: entry),
+        if (entry != null)
+          OutlinedButton.icon(
+            onPressed: () => _remove(context, ref),
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text('Retirer de la bibliothèque'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+          ),
+      ],
+    );
   }
 }
 
