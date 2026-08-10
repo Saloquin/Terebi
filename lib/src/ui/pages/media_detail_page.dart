@@ -57,6 +57,12 @@ final listEntryProvider =
   return ref.watch(listRepositoryProvider).getEntry(mediaId);
 });
 
+/// Compteur de rafraîchissement de la progression des saisons. Les tuiles de
+/// saison le watchent : l'incrémenter (après « Terminé » manuel, marquage à
+/// fond…) force chaque tuile à recharger `lastWatched`/total sans dépendre de
+/// la survie du widget qui a déclenché l'action.
+final seasonProgressRefreshProvider = StateProvider<int>((ref) => 0);
+
 /// Provider saisons anime-sama : liste les saisons disponibles sur anime-sama
 /// pour un titre donné. Keyed sur le titre préféré du média.
 final _animeSamaSeasonsProvider =
@@ -471,12 +477,17 @@ class _StatusDropdown extends ConsumerWidget {
   /// **un seul** appel réseau (`listSeasons` pour connaître les saisons) ; chaque
   /// saison est marquée via la sentinelle « tout vu » — on ne compte PAS les
   /// épisodes (pas de `listEpisodes` par saison, qui rendait l'opération lente).
+  ///
+  /// Robuste au démontage du widget : le repository de progression et le
+  /// resolver sont lus AVANT tout `await` réseau ; le marquage des saisons
+  /// persiste donc en base même si l'utilisateur quitte la page pendant l'appel.
   /// Best-effort : ignore les erreurs réseau.
   Future<void> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
+    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+    final resolverFuture = ref.read(animeSamaResolverProvider.future);
+    final title = media.animeSamaTitle ?? media.title.preferred;
     try {
-      final resolver = await ref.read(animeSamaResolverProvider.future);
-      final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-      final title = media.animeSamaTitle ?? media.title.preferred;
+      final resolver = await resolverFuture;
       final seasons = await resolver.listSeasons(title: title);
       for (final s in seasons) {
         await seasonProgress.markSeasonFullyWatched(media.anilistId, s.index);
@@ -500,7 +511,9 @@ class _StatusDropdown extends ConsumerWidget {
       onChanged: (newStatus) async {
         if (newStatus == null) return;
         final repo = ref.read(listRepositoryProvider);
-        // Sauvegarde les métadonnées du média (titre/cover) pour la bibliothèque.
+        // 1) Écritures locales INSTANTANÉES (DB SQLite, pas de réseau) : le
+        //    statut est persisté avant tout appel lent, donc jamais perdu même
+        //    si l'utilisateur quitte la page aussitôt.
         await ref.read(mediaRepositoryProvider).upsertMedia(media);
         final existing = await repo.getEntry(media.anilistId);
         final updated = existing?.copyWith(
@@ -514,14 +527,8 @@ class _StatusDropdown extends ConsumerWidget {
             );
         await repo.upsertEntry(updated);
 
-        // « Terminé » manuel → marque toutes les saisons anime-sama à fond,
-        // pour que les barres affichent « Terminée » et que le recheck ne
-        // redégrade pas l'anime en « En cours ». Best-effort.
-        if (newStatus == ListStatus.completed) {
-          await _markAllSeasonsWatched(ref, media);
-        }
-
-        // Invalide le provider d'entrée + la bibliothèque (onglets + compteurs).
+        // 2) Rafraîchissement UI IMMÉDIAT (fiche + bibliothèque) : le nouveau
+        //    statut est visible partout tout de suite, sans attendre le réseau.
         ref.invalidate(listEntryProvider(media.anilistId));
         ref.invalidate(entriesByStatusProvider);
         ref.invalidate(countByStatusProvider);
@@ -530,6 +537,22 @@ class _StatusDropdown extends ConsumerWidget {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Statut mis à jour : ${_labels[newStatus]}')),
           );
+        }
+
+        // 3) « Terminé » manuel → marque toutes les saisons à fond (1 appel
+        //    réseau). Fait APRÈS le rafraîchissement pour ne pas le bloquer ;
+        //    les repos sont lus dans _markAllSeasonsWatched avant l'await, donc
+        //    le marquage persiste même si l'utilisateur quitte la page.
+        if (newStatus == ListStatus.completed) {
+          // Notifier capturé avant l'await (survit au démontage du widget).
+          final refreshNotifier =
+              ref.read(seasonProgressRefreshProvider.notifier);
+          await _markAllSeasonsWatched(ref, media);
+          // Force les tuiles de saison à recharger leur progression. Protégé :
+          // sans effet si le container a été disposé (page quittée).
+          try {
+            refreshNotifier.state++;
+          } catch (_) {/* page quittée : rechargée à la prochaine ouverture */}
         }
       },
     );
@@ -671,6 +694,18 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     }
   }
 
+  /// Recharge UNIQUEMENT `lastWatched` (local, instantané, pas de réseau). Sert
+  /// après un « Terminé » manuel : le total n'a pas changé, seule la
+  /// progression a été mise à fond → on rafraîchit la barre sans re-scraper.
+  Future<void> _reloadWatchedOnly() async {
+    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+    final last = await seasonProgress.lastWatched(
+        widget.media.anilistId, widget.season.index);
+    if (mounted && last != _lastWatched) {
+      setState(() => _lastWatched = last);
+    }
+  }
+
   Future<void> _play() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
     // Mémorise la saison choisie (le lecteur lira dernier vu + 1 tout seul).
@@ -716,6 +751,11 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
 
   @override
   Widget build(BuildContext context) {
+    // Rechargement déclenché de l'extérieur (« Terminé » manuel a marqué toutes
+    // les saisons à fond) → rafraîchit la barre sans appel réseau.
+    ref.listen<int>(seasonProgressRefreshProvider, (_, __) {
+      _reloadWatchedOnly();
+    });
     final theme = Theme.of(context);
     final total = _total;
     // Saison finie : soit on a atteint le total réel, soit elle a été marquée
