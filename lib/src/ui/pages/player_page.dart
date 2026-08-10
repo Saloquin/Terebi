@@ -207,11 +207,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (platform is NativePlayer) {
       // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
       platform.setProperty('hls-bitrate', 'max');
-      // Seek précis : force mpv à décoder l'image exacte de la cible après un
-      // seek. Sur certains flux HLS, le seek par keyframe (hr-seek=no) laissait
-      // le son tourner sans image ; hr-seek=yes rend l'image après le saut.
+      // Seek exact SANS drop de frames : mpv décode jusqu'à l'image cible et
+      // l'affiche (au lieu de rester sur du son sans image après un seek HLS).
       platform.setProperty('hr-seek', 'yes');
       platform.setProperty('hr-seek-framedrop', 'no');
+      // Ne jamais dropper la vidéo pour rattraper l'audio : évite l'image figée
+      // noire pendant que le son continue après une reprise.
+      platform.setProperty('framedrop', 'no');
     }
   }
 
@@ -423,16 +425,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       final int? resumeFrom =
           forceResumeAt ?? await _resumePositionSeconds();
 
-      // Ouvre SANS jouer si on doit seek : on attend que le flux soit prêt
-      // avant de seek, sinon mpv repositionne à 0 au chargement.
-      await _player.open(Media(url), play: resumeFrom == null);
-
-      if (resumeFrom != null && resumeFrom > 0) {
-        await _seekThenPlay(Duration(seconds: resumeFrom));
-      } else if (resumeFrom == 0) {
-        // « Recommencer » explicite : on démarre au début.
-        await _player.play();
-      }
+      // On passe la position de départ à l'OUVERTURE (Media.start) : mpv décode
+      // l'image au bon endroit dès le chargement, ce qui évite l'image noire
+      // d'un seek effectué après coup sur un flux HLS.
+      final startAt = (resumeFrom != null && resumeFrom > 0)
+          ? Duration(seconds: resumeFrom)
+          : null;
+      await _player.open(Media(url, start: startAt), play: true);
 
       // Réapplique la vitesse choisie (mpv la remet à 1.0 à chaque open).
       if (_speed != 1.0) {
@@ -580,36 +579,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return rewound > 0 ? rewound : 0;
   }
 
-  /// Démarre la lecture puis seek à [target], de façon robuste après un
-  /// stop()/open() (changement de langue/épisode) : on attend que le flux soit
-  /// prêt (durée > 0 ré-émise), on seek, et on re-seek une fois après un court
-  /// délai car mpv ignore parfois le 1er seek sur un flux HLS fraîchement ouvert.
-  Future<void> _seekThenPlay(Duration target) async {
-    try {
-      // Attend une durée > 0 (flux réellement prêt), max 8 s.
-      await _player.stream.duration
-          .firstWhere((d) => d > Duration.zero)
-          .timeout(const Duration(seconds: 8), onTimeout: () => Duration.zero);
-      await _player.play();
-      await _player.seek(target);
-      // Re-seek de sécurité (le 1er peut être perdu au démarrage du flux).
-      await Future.delayed(const Duration(milliseconds: 400));
-      if (target > Duration.zero) {
-        await _player.seek(target);
-      }
-      // Force le rafraîchissement de l'image après le seek : sur certains flux
-      // HLS, mpv garde du son sans image jusqu'à une nouvelle décision de
-      // rendu. Un pause→play bref force le décodage de la frame courante.
-      await Future.delayed(const Duration(milliseconds: 150));
-      await _player.pause();
-      await _player.play();
-    } catch (_) {
-      // En dernier recours : au moins démarrer la lecture.
-      try {
-        await _player.play();
-      } catch (_) {/* ignore */}
-    }
-  }
 
   static String _formatDuration(int seconds) {
     final m = seconds ~/ 60;
