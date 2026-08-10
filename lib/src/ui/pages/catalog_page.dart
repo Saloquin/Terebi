@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
+import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
 import 'media_detail_page.dart';
 
@@ -27,6 +28,15 @@ final _searchResultsProvider =
   final language =
       langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
   return resolver.search(query: query.trim(), language: language);
+});
+
+/// Résout un titre anime-sama en [Media] (image/description). Utilise resolve()
+/// : image déjà en cache local si on l'a, sinon recherche AniList (best-effort,
+/// jamais bloquante). Réutilisé par la vignette de chaque résultat.
+final _mediaForTitleProvider =
+    FutureProvider.family<Media, String>((ref, title) async {
+  final matcher = ref.watch(titleMatcherProvider);
+  return matcher.resolve(title);
 });
 
 /// Page de recherche du catalogue.
@@ -163,7 +173,7 @@ class _ResultsView extends ConsumerWidget {
 // Ligne de résultat : clic → rematch AniList → fiche
 // ---------------------------------------------------------------------------
 
-class _CatalogTile extends StatelessWidget {
+class _CatalogTile extends ConsumerWidget {
   final AnimeSamaCatalogueItem item;
   const _CatalogTile({required this.item});
 
@@ -183,12 +193,70 @@ class _CatalogTile extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mediaAsync = ref.watch(_mediaForTitleProvider(item.title));
+    final coverUrl = mediaAsync.asData?.value.coverUrl;
+
     return ListTile(
-      leading: const Icon(Icons.movie_outlined),
+      leading: _Thumbnail(coverUrl: coverUrl, loading: mediaAsync.isLoading),
       title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _openDetail(context),
+    );
+  }
+}
+
+/// Vignette poster (ratio 2/3) : image en cache/AniList si disponible, spinner
+/// pendant la résolution, icône neutre sinon (anime sans image trouvée).
+class _Thumbnail extends StatelessWidget {
+  final String? coverUrl;
+  final bool loading;
+  const _Thumbnail({required this.coverUrl, required this.loading});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        width: 40,
+        height: 60,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: theme.colorScheme.surfaceContainerHighest),
+            if (coverUrl != null)
+              Image.network(
+                coverUrl!,
+                fit: BoxFit.cover,
+                loadingBuilder: (ctx, child, progress) => progress == null
+                    ? child
+                    : const Center(
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(Icons.broken_image_outlined,
+                      size: 18, color: Colors.white38),
+                ),
+              )
+            else
+              Center(
+                child: loading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.movie_outlined,
+                        size: 18, color: Colors.white38),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

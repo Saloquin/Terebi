@@ -180,6 +180,7 @@ void main() {
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
+          aniListClientProvider.overrideWithValue(const _StubAniList()),
           animeSamaResolverProvider
               .overrideWith((ref) async => _fakeResolver(out)),
         ],
