@@ -288,41 +288,6 @@ def action_list_seasons(mod, dl, args):
     sys.exit(0)
 
 
-def action_debug_seasons(mod, dl, args):
-    """Debug : affiche les saisons BRUTES (avant filtre/dédup) pour diagnostiquer
-    le « trop de saisons ». Montre nom + url exacts renvoyés par get_seasons."""
-    import requests
-    found = _search_catalogue(dl, args.title, args.vf)
-    if found is None:
-        _fail(f"aucun anime correspondant à « {args.title} »")
-    name, anime_url = found
-    print(f"ANIME: {name}  ->  {anime_url}")
-    resp = requests.get(anime_url, headers=mod.HEADERS_BASE, timeout=15)
-    raw = mod.get_seasons(resp.text)
-    print(f"RAW ({len(raw)}):")
-    for s in raw:
-        print(f"  name={s.get('name')!r}  url={s.get('url')!r}")
-    kept = [s for s in raw if _is_real_season(s)]
-    kept = _dedupe_seasons(kept)
-    print(f"APRES FILTRE+DEDUP ({len(kept)}):")
-    for s in kept:
-        try:
-            eps = _episodes_for(mod, dl, anime_url, s, args.vf)
-            n = len(eps) if eps else 0
-            playable = _playable_episode_count(eps)
-        except Exception as e:
-            n = f"ERR({type(e).__name__})"
-            playable = 0
-        print(f"  name={s.get('name')!r}  clés={n}  jouables={playable}")
-        # Affiche les URLs vidéo brutes pour repérer une duplication (fantômes).
-        try:
-            for k in sorted(eps.keys(), key=lambda x: int(x) if x.isdigit() else 0)[:3]:
-                print(f"      ep{k}: {eps[k]}")
-        except Exception:
-            pass
-    sys.exit(0)
-
-
 def action_list_episodes(mod, dl, args):
     anime_url, seasons = _seasons_for(mod, dl, args.title, args.vf)
     season = _pick_by_index(seasons, args.season)
@@ -506,7 +471,7 @@ def main():
     parser.add_argument("--script", required=True, help="Chemin vers anime_sama.py")
     parser.add_argument("--action", default="resolve",
                         choices=["resolve", "list-seasons", "list-episodes",
-                                 "search", "planning", "debug-seasons"])
+                                 "search", "planning"])
     parser.add_argument("--title", default="", help="Titre de recherche")
     parser.add_argument("--season", type=int, default=1,
                         help="Index de saison (1-based, cf. list-seasons)")
@@ -525,8 +490,6 @@ def main():
             action_search(mod, dl, args)
         elif args.action == "planning":
             action_planning(mod, dl, args)
-        elif args.action == "debug-seasons":
-            action_debug_seasons(mod, dl, args)
         else:
             action_resolve(mod, dl, args)
     except SystemExit:

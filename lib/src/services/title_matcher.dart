@@ -99,31 +99,4 @@ class TitleMatcher {
       return (null, true); // AniList indisponible / rate-limité
     }
   }
-
-  /// Recherche AniList directe (1er résultat), sans garde-fou. Conservé pour un
-  /// éventuel usage où l'identité AniList est explicitement voulue. Cache le
-  /// mapping titre→anilistId dans les settings.
-  Future<Media?> match(String title) async {
-    final key = _cacheKey(title);
-    final cachedId = await settings.get(key);
-    if (cachedId != null) {
-      final id = int.tryParse(cachedId);
-      if (id != null) {
-        final local = await mediaRepo.getMedia(id);
-        if (local != null) return local;
-        try {
-          return await anilist.mediaDetail(id);
-        } catch (_) {/* recherche fraîche */}
-      }
-    }
-    final results = await anilist.search(title);
-    if (results.isEmpty) return null;
-    final media = results.first;
-    await settings.set(key, '${media.anilistId}');
-    await mediaRepo.upsertMedia(media);
-    return media;
-  }
-
-  String _cacheKey(String title) =>
-      SettingsKeys.animeSamaAniListFor(normalizeAnimeTitle(title));
 }
