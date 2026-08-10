@@ -205,8 +205,25 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _positionSub?.cancel();
     _durationSub?.cancel();
     _completedSub?.cancel();
-    // Persiste la dernière position connue (reprise ultérieure). Fire-and-forget.
-    _persistPosition();
+    // Persiste la dernière position AVANT de disposer : on capture le
+    // repository et les valeurs maintenant (ref/état encore valides), puis on
+    // lance l'écriture. Ne pas dépendre de `ref`/`_player` après dispose().
+    final pos = _positionSeconds;
+    final dur = _durationSeconds;
+    if (pos >= 5 && !(dur != null && dur > 0 && pos / dur > 0.95)) {
+      final repo = ref.read(progressRepositoryProvider);
+      final mediaId = widget.media.anilistId;
+      final ep = _currentEpisode.toDouble();
+      // Fire-and-forget mais avec des références déjà capturées (survit au widget).
+      repo.upsertProgress(EpisodeProgress(
+        mediaId: mediaId,
+        episodeNumber: ep,
+        watched: false,
+        positionSeconds: pos,
+        durationSeconds: dur,
+        updatedAt: DateTime.now(),
+      ));
+    }
     _player.dispose();
     super.dispose();
   }
