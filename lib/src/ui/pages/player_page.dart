@@ -156,7 +156,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
   /// et calcule l'épisode initial = **dernier vu de la saison + 1** (borné).
   Future<void> _prepareMeta() async {
-    if (!await _isAnimeSamaActive()) return;
     _seasonIndex = await _storedSeasonIndex();
     // Résout la langue courante dès l'arrivée pour que le sélecteur l'affiche
     // (sinon aucune langue n'est marquée tant qu'on n'a pas cliqué « Lancer »).
@@ -352,14 +351,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     await _loadAndPlay(forceResumeAt: resumeAt, startPaused: !wasPlaying);
   }
 
-  /// Détermine si la source active est anime-sama.
-  Future<bool> _isAnimeSamaActive() async {
-    final settings = ref.read(settingsRepositoryProvider);
-    final source = await settings.get(SettingsKeys.streamSource,
-        defaultValue: 'animesama');
-    return source != 'ani_cli';
-  }
-
   /// Index de saison mémorisé pour ce média, ou 1 par défaut.
   /// Le CHOIX de saison se fait sur la fiche (pas ici).
   Future<int> _storedSeasonIndex() async {
@@ -391,26 +382,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               .read(settingsRepositoryProvider)
               .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
           '1';
-      final isAnimeSama = await _isAnimeSamaActive();
       final resolveTitle = widget.animeSamaTitle ?? widget.media.title.preferred;
 
-      int seasonIndex = 1;
-      if (isAnimeSama) {
-        seasonIndex = await _storedSeasonIndex();
-        _seasonIndex = seasonIndex;
-        // Charge (best-effort) le nom de la saison + la liste des épisodes.
-        await _loadSeasonMeta(seasonIndex: seasonIndex);
+      final seasonIndex = await _storedSeasonIndex();
+      _seasonIndex = seasonIndex;
+      // Charge (best-effort) le nom de la saison + la liste des épisodes.
+      await _loadSeasonMeta(seasonIndex: seasonIndex);
 
-        // Borne l'épisode courant à la liste connue.
-        if (_episodes.isNotEmpty && _currentEpisode > _episodes.last) {
-          if (!mounted) return;
-          setState(() {
-            _loading = false;
-            _error =
-                'Épisode $_currentEpisode non disponible (max : ${_episodes.last}).';
-          });
-          return;
-        }
+      // Borne l'épisode courant à la liste connue.
+      if (_episodes.isNotEmpty && _currentEpisode > _episodes.last) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error =
+              'Épisode $_currentEpisode non disponible (max : ${_episodes.last}).';
+        });
+        return;
       }
 
       final resolver = await ref.read(activeResolverProvider.future);
@@ -447,7 +434,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // Mémorise la langue effective pour cet anime + lance la détection des
       // langues dispo (pour le sélecteur), sauf en mode « langue unique ».
       await _persistLanguage(_language!);
-      if (isAnimeSama && !_singleLanguage) {
+      if (!_singleLanguage) {
         _refreshAvailableLangs(resolveTitle, seasonIndex, _currentEpisode);
       }
 

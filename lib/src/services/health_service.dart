@@ -1,7 +1,7 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Health-check des dépendances externes (US-101) : ani-cli, mpv, token AniList,
-/// base de données, réseau. Chaque sonde est injectable pour être testable.
+/// Health-check des dépendances externes : mpv, token AniList, base de données,
+/// réseau. Chaque sonde est injectable pour être testable.
 library;
 
 import 'process_runner.dart';
@@ -43,13 +43,7 @@ class HealthReport {
 /// Effectue les sondes de santé. Toutes les dépendances externes sont injectées.
 class HealthService {
   final ProcessRunner runner;
-  final String aniCliPath;
   final String mpvPath;
-
-  /// Shell (`sh`) via lequel lancer ani-cli sous Windows. Si défini, le check
-  /// ani-cli exécute `sh <aniCliPath> --version` (comme le vrai resolver), au
-  /// lieu de `ani-cli --version` (qui tomberait sur le shim WSL cassé).
-  final String? aniCliShell;
 
   /// Renvoie `true` si un token AniList valide est présent (injecté).
   final Future<bool> Function() hasValidToken;
@@ -62,9 +56,7 @@ class HealthService {
 
   const HealthService({
     required this.runner,
-    this.aniCliPath = 'ani-cli',
     this.mpvPath = 'mpv',
-    this.aniCliShell,
     required this.hasValidToken,
     required this.databaseOk,
     required this.networkOk,
@@ -125,14 +117,7 @@ class HealthService {
 
   /// Lance toutes les sondes et agrège le rapport.
   Future<HealthReport> run() async {
-    // Check ani-cli : via `sh <script> --version` si un shell est configuré
-    // (Windows), sinon `ani-cli --version` directement (Linux/macOS).
-    final aniCliCheck = (aniCliShell != null && aniCliShell!.isNotEmpty)
-        ? _checkBinary('ani-cli', aniCliShell!, prefixArgs: [aniCliPath])
-        : _checkBinary('ani-cli', aniCliPath);
-
     final checks = await Future.wait([
-      aniCliCheck,
       _checkBinary('mpv', mpvPath),
       _checkBool('anilist-token', hasValidToken, 'Token AniList absent ou invalide.'),
       _checkBool('database', databaseOk, 'Base de données inaccessible.'),

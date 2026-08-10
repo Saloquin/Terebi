@@ -8,15 +8,8 @@ import '../local/database.dart';
 
 /// Clés standard utilisées par l'application.
 abstract final class SettingsKeys {
-  static const String aniCliPath = 'ani_cli_path';
   static const String mpvPath = 'mpv_path';
   static const String playbackLanguage = 'playback_language';
-
-  /// Chemin d'un shell POSIX (`sh`) pour exécuter le script ani-cli sous Windows.
-  static const String shellPath = 'shell_path';
-
-  /// Source de lecture active : 'animesama' (défaut) | 'ani_cli'.
-  static const String streamSource = 'stream_source';
 
   /// Enchaînement automatique de l'épisode suivant en fin de lecture
   /// ('1' = activé, autre/absent = désactivé). Désactivé par défaut.

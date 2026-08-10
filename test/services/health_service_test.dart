@@ -27,31 +27,27 @@ void main() {
   test('tout OK → allOk, aucun problème', () async {
     final report = await service(
       binaries: {
-        'ani-cli': const ProcessResult(exitCode: 0, stdout: 'ani-cli 4.8'),
         'mpv': const ProcessResult(exitCode: 0, stdout: 'mpv 0.38'),
       },
     ).run();
 
     expect(report.allOk, isTrue);
     expect(report.problems, isEmpty);
-    final aniCli = report.checks.firstWhere((c) => c.component == 'ani-cli');
-    expect(aniCli.detail, 'ani-cli 4.8');
+    final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
+    expect(mpv.detail, 'mpv 0.38');
   });
 
-  test('ani-cli et mpv absents → missing', () async {
+  test('mpv absent → missing', () async {
     final report = await service(binaries: const {}).run();
     expect(report.allOk, isFalse);
-    final aniCli = report.checks.firstWhere((c) => c.component == 'ani-cli');
     final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
-    expect(aniCli.state, HealthState.missing);
     expect(mpv.state, HealthState.missing);
-    expect(aniCli.detail, contains('Installation requise'));
+    expect(mpv.detail, contains('Installation requise'));
   });
 
   test('token invalide → problème signalé', () async {
     final report = await service(
       binaries: {
-        'ani-cli': const ProcessResult(exitCode: 0),
         'mpv': const ProcessResult(exitCode: 0),
       },
       token: false,
@@ -64,18 +60,16 @@ void main() {
   test('binaire présent mais code non nul → error', () async {
     final report = await service(
       binaries: {
-        'ani-cli': const ProcessResult(exitCode: 2, stderr: 'bad'),
-        'mpv': const ProcessResult(exitCode: 0),
+        'mpv': const ProcessResult(exitCode: 2, stderr: 'bad'),
       },
     ).run();
-    final aniCli = report.checks.firstWhere((c) => c.component == 'ani-cli');
-    expect(aniCli.state, HealthState.error);
+    final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
+    expect(mpv.state, HealthState.error);
   });
 
   test('DB et réseau KO remontent dans problems', () async {
     final report = await service(
       binaries: {
-        'ani-cli': const ProcessResult(exitCode: 0),
         'mpv': const ProcessResult(exitCode: 0),
       },
       db: false,
