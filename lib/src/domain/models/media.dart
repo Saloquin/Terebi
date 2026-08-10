@@ -184,8 +184,8 @@ class Media {
         description: anilist.description ?? description,
         genres: anilist.genres.isNotEmpty ? anilist.genres : genres,
         averageScore: anilist.averageScore ?? averageScore,
-        nextAiringAt: nextAiringAt,
-        nextAiringEpisode: nextAiringEpisode,
+        nextAiringAt: anilist.nextAiringAt ?? nextAiringAt,
+        nextAiringEpisode: anilist.nextAiringEpisode ?? nextAiringEpisode,
         animeSamaTitle: animeSamaTitle,
       );
 

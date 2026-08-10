@@ -262,13 +262,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // proposer « Reprendre » / « Recommencer » avant de démarrer.
       final resumeFrom = await _resumePositionSeconds();
 
-      await _player.open(Media(url));
+      // Ouvre SANS jouer : on doit d'abord attendre que le flux soit prêt
+      // (durée connue) avant de pouvoir seek de façon fiable, sinon mpv
+      // repositionne à 0 au moment où le flux se charge réellement.
+      await _player.open(Media(url), play: resumeFrom == null);
 
       if (resumeFrom != null && resumeFrom > 0) {
-        // seek best-effort une fois le flux ouvert.
-        try {
-          await _player.seek(Duration(seconds: resumeFrom));
-        } catch (_) {/* ignore */}
+        await _seekThenPlay(Duration(seconds: resumeFrom));
+      } else if (resumeFrom == 0) {
+        // « Recommencer » explicite : on démarre au début.
+        await _player.play();
       }
 
       if (!mounted) return;
@@ -363,9 +366,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _currentEntry = outcome.updatedEntry;
   }
 
+  /// Recul appliqué à la reprise pour se remettre dans l'action (secondes).
+  static const int _resumeRewindSeconds = 10;
+
   /// Position de reprise pour l'épisode courant, ou `null` pour démarrer au
   /// début. Si une position significative (> 30 s, épisode non terminé) est
   /// enregistrée, demande à l'utilisateur « Reprendre » ou « Recommencer ».
+  /// La reprise recule de [_resumeRewindSeconds] pour ne pas reprendre pile à
+  /// l'endroit d'arrêt. Retourne : position (>0) pour reprendre, 0 pour
+  /// recommencer explicitement, `null` si rien à proposer.
   Future<int?> _resumePositionSeconds() async {
     EpisodeProgress? prog;
     try {
@@ -393,12 +402,34 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('Reprendre à ${_formatDuration(pos)}'),
+            child: const Text('Reprendre'),
           ),
         ],
       ),
     );
-    return resume == true ? pos : 0;
+    if (resume != true) return 0; // recommencer (ou dialogue fermé)
+    // Recul pour se remettre dans l'action, borné à 0.
+    final rewound = pos - _resumeRewindSeconds;
+    return rewound > 0 ? rewound : 0;
+  }
+
+  /// Attend que le flux soit réellement prêt (durée connue) puis seek et joue.
+  /// Sans cette attente, mpv perd le seek au moment où le flux HLS se charge et
+  /// repart à 0. Timeout de sécurité pour ne jamais bloquer.
+  Future<void> _seekThenPlay(Duration target) async {
+    try {
+      // Attend la première durée > 0 (flux prêt), max 8 s.
+      await _player.stream.duration
+          .firstWhere((d) => d > Duration.zero)
+          .timeout(const Duration(seconds: 8), onTimeout: () => Duration.zero);
+      await _player.seek(target);
+      await _player.play();
+    } catch (_) {
+      // En dernier recours : au moins démarrer la lecture.
+      try {
+        await _player.play();
+      } catch (_) {/* ignore */}
+    }
   }
 
   static String _formatDuration(int seconds) {
@@ -498,6 +529,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     try {
       if (ep > _currentEpisode) {
         await _markCurrentWatched();
+      } else {
+        // Recul : on ne marque pas vu, mais on sauvegarde la position de
+        // l'épisode qu'on quitte pour pouvoir le reprendre plus tard.
+        await _persistPosition();
       }
       if (!mounted) return;
       // Nouvel épisode → position remise à zéro.

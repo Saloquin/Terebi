@@ -112,5 +112,20 @@ void main() {
       expect(merged.coverUrl, 'http://a/cover.jpg'); // image AniList
       expect(merged.description, 'desc');
     });
+
+    test('récupère nextAiringAt/Episode depuis AniList (jamais de l\'anime-sama)',
+        () {
+      final sama = Media.fromAnimeSama(title: 'One Piece'); // nextAiring null
+      final airing = DateTime.utc(2026, 8, 15, 18, 30);
+      final anilist = Media(
+        anilistId: 21,
+        title: const MediaTitle(romaji: 'One Piece'),
+        nextAiringAt: airing,
+        nextAiringEpisode: 1130,
+      );
+      final merged = sama.enrichedWith(anilist);
+      expect(merged.nextAiringAt, airing);
+      expect(merged.nextAiringEpisode, 1130);
+    });
   });
 }
