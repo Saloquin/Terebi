@@ -734,22 +734,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            // Sélecteur VF/VOSTFR (haut à gauche), masqué en mode langue unique.
-            if (!_singleLanguage) ...[
-              _LanguageSelector(
-                current: _language,
-                available: _availableLangs,
-                onChanged: _switchLanguage,
-              ),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: Text(title, overflow: TextOverflow.ellipsis),
-            ),
-          ],
-        ),
+        title: Text(title, overflow: TextOverflow.ellipsis),
         actions: [
           // Vitesse de lecture.
           PopupMenuButton<double>(
@@ -776,6 +761,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // --- Sélecteur VF/VOSTFR, collé au-dessus du lecteur (gauche) ---
+                if (!_singleLanguage) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _LanguageSelector(
+                      current: _language,
+                      available: _availableLangs,
+                      onChanged: _switchLanguage,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 // --- Lecteur encastré media_kit ---
                 AspectRatio(
                   aspectRatio: 16 / 9,
