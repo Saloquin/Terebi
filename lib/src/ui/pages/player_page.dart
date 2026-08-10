@@ -302,17 +302,30 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* ignore : sélecteur reste actif */}
   }
 
-  /// Change la langue depuis le sélecteur : mémorise + relance la lecture de
-  /// l'épisode courant dans la nouvelle langue, EN CONSERVANT le timecode
-  /// (même épisode, autre piste audio/sous-titres). Reprise directe (sans
-  /// dialogue) via [forceResumeAt].
+  /// Change la langue depuis le sélecteur.
+  /// - Si la lecture n'est PAS encore lancée (bouton « Lancer » affiché) : on
+  ///   mémorise seulement le choix, sans lancer — le clic « Lancer » proposera
+  ///   alors la reprise normalement, dans la bonne langue.
+  /// - Si la lecture est en cours : on relance l'épisode courant dans la
+  ///   nouvelle langue en conservant le timecode.
   Future<void> _switchLanguage(PlaybackLanguage lang) async {
     if (lang == _language) return;
-    // Position courante (léger recul), capturée AVANT le stop.
-    final resumeAt = _positionSeconds > 3 ? _positionSeconds.floor() - 3 : 0;
-    await _persistPosition(); // filet de sécurité en base
     _language = lang;
     await _persistLanguage(lang);
+
+    // Épisode pas encore lancé → on ne fait que mémoriser + rafraîchir l'état.
+    if (!_ready) {
+      if (mounted) setState(() {});
+      if (!_singleLanguage) {
+        final title = widget.animeSamaTitle ?? widget.media.title.preferred;
+        _refreshAvailableLangs(title, _seasonIndex, _currentEpisode);
+      }
+      return;
+    }
+
+    // Lecture en cours → relance au même timecode dans l'autre langue.
+    final resumeAt = _positionSeconds > 3 ? _positionSeconds.floor() - 3 : 0;
+    await _persistPosition(); // filet de sécurité en base
     if (!mounted) return;
     setState(() {
       _ready = false;
