@@ -3,7 +3,9 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../app/providers.dart';
 import 'pages/calendar_page.dart';
 import 'pages/catalog_page.dart';
 import 'pages/home_page.dart';
@@ -19,15 +21,18 @@ class _Destination {
   const _Destination(this.icon, this.label, this.page);
 }
 
+/// Index de l'onglet Paramètres (pour le garde « modifs non sauvegardées »).
+const int _settingsIndex = 5;
+
 /// Shell avec `NavigationRail` (adapté desktop).
-class AppShell extends StatefulWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
 
   @override
-  State<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShell> createState() => _AppShellState();
 }
 
-class _AppShellState extends State<AppShell> {
+class _AppShellState extends ConsumerState<AppShell> {
   int _index = 0;
 
   static const _destinations = <_Destination>[
@@ -39,6 +44,17 @@ class _AppShellState extends State<AppShell> {
     _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
   ];
 
+  void _onSelect(int i) {
+    if (i == _index) return;
+    // Garde « modifs non sauvegardées » : si on quitte les Paramètres avec des
+    // changements en attente, on bloque et on fait clignoter la barre.
+    if (_index == _settingsIndex && ref.read(settingsDirtyProvider)) {
+      ref.read(settingsFlashProvider.notifier).state++;
+      return;
+    }
+    setState(() => _index = i);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -46,7 +62,7 @@ class _AppShellState extends State<AppShell> {
         children: [
           NavigationRail(
             selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
+            onDestinationSelected: _onSelect,
             labelType: NavigationRailLabelType.all,
             leading: const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),

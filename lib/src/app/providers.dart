@@ -71,7 +71,6 @@ final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
 
 /// File de requêtes partagée (rate-limit + retry) pour AniList → évite le 429.
 final requestQueueProvider = Provider<RequestQueue>((ref) => RequestQueue());
-
 /// Client AniList brut (accès réseau direct).
 final rawAniListClientProvider = Provider<AniListClient>(
   (ref) => AniListClient(client: ref.watch(httpClientProvider)),
@@ -277,3 +276,14 @@ final healthServiceProvider = Provider<HealthService>((ref) {
     },
   );
 });
+
+// --- État page Paramètres (modifs non sauvegardées) ------------------------
+
+/// `true` quand la page Paramètres a des modifications non sauvegardées.
+/// Lu par l'AppShell pour bloquer le changement d'onglet (façon Discord).
+final settingsDirtyProvider = StateProvider<bool>((ref) => false);
+
+/// Compteur incrémenté par l'AppShell quand l'utilisateur tente de quitter la
+/// page Paramètres avec des modifs non sauvées : déclenche le clignotement
+/// rouge de la barre d'actions en bas de page.
+final settingsFlashProvider = StateProvider<int>((ref) => 0);
