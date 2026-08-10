@@ -16,6 +16,12 @@ class SeasonProgressRepository {
   final SettingsRepository _settings;
   const SeasonProgressRepository(this._settings);
 
+  /// Sentinelle « saison entièrement vue » sans connaître le nombre exact
+  /// d'épisodes. Toute barre affiche « Terminée » dès que `lastWatched >= total`
+  /// ; cette valeur est >= n'importe quel total réaliste, donc marque la saison
+  /// finie sans lancer de requête réseau pour compter les épisodes.
+  static const int fullyWatchedSentinel = 1 << 20; // 1 048 576
+
   /// Dernier épisode vu de la saison (0 si aucun).
   Future<int> lastWatched(int anilistId, int seasonIndex) async {
     final raw = await _settings
@@ -32,6 +38,11 @@ class SeasonProgressRepository {
       '$value',
     );
   }
+
+  /// Marque la saison comme entièrement vue via [fullyWatchedSentinel], sans
+  /// avoir à compter les épisodes (aucune requête réseau).
+  Future<void> markSeasonFullyWatched(int anilistId, int seasonIndex) =>
+      setLastWatched(anilistId, seasonIndex, fullyWatchedSentinel);
 
   /// Marque l'épisode [episode] comme vu (n'abaisse jamais le compteur).
   Future<void> markWatched(int anilistId, int seasonIndex, int episode) async {

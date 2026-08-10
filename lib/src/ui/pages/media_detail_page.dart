@@ -9,6 +9,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
+import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
 import 'library_page.dart';
 import 'player_page.dart';
@@ -466,8 +467,11 @@ class _StatusDropdown extends ConsumerWidget {
     ListStatus.repeating: 'Re-vision',
   };
 
-  /// Marque toutes les saisons anime-sama comme entièrement vues (dernier
-  /// épisode = total). Best-effort : ignore les erreurs réseau.
+  /// Marque toutes les saisons anime-sama comme entièrement vues. Rapide :
+  /// **un seul** appel réseau (`listSeasons` pour connaître les saisons) ; chaque
+  /// saison est marquée via la sentinelle « tout vu » — on ne compte PAS les
+  /// épisodes (pas de `listEpisodes` par saison, qui rendait l'opération lente).
+  /// Best-effort : ignore les erreurs réseau.
   Future<void> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
     try {
       final resolver = await ref.read(animeSamaResolverProvider.future);
@@ -475,14 +479,7 @@ class _StatusDropdown extends ConsumerWidget {
       final title = media.animeSamaTitle ?? media.title.preferred;
       final seasons = await resolver.listSeasons(title: title);
       for (final s in seasons) {
-        try {
-          final eps =
-              await resolver.listEpisodes(title: title, seasonIndex: s.index);
-          if (eps.isNotEmpty) {
-            await seasonProgress.setLastWatched(
-                media.anilistId, s.index, eps.length);
-          }
-        } catch (_) {/* saison ignorée */}
+        await seasonProgress.markSeasonFullyWatched(media.anilistId, s.index);
       }
     } catch (_) {/* best-effort */}
   }
@@ -692,14 +689,20 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         );
 
     if (!mounted) return;
-    // Le lecteur recalcule l'épisode (dernier vu + 1) ; on passe une valeur
-    // cohérente au cas où (source non-anime-sama).
+    // Épisode de départ = dernier vu + 1. Si la saison a été marquée
+    // « entièrement vue » via la sentinelle (« Terminé » manuel), _lastWatched
+    // est artificiellement énorme : on repart au dernier épisode réel connu
+    // (ou à 1 si le total est inconnu) plutôt qu'à un numéro inexistant.
+    final markedFull =
+        _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
+    final startEpisode =
+        markedFull ? (_total != null && _total! > 0 ? _total! : 1) : _lastWatched + 1;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerPage(
           media: widget.media,
-          episode: _lastWatched + 1,
+          episode: startEpisode,
           entry: entry,
           cameFromDetail: true,
           animeSamaTitle: widget.searchTitle,
@@ -715,10 +718,18 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final total = _total;
-    final done = total != null && total > 0 && _lastWatched >= total;
-    final ratio = (total != null && total > 0)
-        ? (_lastWatched / total).clamp(0.0, 1.0)
-        : null;
+    // Saison finie : soit on a atteint le total réel, soit elle a été marquée
+    // « entièrement vue » via la sentinelle (« Terminé » manuel, sans compter
+    // les épisodes → total parfois inconnu).
+    final markedFull =
+        _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
+    final done =
+        markedFull || (total != null && total > 0 && _lastWatched >= total);
+    final ratio = done
+        ? 1.0
+        : (total != null && total > 0)
+            ? (_lastWatched / total).clamp(0.0, 1.0)
+            : null;
 
     // « À jour » si saison finie + dernière saison + anime au planning
     // (nouveaux épisodes possibles) ; sinon « Terminée ».

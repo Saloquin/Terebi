@@ -44,5 +44,14 @@ void main() {
       await repo.markWatched(1, 1, 10); // supérieur → applique
       expect(await repo.lastWatched(1, 1), 10);
     });
+
+    test('markSeasonFullyWatched pose la sentinelle « tout vu »', () async {
+      await repo.markSeasonFullyWatched(1, 1);
+      final v = await repo.lastWatched(1, 1);
+      expect(v, SeasonProgressRepository.fullyWatchedSentinel);
+      // La sentinelle est >= tout total réaliste → la saison est « terminée »
+      // quelle que soit la valeur de total constatée ensuite.
+      expect(v, greaterThanOrEqualTo(9999));
+    });
   });
 }
