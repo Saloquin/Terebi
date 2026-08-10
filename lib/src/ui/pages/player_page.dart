@@ -153,6 +153,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<void> _prepareMeta() async {
     if (!await _isAnimeSamaActive()) return;
     _seasonIndex = await _storedSeasonIndex();
+    // Résout la langue courante dès l'arrivée pour que le sélecteur l'affiche
+    // (sinon aucune langue n'est marquée tant qu'on n'a pas cliqué « Lancer »).
+    _language ??= await _preferredLanguage();
+    _singleLanguage = (await ref
+            .read(settingsRepositoryProvider)
+            .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
+        '1';
+    if (mounted) setState(() {});
     await _loadSeasonMeta(seasonIndex: _seasonIndex);
 
     // Épisode initial : reprendre à (dernier vu de la saison) + 1.
@@ -180,6 +188,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _currentEpisode = target;
     }
     if (mounted) setState(() {});
+
+    // Détecte les langues dispo pour l'épisode initial (grise la langue absente
+    // dans le sélecteur dès l'arrivée), sauf en mode « langue unique ».
+    if (!_singleLanguage) {
+      final title = widget.animeSamaTitle ?? widget.media.title.preferred;
+      _refreshAvailableLangs(title, _seasonIndex, _currentEpisode);
+    }
   }
 
   /// Configure mpv pour privilégier la MEILLEURE qualité disponible sur les
