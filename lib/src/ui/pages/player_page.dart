@@ -60,7 +60,15 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  late final VideoController _videoController = VideoController(_player);
+  // Accélération matérielle désactivée : sur certains flux HLS/Sibnet sous
+  // Windows, le décodage matériel perd l'image après un seek (son sans image,
+  // définitif). Le décodage logiciel resynchronise correctement l'image après
+  // chaque seek/reprise, au prix d'un peu plus de CPU.
+  late final VideoController _videoController = VideoController(
+    _player,
+    configuration:
+        const VideoControllerConfiguration(enableHardwareAcceleration: false),
+  );
 
   bool _loading = false;
   bool _ready = false;
@@ -176,11 +184,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (platform is NativePlayer) {
       // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
       platform.setProperty('hls-bitrate', 'max');
-      // Seek par keyframes : après un seek (reprise), mpv se cale sur l'image
-      // clé la plus proche → l'image s'affiche tout de suite. Sans ça, un seek
-      // « exact » peut donner du son sans image (attente de la prochaine
-      // keyframe), surtout sur les flux HLS.
-      platform.setProperty('hr-seek', 'no');
+      // Seek précis : force mpv à décoder l'image exacte de la cible après un
+      // seek. Sur certains flux HLS, le seek par keyframe (hr-seek=no) laissait
+      // le son tourner sans image ; hr-seek=yes rend l'image après le saut.
+      platform.setProperty('hr-seek', 'yes');
+      platform.setProperty('hr-seek-framedrop', 'no');
     }
   }
 
@@ -418,19 +426,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return rewound > 0 ? rewound : 0;
   }
 
-  /// Attend que le flux soit réellement prêt (durée connue), démarre la lecture
-  /// PUIS seek. Ordre important : jouer d'abord active le décodeur vidéo, donc
-  /// le seek qui suit affiche l'image (sinon on peut avoir le son sans image).
-  /// Timeout de sécurité pour ne jamais bloquer.
+  /// Démarre la lecture, attend que la PREMIÈRE IMAGE soit réellement rendue,
+  /// puis seek. Attendre la première frame (et non juste la durée) est ce qui
+  /// garantit que le décodeur vidéo est actif → l'image suit le seek. Sans ça,
+  /// un seek trop tôt donne le son sans image. Timeout de sécurité.
   Future<void> _seekThenPlay(Duration target) async {
     try {
-      // Attend la première durée > 0 (flux prêt), max 8 s.
-      await _player.stream.duration
-          .firstWhere((d) => d > Duration.zero)
-          .timeout(const Duration(seconds: 8), onTimeout: () => Duration.zero);
       await _player.play();
-      // Laisse le décodeur démarrer une image avant de sauter au timecode.
-      await Future.delayed(const Duration(milliseconds: 150));
+      // Attend le rendu de la 1re image (décodeur prêt), max 8 s.
+      await _videoController.waitUntilFirstFrameRendered
+          .timeout(const Duration(seconds: 8), onTimeout: () {});
       await _player.seek(target);
     } catch (_) {
       // En dernier recours : au moins démarrer la lecture.
