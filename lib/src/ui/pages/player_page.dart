@@ -23,6 +23,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/models/episode_progress.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/media.dart' as domain;
+import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
 import 'media_detail_page.dart';
 
@@ -80,6 +81,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// faire qu'une seule fois (à l'arrivée).
   bool _initialEpisodeResolved = false;
 
+  /// Garde de réentrance pour la navigation d'épisode (`<`/`>`/menu) : évite un
+  /// double marquage « vu » si l'utilisateur clique vite.
+  bool _navigating = false;
+
   @override
   void initState() {
     super.initState();
@@ -105,10 +110,21 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       final seasonProgress = ref.read(seasonProgressRepositoryProvider);
       final lastWatched =
           await seasonProgress.lastWatched(widget.media.anilistId, _seasonIndex);
-      var target = lastWatched + 1;
-      if (_episodes.isNotEmpty) {
-        // Borne au total ; si saison finie, on reste sur le dernier épisode.
-        if (target > _episodes.last) target = _episodes.last;
+      // La saison peut avoir été marquée « entièrement vue » via la sentinelle
+      // (« Terminé » manuel) : lastWatched est alors artificiellement énorme.
+      // On ne fait JAMAIS sentinelle+1 (numéro d'épisode absurde qui polluerait
+      // ensuite entry.progress et les stats) : on repart au dernier épisode réel
+      // connu, ou à 1 si la liste est inconnue.
+      final markedFull =
+          lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
+      int target;
+      if (markedFull) {
+        target = _episodes.isNotEmpty ? _episodes.last : 1;
+      } else {
+        target = lastWatched + 1;
+        if (_episodes.isNotEmpty && target > _episodes.last) {
+          target = _episodes.last;
+        }
       }
       _currentEpisode = target;
     }
@@ -164,6 +180,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Résout l'URL via le résolveur actif et l'ouvre dans le lecteur encastré.
   Future<void> _loadAndPlay() async {
+    if (_loading) return; // garde de réentrance : évite un double « Lancer ».
     setState(() {
       _loading = true;
       _error = null;
@@ -300,16 +317,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// bouton « Lancer » réapparaît pour le nouvel épisode.
   Future<void> _goToEpisode(int ep) async {
     if (ep == _currentEpisode) return;
-    if (ep > _currentEpisode) {
-      await _markCurrentWatched();
+    if (_navigating) return; // garde : évite un double marquage si clics rapides.
+    _navigating = true;
+    try {
+      if (ep > _currentEpisode) {
+        await _markCurrentWatched();
+      }
+      if (!mounted) return;
+      setState(() {
+        _currentEpisode = ep;
+        _ready = false;
+        _error = null;
+      });
+      await _player.stop();
+    } finally {
+      _navigating = false;
     }
-    if (!mounted) return;
-    setState(() {
-      _currentEpisode = ep;
-      _ready = false;
-      _error = null;
-    });
-    await _player.stop();
   }
 
   /// Valide la fin de saison : marque le dernier épisode vu (compteur = total).

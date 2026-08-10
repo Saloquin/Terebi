@@ -10,6 +10,7 @@ import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
+import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_resolver.dart';
 import 'media_detail_page.dart';
 
@@ -127,7 +128,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     for (final entry in completed) {
       try {
         final media = await mediaRepo.getMedia(entry.mediaId);
-        final title = media?.title.preferred;
+        // Titre anime-sama de référence (le titre AniList peut diverger et faire
+        // échouer le scraping). Repli sur le titre préféré si non renseigné.
+        final title = media?.animeSamaTitle ?? media?.title.preferred;
         if (title == null) continue;
 
         final seasons = await resolver.listSeasons(title: title);
@@ -142,7 +145,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
         final watched =
             await seasonProgress.lastWatched(entry.mediaId, last.index);
-        if (watched < eps.length) {
+        // Marqué « entièrement vu » (sentinelle) → l'utilisateur l'a déclaré
+        // terminé : ne jamais le rétrograder automatiquement.
+        if (watched >= SeasonProgressRepository.fullyWatchedSentinel) continue;
+        // Compare au DERNIER numéro d'épisode réel (numérotation parfois non
+        // contiguë : OAV, épisodes .5…), pas au simple compte de la liste.
+        if (watched < eps.last) {
           // Il reste des épisodes non vus → l'anime n'est plus « Terminé ».
           await listRepo.upsertEntry(entry.copyWith(
             status: ListStatus.current,
@@ -501,6 +509,9 @@ class _EntryTile extends ConsumerWidget {
     final repo = ref.read(mediaRepositoryProvider);
     final local = await repo.getMedia(entry.mediaId);
     if (local != null) return local;
+    // Un id NÉGATIF est une identité anime-sama (pas un anilistId) : inutile —
+    // et invalide — d'interroger AniList avec. On garde le fallback local.
+    if (entry.mediaId <= 0) return null;
     try {
       final fetched =
           await ref.read(aniListClientProvider).mediaDetail(entry.mediaId);
