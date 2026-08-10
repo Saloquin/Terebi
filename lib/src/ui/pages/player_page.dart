@@ -87,6 +87,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Index de saison anime-sama courant (résolu au 1er `_prepareMeta`).
   int _seasonIndex = 1;
 
+  /// Clé du bouton « réglages » de la barre du player (ancrage du menu).
+  final GlobalKey _settingsButtonKey = GlobalKey();
+
   /// `true` une fois l'épisode initial calculé (dernier vu + 1), pour ne le
   /// faire qu'une seule fois (à l'arrivée).
   bool _initialEpisodeResolved = false;
@@ -713,52 +716,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* ignore */}
   }
 
-  /// Vidéo + contrôles media_kit personnalisés : les boutons langue/vitesse sont
-  /// ajoutés à la barre haute du player, présente aussi EN PLEIN ÉCRAN (le clic
-  /// droit Flutter ne fonctionne pas sur la surface plein écran native).
+  /// Vidéo + contrôles media_kit personnalisés : un bouton « réglages » est
+  /// ajouté à la barre haute du player (présente aussi EN PLEIN ÉCRAN). Il
+  /// ouvre le menu langue + vitesse. On utilise MaterialDesktopCustomButton
+  /// (les PopupMenuButton bruts ne reçoivent pas les taps dans cette barre).
   Widget _buildVideo() {
-    final langButton = PopupMenuButton<PlaybackLanguage>(
-      tooltip: 'Langue',
-      icon: const Icon(Icons.subtitles_outlined, color: Colors.white),
-      onSelected: _switchLanguage,
-      itemBuilder: (_) => [
-        for (final e in const [
-          (PlaybackLanguage.vostfr, 'VOSTFR'),
-          (PlaybackLanguage.vf, 'VF'),
-        ])
-          PopupMenuItem(
-            value: e.$1,
-            enabled: _availableLangs == null || _availableLangs!.contains(e.$1),
-            child: Row(children: [
-              Icon(_language == e.$1 ? Icons.check : Icons.subtitles_outlined,
-                  size: 18),
-              const SizedBox(width: 8),
-              Text(e.$2),
-            ]),
-          ),
-      ],
-    );
-    final speedButton = PopupMenuButton<double>(
-      tooltip: 'Vitesse',
-      icon: const Icon(Icons.speed, color: Colors.white),
-      onSelected: _setSpeed,
-      initialValue: _speed,
-      itemBuilder: (_) => [
-        for (final s in _speeds)
-          PopupMenuItem(
-            value: s,
-            child: Row(children: [
-              Icon(_speed == s ? Icons.check : Icons.speed, size: 18),
-              const SizedBox(width: 8),
-              Text(s == 1.0 ? 'Normal (1×)' : '$s×'),
-            ]),
-          ),
-      ],
-    );
     final topBar = <Widget>[
       const Spacer(),
-      if (!_singleLanguage) langButton,
-      speedButton,
+      MaterialDesktopCustomButton(
+        key: _settingsButtonKey,
+        icon: const Icon(Icons.tune),
+        onPressed: _showSettingsMenuFromButton,
+      ),
     ];
 
     // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
@@ -768,6 +737,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       fullscreen: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
       child: Video(controller: _videoController),
     );
+  }
+
+  /// Ouvre le menu réglages ancré sous le bouton « tune » de la barre du player.
+  Future<void> _showSettingsMenuFromButton() async {
+    final ctx = _settingsButtonKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox;
+    // Ancre le menu juste sous le bouton.
+    final pos = box.localToGlobal(box.size.bottomLeft(Offset.zero));
+    await _showContextMenu(pos);
   }
 
   /// Menu contextuel (clic droit) : langue + vitesse. Indispensable en plein
