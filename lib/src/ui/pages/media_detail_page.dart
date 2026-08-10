@@ -343,18 +343,66 @@ class _MetaChips extends StatelessWidget {
       _statusLabel(media.status.name),
     ];
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 4,
+    final nextAt = media.nextAiringAt;
+    final nextEp = media.nextAiringEpisode;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final item in items)
-          Chip(
-            label: Text(item),
-            visualDensity: VisualDensity.compact,
-            padding: EdgeInsets.zero,
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final item in items)
+              Chip(
+                label: Text(item),
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+              ),
+          ],
+        ),
+        if (nextAt != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.schedule,
+                  size: 16, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 6),
+              Text(
+                nextEp != null
+                    ? 'Prochain épisode (ép. $nextEp) ${_formatAiring(nextAt.toLocal())}'
+                    : 'Prochain épisode ${_formatAiring(nextAt.toLocal())}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ),
+        ],
       ],
     );
+  }
+
+  /// Formate une date de diffusion de façon lisible et relative (« demain à
+  /// 18h30 », « le 14/08 à 18h30 »).
+  static String _formatAiring(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dt.year, dt.month, dt.day);
+    final diffDays = day.difference(today).inDays;
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    final heure = 'à ${hh}h$mm';
+    if (diffDays == 0) return "aujourd'hui $heure";
+    if (diffDays == 1) return 'demain $heure';
+    if (diffDays > 1 && diffDays < 7) {
+      const jours = [
+        'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
+      ];
+      return '${jours[dt.weekday - 1]} $heure';
+    }
+    final d = dt.day.toString().padLeft(2, '0');
+    final mo = dt.month.toString().padLeft(2, '0');
+    return 'le $d/$mo $heure';
   }
 
   static String _formatLabel(Media m) => switch (m.format.name) {

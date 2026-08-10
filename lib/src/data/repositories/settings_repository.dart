@@ -18,6 +18,10 @@ abstract final class SettingsKeys {
   /// Source de lecture active : 'animesama' (défaut) | 'ani_cli'.
   static const String streamSource = 'stream_source';
 
+  /// Enchaînement automatique de l'épisode suivant en fin de lecture
+  /// ('1' = activé, autre/absent = désactivé). Désactivé par défaut.
+  static const String autoPlayNext = 'auto_play_next';
+
   /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
   static const String pythonPath = 'python_path';
 
