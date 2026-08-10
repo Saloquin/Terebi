@@ -53,12 +53,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   final _tokenCtrl = TextEditingController();
   final _pythonCtrl = TextEditingController();
   final _animeSamaCtrl = TextEditingController();
-  final _seekFwdCtrl = TextEditingController();
-  final _seekBwdCtrl = TextEditingController();
   bool _isVf = false;
   bool _autoPlay = false; // enchaînement auto de l'épisode suivant
   bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
+  int _seekFwd = 10; // saut avant (→), secondes
+  int _seekBwd = 10; // saut arrière (←), secondes
   bool _initialized = false;
+
+  /// Valeurs proposées pour les sauts avant/arrière (secondes).
+  static const _seekChoices = [2, 5, 10, 30];
 
   // --- Suivi des modifications non sauvegardées ------------------------------
   /// Snapshot des valeurs au dernier chargement/sauvegarde, pour détecter les
@@ -88,8 +91,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       _tokenCtrl,
       _pythonCtrl,
       _animeSamaCtrl,
-      _seekFwdCtrl,
-      _seekBwdCtrl,
     ]) {
       c.addListener(_recomputeDirty);
     }
@@ -102,8 +103,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _tokenCtrl.dispose();
     _pythonCtrl.dispose();
     _animeSamaCtrl.dispose();
-    _seekFwdCtrl.dispose();
-    _seekBwdCtrl.dispose();
     super.dispose();
   }
 
@@ -116,8 +115,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         'isVf': '$_isVf',
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
-        'seekFwd': _seekFwdCtrl.text.trim(),
-        'seekBwd': _seekBwdCtrl.text.trim(),
+        'seekFwd': '$_seekFwd',
+        'seekBwd': '$_seekBwd',
       };
 
   /// Recalcule l'état « dirty » et le publie pour l'AppShell.
@@ -160,9 +159,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
-    _seekFwdCtrl.text = settings[SettingsKeys.seekForwardSeconds] ?? '10';
-    _seekBwdCtrl.text = settings[SettingsKeys.seekBackwardSeconds] ?? '10';
+    _seekFwd = _normalizeSeek(settings[SettingsKeys.seekForwardSeconds]);
+    _seekBwd = _normalizeSeek(settings[SettingsKeys.seekBackwardSeconds]);
     _snapshot = _currentValues();
+  }
+
+  /// Convertit une valeur stockée en un des choix proposés (défaut 10).
+  static int _normalizeSeek(String? raw) {
+    final v = int.tryParse(raw ?? '');
+    return (v != null && _seekChoices.contains(v)) ? v : 10;
   }
 
   /// Réinitialise les champs aux dernières valeurs sauvegardées (bouton Annuler).
@@ -171,12 +176,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _pythonCtrl.text = _snapshot['python'] ?? '';
     _animeSamaCtrl.text = _snapshot['animeSama'] ?? '';
     _tokenCtrl.text = _snapshot['token'] ?? '';
-    _seekFwdCtrl.text = _snapshot['seekFwd'] ?? '10';
-    _seekBwdCtrl.text = _snapshot['seekBwd'] ?? '10';
     setState(() {
       _isVf = _snapshot['isVf'] == 'true';
       _autoPlay = _snapshot['autoPlay'] == 'true';
       _singleLang = _snapshot['singleLang'] == 'true';
+      _seekFwd = _normalizeSeek(_snapshot['seekFwd']);
+      _seekBwd = _normalizeSeek(_snapshot['seekBwd']);
     });
     _recomputeDirty();
   }
@@ -190,13 +195,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     );
     await repo.set(SettingsKeys.autoPlayNext, _autoPlay ? '1' : '0');
     await repo.set(SettingsKeys.singleLanguage, _singleLang ? '1' : '0');
-    // Durées de saut : entier >= 1, défaut 10 si invalide.
-    final fwd = int.tryParse(_seekFwdCtrl.text.trim());
-    final bwd = int.tryParse(_seekBwdCtrl.text.trim());
-    await repo.set(SettingsKeys.seekForwardSeconds,
-        '${(fwd != null && fwd >= 1) ? fwd : 10}');
-    await repo.set(SettingsKeys.seekBackwardSeconds,
-        '${(bwd != null && bwd >= 1) ? bwd : 10}');
+    await repo.set(SettingsKeys.seekForwardSeconds, '$_seekFwd');
+    await repo.set(SettingsKeys.seekBackwardSeconds, '$_seekBwd');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
     await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
@@ -361,29 +361,47 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _seekBwdCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
+                      child: InputDecorator(
                         decoration: const InputDecoration(
-                          labelText: 'Recul (← , secondes)',
+                          labelText: 'Recul (←)',
                           border: OutlineInputBorder(),
+                        ),
+                        child: DropdownButton<int>(
+                          value: _seekBwd,
+                          isExpanded: true,
+                          underline: const SizedBox.shrink(),
+                          items: [
+                            for (final s in _seekChoices)
+                              DropdownMenuItem(value: s, child: Text('$s s')),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() => _seekBwd = v);
+                            _recomputeDirty();
+                          },
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: TextField(
-                        controller: _seekFwdCtrl,
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly
-                        ],
+                      child: InputDecorator(
                         decoration: const InputDecoration(
-                          labelText: 'Avance (→ , secondes)',
+                          labelText: 'Avance (→)',
                           border: OutlineInputBorder(),
+                        ),
+                        child: DropdownButton<int>(
+                          value: _seekFwd,
+                          isExpanded: true,
+                          underline: const SizedBox.shrink(),
+                          items: [
+                            for (final s in _seekChoices)
+                              DropdownMenuItem(value: s, child: Text('$s s')),
+                          ],
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setState(() => _seekFwd = v);
+                            _recomputeDirty();
+                          },
                         ),
                       ),
                     ),
