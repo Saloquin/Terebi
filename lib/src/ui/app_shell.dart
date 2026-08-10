@@ -61,7 +61,15 @@ class _AppShellState extends State<AppShell> {
             ],
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: _destinations[_index].page),
+          // IndexedStack : toutes les pages restent montées → l'état (recherche
+          // du catalogue, position de scroll, données chargées) est conservé
+          // quand on change d'onglet, sans re-scraper à chaque retour.
+          Expanded(
+            child: IndexedStack(
+              index: _index,
+              children: [for (final d in _destinations) d.page],
+            ),
+          ),
         ],
       ),
     );

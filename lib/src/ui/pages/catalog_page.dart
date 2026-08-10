@@ -6,6 +6,8 @@
 /// titre affiché reste celui d'anime-sama.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -50,16 +52,34 @@ class CatalogPage extends ConsumerStatefulWidget {
 class _CatalogPageState extends ConsumerState<CatalogPage> {
   final _controller = TextEditingController();
   String _query = '';
+  Timer? _debounce;
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
 
-  void _onSubmit(String value) => setState(() => _query = value.trim());
+  void _onSubmit(String value) {
+    _debounce?.cancel(); // Entrée : recherche immédiate, on annule le debounce.
+    setState(() => _query = value.trim());
+  }
+
+  /// Recherche à la frappe, temporisée. Chaque recherche lance un process
+  /// Python : on attend une pause de saisie (600 ms) et au moins 3 caractères
+  /// pour ne pas scraper sur chaque lettre.
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    final trimmed = value.trim();
+    if (trimmed.length < 3) return; // trop court → on attend (ou l'utilisateur valide)
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted && trimmed != _query) setState(() => _query = trimmed);
+    });
+  }
 
   void _clear() {
+    _debounce?.cancel();
     _controller.clear();
     setState(() => _query = '');
   }
@@ -86,6 +106,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
               border: const OutlineInputBorder(),
             ),
             textInputAction: TextInputAction.search,
+            onChanged: _onChanged,
             onSubmitted: _onSubmit,
           ),
         ),

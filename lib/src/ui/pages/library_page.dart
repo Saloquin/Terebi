@@ -13,6 +13,7 @@ import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_resolver.dart';
 import 'media_detail_page.dart';
+import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
 // Providers (visibles pour les tests via import)
@@ -522,6 +523,43 @@ class _EntryTile extends ConsumerWidget {
     }
   }
 
+  /// Lance le lecteur directement (sans passer par la fiche) sur l'épisode à
+  /// reprendre. Tout est calculé en local (saison mémorisée + dernier vu) :
+  /// aucun appel réseau, reprise en 1 clic depuis la bibliothèque.
+  Future<void> _resume(BuildContext context, WidgetRef ref, Media media) async {
+    final settings = ref.read(settingsRepositoryProvider);
+    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+
+    final storedSeason =
+        await settings.get(SettingsKeys.animeSamaSeasonFor(media.anilistId));
+    final seasonIndex =
+        (storedSeason != null ? int.tryParse(storedSeason) : null) ?? 1;
+    final lastWatched =
+        await seasonProgress.lastWatched(media.anilistId, seasonIndex);
+    // Sentinelle « tout vu » → on ne reprend pas au-delà : on relit depuis 1.
+    final startEpisode =
+        lastWatched >= SeasonProgressRepository.fullyWatchedSentinel
+            ? 1
+            : lastWatched + 1;
+
+    final entryForPlayer = await ref.read(listRepositoryProvider)
+            .getEntry(media.anilistId) ??
+        entry;
+
+    if (!context.mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerPage(
+          media: media,
+          episode: startEpisode,
+          entry: entryForPlayer,
+          animeSamaTitle: media.animeSamaTitle,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaFuture = _resolveMedia(ref);
@@ -532,6 +570,14 @@ class _EntryTile extends ConsumerWidget {
         final media = snap.data;
         final title = media?.title.preferred ?? 'ID ${entry.mediaId}';
         final coverUrl = media?.coverUrl;
+
+        // Borne l'affichage : si la sentinelle « tout vu » a pu se glisser dans
+        // progress, ne pas afficher « ép. 1048577 ».
+        final progressLabel = entry.progress <= 0
+            ? 'Pas encore commencé'
+            : entry.progress >= SeasonProgressRepository.fullyWatchedSentinel
+                ? 'Terminé'
+                : 'Progression : ép. ${entry.progress}';
 
         return ListTile(
           leading: coverUrl != null
@@ -549,25 +595,35 @@ class _EntryTile extends ConsumerWidget {
               : const SizedBox(width: 40, height: 56),
           title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
           subtitle: Text(
-            entry.progress > 0
-                ? 'Progression : ép. ${entry.progress}'
-                : 'Pas encore commencé',
+            progressLabel,
             style: Theme.of(context).textTheme.bodySmall,
           ),
-          trailing: entry.score != null
-              ? Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.star, size: 16, color: Colors.amber),
-                    const SizedBox(width: 2),
-                    Text(entry.score!.toStringAsFixed(1)),
-                  ],
-                )
-              : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (entry.score != null) ...[
+                const Icon(Icons.star, size: 16, color: Colors.amber),
+                const SizedBox(width: 2),
+                Text(entry.score!.toStringAsFixed(1)),
+                const SizedBox(width: 8),
+              ],
+              // Reprendre directement (1 clic) — visible dès que le média est
+              // résolu (pour connaître le titre anime-sama).
+              if (media != null)
+                IconButton(
+                  icon: const Icon(Icons.play_circle_outline),
+                  tooltip: 'Reprendre',
+                  onPressed: () => _resume(context, ref, media),
+                ),
+            ],
+          ),
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => MediaDetailPage(anilistId: entry.mediaId),
+              builder: (_) => MediaDetailPage(
+                anilistId: entry.mediaId,
+                displayTitle: media?.animeSamaTitle,
+              ),
             ),
           ),
         );
