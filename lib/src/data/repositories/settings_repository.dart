@@ -8,19 +8,18 @@ import '../local/database.dart';
 
 /// Clés standard utilisées par l'application.
 abstract final class SettingsKeys {
-  static const String aniCliPath = 'ani_cli_path';
   static const String mpvPath = 'mpv_path';
   static const String playbackLanguage = 'playback_language';
-
-  /// Chemin d'un shell POSIX (`sh`) pour exécuter le script ani-cli sous Windows.
-  static const String shellPath = 'shell_path';
-
-  /// Source de lecture active : 'animesama' (défaut) | 'ani_cli'.
-  static const String streamSource = 'stream_source';
 
   /// Enchaînement automatique de l'épisode suivant en fin de lecture
   /// ('1' = activé, autre/absent = désactivé). Désactivé par défaut.
   static const String autoPlayNext = 'auto_play_next';
+
+  /// Durée (secondes) du saut avant (flèche droite) dans le lecteur. Défaut 10.
+  static const String seekForwardSeconds = 'seek_forward_seconds';
+
+  /// Durée (secondes) du saut arrière (flèche gauche) dans le lecteur. Défaut 10.
+  static const String seekBackwardSeconds = 'seek_backward_seconds';
 
   /// Langue de lecture choisie POUR UN anime donné ('vf' | 'vostfr').
   /// Prime sur [playbackLanguage] (global) quand elle existe. Réglée depuis le

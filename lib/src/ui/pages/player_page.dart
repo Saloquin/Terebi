@@ -16,6 +16,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -120,6 +121,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   double _speed = 1.0;
   static const _speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
 
+  /// Durées de saut (secondes) configurables dans les Paramètres.
+  int _seekForward = 10;
+  int _seekBackward = 10;
+
   @override
   void initState() {
     super.initState();
@@ -151,15 +156,24 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
   /// et calcule l'épisode initial = **dernier vu de la saison + 1** (borné).
   Future<void> _prepareMeta() async {
-    if (!await _isAnimeSamaActive()) return;
     _seasonIndex = await _storedSeasonIndex();
     // Résout la langue courante dès l'arrivée pour que le sélecteur l'affiche
     // (sinon aucune langue n'est marquée tant qu'on n'a pas cliqué « Lancer »).
     _language ??= await _preferredLanguage();
-    _singleLanguage = (await ref
-            .read(settingsRepositoryProvider)
-            .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
-        '1';
+    final settings = ref.read(settingsRepositoryProvider);
+    _singleLanguage =
+        (await settings.get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
+            '1';
+    _seekForward = int.tryParse(
+            await settings.get(SettingsKeys.seekForwardSeconds,
+                    defaultValue: '10') ??
+                '10') ??
+        10;
+    _seekBackward = int.tryParse(
+            await settings.get(SettingsKeys.seekBackwardSeconds,
+                    defaultValue: '10') ??
+                '10') ??
+        10;
     if (mounted) setState(() {});
     await _loadSeasonMeta(seasonIndex: _seasonIndex);
 
@@ -337,14 +351,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     await _loadAndPlay(forceResumeAt: resumeAt, startPaused: !wasPlaying);
   }
 
-  /// Détermine si la source active est anime-sama.
-  Future<bool> _isAnimeSamaActive() async {
-    final settings = ref.read(settingsRepositoryProvider);
-    final source = await settings.get(SettingsKeys.streamSource,
-        defaultValue: 'animesama');
-    return source != 'ani_cli';
-  }
-
   /// Index de saison mémorisé pour ce média, ou 1 par défaut.
   /// Le CHOIX de saison se fait sur la fiche (pas ici).
   Future<int> _storedSeasonIndex() async {
@@ -376,26 +382,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               .read(settingsRepositoryProvider)
               .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
           '1';
-      final isAnimeSama = await _isAnimeSamaActive();
       final resolveTitle = widget.animeSamaTitle ?? widget.media.title.preferred;
 
-      int seasonIndex = 1;
-      if (isAnimeSama) {
-        seasonIndex = await _storedSeasonIndex();
-        _seasonIndex = seasonIndex;
-        // Charge (best-effort) le nom de la saison + la liste des épisodes.
-        await _loadSeasonMeta(seasonIndex: seasonIndex);
+      final seasonIndex = await _storedSeasonIndex();
+      _seasonIndex = seasonIndex;
+      // Charge (best-effort) le nom de la saison + la liste des épisodes.
+      await _loadSeasonMeta(seasonIndex: seasonIndex);
 
-        // Borne l'épisode courant à la liste connue.
-        if (_episodes.isNotEmpty && _currentEpisode > _episodes.last) {
-          if (!mounted) return;
-          setState(() {
-            _loading = false;
-            _error =
-                'Épisode $_currentEpisode non disponible (max : ${_episodes.last}).';
-          });
-          return;
-        }
+      // Borne l'épisode courant à la liste connue.
+      if (_episodes.isNotEmpty && _currentEpisode > _episodes.last) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error =
+              'Épisode $_currentEpisode non disponible (max : ${_episodes.last}).';
+        });
+        return;
       }
 
       final resolver = await ref.read(activeResolverProvider.future);
@@ -432,7 +434,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // Mémorise la langue effective pour cet anime + lance la détection des
       // langues dispo (pour le sélecteur), sauf en mode « langue unique ».
       await _persistLanguage(_language!);
-      if (isAnimeSama && !_singleLanguage) {
+      if (!_singleLanguage) {
         _refreshAvailableLangs(resolveTitle, seasonIndex, _currentEpisode);
       }
 
@@ -781,13 +783,44 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ),
     ];
 
+    // Raccourcis clavier : reprend les défauts media_kit mais avec les durées
+    // de saut avant/arrière configurées dans les Paramètres.
+    final shortcuts = <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.space): _player.playOrPause,
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seekBy(-_seekBackward),
+      const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seekBy(_seekForward),
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () {
+        final v = _player.state.volume + 5.0;
+        _player.setVolume(v.clamp(0.0, 100.0));
+      },
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () {
+        final v = _player.state.volume - 5.0;
+        _player.setVolume(v.clamp(0.0, 100.0));
+      },
+    };
+
     // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
     // Utiliser la mauvaise variante rend les boutons custom invisibles.
     return MaterialDesktopVideoControlsTheme(
-      normal: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
-      fullscreen: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
+      normal: MaterialDesktopVideoControlsThemeData(
+        topButtonBar: topBar,
+        keyboardShortcuts: shortcuts,
+      ),
+      fullscreen: MaterialDesktopVideoControlsThemeData(
+        topButtonBar: topBar,
+        keyboardShortcuts: shortcuts,
+      ),
       child: Video(controller: _videoController),
     );
+  }
+
+  /// Saut relatif (secondes) borné à [0, durée].
+  void _seekBy(int seconds) {
+    final pos = _player.state.position + Duration(seconds: seconds);
+    final dur = _player.state.duration;
+    var target = pos < Duration.zero ? Duration.zero : pos;
+    if (dur > Duration.zero && target > dur) target = dur;
+    _player.seek(target);
   }
 
   /// Ouvre le menu réglages ancré sous le bouton « tune » de la barre du player.

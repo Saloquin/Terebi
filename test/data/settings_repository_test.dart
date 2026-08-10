@@ -30,16 +30,16 @@ void main() {
     });
 
     test('set puis get retourne la valeur persistée', () async {
-      await repo.set(SettingsKeys.aniCliPath, '/usr/local/bin/ani-cli');
-      final v = await repo.get(SettingsKeys.aniCliPath);
-      expect(v, equals('/usr/local/bin/ani-cli'));
+      await repo.set(SettingsKeys.mpvPath, '/usr/local/bin/mpv');
+      final v = await repo.get(SettingsKeys.mpvPath);
+      expect(v, equals('/usr/local/bin/mpv'));
     });
 
     test('set écrase la valeur existante (upsert)', () async {
-      await repo.set(SettingsKeys.aniCliPath, 'ani-cli');
-      await repo.set(SettingsKeys.aniCliPath, '/custom/ani-cli');
-      final v = await repo.get(SettingsKeys.aniCliPath);
-      expect(v, equals('/custom/ani-cli'));
+      await repo.set(SettingsKeys.mpvPath, 'mpv');
+      await repo.set(SettingsKeys.mpvPath, '/custom/mpv');
+      final v = await repo.get(SettingsKeys.mpvPath);
+      expect(v, equals('/custom/mpv'));
     });
 
     test('delete supprime la clé (get retourne null après)', () async {
@@ -50,13 +50,11 @@ void main() {
     });
 
     test('plusieurs clés coexistent sans interférence', () async {
-      await repo.set(SettingsKeys.aniCliPath, 'ani-cli');
+      await repo.set(SettingsKeys.playbackLanguage, 'vf');
       await repo.set(SettingsKeys.mpvPath, 'mpv');
-      await repo.set(SettingsKeys.playbackLanguage, 'vostfr');
 
-      expect(await repo.get(SettingsKeys.aniCliPath), equals('ani-cli'));
+      expect(await repo.get(SettingsKeys.playbackLanguage), equals('vf'));
       expect(await repo.get(SettingsKeys.mpvPath), equals('mpv'));
-      expect(await repo.get(SettingsKeys.playbackLanguage), equals('vostfr'));
     });
   });
 }

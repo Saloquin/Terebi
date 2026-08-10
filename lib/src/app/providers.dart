@@ -4,8 +4,6 @@
 /// reste dans domain/ (Dart pur) ; ici on ne fait qu'assembler.
 library;
 
-import 'dart:io';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -26,7 +24,6 @@ import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
 import '../domain/logic/calendar_service.dart';
-import '../services/ani_cli_resolver.dart';
 import '../services/animesama_resolver.dart';
 import '../services/health_service.dart';
 import '../services/process_runner.dart';
@@ -119,7 +116,7 @@ final secureStorageProvider = Provider<FlutterSecureStorage>(
   (ref) => const FlutterSecureStorage(),
 );
 
-/// Repository paramètres applicatifs (chemins ani-cli/mpv, langue…).
+/// Repository paramètres applicatifs (chemins python/mpv, langue…).
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );
@@ -128,35 +125,6 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
 final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
   (ref) => SeasonProgressRepository(ref.watch(settingsRepositoryProvider)),
 );
-
-/// Résolveur ani-cli : détection plateforme (sh de Git Bash + VRAI script
-/// ani-cli, en évitant le shim Scoop cassé). Un chemin saisi dans les Paramètres
-/// n'est retenu que s'il pointe un fichier réel (sinon on garde la détection).
-final aniCliResolverProvider = FutureProvider<AniCliResolver>((ref) async {
-  final settings = ref.watch(settingsRepositoryProvider);
-  final defaults = AniCliDefaults.detect();
-
-  // Chemin ani-cli : préférence à la détection ; le réglage manuel ne prime que
-  // s'il désigne un fichier existant (évite un « ani-cli » nu → shim WSL cassé).
-  final manualPath = await settings.get(SettingsKeys.aniCliPath);
-  final path = (manualPath != null &&
-          manualPath.isNotEmpty &&
-          File(manualPath).existsSync())
-      ? manualPath
-      : defaults.aniCliPath;
-
-  // Shell : réglage manuel s'il existe, sinon détection.
-  final manualShell = await settings.get(SettingsKeys.shellPath);
-  final shell = (manualShell != null && manualShell.isNotEmpty)
-      ? manualShell
-      : defaults.shell;
-
-  return AniCliResolver(
-    aniCliPath: path,
-    shell: (shell != null && shell.isEmpty) ? null : shell,
-    runner: ref.watch(processRunnerProvider),
-  );
-});
 
 /// Résolveur anime-sama (VOSTFR/VF) via le wrapper Python.
 /// Chemins Python/anime_sama.py depuis les Paramètres, sinon détection auto.
@@ -261,22 +229,16 @@ final titleMatcherProvider = Provider<TitleMatcher>(
   ),
 );
 
-/// Résolveur actif selon le réglage `streamSource` (défaut : anime-sama VOSTFR).
+/// Résolveur de flux actif : anime-sama (unique source, VOSTFR/VF).
 final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {
-  final settings = ref.watch(settingsRepositoryProvider);
-  final source = await settings.get(SettingsKeys.streamSource,
-      defaultValue: 'animesama');
-  if (source == 'ani_cli') {
-    return ref.watch(aniCliResolverProvider.future);
-  }
   return ref.watch(animeSamaResolverProvider.future);
 });
 
 /// Service health-check câblé sur toutes les sondes réelles.
 ///
-/// Les chemins ani-cli/mpv sont des valeurs par défaut synchrones ; la
-/// [SettingsPage] recrée le service à chaque health-check avec les chemins
-/// lus depuis [settingsRepositoryProvider].
+/// Le chemin mpv est une valeur par défaut synchrone ; la [SettingsPage] recrée
+/// le service à chaque health-check avec les chemins lus depuis
+/// [settingsRepositoryProvider].
 final healthServiceProvider = Provider<HealthService>((ref) {
   final storage = ref.watch(secureStorageProvider);
   final db = ref.watch(databaseProvider);
@@ -284,7 +246,6 @@ final healthServiceProvider = Provider<HealthService>((ref) {
 
   return HealthService(
     runner: ref.watch(processRunnerProvider),
-    aniCliPath: 'ani-cli',
     mpvPath: 'mpv',
     hasValidToken: () async {
       final token = await storage.read(key: 'anilist_token');

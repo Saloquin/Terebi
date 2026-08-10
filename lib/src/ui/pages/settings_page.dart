@@ -8,7 +8,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/health_service.dart';
-import '../../services/system_process_runner.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -18,20 +17,20 @@ import '../../services/system_process_runner.dart';
 final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
   final repo = ref.watch(settingsRepositoryProvider);
   return {
-    SettingsKeys.aniCliPath:
-        await repo.get(SettingsKeys.aniCliPath, defaultValue: 'ani-cli'),
     SettingsKeys.mpvPath:
         await repo.get(SettingsKeys.mpvPath, defaultValue: 'mpv'),
     SettingsKeys.playbackLanguage: await repo.get(
       SettingsKeys.playbackLanguage,
       defaultValue: 'vostfr',
     ),
-    SettingsKeys.streamSource:
-        await repo.get(SettingsKeys.streamSource, defaultValue: 'animesama'),
     SettingsKeys.autoPlayNext:
         await repo.get(SettingsKeys.autoPlayNext, defaultValue: '0'),
     SettingsKeys.singleLanguage:
         await repo.get(SettingsKeys.singleLanguage, defaultValue: '0'),
+    SettingsKeys.seekForwardSeconds:
+        await repo.get(SettingsKeys.seekForwardSeconds, defaultValue: '10'),
+    SettingsKeys.seekBackwardSeconds:
+        await repo.get(SettingsKeys.seekBackwardSeconds, defaultValue: '10'),
     SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
     SettingsKeys.animeSamaScript: await repo.get(SettingsKeys.animeSamaScript),
   };
@@ -50,14 +49,13 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage>
     with SingleTickerProviderStateMixin {
-  final _aniCliCtrl = TextEditingController();
   final _mpvCtrl = TextEditingController();
   final _tokenCtrl = TextEditingController();
   final _pythonCtrl = TextEditingController();
   final _animeSamaCtrl = TextEditingController();
+  final _seekFwdCtrl = TextEditingController();
+  final _seekBwdCtrl = TextEditingController();
   bool _isVf = false;
-  // Source de lecture : 'animesama' (VOSTFR/VF) ou 'ani_cli' (anglais).
-  String _source = 'animesama';
   bool _autoPlay = false; // enchaînement auto de l'épisode suivant
   bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
   bool _initialized = false;
@@ -86,11 +84,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     super.initState();
     // Toute frappe dans un champ peut changer l'état « dirty ».
     for (final c in [
-      _aniCliCtrl,
       _mpvCtrl,
       _tokenCtrl,
       _pythonCtrl,
       _animeSamaCtrl,
+      _seekFwdCtrl,
+      _seekBwdCtrl,
     ]) {
       c.addListener(_recomputeDirty);
     }
@@ -99,25 +98,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   @override
   void dispose() {
     _flashController.dispose();
-    _aniCliCtrl.dispose();
     _mpvCtrl.dispose();
     _tokenCtrl.dispose();
     _pythonCtrl.dispose();
     _animeSamaCtrl.dispose();
+    _seekFwdCtrl.dispose();
+    _seekBwdCtrl.dispose();
     super.dispose();
   }
 
   /// Valeurs courantes des champs (pour comparaison au snapshot).
   Map<String, String> _currentValues() => {
-        'aniCli': _aniCliCtrl.text.trim(),
         'mpv': _mpvCtrl.text.trim(),
         'python': _pythonCtrl.text.trim(),
         'animeSama': _animeSamaCtrl.text.trim(),
         'token': _tokenCtrl.text.trim(),
         'isVf': '$_isVf',
-        'source': _source,
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
+        'seekFwd': _seekFwdCtrl.text.trim(),
+        'seekBwd': _seekBwdCtrl.text.trim(),
       };
 
   /// Recalcule l'état « dirty » et le publie pour l'AppShell.
@@ -154,27 +154,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   void _initFromSettings(Map<String, String?> settings) {
     if (_initialized) return;
     _initialized = true;
-    _aniCliCtrl.text = settings[SettingsKeys.aniCliPath] ?? 'ani-cli';
     _mpvCtrl.text = settings[SettingsKeys.mpvPath] ?? 'mpv';
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
-    _source = settings[SettingsKeys.streamSource] ?? 'animesama';
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
+    _seekFwdCtrl.text = settings[SettingsKeys.seekForwardSeconds] ?? '10';
+    _seekBwdCtrl.text = settings[SettingsKeys.seekBackwardSeconds] ?? '10';
     _snapshot = _currentValues();
   }
 
   /// Réinitialise les champs aux dernières valeurs sauvegardées (bouton Annuler).
   void _resetToSnapshot() {
-    _aniCliCtrl.text = _snapshot['aniCli'] ?? '';
     _mpvCtrl.text = _snapshot['mpv'] ?? '';
     _pythonCtrl.text = _snapshot['python'] ?? '';
     _animeSamaCtrl.text = _snapshot['animeSama'] ?? '';
     _tokenCtrl.text = _snapshot['token'] ?? '';
+    _seekFwdCtrl.text = _snapshot['seekFwd'] ?? '10';
+    _seekBwdCtrl.text = _snapshot['seekBwd'] ?? '10';
     setState(() {
       _isVf = _snapshot['isVf'] == 'true';
-      _source = _snapshot['source'] ?? 'animesama';
       _autoPlay = _snapshot['autoPlay'] == 'true';
       _singleLang = _snapshot['singleLang'] == 'true';
     });
@@ -183,15 +183,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   Future<void> _save() async {
     final repo = ref.read(settingsRepositoryProvider);
-    await repo.set(SettingsKeys.aniCliPath, _aniCliCtrl.text.trim());
     await repo.set(SettingsKeys.mpvPath, _mpvCtrl.text.trim());
     await repo.set(
       SettingsKeys.playbackLanguage,
       _isVf ? 'vf' : 'vostfr',
     );
-    await repo.set(SettingsKeys.streamSource, _source);
     await repo.set(SettingsKeys.autoPlayNext, _autoPlay ? '1' : '0');
     await repo.set(SettingsKeys.singleLanguage, _singleLang ? '1' : '0');
+    // Durées de saut : entier >= 1, défaut 10 si invalide.
+    final fwd = int.tryParse(_seekFwdCtrl.text.trim());
+    final bwd = int.tryParse(_seekBwdCtrl.text.trim());
+    await repo.set(SettingsKeys.seekForwardSeconds,
+        '${(fwd != null && fwd >= 1) ? fwd : 10}');
+    await repo.set(SettingsKeys.seekBackwardSeconds,
+        '${(bwd != null && bwd >= 1) ? bwd : 10}');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
     await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
@@ -203,8 +208,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       await storage.write(key: 'anilist_token', value: token);
     }
 
-    // Invalide les resolvers pour qu'ils rechargent chemins et source.
-    ref.invalidate(aniCliResolverProvider);
+    // Invalide les resolvers pour qu'ils rechargent chemins/langue.
     ref.invalidate(animeSamaResolverProvider);
     ref.invalidate(activeResolverProvider);
     // Invalide le cache de chargement pour que la page relise les valeurs
@@ -223,7 +227,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   }
 
   Future<void> _runHealthCheck() async {
-    final aniCli = _aniCliCtrl.text.trim();
     final mpv = _mpvCtrl.text.trim();
 
     setState(() {
@@ -238,15 +241,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       final httpClient = ref.read(httpClientProvider);
       final runner = ref.read(processRunnerProvider);
 
-      // Utilise la même détection que le resolver (sh + vrai script sous Windows)
-      // pour que le health-check reflète le lancement réel d'ani-cli.
-      final aniDefaults = AniCliDefaults.detect();
-      final aniCliPath = aniCli.isEmpty ? aniDefaults.aniCliPath : aniCli;
-
       final service = HealthService(
         runner: runner,
-        aniCliPath: aniCliPath,
-        aniCliShell: aniDefaults.shell,
         mpvPath: mpv.isEmpty ? 'mpv' : mpv,
         hasValidToken: () async {
           final token = await storage.read(key: 'anilist_token');
@@ -325,60 +321,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 24),
 
-                // --- Source de lecture ---
-                _SectionTitle('Source de lecture'),
-                const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                        value: 'animesama',
-                        label: Text('Anime-sama (VOSTFR/VF)')),
-                    ButtonSegment(
-                        value: 'ani_cli', label: Text('ani-cli (anglais)')),
-                  ],
-                  selected: {_source},
-                  onSelectionChanged: (s) {
-                    setState(() => _source = s.first);
-                    _recomputeDirty();
-                  },
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Anime-sama fournit du VOSTFR/VF (nécessite Python + le projet '
-                  'animesama-cli). ani-cli fournit de la VO sous-titrée anglais.',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin Python (optionnel)',
-                  hint: 'python',
-                  controller: _pythonCtrl,
-                ),
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin anime_sama.py (si non détecté)',
-                  hint: r'…\animesama-cli\anime_sama.py',
-                  controller: _animeSamaCtrl,
-                ),
-                const SizedBox(height: 24),
-
-                // --- Chemins externes ---
-                _SectionTitle('Lecteur externe'),
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin ani-cli',
-                  hint: 'ani-cli',
-                  controller: _aniCliCtrl,
-                ),
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin mpv',
-                  hint: 'mpv',
-                  controller: _mpvCtrl,
-                ),
-                const SizedBox(height: 24),
-
-                // --- Langue & lecture ---
+                // --- Lecture ---
                 _SectionTitle('Lecture'),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -393,6 +336,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 ),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
+                  title: const Text('Langue unique'),
+                  subtitle: const Text(
+                      'Masque le sélecteur VF/VOSTFR du lecteur et n\'effectue aucun test de langue (plus rapide si vous regardez toujours dans la même langue).'),
+                  value: _singleLang,
+                  onChanged: (v) {
+                    setState(() => _singleLang = v);
+                    _recomputeDirty();
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
                   title: const Text('Enchaîner l\'épisode suivant'),
                   subtitle: const Text(
                       'Lance automatiquement le prochain épisode en fin de lecture (compte à rebours annulable).'),
@@ -402,16 +356,71 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     _recomputeDirty();
                   },
                 ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Langue unique'),
-                  subtitle: const Text(
-                      'Masque le sélecteur VF/VOSTFR du lecteur et n\'effectue aucun test de langue (plus rapide si vous regardez toujours dans la même langue).'),
-                  value: _singleLang,
-                  onChanged: (v) {
-                    setState(() => _singleLang = v);
-                    _recomputeDirty();
-                  },
+                const SizedBox(height: 12),
+                // Durées de saut (flèches ← / → du lecteur).
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _seekBwdCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Recul (← , secondes)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _seekFwdCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Avance (→ , secondes)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+
+                // --- Lecteur vidéo (mpv) ---
+                _SectionTitle('Lecteur vidéo'),
+                const SizedBox(height: 12),
+                _PathField(
+                  label: 'Chemin mpv',
+                  hint: 'mpv',
+                  controller: _mpvCtrl,
+                ),
+                const SizedBox(height: 24),
+
+                // --- Source anime-sama ---
+                _SectionTitle('Source (anime-sama)'),
+                const SizedBox(height: 8),
+                Text(
+                  'La lecture provient d\'anime-sama (VOSTFR/VF), via Python + le '
+                  'projet animesama-cli. Renseignez les chemins si la détection '
+                  'automatique échoue.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                _PathField(
+                  label: 'Chemin Python (optionnel)',
+                  hint: 'python',
+                  controller: _pythonCtrl,
+                ),
+                const SizedBox(height: 12),
+                _PathField(
+                  label: 'Chemin anime_sama.py (si non détecté)',
+                  hint: r'…\animesama-cli\anime_sama.py',
+                  controller: _animeSamaCtrl,
                 ),
                 const SizedBox(height: 24),
 
