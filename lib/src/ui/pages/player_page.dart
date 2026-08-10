@@ -761,9 +761,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       speedButton,
     ];
 
-    return MaterialVideoControlsTheme(
-      normal: MaterialVideoControlsThemeData(topButtonBar: topBar),
-      fullscreen: MaterialVideoControlsThemeData(topButtonBar: topBar),
+    // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
+    // Utiliser la mauvaise variante rend les boutons custom invisibles.
+    return MaterialDesktopVideoControlsTheme(
+      normal: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
+      fullscreen: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
       child: Video(controller: _videoController),
     );
   }
@@ -868,6 +870,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // --- Sélecteur de langue, au-dessus du lecteur (mode fenêtré) ---
+                if (!_singleLanguage) ...[
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _LanguageSelector(
+                      current: _language,
+                      available: _availableLangs,
+                      onChanged: _switchLanguage,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 // --- Lecteur encastré media_kit ---
                 AspectRatio(
                   aspectRatio: 16 / 9,
@@ -981,6 +995,53 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sélecteur de langue VF/VOSTFR (au-dessus du lecteur)
+// ---------------------------------------------------------------------------
+
+class _LanguageSelector extends StatelessWidget {
+  final PlaybackLanguage? current;
+
+  /// Langues disponibles pour l'épisode courant. `null` = pas encore testé
+  /// (on ne grise rien, les deux restent cliquables).
+  final Set<PlaybackLanguage>? available;
+  final ValueChanged<PlaybackLanguage> onChanged;
+
+  const _LanguageSelector({
+    required this.current,
+    required this.available,
+    required this.onChanged,
+  });
+
+  bool _enabled(PlaybackLanguage lang) =>
+      available == null || available!.contains(lang);
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(PlaybackLanguage lang, String label) {
+      final enabled = _enabled(lang);
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: ChoiceChip(
+          label: Text(label),
+          selected: current == lang,
+          visualDensity: VisualDensity.compact,
+          // Grisé si la langue n'existe pas pour cet épisode.
+          onSelected: enabled ? (_) => onChanged(lang) : null,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        chip(PlaybackLanguage.vostfr, 'VOSTFR'),
+        chip(PlaybackLanguage.vf, 'VF'),
+      ],
     );
   }
 }
