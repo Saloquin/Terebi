@@ -16,6 +16,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -120,6 +121,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   double _speed = 1.0;
   static const _speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
 
+  /// Durées de saut (secondes) configurables dans les Paramètres.
+  int _seekForward = 10;
+  int _seekBackward = 10;
+
   @override
   void initState() {
     super.initState();
@@ -156,10 +161,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // Résout la langue courante dès l'arrivée pour que le sélecteur l'affiche
     // (sinon aucune langue n'est marquée tant qu'on n'a pas cliqué « Lancer »).
     _language ??= await _preferredLanguage();
-    _singleLanguage = (await ref
-            .read(settingsRepositoryProvider)
-            .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
-        '1';
+    final settings = ref.read(settingsRepositoryProvider);
+    _singleLanguage =
+        (await settings.get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
+            '1';
+    _seekForward = int.tryParse(
+            await settings.get(SettingsKeys.seekForwardSeconds,
+                    defaultValue: '10') ??
+                '10') ??
+        10;
+    _seekBackward = int.tryParse(
+            await settings.get(SettingsKeys.seekBackwardSeconds,
+                    defaultValue: '10') ??
+                '10') ??
+        10;
     if (mounted) setState(() {});
     await _loadSeasonMeta(seasonIndex: _seasonIndex);
 
@@ -781,13 +796,44 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ),
     ];
 
+    // Raccourcis clavier : reprend les défauts media_kit mais avec les durées
+    // de saut avant/arrière configurées dans les Paramètres.
+    final shortcuts = <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.space): _player.playOrPause,
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seekBy(-_seekBackward),
+      const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seekBy(_seekForward),
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () {
+        final v = _player.state.volume + 5.0;
+        _player.setVolume(v.clamp(0.0, 100.0));
+      },
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () {
+        final v = _player.state.volume - 5.0;
+        _player.setVolume(v.clamp(0.0, 100.0));
+      },
+    };
+
     // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
     // Utiliser la mauvaise variante rend les boutons custom invisibles.
     return MaterialDesktopVideoControlsTheme(
-      normal: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
-      fullscreen: MaterialDesktopVideoControlsThemeData(topButtonBar: topBar),
+      normal: MaterialDesktopVideoControlsThemeData(
+        topButtonBar: topBar,
+        keyboardShortcuts: shortcuts,
+      ),
+      fullscreen: MaterialDesktopVideoControlsThemeData(
+        topButtonBar: topBar,
+        keyboardShortcuts: shortcuts,
+      ),
       child: Video(controller: _videoController),
     );
+  }
+
+  /// Saut relatif (secondes) borné à [0, durée].
+  void _seekBy(int seconds) {
+    final pos = _player.state.position + Duration(seconds: seconds);
+    final dur = _player.state.duration;
+    var target = pos < Duration.zero ? Duration.zero : pos;
+    if (dur > Duration.zero && target > dur) target = dur;
+    _player.seek(target);
   }
 
   /// Ouvre le menu réglages ancré sous le bouton « tune » de la barre du player.

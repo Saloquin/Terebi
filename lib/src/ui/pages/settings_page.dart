@@ -32,6 +32,10 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
         await repo.get(SettingsKeys.autoPlayNext, defaultValue: '0'),
     SettingsKeys.singleLanguage:
         await repo.get(SettingsKeys.singleLanguage, defaultValue: '0'),
+    SettingsKeys.seekForwardSeconds:
+        await repo.get(SettingsKeys.seekForwardSeconds, defaultValue: '10'),
+    SettingsKeys.seekBackwardSeconds:
+        await repo.get(SettingsKeys.seekBackwardSeconds, defaultValue: '10'),
     SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
     SettingsKeys.animeSamaScript: await repo.get(SettingsKeys.animeSamaScript),
   };
@@ -55,6 +59,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   final _tokenCtrl = TextEditingController();
   final _pythonCtrl = TextEditingController();
   final _animeSamaCtrl = TextEditingController();
+  final _seekFwdCtrl = TextEditingController();
+  final _seekBwdCtrl = TextEditingController();
   bool _isVf = false;
   // Source de lecture : 'animesama' (VOSTFR/VF) ou 'ani_cli' (anglais).
   String _source = 'animesama';
@@ -91,6 +97,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       _tokenCtrl,
       _pythonCtrl,
       _animeSamaCtrl,
+      _seekFwdCtrl,
+      _seekBwdCtrl,
     ]) {
       c.addListener(_recomputeDirty);
     }
@@ -104,6 +112,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _tokenCtrl.dispose();
     _pythonCtrl.dispose();
     _animeSamaCtrl.dispose();
+    _seekFwdCtrl.dispose();
+    _seekBwdCtrl.dispose();
     super.dispose();
   }
 
@@ -118,6 +128,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         'source': _source,
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
+        'seekFwd': _seekFwdCtrl.text.trim(),
+        'seekBwd': _seekBwdCtrl.text.trim(),
       };
 
   /// Recalcule l'état « dirty » et le publie pour l'AppShell.
@@ -162,6 +174,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
+    _seekFwdCtrl.text = settings[SettingsKeys.seekForwardSeconds] ?? '10';
+    _seekBwdCtrl.text = settings[SettingsKeys.seekBackwardSeconds] ?? '10';
     _snapshot = _currentValues();
   }
 
@@ -172,6 +186,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _pythonCtrl.text = _snapshot['python'] ?? '';
     _animeSamaCtrl.text = _snapshot['animeSama'] ?? '';
     _tokenCtrl.text = _snapshot['token'] ?? '';
+    _seekFwdCtrl.text = _snapshot['seekFwd'] ?? '10';
+    _seekBwdCtrl.text = _snapshot['seekBwd'] ?? '10';
     setState(() {
       _isVf = _snapshot['isVf'] == 'true';
       _source = _snapshot['source'] ?? 'animesama';
@@ -192,6 +208,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     await repo.set(SettingsKeys.streamSource, _source);
     await repo.set(SettingsKeys.autoPlayNext, _autoPlay ? '1' : '0');
     await repo.set(SettingsKeys.singleLanguage, _singleLang ? '1' : '0');
+    // Durées de saut : entier >= 1, défaut 10 si invalide.
+    final fwd = int.tryParse(_seekFwdCtrl.text.trim());
+    final bwd = int.tryParse(_seekBwdCtrl.text.trim());
+    await repo.set(SettingsKeys.seekForwardSeconds,
+        '${(fwd != null && fwd >= 1) ? fwd : 10}');
+    await repo.set(SettingsKeys.seekBackwardSeconds,
+        '${(bwd != null && bwd >= 1) ? bwd : 10}');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
     await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
@@ -412,6 +435,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     setState(() => _singleLang = v);
                     _recomputeDirty();
                   },
+                ),
+                const SizedBox(height: 12),
+                // Durées de saut (flèches ← / → du lecteur).
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _seekBwdCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Recul (← , secondes)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextField(
+                        controller: _seekFwdCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly
+                        ],
+                        decoration: const InputDecoration(
+                          labelText: 'Avance (→ , secondes)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 24),
 

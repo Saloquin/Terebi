@@ -22,6 +22,12 @@ abstract final class SettingsKeys {
   /// ('1' = activé, autre/absent = désactivé). Désactivé par défaut.
   static const String autoPlayNext = 'auto_play_next';
 
+  /// Durée (secondes) du saut avant (flèche droite) dans le lecteur. Défaut 10.
+  static const String seekForwardSeconds = 'seek_forward_seconds';
+
+  /// Durée (secondes) du saut arrière (flèche gauche) dans le lecteur. Défaut 10.
+  static const String seekBackwardSeconds = 'seek_backward_seconds';
+
   /// Langue de lecture choisie POUR UN anime donné ('vf' | 'vostfr').
   /// Prime sur [playbackLanguage] (global) quand elle existe. Réglée depuis le
   /// sélecteur du lecteur. Ex. `anime_sama_lang:105333`.
