@@ -256,9 +256,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Change la langue depuis le sélecteur : mémorise + relance la lecture de
-  /// l'épisode courant dans la nouvelle langue.
+  /// l'épisode courant dans la nouvelle langue, EN CONSERVANT le timecode
+  /// (même épisode, autre piste audio/sous-titres).
   Future<void> _switchLanguage(PlaybackLanguage lang) async {
     if (lang == _language) return;
+    // Capture la position courante pour reprendre au même endroit dans l'autre
+    // langue (léger recul pour l'amorce).
+    final resumeAt = _positionSeconds > 2 ? _positionSeconds.floor() - 2 : 0;
     _language = lang;
     await _persistLanguage(lang);
     if (!mounted) return;
@@ -267,7 +271,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _error = null;
     });
     await _player.stop();
-    await _loadAndPlay();
+    await _loadAndPlay(forceResumeAt: resumeAt);
   }
 
   /// Détermine si la source active est anime-sama.
@@ -288,7 +292,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Résout l'URL via le résolveur actif et l'ouvre dans le lecteur encastré.
-  Future<void> _loadAndPlay() async {
+  ///
+  /// [forceResumeAt] (secondes) : reprend directement à cette position sans
+  /// demander « Reprendre/Recommencer » — utilisé au changement de langue pour
+  /// conserver le timecode (même épisode, autre piste).
+  Future<void> _loadAndPlay({int? forceResumeAt}) async {
     if (_loading) return; // garde de réentrance : évite un double « Lancer ».
     setState(() {
       _loading = true;
@@ -363,13 +371,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         _refreshAvailableLangs(resolveTitle, seasonIndex, _currentEpisode);
       }
 
-      // Reprise : si une position a été enregistrée pour cet épisode (non vu),
-      // proposer « Reprendre » / « Recommencer » avant de démarrer.
-      final resumeFrom = await _resumePositionSeconds();
+      // Reprise : au changement de langue on reprend DIRECTEMENT au timecode
+      // fourni (même épisode). Sinon, si une position a été enregistrée pour
+      // cet épisode (non vu), proposer « Reprendre » / « Recommencer ».
+      final int? resumeFrom =
+          forceResumeAt ?? await _resumePositionSeconds();
 
-      // Ouvre SANS jouer : on doit d'abord attendre que le flux soit prêt
-      // (durée connue) avant de pouvoir seek de façon fiable, sinon mpv
-      // repositionne à 0 au moment où le flux se charge réellement.
+      // Ouvre SANS jouer si on doit seek : on attend que le flux soit prêt
+      // avant de seek, sinon mpv repositionne à 0 au chargement.
       await _player.open(Media(url), play: resumeFrom == null);
 
       if (resumeFrom != null && resumeFrom > 0) {
@@ -704,6 +713,61 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* ignore */}
   }
 
+  /// Vidéo + contrôles media_kit personnalisés : les boutons langue/vitesse sont
+  /// ajoutés à la barre haute du player, présente aussi EN PLEIN ÉCRAN (le clic
+  /// droit Flutter ne fonctionne pas sur la surface plein écran native).
+  Widget _buildVideo() {
+    final langButton = PopupMenuButton<PlaybackLanguage>(
+      tooltip: 'Langue',
+      icon: const Icon(Icons.subtitles_outlined, color: Colors.white),
+      onSelected: _switchLanguage,
+      itemBuilder: (_) => [
+        for (final e in const [
+          (PlaybackLanguage.vostfr, 'VOSTFR'),
+          (PlaybackLanguage.vf, 'VF'),
+        ])
+          PopupMenuItem(
+            value: e.$1,
+            enabled: _availableLangs == null || _availableLangs!.contains(e.$1),
+            child: Row(children: [
+              Icon(_language == e.$1 ? Icons.check : Icons.subtitles_outlined,
+                  size: 18),
+              const SizedBox(width: 8),
+              Text(e.$2),
+            ]),
+          ),
+      ],
+    );
+    final speedButton = PopupMenuButton<double>(
+      tooltip: 'Vitesse',
+      icon: const Icon(Icons.speed, color: Colors.white),
+      onSelected: _setSpeed,
+      initialValue: _speed,
+      itemBuilder: (_) => [
+        for (final s in _speeds)
+          PopupMenuItem(
+            value: s,
+            child: Row(children: [
+              Icon(_speed == s ? Icons.check : Icons.speed, size: 18),
+              const SizedBox(width: 8),
+              Text(s == 1.0 ? 'Normal (1×)' : '$s×'),
+            ]),
+          ),
+      ],
+    );
+    final topBar = <Widget>[
+      const Spacer(),
+      if (!_singleLanguage) langButton,
+      speedButton,
+    ];
+
+    return MaterialVideoControlsTheme(
+      normal: MaterialVideoControlsThemeData(topButtonBar: topBar),
+      fullscreen: MaterialVideoControlsThemeData(topButtonBar: topBar),
+      child: Video(controller: _videoController),
+    );
+  }
+
   /// Menu contextuel (clic droit) : langue + vitesse. Indispensable en plein
   /// écran où la barre au-dessus du lecteur est masquée.
   Future<void> _showContextMenu(Offset position) async {
@@ -804,40 +868,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // --- Barre au-dessus du lecteur : langue (gauche) + vitesse (droite) ---
-                Row(
-                  children: [
-                    if (!_singleLanguage)
-                      _LanguageSelector(
-                        current: _language,
-                        available: _availableLangs,
-                        onChanged: _switchLanguage,
-                      ),
-                    const Spacer(),
-                    // Vitesse de lecture.
-                    PopupMenuButton<double>(
-                      tooltip: 'Vitesse de lecture',
-                      onSelected: _setSpeed,
-                      initialValue: _speed,
-                      itemBuilder: (_) => [
-                        for (final s in _speeds)
-                          PopupMenuItem(
-                            value: s,
-                            child: Text(s == 1.0 ? 'Normal (1×)' : '$s×'),
-                          ),
-                      ],
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.speed, size: 18),
-                          const SizedBox(width: 4),
-                          Text(_speed == 1.0 ? '1×' : '$_speed×'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
                 // --- Lecteur encastré media_kit ---
                 AspectRatio(
                   aspectRatio: 16 / 9,
@@ -853,7 +883,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                         children: [
                           Container(color: Colors.black),
                           if (_ready)
-                            Video(controller: _videoController)
+                            _buildVideo()
                           else if (_loading)
                             const Center(child: CircularProgressIndicator())
                           else
@@ -951,53 +981,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sélecteur de langue VF/VOSTFR (barre du lecteur)
-// ---------------------------------------------------------------------------
-
-class _LanguageSelector extends StatelessWidget {
-  final PlaybackLanguage? current;
-
-  /// Langues disponibles pour l'épisode courant. `null` = pas encore testé
-  /// (on n'grise rien, les deux restent cliquables).
-  final Set<PlaybackLanguage>? available;
-  final ValueChanged<PlaybackLanguage> onChanged;
-
-  const _LanguageSelector({
-    required this.current,
-    required this.available,
-    required this.onChanged,
-  });
-
-  bool _enabled(PlaybackLanguage lang) => available == null || available!.contains(lang);
-
-  @override
-  Widget build(BuildContext context) {
-    Widget chip(PlaybackLanguage lang, String label) {
-      final selected = current == lang;
-      final enabled = _enabled(lang);
-      return Padding(
-        padding: const EdgeInsets.only(right: 4),
-        child: ChoiceChip(
-          label: Text(label),
-          selected: selected,
-          visualDensity: VisualDensity.compact,
-          // Grisé si la langue n'existe pas pour cet épisode.
-          onSelected: enabled ? (_) => onChanged(lang) : null,
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        chip(PlaybackLanguage.vostfr, 'VOSTFR'),
-        chip(PlaybackLanguage.vf, 'VF'),
-      ],
     );
   }
 }
