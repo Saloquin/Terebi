@@ -323,7 +323,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       return;
     }
 
-    // Lecture en cours → relance au même timecode dans l'autre langue.
+    // Lecture en cours → relance au même timecode dans l'autre langue,
+    // en conservant l'état pause/lecture.
+    final wasPlaying = _player.state.playing;
     final resumeAt = _positionSeconds > 3 ? _positionSeconds.floor() - 3 : 0;
     await _persistPosition(); // filet de sécurité en base
     if (!mounted) return;
@@ -332,7 +334,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _error = null;
     });
     await _player.stop();
-    await _loadAndPlay(forceResumeAt: resumeAt);
+    await _loadAndPlay(forceResumeAt: resumeAt, startPaused: !wasPlaying);
   }
 
   /// Détermine si la source active est anime-sama.
@@ -357,7 +359,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// [forceResumeAt] (secondes) : reprend directement à cette position sans
   /// demander « Reprendre/Recommencer » — utilisé au changement de langue pour
   /// conserver le timecode (même épisode, autre piste).
-  Future<void> _loadAndPlay({int? forceResumeAt}) async {
+  /// [startPaused] : après l'ouverture, mettre en pause (conserve l'état
+  /// pause/lecture lors d'un changement de langue en pause).
+  Future<void> _loadAndPlay({int? forceResumeAt, bool startPaused = false}) async {
     if (_loading) return; // garde de réentrance : évite un double « Lancer ».
     setState(() {
       _loading = true;
@@ -445,6 +449,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ? Duration(seconds: resumeFrom)
           : null;
       await _player.open(Media(url, start: startAt), play: true);
+
+      // Conserve l'état pause/lecture (switch de langue effectué en pause).
+      if (startPaused) {
+        try {
+          await _player.pause();
+        } catch (_) {/* ignore */}
+      }
 
       // Réapplique la vitesse choisie (mpv la remet à 1.0 à chaque open).
       if (_speed != 1.0) {
