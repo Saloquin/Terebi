@@ -24,7 +24,7 @@ Terebi est un **tracker + planning + lecteur intégré** d'anime :
 | Lecteur | **media_kit** (libmpv) — vidéo encastrée + overlays |
 | Persistance | **SQLite** (drift) — source de vérité du suivi |
 | Métadonnées | **AniList** (GraphQL, OAuth) + **Jikan** (fallback) |
-| Résolution de source | **ani-cli** (fournit l'URL du flux ; plan B : moteur allanime intégré) |
+| Résolution de source | **anime-sama** (VOSTFR/VF) via wrapper Python (animesama-cli) — fournit l'URL du flux |
 | Plateforme | **Windows** prioritaire, puis Linux, macOS |
 
 ## Documentation

@@ -17,8 +17,8 @@ Guide pour cloner **Terebi** et le lancer en natif sur un PC Windows personnel
 | 2 | **Flutter SDK** (inclut Dart) | Framework de l'app | Oui |
 | 3 | **Visual Studio 2022 + « Desktop C++ »** | Compiler pour Windows | **Oui** (lancement Windows) |
 | 4 | **mpv / libmpv** | Moteur du lecteur vidéo (media_kit) | Oui (lecture) |
-| 5 | **ani-cli** | Résout l'URL du flux | Oui (lecture) |
-| 6 | **fzf** | Dépendance d'ani-cli | Oui (ani-cli en dépend) |
+| 5 | **Python 3** | Exécute le résolveur anime-sama | Oui (lecture) |
+| 6 | **animesama-cli** (`anime_sama.py`) | Résout l'URL du flux VOSTFR/VF | Oui (lecture) |
 | 7 | **Developer Mode Windows** | Support des symlinks (plugins Flutter) | Oui |
 
 ---
@@ -30,7 +30,7 @@ Guide pour cloner **Terebi** et le lancer en natif sur un PC Windows personnel
   ```powershell
   winget install --id Git.Git -e
   ```
-- Fournit aussi **Git Bash**, utile pour ani-cli.
+- Fournit aussi **Git Bash**, utile pour les commandes shell.
 
 ## 2. Flutter SDK (inclut Dart)
 
@@ -79,35 +79,29 @@ media_kit (le lecteur encastré de Terebi) s'appuie sur **libmpv**.
   (media_kit télécharge normalement libmpv automatiquement au build ; garder mpv
   installé permet aussi le fallback lecteur externe).
 
-## 5. ani-cli (résolution de la source)
+## 5. Python 3 (résolveur anime-sama)
 
-- Dépôt officiel : <https://github.com/pystardust/ani-cli>
-- Installation Windows (via **Scoop**, recommandé) :
-  <https://github.com/pystardust/ani-cli#windows>
+Terebi résout l'URL du flux **VOSTFR/VF** via un wrapper Python autour du projet
+**animesama-cli**.
+
+- Télécharger : <https://www.python.org/downloads/> (ou `winget install Python.Python.3.12`).
+- Dépendances Python :
   ```powershell
-  scoop bucket add extras
-  scoop install ani-cli
+  pip install requests beautifulsoup4
   ```
-- Ou manuellement (Git Bash) :
-  ```bash
-  curl -sL https://raw.githubusercontent.com/pystardust/ani-cli/master/ani-cli -o "$HOME/bin/ani-cli"
-  chmod +x "$HOME/bin/ani-cli"
-  ```
-  (et ajouter `~/bin` au PATH)
 
-## 6. fzf (requis par ani-cli)
+## 6. animesama-cli (`anime_sama.py`)
 
-- Dépôt : <https://github.com/junegunn/fzf>
-- Via Scoop / winget :
+- Dépôt : <https://github.com/Miro-sh/animesama-cli>
   ```powershell
-  scoop install fzf
+  pipx install animesama-cli   # ou : git clone puis noter le chemin de anime_sama.py
   ```
-  ```powershell
-  winget install --id junegunn.fzf -e
-  ```
+- Dans **Terebi → Paramètres → Source (anime-sama)** : renseigne le chemin de
+  `anime_sama.py` s'il n'est pas détecté automatiquement (chemin du dépôt cloné
+  ou de l'install pipx), ainsi que le chemin Python si besoin.
 
-> Astuce : **Scoop** (<https://scoop.sh/>) installe proprement mpv, ani-cli et fzf
-> d'un coup. Installation de Scoop :
+> Astuce : **Scoop** (<https://scoop.sh/>) installe proprement mpv et Python.
+> Installation de Scoop :
 > ```powershell
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 > irm get.scoop.sh | iex
@@ -147,7 +141,7 @@ flutter run -d windows
 ```
 
 L'app **Terebi** devrait s'ouvrir. Teste : recherche un anime → fiche → « Reprendre »
-→ le lecteur encastré charge le flux via ani-cli.
+→ le lecteur encastré charge le flux via anime-sama.
 
 ---
 
@@ -159,36 +153,27 @@ flutter analyze         # analyse statique
 flutter build windows   # produit l'exécutable Release
 ```
 
-## Tester ani-cli seul (diagnostic lecture)
+## Tester le résolveur anime-sama (diagnostic lecture)
 
-Dans Git Bash, pour confirmer qu'ani-cli résout bien une URL :
+Dans Git Bash, pour confirmer que le wrapper résout bien une URL (adapte le
+chemin de `anime_sama.py`) :
 ```bash
-ANI_CLI_PLAYER=debug ani-cli -S 1 -e 1 "cowboy bebop"
+python anime_sama.py --help
 ```
-Doit afficher des liens `.m3u8` (`All links:` / `Selected link:`). C'est ce que
-Terebi capture pour alimenter le lecteur encastré.
+Le lecteur de Terebi capture l'URL `.m3u8`/`.mp4` renvoyée par le résolveur pour
+alimenter le lecteur encastré.
 
 ---
 
-## VOSTFR (anime-sama) — source de lecture française
+## Source de lecture (anime-sama, VOSTFR/VF)
 
-Par défaut, Terebi lit en **VOSTFR/VF** via **anime-sama**, en s'appuyant sur le projet
-**animesama-cli** (Python). ani-cli reste disponible en secours (VO sous-titrée **anglais**).
+Terebi lit en **VOSTFR/VF** via **anime-sama**, en s'appuyant sur le projet
+**animesama-cli** (Python) — voir les étapes 5 et 6 ci-dessus.
 
-1. **Python 3** : <https://www.python.org/downloads/> (ou `winget install Python.Python.3.12`).
-2. **Dépendances Python** :
-   ```powershell
-   pip install requests beautifulsoup4
-   ```
-3. **animesama-cli** (fournit `anime_sama.py`) : <https://github.com/Miro-sh/animesama-cli>
-   ```powershell
-   pipx install animesama-cli   # ou : git clone puis noter le chemin de anime_sama.py
-   ```
-4. Dans **Terebi → Paramètres → Source de lecture** : choisir « Anime-sama (VOSTFR/VF) ».
-   Si le chemin de `anime_sama.py` n'est pas détecté automatiquement, renseigne-le dans le
-   champ prévu (ex. le fichier `anime_sama.py` du dépôt cloné ou de l'install pipx).
-
-> Pour basculer en anglais (ani-cli) : Paramètres → Source de lecture → « ani-cli (anglais) ».
+- Dans **Terebi → Paramètres → Source (anime-sama)** : renseigne au besoin le
+  chemin de `anime_sama.py` et le chemin Python.
+- La langue (VOSTFR/VF) se choisit dans **Paramètres → Lecture** (défaut) et se
+  change à la volée depuis le lecteur ; elle est mémorisée par anime.
 
 ---
 
@@ -197,8 +182,7 @@ Par défaut, Terebi lit en **VOSTFR/VF** via **anime-sama**, en s'appuyant sur l
 - Flutter (install Windows desktop) : <https://docs.flutter.dev/get-started/install/windows/desktop>
 - media_kit : <https://pub.dev/packages/media_kit>
 - mpv : <https://mpv.io/>
-- ani-cli : <https://github.com/pystardust/ani-cli>
-- fzf : <https://github.com/junegunn/fzf>
+- animesama-cli : <https://github.com/Miro-sh/animesama-cli>
 - Scoop : <https://scoop.sh/>
 - AniList API (métadonnées) : <https://anilist.gitbook.io/anilist-apiv2-docs/>
 
@@ -213,5 +197,5 @@ Par défaut, Terebi lit en **VOSTFR/VF** via **anime-sama**, en s'appuyant sur l
 - **OAuth AniList** : pour le MVP, le token se colle manuellement dans
   Paramètres. Crée une app OAuth sur <https://anilist.co/settings/developer>
   si besoin (Redirect URI affiché dans la page Paramètres).
-- **Usage personnel** : Terebi orchestre la lecture via des sources tierces
-  (ani-cli/allanime), fragiles et non contractuelles. Usage perso uniquement.
+- **Usage personnel** : Terebi orchestre la lecture via une source tierce
+  (anime-sama), fragile et non contractuelle. Usage perso uniquement.
