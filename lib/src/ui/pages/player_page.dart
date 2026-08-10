@@ -704,6 +704,65 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* ignore */}
   }
 
+  /// Menu contextuel (clic droit) : langue + vitesse. Indispensable en plein
+  /// écran où la barre au-dessus du lecteur est masquée.
+  Future<void> _showContextMenu(Offset position) async {
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox;
+    // Entrées langue (si dispo et pas en mode langue unique).
+    final langItems = <PopupMenuEntry<Object>>[];
+    if (!_singleLanguage) {
+      for (final entry in const [
+        (PlaybackLanguage.vostfr, 'VOSTFR'),
+        (PlaybackLanguage.vf, 'VF'),
+      ]) {
+        final lang = entry.$1;
+        final enabled = _availableLangs == null || _availableLangs!.contains(lang);
+        langItems.add(PopupMenuItem<Object>(
+          value: lang,
+          enabled: enabled,
+          child: Row(
+            children: [
+              Icon(_language == lang ? Icons.check : Icons.subtitles_outlined,
+                  size: 18),
+              const SizedBox(width: 8),
+              Text(entry.$2),
+            ],
+          ),
+        ));
+      }
+      langItems.add(const PopupMenuDivider());
+    }
+
+    final selected = await showMenu<Object>(
+      context: context,
+      position: RelativeRect.fromRect(
+        position & const Size(40, 40),
+        Offset.zero & overlay.size,
+      ),
+      items: [
+        ...langItems,
+        for (final s in _speeds)
+          PopupMenuItem<Object>(
+            value: s,
+            child: Row(
+              children: [
+                Icon(_speed == s ? Icons.check : Icons.speed, size: 18),
+                const SizedBox(width: 8),
+                Text(s == 1.0 ? 'Vitesse : Normal (1×)' : 'Vitesse : $s×'),
+              ],
+            ),
+          ),
+      ],
+    );
+
+    if (selected is PlaybackLanguage) {
+      await _switchLanguage(selected);
+    } else if (selected is double) {
+      await _setSpeed(selected);
+    }
+  }
+
   void _openDetail() {
     // Dans tous les cas, quitter le lecteur le dispose → _player.dispose()
     // stoppe la lecture (pas de vidéo qui continue derrière la fiche).
@@ -735,22 +794,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(title, overflow: TextOverflow.ellipsis),
-        actions: [
-          // Vitesse de lecture.
-          PopupMenuButton<double>(
-            tooltip: 'Vitesse de lecture',
-            icon: const Icon(Icons.speed),
-            initialValue: _speed,
-            onSelected: _setSpeed,
-            itemBuilder: (_) => [
-              for (final s in _speeds)
-                PopupMenuItem(
-                  value: s,
-                  child: Text(s == 1.0 ? 'Normal (1×)' : '$s×'),
-                ),
-            ],
-          ),
-        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -761,47 +804,74 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // --- Sélecteur VF/VOSTFR, collé au-dessus du lecteur (gauche) ---
-                if (!_singleLanguage) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _LanguageSelector(
-                      current: _language,
-                      available: _availableLangs,
-                      onChanged: _switchLanguage,
+                // --- Barre au-dessus du lecteur : langue (gauche) + vitesse (droite) ---
+                Row(
+                  children: [
+                    if (!_singleLanguage)
+                      _LanguageSelector(
+                        current: _language,
+                        available: _availableLangs,
+                        onChanged: _switchLanguage,
+                      ),
+                    const Spacer(),
+                    // Vitesse de lecture.
+                    PopupMenuButton<double>(
+                      tooltip: 'Vitesse de lecture',
+                      onSelected: _setSpeed,
+                      initialValue: _speed,
+                      itemBuilder: (_) => [
+                        for (final s in _speeds)
+                          PopupMenuItem(
+                            value: s,
+                            child: Text(s == 1.0 ? 'Normal (1×)' : '$s×'),
+                          ),
+                      ],
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.speed, size: 18),
+                          const SizedBox(width: 4),
+                          Text(_speed == 1.0 ? '1×' : '$_speed×'),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                  ],
+                ),
+                const SizedBox(height: 8),
                 // --- Lecteur encastré media_kit ---
                 AspectRatio(
                   aspectRatio: 16 / 9,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        Container(color: Colors.black),
-                        if (_ready)
-                          Video(controller: _videoController)
-                        else if (_loading)
-                          const Center(child: CircularProgressIndicator())
-                        else
-                          Center(
-                            child: FilledButton.icon(
-                              onPressed: _loadAndPlay,
-                              icon: const Icon(Icons.play_arrow),
-                              label: const Text('Lancer'),
+                    child: GestureDetector(
+                      // Clic droit → menu contextuel (langue + vitesse), utile
+                      // en plein écran où la barre du dessus est masquée.
+                      onSecondaryTapDown: (d) =>
+                          _showContextMenu(d.globalPosition),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Container(color: Colors.black),
+                          if (_ready)
+                            Video(controller: _videoController)
+                          else if (_loading)
+                            const Center(child: CircularProgressIndicator())
+                          else
+                            Center(
+                              child: FilledButton.icon(
+                                onPressed: _loadAndPlay,
+                                icon: const Icon(Icons.play_arrow),
+                                label: const Text('Lancer'),
+                              ),
                             ),
-                          ),
-                        // Overlay auto-play : « Épisode suivant dans N… ».
-                        if (_autoPlayCountdown != null)
-                          Positioned.fill(
-                            child: ColoredBox(
-                              color: Colors.black54,
-                              child: Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
+                          // Overlay auto-play : « Épisode suivant dans N… ».
+                          if (_autoPlayCountdown != null)
+                            Positioned.fill(
+                              child: ColoredBox(
+                                color: Colors.black54,
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
                                       'Épisode suivant dans $_autoPlayCountdown…',
@@ -824,6 +894,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                             ),
                           ),
                       ],
+                      ),
                     ),
                   ),
                 ),
