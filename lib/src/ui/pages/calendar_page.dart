@@ -25,17 +25,10 @@ import 'player_page.dart';
 // Providers
 // ---------------------------------------------------------------------------
 
-/// Planning hebdomadaire anime-sama, regroupé par jour (ordre anime-sama).
-final _planningProvider =
-    FutureProvider<List<AnimeSamaPlanningItem>>((ref) async {
-  final resolver = await ref.watch(animeSamaResolverProvider.future);
-  final settings = ref.watch(settingsRepositoryProvider);
-  final langStr =
-      await settings.get(SettingsKeys.playbackLanguage, defaultValue: 'vostfr');
-  final language =
-      langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
-  return resolver.planning(language: language);
-});
+/// Planning hebdomadaire anime-sama : alias vers le provider **global**
+/// (`animeSamaPlanningProvider`) pour partager le résultat (et le cache) avec la
+/// fiche de détail — évite un second scraping du planning.
+final _planningProvider = animeSamaPlanningProvider;
 
 /// Résout (lazy, caché) un titre anime-sama en [Media] pour la vignette.
 /// Utilise resolve() : identité anime-sama stable + enrichissement AniList
@@ -366,8 +359,9 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
   /// Mémorise la saison la plus récente d'anime-sama (best-effort).
   Future<void> _memorizeCurrentSeason(int anilistId) async {
     try {
-      final resolver = await ref.read(animeSamaResolverProvider.future);
-      final seasons = await resolver.listSeasons(title: widget.item.title);
+      // Provider global (cache partagé avec la fiche) plutôt qu'un appel direct.
+      final seasons =
+          await ref.read(animeSamaSeasonsProvider(widget.item.title).future);
       if (seasons.isNotEmpty) {
         await ref.read(settingsRepositoryProvider).set(
               SettingsKeys.animeSamaSeasonFor(anilistId),

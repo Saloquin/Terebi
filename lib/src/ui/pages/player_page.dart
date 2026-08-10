@@ -100,9 +100,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// et calcule l'épisode initial = **dernier vu de la saison + 1** (borné).
   Future<void> _prepareMeta() async {
     if (!await _isAnimeSamaActive()) return;
-    final language = await _preferredLanguage();
     _seasonIndex = await _storedSeasonIndex();
-    await _loadSeasonMeta(seasonIndex: _seasonIndex, language: language);
+    await _loadSeasonMeta(seasonIndex: _seasonIndex);
 
     // Épisode initial : reprendre à (dernier vu de la saison) + 1.
     if (!_initialEpisodeResolved) {
@@ -195,7 +194,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         seasonIndex = await _storedSeasonIndex();
         _seasonIndex = seasonIndex;
         // Charge (best-effort) le nom de la saison + la liste des épisodes.
-        await _loadSeasonMeta(seasonIndex: seasonIndex, language: language);
+        await _loadSeasonMeta(seasonIndex: seasonIndex);
 
         // Borne l'épisode courant à la liste connue.
         if (_episodes.isNotEmpty && _currentEpisode > _episodes.last) {
@@ -241,21 +240,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Charge le nom de la saison et la liste des épisodes (anime-sama).
   /// Best-effort : en cas d'échec on garde les valeurs par défaut.
+  ///
+  /// Passe par les providers **globaux** (`animeSamaSeasonsProvider` /
+  /// `animeSamaEpisodesProvider`), en utilisant le MÊME titre que la fiche
+  /// (`animeSamaTitle` si connu) pour réutiliser le cache Riverpod et éviter de
+  /// relancer le wrapper Python. Note : ces providers listent en VOSTFR ; la
+  /// résolution du flux (`resolveStreamUrl`) respecte bien la langue choisie.
   Future<void> _loadSeasonMeta({
     required int seasonIndex,
-    required PlaybackLanguage language,
   }) async {
+    final title = widget.animeSamaTitle ?? widget.media.title.preferred;
     try {
-      final resolver = await ref.read(animeSamaResolverProvider.future);
-      final title = widget.media.title.preferred;
-
       // Nom de la saison (une seule fois, si pas encore connu).
       if (_seasonName == null) {
         try {
-          final seasons = await resolver.listSeasons(
-            title: title,
-            language: language,
-          );
+          final seasons =
+              await ref.read(animeSamaSeasonsProvider(title).future);
           final match = seasons
               .where((s) => s.index == seasonIndex)
               .cast<AnimeSamaSeason?>()
@@ -267,11 +267,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       }
 
       // Liste des épisodes de la saison.
-      final eps = await resolver.listEpisodes(
-        title: title,
-        seasonIndex: seasonIndex,
-        language: language,
-      );
+      final eps = await ref.read(animeSamaEpisodesProvider(
+        (title: title, seasonIndex: seasonIndex),
+      ).future);
       if (eps.isNotEmpty) _episodes = eps;
     } catch (_) {
       // listSeasons/listEpisodes optionnels : on continue sans.

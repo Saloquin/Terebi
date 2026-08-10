@@ -63,20 +63,17 @@ final listEntryProvider =
 /// la survie du widget qui a déclenché l'action.
 final seasonProgressRefreshProvider = StateProvider<int>((ref) => 0);
 
-/// Provider saisons anime-sama : liste les saisons disponibles sur anime-sama
-/// pour un titre donné. Keyed sur le titre préféré du média.
-final _animeSamaSeasonsProvider =
-    FutureProvider.family<List<AnimeSamaSeason>, String>((ref, title) async {
-  final resolver = await ref.watch(animeSamaResolverProvider.future);
-  return resolver.listSeasons(title: title);
-});
+/// Saisons anime-sama d'un titre : alias vers le provider **global**
+/// (`animeSamaSeasonsProvider`) pour partager le résultat (et le cache) avec le
+/// lecteur et le recheck de la bibliothèque — évite de relancer le wrapper.
+final _animeSamaSeasonsProvider = animeSamaSeasonsProvider;
 
 /// Titres normalisés présents au planning anime-sama (diffusion en cours).
 /// Sert à décider « À jour » (au planning) vs « Terminée » (hors planning).
+/// Dérive du planning **global** partagé avec le calendrier (pas de 2e scraping).
 final _planningTitlesProvider = FutureProvider<Set<String>>((ref) async {
   try {
-    final resolver = await ref.watch(animeSamaResolverProvider.future);
-    final items = await resolver.planning();
+    final items = await ref.watch(animeSamaPlanningProvider.future);
     return items.map((e) => _normTitle(e.title)).toSet();
   } catch (_) {
     return <String>{};
@@ -484,11 +481,12 @@ class _StatusDropdown extends ConsumerWidget {
   /// Best-effort : ignore les erreurs réseau.
   Future<void> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-    final resolverFuture = ref.read(animeSamaResolverProvider.future);
     final title = media.animeSamaTitle ?? media.title.preferred;
+    // Passe par le provider global (cache partagé) : si la fiche a déjà chargé
+    // les saisons, aucun nouvel appel réseau.
+    final seasonsFuture = ref.read(animeSamaSeasonsProvider(title).future);
     try {
-      final resolver = await resolverFuture;
-      final seasons = await resolver.listSeasons(title: title);
+      final seasons = await seasonsFuture;
       for (final s in seasons) {
         await seasonProgress.markSeasonFullyWatched(media.anilistId, s.index);
       }
@@ -677,11 +675,11 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
 
     int? total;
     try {
-      final resolver = await ref.read(animeSamaResolverProvider.future);
-      final eps = await resolver.listEpisodes(
-        title: widget.searchTitle,
-        seasonIndex: widget.season.index,
-      );
+      // Passe par le provider global (cache partagé avec le lecteur) plutôt que
+      // d'appeler le resolver directement → évite un scraping redondant.
+      final eps = await ref.read(animeSamaEpisodesProvider(
+        (title: widget.searchTitle, seasonIndex: widget.season.index),
+      ).future);
       if (eps.isNotEmpty) total = eps.length;
     } catch (_) {/* total inconnu → barre indéterminée */}
 

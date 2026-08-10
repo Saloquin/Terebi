@@ -21,7 +21,8 @@ import '../data/repositories/meta_cache_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/franchise_service.dart';
-import '../domain/season_progress_repository.dart';import '../domain/logic/progress_service.dart';
+import '../domain/season_progress_repository.dart';
+import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
 import '../domain/logic/calendar_service.dart';
@@ -184,6 +185,40 @@ final animeSamaResolverProvider =
     animeSamaScriptPath: animeSamaScript,
     runner: ref.watch(processRunnerProvider),
   );
+});
+
+/// --- Providers anime-sama partagés (dédup + cache Riverpod) ----------------
+/// Ces providers évitent de relancer le wrapper Python plusieurs fois pour le
+/// même anime : fiche, tuiles de saison, lecteur et recheck partagent le même
+/// résultat mis en cache tant qu'ils ne sont pas invalidés.
+
+/// Saisons anime-sama d'un titre (VOSTFR par défaut, cf. wrapper).
+final animeSamaSeasonsProvider =
+    FutureProvider.family<List<AnimeSamaSeason>, String>((ref, title) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  return resolver.listSeasons(title: title);
+});
+
+/// Numéros d'épisodes d'une (saison) anime-sama. Keyé sur (titre, index) pour
+/// que fiche + lecteur + recheck réutilisent le même résultat.
+final animeSamaEpisodesProvider = FutureProvider.family<List<int>,
+    ({String title, int seasonIndex})>((ref, arg) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  return resolver.listEpisodes(title: arg.title, seasonIndex: arg.seasonIndex);
+});
+
+/// Planning hebdomadaire anime-sama. Partagé entre le calendrier et la fiche
+/// (qui l'utilise pour l'étiquette « À jour » vs « Terminée »). Respecte la
+/// langue de lecture choisie (VF/VOSTFR).
+final animeSamaPlanningProvider =
+    FutureProvider<List<AnimeSamaPlanningItem>>((ref) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  final settings = ref.watch(settingsRepositoryProvider);
+  final langStr =
+      await settings.get(SettingsKeys.playbackLanguage, defaultValue: 'vostfr');
+  final language =
+      langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
+  return resolver.planning(language: language);
 });
 
 /// Rematch titre anime-sama → Media AniList (avec cache titre→anilistId).
