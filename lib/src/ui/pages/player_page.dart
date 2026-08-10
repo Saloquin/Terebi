@@ -22,6 +22,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../data/repositories/progress_repository.dart';
 import '../../domain/models/episode_progress.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/media.dart' as domain;
@@ -205,26 +206,35 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _positionSub?.cancel();
     _durationSub?.cancel();
     _completedSub?.cancel();
-    // Persiste la dernière position AVANT de disposer : on capture le
-    // repository et les valeurs maintenant (ref/état encore valides), puis on
-    // lance l'écriture. Ne pas dépendre de `ref`/`_player` après dispose().
+
+    // Capture les valeurs + le repository AVANT toute opération risquée.
     final pos = _positionSeconds;
     final dur = _durationSeconds;
-    if (pos >= 5 && !(dur != null && dur > 0 && pos / dur > 0.95)) {
-      final repo = ref.read(progressRepositoryProvider);
-      final mediaId = widget.media.anilistId;
-      final ep = _currentEpisode.toDouble();
-      // Fire-and-forget mais avec des références déjà capturées (survit au widget).
+    ProgressRepository? repo;
+    try {
+      repo = ref.read(progressRepositoryProvider);
+    } catch (_) {
+      repo = null; // ref indisponible pendant le teardown : on saute la sauvegarde.
+    }
+
+    // PRIORITÉ ABSOLUE : arrêter/disposer le player, quoi qu'il arrive, pour ne
+    // jamais laisser une vidéo tourner en arrière-plan.
+    _player.dispose();
+
+    // Persistance best-effort APRÈS le dispose du player (ne bloque jamais la
+    // fermeture, ne peut plus empêcher l'arrêt de la lecture).
+    if (repo != null &&
+        pos >= 5 &&
+        !(dur != null && dur > 0 && pos / dur > 0.95)) {
       repo.upsertProgress(EpisodeProgress(
-        mediaId: mediaId,
-        episodeNumber: ep,
+        mediaId: widget.media.anilistId,
+        episodeNumber: _currentEpisode.toDouble(),
         watched: false,
         positionSeconds: pos,
         durationSeconds: dur,
         updatedAt: DateTime.now(),
       ));
     }
-    _player.dispose();
     super.dispose();
   }
 
