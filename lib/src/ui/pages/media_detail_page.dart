@@ -13,6 +13,7 @@ import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
 import 'library_page.dart';
 import 'player_page.dart';
+import 'resume_helper.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -488,6 +489,12 @@ class _ActionBar extends ConsumerWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
+        // Reprendre en 1 clic (saison mémorisée + dernier vu, sans réseau).
+        FilledButton.icon(
+          onPressed: () => resumePlayback(context, ref, media),
+          icon: const Icon(Icons.play_arrow, size: 18),
+          label: const Text('Reprendre'),
+        ),
         _StatusDropdown(media: media, entry: entry),
         if (entry != null)
           OutlinedButton.icon(
@@ -795,6 +802,20 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     });
   }
 
+  /// Marque UNIQUEMENT cette saison comme entièrement vue (sans toucher aux
+  /// autres saisons ni au statut global de l'anime). Rafraîchit la barre.
+  Future<void> _markThisSeasonWatched() async {
+    await ref
+        .read(seasonProgressRepositoryProvider)
+        .markSeasonFullyWatched(widget.media.anilistId, widget.season.index);
+    await _reloadWatchedOnly();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('« ${widget.season.name} » marquée comme vue')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Rechargement déclenché de l'extérieur (« Terminé » manuel a marqué toutes
@@ -861,6 +882,14 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
                     fontWeight: done ? FontWeight.bold : null,
                   ),
                 ),
+                // Marquer cette saison comme vue (visible si pas déjà finie).
+                if (_loaded && !done)
+                  IconButton(
+                    icon: const Icon(Icons.done_all, size: 18),
+                    tooltip: 'Marquer la saison comme vue',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: _markThisSeasonWatched,
+                  ),
               ],
             ),
             const SizedBox(height: 4),

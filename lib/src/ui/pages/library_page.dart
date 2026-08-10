@@ -13,7 +13,7 @@ import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_resolver.dart';
 import 'media_detail_page.dart';
-import 'player_page.dart';
+import 'resume_helper.dart';
 
 // ---------------------------------------------------------------------------
 // Providers (visibles pour les tests via import)
@@ -524,41 +524,9 @@ class _EntryTile extends ConsumerWidget {
   }
 
   /// Lance le lecteur directement (sans passer par la fiche) sur l'épisode à
-  /// reprendre. Tout est calculé en local (saison mémorisée + dernier vu) :
-  /// aucun appel réseau, reprise en 1 clic depuis la bibliothèque.
-  Future<void> _resume(BuildContext context, WidgetRef ref, Media media) async {
-    final settings = ref.read(settingsRepositoryProvider);
-    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-
-    final storedSeason =
-        await settings.get(SettingsKeys.animeSamaSeasonFor(media.anilistId));
-    final seasonIndex =
-        (storedSeason != null ? int.tryParse(storedSeason) : null) ?? 1;
-    final lastWatched =
-        await seasonProgress.lastWatched(media.anilistId, seasonIndex);
-    // Sentinelle « tout vu » → on ne reprend pas au-delà : on relit depuis 1.
-    final startEpisode =
-        lastWatched >= SeasonProgressRepository.fullyWatchedSentinel
-            ? 1
-            : lastWatched + 1;
-
-    final entryForPlayer = await ref.read(listRepositoryProvider)
-            .getEntry(media.anilistId) ??
-        entry;
-
-    if (!context.mounted) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PlayerPage(
-          media: media,
-          episode: startEpisode,
-          entry: entryForPlayer,
-          animeSamaTitle: media.animeSamaTitle,
-        ),
-      ),
-    );
-  }
+  /// reprendre — logique partagée (helper `resumePlayback`).
+  Future<void> _resume(BuildContext context, WidgetRef ref, Media media) =>
+      resumePlayback(context, ref, media);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -14,7 +14,11 @@ class MediaCard extends StatelessWidget {
   /// Rappel optionnel au tap (navigation vers la fiche détail).
   final VoidCallback? onTap;
 
-  const MediaCard({super.key, required this.media, this.onTap});
+  /// Rappel optionnel « Reprendre » : si fourni, un bouton play s'affiche en
+  /// surimpression sur la cover (utilisé pour « Continuer à regarder »).
+  final VoidCallback? onResume;
+
+  const MediaCard({super.key, required this.media, this.onTap, this.onResume});
 
   @override
   Widget build(BuildContext context) {
@@ -30,17 +34,38 @@ class MediaCard extends StatelessWidget {
           children: [
             // --- Cover image ---
             Expanded(
-              child: media.coverUrl != null
-                  ? Image.network(
-                      media.coverUrl!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _CoverPlaceholder(
-                        color: colorScheme.surfaceContainerHighest,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  media.coverUrl != null
+                      ? Image.network(
+                          media.coverUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _CoverPlaceholder(
+                            color: colorScheme.surfaceContainerHighest,
+                          ),
+                        )
+                      : _CoverPlaceholder(
+                          color: colorScheme.surfaceContainerHighest,
+                        ),
+                  if (onResume != null)
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Material(
+                        color: Colors.black54,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          icon: const Icon(Icons.play_arrow, color: Colors.white),
+                          tooltip: 'Reprendre',
+                          iconSize: 20,
+                          visualDensity: VisualDensity.compact,
+                          onPressed: onResume,
+                        ),
                       ),
-                    )
-                  : _CoverPlaceholder(
-                      color: colorScheme.surfaceContainerHighest,
                     ),
+                ],
+              ),
             ),
 
             // --- Info bar ---

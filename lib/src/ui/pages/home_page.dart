@@ -11,6 +11,7 @@ import '../../domain/models/media.dart';
 import '../widgets/media_card.dart';
 import 'library_page.dart' show entriesByStatusProvider;
 import 'media_detail_page.dart';
+import 'resume_helper.dart';
 
 // ---------------------------------------------------------------------------
 // Helper saison courante (DateTime.now() toléré en UI)
@@ -101,6 +102,7 @@ class _ContinueWatchingSection extends ConsumerWidget {
                     width: 120,
                     child: MediaCard(
                       media: media,
+                      onResume: () => resumePlayback(context, ref, media),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
