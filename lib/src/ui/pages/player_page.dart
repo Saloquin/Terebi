@@ -13,6 +13,8 @@
 ///   (règle « épisode suivant ») ; reculer ne modifie pas la progression.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
@@ -85,15 +87,49 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// double marquage « vu » si l'utilisateur clique vite.
   bool _navigating = false;
 
+  // --- Suivi de position (reprise) + auto-play -------------------------------
+
+  StreamSubscription<Duration>? _positionSub;
+  StreamSubscription<Duration>? _durationSub;
+  StreamSubscription<bool>? _completedSub;
+
+  /// Position et durée courantes (secondes) observées du lecteur.
+  double _positionSeconds = 0;
+  double? _durationSeconds;
+
+  /// Dernière position persistée (pour throttler l'écriture DB ~1×/5 s).
+  int _lastPersistedWhole = -1;
+
+  /// Compte à rebours d'auto-play (secondes restantes), null si inactif.
+  int? _autoPlayCountdown;
+  Timer? _autoPlayTimer;
+
   @override
   void initState() {
     super.initState();
     _currentEpisode = widget.episode;
     _currentEntry = widget.entry;
     _configurePlayer();
+    _subscribePlayerStreams();
     // La lecture ne démarre PAS automatiquement : l'utilisateur clique « Lancer ».
     // On charge tout de même le nom de saison + la liste d'épisodes pour la barre.
     WidgetsBinding.instance.addPostFrameCallback((_) => _prepareMeta());
+  }
+
+  /// S'abonne aux flux du lecteur : position (reprise), durée, fin d'épisode
+  /// (auto-play). Best-effort : sur desktop media_kit émet ces flux.
+  void _subscribePlayerStreams() {
+    _positionSub = _player.stream.position.listen((pos) {
+      _positionSeconds = pos.inMilliseconds / 1000.0;
+      _maybePersistPosition();
+    });
+    _durationSub = _player.stream.duration.listen((dur) {
+      final s = dur.inMilliseconds / 1000.0;
+      _durationSeconds = s > 0 ? s : null;
+    });
+    _completedSub = _player.stream.completed.listen((done) {
+      if (done) _onEpisodeCompleted();
+    });
   }
 
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
@@ -145,6 +181,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   @override
   void dispose() {
+    _autoPlayTimer?.cancel();
+    _positionSub?.cancel();
+    _durationSub?.cancel();
+    _completedSub?.cancel();
+    // Persiste la dernière position connue (reprise ultérieure). Fire-and-forget.
+    _persistPosition();
     _player.dispose();
     super.dispose();
   }
@@ -216,7 +258,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         language: language,
       );
 
+      // Reprise : si une position a été enregistrée pour cet épisode (non vu),
+      // proposer « Reprendre » / « Recommencer » avant de démarrer.
+      final resumeFrom = await _resumePositionSeconds();
+
       await _player.open(Media(url));
+
+      if (resumeFrom != null && resumeFrom > 0) {
+        // seek best-effort une fois le flux ouvert.
+        try {
+          await _player.seek(Duration(seconds: resumeFrom));
+        } catch (_) {/* ignore */}
+      }
 
       if (!mounted) return;
       setState(() {
@@ -310,6 +363,129 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _currentEntry = outcome.updatedEntry;
   }
 
+  /// Position de reprise pour l'épisode courant, ou `null` pour démarrer au
+  /// début. Si une position significative (> 30 s, épisode non terminé) est
+  /// enregistrée, demande à l'utilisateur « Reprendre » ou « Recommencer ».
+  Future<int?> _resumePositionSeconds() async {
+    EpisodeProgress? prog;
+    try {
+      prog = await ref
+          .read(progressRepositoryProvider)
+          .getProgress(widget.media.anilistId, _currentEpisode.toDouble());
+    } catch (_) {
+      return null;
+    }
+    if (prog == null || prog.watched) return null;
+    final pos = prog.positionSeconds.floor();
+    if (pos < 30) return null; // trop peu → démarrage normal
+    if (!mounted) return null;
+
+    final resume = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reprendre la lecture ?'),
+        content: Text(
+            'Épisode $_currentEpisode interrompu à ${_formatDuration(pos)}.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Recommencer'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Reprendre à ${_formatDuration(pos)}'),
+          ),
+        ],
+      ),
+    );
+    return resume == true ? pos : 0;
+  }
+
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = (seconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  /// Persiste la position toutes les ~5 s de lecture (throttle) pour permettre
+  /// la reprise, sans marteler la base.
+  void _maybePersistPosition() {
+    final whole = _positionSeconds.floor();
+    if (whole == _lastPersistedWhole) return;
+    if (whole % 5 != 0) return; // écrit ~1×/5 s
+    _lastPersistedWhole = whole;
+    _persistPosition();
+  }
+
+  /// Écrit la position courante dans EpisodeProgress (sans marquer « vu »).
+  /// Ignore les positions triviales (< 5 s) et les fins d'épisode (gérées par
+  /// _markCurrentWatched). Fire-and-forget.
+  Future<void> _persistPosition() async {
+    if (_positionSeconds < 5) return;
+    // Proche de la fin (>95 %) → ne pas enregistrer une reprise « presque finie ».
+    final dur = _durationSeconds;
+    if (dur != null && dur > 0 && _positionSeconds / dur > 0.95) return;
+    try {
+      await ref.read(progressRepositoryProvider).upsertProgress(EpisodeProgress(
+            mediaId: widget.media.anilistId,
+            episodeNumber: _currentEpisode.toDouble(),
+            watched: false,
+            positionSeconds: _positionSeconds,
+            durationSeconds: dur,
+            updatedAt: DateTime.now(),
+          ));
+    } catch (_) {/* best-effort */}
+  }
+
+  /// Fin d'épisode atteinte : marque vu, remet la position à 0, et lance
+  /// l'auto-play si activé dans les réglages et qu'un épisode suivant existe.
+  Future<void> _onEpisodeCompleted() async {
+    await _markCurrentWatched();
+    _positionSeconds = 0;
+    _lastPersistedWhole = -1;
+
+    final autoPlay = await _autoPlayEnabled();
+    final next = _nextEpisode;
+    if (!autoPlay || next == null) {
+      if (mounted) setState(() {});
+      return;
+    }
+    _startAutoPlayCountdown(next);
+  }
+
+  Future<bool> _autoPlayEnabled() async {
+    final v = await ref
+        .read(settingsRepositoryProvider)
+        .get(SettingsKeys.autoPlayNext);
+    return v == '1';
+  }
+
+  /// Compte à rebours avant l'épisode suivant (annulable par l'utilisateur).
+  void _startAutoPlayCountdown(int next) {
+    _autoPlayTimer?.cancel();
+    setState(() => _autoPlayCountdown = 5);
+    _autoPlayTimer = Timer.periodic(const Duration(seconds: 1), (t) async {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      final remaining = (_autoPlayCountdown ?? 1) - 1;
+      if (remaining <= 0) {
+        t.cancel();
+        setState(() => _autoPlayCountdown = null);
+        await _goToEpisode(next);
+        if (mounted) await _loadAndPlay();
+      } else {
+        setState(() => _autoPlayCountdown = remaining);
+      }
+    });
+  }
+
+  void _cancelAutoPlay() {
+    _autoPlayTimer?.cancel();
+    setState(() => _autoPlayCountdown = null);
+  }
+
   /// Navigue vers un épisode. Avancer marque l'épisode courant comme vu ;
   /// reculer ne modifie pas la progression. Ne lance PAS la lecture : le
   /// bouton « Lancer » réapparaît pour le nouvel épisode.
@@ -317,11 +493,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (ep == _currentEpisode) return;
     if (_navigating) return; // garde : évite un double marquage si clics rapides.
     _navigating = true;
+    _autoPlayTimer?.cancel();
+    _autoPlayCountdown = null;
     try {
       if (ep > _currentEpisode) {
         await _markCurrentWatched();
       }
       if (!mounted) return;
+      // Nouvel épisode → position remise à zéro.
+      _positionSeconds = 0;
+      _lastPersistedWhole = -1;
       setState(() {
         _currentEpisode = ep;
         _ready = false;
@@ -428,6 +609,35 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                               onPressed: _loadAndPlay,
                               icon: const Icon(Icons.play_arrow),
                               label: const Text('Lancer'),
+                            ),
+                          ),
+                        // Overlay auto-play : « Épisode suivant dans N… ».
+                        if (_autoPlayCountdown != null)
+                          Positioned.fill(
+                            child: ColoredBox(
+                              color: Colors.black54,
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Épisode suivant dans $_autoPlayCountdown…',
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 18),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    OutlinedButton(
+                                      onPressed: _cancelAutoPlay,
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: Colors.white,
+                                        side: const BorderSide(
+                                            color: Colors.white70),
+                                      ),
+                                      child: const Text('Annuler'),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                       ],

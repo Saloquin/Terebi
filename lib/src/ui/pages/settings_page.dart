@@ -28,6 +28,8 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
     ),
     SettingsKeys.streamSource:
         await repo.get(SettingsKeys.streamSource, defaultValue: 'animesama'),
+    SettingsKeys.autoPlayNext:
+        await repo.get(SettingsKeys.autoPlayNext, defaultValue: '0'),
     SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
     SettingsKeys.animeSamaScript: await repo.get(SettingsKeys.animeSamaScript),
   };
@@ -53,6 +55,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   bool _isVf = false;
   // Source de lecture : 'animesama' (VOSTFR/VF) ou 'ani_cli' (anglais).
   String _source = 'animesama';
+  bool _autoPlay = false; // enchaînement auto de l'épisode suivant
   bool _initialized = false;
 
   // Health-check state
@@ -85,6 +88,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _mpvCtrl.text = settings[SettingsKeys.mpvPath] ?? 'mpv';
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
     _source = settings[SettingsKeys.streamSource] ?? 'animesama';
+    _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
   }
@@ -98,6 +102,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _isVf ? 'vf' : 'vostfr',
     );
     await repo.set(SettingsKeys.streamSource, _source);
+    await repo.set(SettingsKeys.autoPlayNext, _autoPlay ? '1' : '0');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
     await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
@@ -277,6 +282,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                   const Text('VF'),
                 ],
+              ),
+              const SizedBox(height: 16),
+
+              // --- Lecture ---
+              _SectionTitle('Lecture'),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Enchaîner l\'épisode suivant'),
+                subtitle: const Text(
+                    'Lance automatiquement le prochain épisode en fin de lecture (compte à rebours annulable).'),
+                value: _autoPlay,
+                onChanged: (v) => setState(() => _autoPlay = v),
               ),
               const SizedBox(height: 24),
 
