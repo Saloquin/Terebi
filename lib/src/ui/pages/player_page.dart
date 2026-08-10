@@ -553,7 +553,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
     if (prog == null || prog.watched) return null;
     final pos = prog.positionSeconds.floor();
-    if (pos < 30) return null; // trop peu → démarrage normal
+    if (pos < 15) return null; // trop peu → démarrage normal
     if (!mounted) return null;
 
     final resume = await showDialog<bool>(
@@ -597,6 +597,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       if (target > Duration.zero) {
         await _player.seek(target);
       }
+      // Force le rafraîchissement de l'image après le seek : sur certains flux
+      // HLS, mpv garde du son sans image jusqu'à une nouvelle décision de
+      // rendu. Un pause→play bref force le décodage de la frame courante.
+      await Future.delayed(const Duration(milliseconds: 150));
+      await _player.pause();
+      await _player.play();
     } catch (_) {
       // En dernier recours : au moins démarrer la lecture.
       try {
@@ -611,12 +617,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return '$m:$s';
   }
 
-  /// Persiste la position toutes les ~5 s de lecture (throttle) pour permettre
-  /// la reprise, sans marteler la base.
+  /// Persiste la position dès qu'au moins ~5 s se sont écoulées depuis la
+  /// dernière écriture. On ne se cale PAS sur les multiples exacts de 5 (le
+  /// stream position émet a un rythme irrégulier et pourrait les sauter →
+  /// aucune écriture, donc pas de reprise possible).
   void _maybePersistPosition() {
     final whole = _positionSeconds.floor();
-    if (whole == _lastPersistedWhole) return;
-    if (whole % 5 != 0) return; // écrit ~1×/5 s
+    if (_lastPersistedWhole >= 0 && (whole - _lastPersistedWhole).abs() < 5) {
+      return;
+    }
     _lastPersistedWhole = whole;
     _persistPosition();
   }
