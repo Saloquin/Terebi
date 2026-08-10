@@ -176,6 +176,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (platform is NativePlayer) {
       // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
       platform.setProperty('hls-bitrate', 'max');
+      // Seek par keyframes : après un seek (reprise), mpv se cale sur l'image
+      // clé la plus proche → l'image s'affiche tout de suite. Sans ça, un seek
+      // « exact » peut donner du son sans image (attente de la prochaine
+      // keyframe), surtout sur les flux HLS.
+      platform.setProperty('hr-seek', 'no');
     }
   }
 
@@ -413,17 +418,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return rewound > 0 ? rewound : 0;
   }
 
-  /// Attend que le flux soit réellement prêt (durée connue) puis seek et joue.
-  /// Sans cette attente, mpv perd le seek au moment où le flux HLS se charge et
-  /// repart à 0. Timeout de sécurité pour ne jamais bloquer.
+  /// Attend que le flux soit réellement prêt (durée connue), démarre la lecture
+  /// PUIS seek. Ordre important : jouer d'abord active le décodeur vidéo, donc
+  /// le seek qui suit affiche l'image (sinon on peut avoir le son sans image).
+  /// Timeout de sécurité pour ne jamais bloquer.
   Future<void> _seekThenPlay(Duration target) async {
     try {
       // Attend la première durée > 0 (flux prêt), max 8 s.
       await _player.stream.duration
           .firstWhere((d) => d > Duration.zero)
           .timeout(const Duration(seconds: 8), onTimeout: () => Duration.zero);
-      await _player.seek(target);
       await _player.play();
+      // Laisse le décodeur démarrer une image avant de sauter au timecode.
+      await Future.delayed(const Duration(milliseconds: 150));
+      await _player.seek(target);
     } catch (_) {
       // En dernier recours : au moins démarrer la lecture.
       try {
