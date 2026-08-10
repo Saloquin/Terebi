@@ -260,12 +260,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Change la langue depuis le sélecteur : mémorise + relance la lecture de
   /// l'épisode courant dans la nouvelle langue, EN CONSERVANT le timecode
-  /// (même épisode, autre piste audio/sous-titres).
+  /// (même épisode, autre piste audio/sous-titres). Reprise directe (sans
+  /// dialogue) via [forceResumeAt].
   Future<void> _switchLanguage(PlaybackLanguage lang) async {
     if (lang == _language) return;
-    // Capture la position courante pour reprendre au même endroit dans l'autre
-    // langue (léger recul pour l'amorce).
-    final resumeAt = _positionSeconds > 2 ? _positionSeconds.floor() - 2 : 0;
+    // Position courante (léger recul), capturée AVANT le stop.
+    final resumeAt = _positionSeconds > 3 ? _positionSeconds.floor() - 3 : 0;
+    await _persistPosition(); // filet de sécurité en base
     _language = lang;
     await _persistLanguage(lang);
     if (!mounted) return;
@@ -537,17 +538,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return rewound > 0 ? rewound : 0;
   }
 
-  /// Démarre la lecture, attend que la PREMIÈRE IMAGE soit réellement rendue,
-  /// puis seek. Attendre la première frame (et non juste la durée) est ce qui
-  /// garantit que le décodeur vidéo est actif → l'image suit le seek. Sans ça,
-  /// un seek trop tôt donne le son sans image. Timeout de sécurité.
+  /// Démarre la lecture puis seek à [target], de façon robuste après un
+  /// stop()/open() (changement de langue/épisode) : on attend que le flux soit
+  /// prêt (durée > 0 ré-émise), on seek, et on re-seek une fois après un court
+  /// délai car mpv ignore parfois le 1er seek sur un flux HLS fraîchement ouvert.
   Future<void> _seekThenPlay(Duration target) async {
     try {
+      // Attend une durée > 0 (flux réellement prêt), max 8 s.
+      await _player.stream.duration
+          .firstWhere((d) => d > Duration.zero)
+          .timeout(const Duration(seconds: 8), onTimeout: () => Duration.zero);
       await _player.play();
-      // Attend le rendu de la 1re image (décodeur prêt), max 8 s.
-      await _videoController.waitUntilFirstFrameRendered
-          .timeout(const Duration(seconds: 8), onTimeout: () {});
       await _player.seek(target);
+      // Re-seek de sécurité (le 1er peut être perdu au démarrage du flux).
+      await Future.delayed(const Duration(milliseconds: 400));
+      if (target > Duration.zero) {
+        await _player.seek(target);
+      }
     } catch (_) {
       // En dernier recours : au moins démarrer la lecture.
       try {
