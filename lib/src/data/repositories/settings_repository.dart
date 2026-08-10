@@ -22,6 +22,16 @@ abstract final class SettingsKeys {
   /// ('1' = activé, autre/absent = désactivé). Désactivé par défaut.
   static const String autoPlayNext = 'auto_play_next';
 
+  /// Langue de lecture choisie POUR UN anime donné ('vf' | 'vostfr').
+  /// Prime sur [playbackLanguage] (global) quand elle existe. Réglée depuis le
+  /// sélecteur du lecteur. Ex. `anime_sama_lang:105333`.
+  static String animeSamaLangFor(int anilistId) => 'anime_sama_lang:$anilistId';
+
+  /// Mode « langue unique » ('1' = activé) : masque le sélecteur VF/VOSTFR du
+  /// lecteur et n'effectue AUCUN test de langue (pour qui regarde toujours dans
+  /// la même langue). Désactivé par défaut.
+  static const String singleLanguage = 'single_language';
+
   /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
   static const String pythonPath = 'python_path';
 

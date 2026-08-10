@@ -220,6 +220,38 @@ final animeSamaPlanningProvider =
   return resolver.planning(language: language);
 });
 
+/// Langues (VOSTFR/VF) réellement disponibles pour un ÉPISODE précis d'une
+/// saison anime-sama. La dispo est par épisode (certains épisodes récents ne
+/// sont pas encore doublés). On teste chaque langue en résolvant l'URL du flux :
+/// une langue est disponible si la résolution renvoie une URL. Sert au
+/// sélecteur du lecteur (grise la langue absente) et au fallback.
+final animeSamaLanguagesProvider = FutureProvider.family<Set<PlaybackLanguage>,
+    ({String title, int seasonIndex, int episode})>((ref, arg) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  Future<bool> hasLang(PlaybackLanguage lang) async {
+    try {
+      final url = await resolver.resolveStreamUrl(
+        title: arg.title,
+        episode: arg.episode,
+        season: arg.seasonIndex,
+        language: lang,
+      );
+      return url.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  final results = await Future.wait([
+    hasLang(PlaybackLanguage.vostfr),
+    hasLang(PlaybackLanguage.vf),
+  ]);
+  return {
+    if (results[0]) PlaybackLanguage.vostfr,
+    if (results[1]) PlaybackLanguage.vf,
+  };
+});
+
 /// Rematch titre anime-sama → Media AniList (avec cache titre→anilistId).
 final titleMatcherProvider = Provider<TitleMatcher>(
   (ref) => TitleMatcher(

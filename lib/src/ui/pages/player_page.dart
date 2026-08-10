@@ -112,6 +112,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   int? _autoPlayCountdown;
   Timer? _autoPlayTimer;
 
+  /// Vitesse de lecture courante (1.0 = normal).
+  double _speed = 1.0;
+  static const _speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
+
   @override
   void initState() {
     super.initState();
@@ -208,11 +212,62 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   // Logique métier
   // ---------------------------------------------------------------------------
 
+  /// Langue de lecture courante (choisie via le sélecteur, mémorisée par anime).
+  /// Résolue au 1er chargement : préférence par anime, sinon réglage global.
+  PlaybackLanguage? _language;
+
+  /// Langues disponibles pour l'épisode courant (null tant que non testé).
+  Set<PlaybackLanguage>? _availableLangs;
+
+  /// `true` si le mode « langue unique » est actif (sélecteur masqué).
+  bool _singleLanguage = false;
+
+  /// Langue préférée : celle mémorisée pour CET anime si elle existe, sinon le
+  /// réglage global.
   Future<PlaybackLanguage> _preferredLanguage() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
+    final perAnime =
+        await settingsRepo.get(SettingsKeys.animeSamaLangFor(widget.media.anilistId));
+    if (perAnime == 'vf') return PlaybackLanguage.vf;
+    if (perAnime == 'vostfr') return PlaybackLanguage.vostfr;
     final langStr = await settingsRepo.get(SettingsKeys.playbackLanguage,
         defaultValue: 'vostfr');
     return langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
+  }
+
+  /// Mémorise la langue choisie POUR CET anime (prime sur le réglage global).
+  Future<void> _persistLanguage(PlaybackLanguage lang) async {
+    await ref.read(settingsRepositoryProvider).set(
+          SettingsKeys.animeSamaLangFor(widget.media.anilistId),
+          lang == PlaybackLanguage.vf ? 'vf' : 'vostfr',
+        );
+  }
+
+  /// Teste (en tâche de fond) quelles langues existent pour l'épisode courant,
+  /// puis met à jour le sélecteur (grise la langue absente).
+  Future<void> _refreshAvailableLangs(
+      String title, int seasonIndex, int episode) async {
+    try {
+      final langs = await ref.read(animeSamaLanguagesProvider(
+        (title: title, seasonIndex: seasonIndex, episode: episode),
+      ).future);
+      if (mounted) setState(() => _availableLangs = langs);
+    } catch (_) {/* ignore : sélecteur reste actif */}
+  }
+
+  /// Change la langue depuis le sélecteur : mémorise + relance la lecture de
+  /// l'épisode courant dans la nouvelle langue.
+  Future<void> _switchLanguage(PlaybackLanguage lang) async {
+    if (lang == _language) return;
+    _language = lang;
+    await _persistLanguage(lang);
+    if (!mounted) return;
+    setState(() {
+      _ready = false;
+      _error = null;
+    });
+    await _player.stop();
+    await _loadAndPlay();
   }
 
   /// Détermine si la source active est anime-sama.
@@ -241,8 +296,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     });
 
     try {
-      final language = await _preferredLanguage();
+      // Langue : résolue une fois (préférence par anime → globale), puis pilotée
+      // par le sélecteur.
+      _language ??= await _preferredLanguage();
+      _singleLanguage = (await ref
+              .read(settingsRepositoryProvider)
+              .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
+          '1';
       final isAnimeSama = await _isAnimeSamaActive();
+      final resolveTitle = widget.animeSamaTitle ?? widget.media.title.preferred;
 
       int seasonIndex = 1;
       if (isAnimeSama) {
@@ -264,12 +326,42 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       }
 
       final resolver = await ref.read(activeResolverProvider.future);
-      final url = await resolver.resolveStreamUrl(
-        title: widget.media.title.preferred,
-        episode: _currentEpisode,
-        season: seasonIndex,
-        language: language,
-      );
+      // Tente la langue courante ; si l'épisode n'existe pas dans cette langue
+      // (pas encore doublé…), fallback automatique sur l'autre langue.
+      String url;
+      try {
+        url = await resolver.resolveStreamUrl(
+          title: resolveTitle,
+          episode: _currentEpisode,
+          season: seasonIndex,
+          language: _language!,
+        );
+      } on ResolveException {
+        final other = _language == PlaybackLanguage.vf
+            ? PlaybackLanguage.vostfr
+            : PlaybackLanguage.vf;
+        url = await resolver.resolveStreamUrl(
+          title: resolveTitle,
+          episode: _currentEpisode,
+          season: seasonIndex,
+          language: other,
+        );
+        // Fallback réussi → on bascule sur la langue qui marche + on prévient.
+        _language = other;
+        if (mounted) {
+          final label = other == PlaybackLanguage.vf ? 'VF' : 'VOSTFR';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Langue indisponible pour cet épisode — lecture en $label')),
+          );
+        }
+      }
+
+      // Mémorise la langue effective pour cet anime + lance la détection des
+      // langues dispo (pour le sélecteur), sauf en mode « langue unique ».
+      await _persistLanguage(_language!);
+      if (isAnimeSama && !_singleLanguage) {
+        _refreshAvailableLangs(resolveTitle, seasonIndex, _currentEpisode);
+      }
 
       // Reprise : si une position a été enregistrée pour cet épisode (non vu),
       // proposer « Reprendre » / « Recommencer » avant de démarrer.
@@ -285,6 +377,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       } else if (resumeFrom == 0) {
         // « Recommencer » explicite : on démarre au début.
         await _player.play();
+      }
+
+      // Réapplique la vitesse choisie (mpv la remet à 1.0 à chaque open).
+      if (_speed != 1.0) {
+        try {
+          await _player.setRate(_speed);
+        } catch (_) {/* ignore */}
       }
 
       if (!mounted) return;
@@ -597,6 +696,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return null;
   }
 
+  /// Change la vitesse de lecture (best-effort).
+  Future<void> _setSpeed(double speed) async {
+    setState(() => _speed = speed);
+    try {
+      await _player.setRate(speed);
+    } catch (_) {/* ignore */}
+  }
+
   void _openDetail() {
     // Dans tous les cas, quitter le lecteur le dispose → _player.dispose()
     // stoppe la lecture (pas de vidéo qui continue derrière la fiche).
@@ -627,7 +734,38 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title, overflow: TextOverflow.ellipsis),
+        title: Row(
+          children: [
+            // Sélecteur VF/VOSTFR (haut à gauche), masqué en mode langue unique.
+            if (!_singleLanguage) ...[
+              _LanguageSelector(
+                current: _language,
+                available: _availableLangs,
+                onChanged: _switchLanguage,
+              ),
+              const SizedBox(width: 12),
+            ],
+            Expanded(
+              child: Text(title, overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        actions: [
+          // Vitesse de lecture.
+          PopupMenuButton<double>(
+            tooltip: 'Vitesse de lecture',
+            icon: const Icon(Icons.speed),
+            initialValue: _speed,
+            onSelected: _setSpeed,
+            itemBuilder: (_) => [
+              for (final s in _speeds)
+                PopupMenuItem(
+                  value: s,
+                  child: Text(s == 1.0 ? 'Normal (1×)' : '$s×'),
+                ),
+            ],
+          ),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
@@ -745,6 +883,53 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sélecteur de langue VF/VOSTFR (barre du lecteur)
+// ---------------------------------------------------------------------------
+
+class _LanguageSelector extends StatelessWidget {
+  final PlaybackLanguage? current;
+
+  /// Langues disponibles pour l'épisode courant. `null` = pas encore testé
+  /// (on n'grise rien, les deux restent cliquables).
+  final Set<PlaybackLanguage>? available;
+  final ValueChanged<PlaybackLanguage> onChanged;
+
+  const _LanguageSelector({
+    required this.current,
+    required this.available,
+    required this.onChanged,
+  });
+
+  bool _enabled(PlaybackLanguage lang) => available == null || available!.contains(lang);
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip(PlaybackLanguage lang, String label) {
+      final selected = current == lang;
+      final enabled = _enabled(lang);
+      return Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: ChoiceChip(
+          label: Text(label),
+          selected: selected,
+          visualDensity: VisualDensity.compact,
+          // Grisé si la langue n'existe pas pour cet épisode.
+          onSelected: enabled ? (_) => onChanged(lang) : null,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        chip(PlaybackLanguage.vostfr, 'VOSTFR'),
+        chip(PlaybackLanguage.vf, 'VF'),
+      ],
     );
   }
 }

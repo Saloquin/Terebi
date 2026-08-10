@@ -30,6 +30,8 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
         await repo.get(SettingsKeys.streamSource, defaultValue: 'animesama'),
     SettingsKeys.autoPlayNext:
         await repo.get(SettingsKeys.autoPlayNext, defaultValue: '0'),
+    SettingsKeys.singleLanguage:
+        await repo.get(SettingsKeys.singleLanguage, defaultValue: '0'),
     SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
     SettingsKeys.animeSamaScript: await repo.get(SettingsKeys.animeSamaScript),
   };
@@ -57,6 +59,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   // Source de lecture : 'animesama' (VOSTFR/VF) ou 'ani_cli' (anglais).
   String _source = 'animesama';
   bool _autoPlay = false; // enchaînement auto de l'épisode suivant
+  bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
   bool _initialized = false;
 
   // --- Suivi des modifications non sauvegardées ------------------------------
@@ -114,6 +117,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         'isVf': '$_isVf',
         'source': _source,
         'autoPlay': '$_autoPlay',
+        'singleLang': '$_singleLang',
       };
 
   /// Recalcule l'état « dirty » et le publie pour l'AppShell.
@@ -155,6 +159,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
     _source = settings[SettingsKeys.streamSource] ?? 'animesama';
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
+    _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
     _snapshot = _currentValues();
@@ -171,6 +176,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       _isVf = _snapshot['isVf'] == 'true';
       _source = _snapshot['source'] ?? 'animesama';
       _autoPlay = _snapshot['autoPlay'] == 'true';
+      _singleLang = _snapshot['singleLang'] == 'true';
     });
     _recomputeDirty();
   }
@@ -185,6 +191,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     );
     await repo.set(SettingsKeys.streamSource, _source);
     await repo.set(SettingsKeys.autoPlayNext, _autoPlay ? '1' : '0');
+    await repo.set(SettingsKeys.singleLanguage, _singleLang ? '1' : '0');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
     await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
@@ -392,6 +399,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   value: _autoPlay,
                   onChanged: (v) {
                     setState(() => _autoPlay = v);
+                    _recomputeDirty();
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Langue unique'),
+                  subtitle: const Text(
+                      'Masque le sélecteur VF/VOSTFR du lecteur et n\'effectue aucun test de langue (plus rapide si vous regardez toujours dans la même langue).'),
+                  value: _singleLang,
+                  onChanged: (v) {
+                    setState(() => _singleLang = v);
                     _recomputeDirty();
                   },
                 ),
