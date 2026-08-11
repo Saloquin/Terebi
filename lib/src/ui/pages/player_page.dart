@@ -62,15 +62,11 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  // Accélération matérielle désactivée : sur certains flux HLS/Sibnet sous
-  // Windows, le décodage matériel perd l'image après un seek (son sans image,
-  // définitif). Le décodage logiciel resynchronise correctement l'image après
-  // chaque seek/reprise, au prix d'un peu plus de CPU.
-  late final VideoController _videoController = VideoController(
-    _player,
-    configuration:
-        const VideoControllerConfiguration(enableHardwareAcceleration: false),
-  );
+  // Accélération matérielle (défaut) : le décodage matériel évite les artefacts
+  // verts et les zones « corrompues » où le seek échouait, produits par le
+  // décodage logiciel sur les flux HLS. La reprise se fait via Media.start (à
+  // l'ouverture), donc plus besoin de forcer le logiciel pour l'image.
+  late final VideoController _videoController = VideoController(_player);
 
   bool _loading = false;
   bool _ready = false;
@@ -836,7 +832,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _seekTarget = target;
 
     _seekDebounce?.cancel();
-    _seekDebounce = Timer(const Duration(milliseconds: 220), () {
+    _seekDebounce = Timer(const Duration(milliseconds: 150), () {
       final t = _seekTarget;
       _seekTarget = null;
       if (t != null) _player.seek(t);
