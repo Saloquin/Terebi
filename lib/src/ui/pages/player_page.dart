@@ -110,6 +110,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   double _positionSeconds = 0;
   double? _durationSeconds;
 
+  /// Seek relatif accumulé (cible en ms) + debounce, pour absorber les appuis
+  /// rapides sur ←/→ sans réempiler des seeks sur une position pas encore
+  /// stabilisée (sinon boucle/désync, surtout en recul).
+  Duration? _seekTarget;
+  Timer? _seekDebounce;
+
   /// Dernière position persistée (pour throttler l'écriture DB ~1×/5 s).
   int _lastPersistedWhole = -1;
 
@@ -221,19 +227,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (platform is NativePlayer) {
       // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
       platform.setProperty('hls-bitrate', 'max');
-      // Seek exact SANS drop de frames : mpv décode jusqu'à l'image cible et
-      // l'affiche (au lieu de rester sur du son sans image après un seek HLS).
+      // Seek exact : mpv décode jusqu'à l'image cible et l'affiche. On NE force
+      // PAS framedrop=no (il gardait des frames à jeter → artefacts verts et
+      // avance saccadée sur décodage logiciel) ; la reprise se fait via
+      // Media.start, pas par un seek après ouverture.
       platform.setProperty('hr-seek', 'yes');
-      platform.setProperty('hr-seek-framedrop', 'no');
-      // Ne jamais dropper la vidéo pour rattraper l'audio : évite l'image figée
-      // noire pendant que le son continue après une reprise.
-      platform.setProperty('framedrop', 'no');
     }
   }
 
   @override
   void dispose() {
     _autoPlayTimer?.cancel();
+    _seekDebounce?.cancel();
     _positionSub?.cancel();
     _durationSub?.cancel();
     _completedSub?.cancel();
@@ -703,6 +708,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _navigating = true;
     _autoPlayTimer?.cancel();
     _autoPlayCountdown = null;
+    // Annule un saut ←/→ en attente (il viserait le mauvais épisode).
+    _seekDebounce?.cancel();
+    _seekTarget = null;
     try {
       if (ep > _currentEpisode) {
         await _markCurrentWatched();
@@ -814,13 +822,25 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     );
   }
 
-  /// Saut relatif (secondes) borné à [0, durée].
+  /// Saut relatif (secondes). Les appuis rapides s'accumulent sur une cible
+  /// commune (partant de la position courante réelle) et un seul seek est
+  /// appliqué après une courte pause — évite d'empiler des seeks sur une
+  /// position pas encore stabilisée (boucle/désync, surtout en recul).
   void _seekBy(int seconds) {
-    final pos = _player.state.position + Duration(seconds: seconds);
+    // Base = cible en cours d'accumulation, sinon position réelle du lecteur.
+    final base = _seekTarget ?? _player.state.position;
+    var target = base + Duration(seconds: seconds);
     final dur = _player.state.duration;
-    var target = pos < Duration.zero ? Duration.zero : pos;
+    if (target < Duration.zero) target = Duration.zero;
     if (dur > Duration.zero && target > dur) target = dur;
-    _player.seek(target);
+    _seekTarget = target;
+
+    _seekDebounce?.cancel();
+    _seekDebounce = Timer(const Duration(milliseconds: 220), () {
+      final t = _seekTarget;
+      _seekTarget = null;
+      if (t != null) _player.seek(t);
+    });
   }
 
   /// Ouvre le menu réglages ancré sous le bouton « tune » de la barre du player.
