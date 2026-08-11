@@ -29,7 +29,6 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
     SettingsKeys.seekBackwardSeconds:
         await repo.get(SettingsKeys.seekBackwardSeconds, defaultValue: '10'),
     SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
-    SettingsKeys.animeSamaScript: await repo.get(SettingsKeys.animeSamaScript),
   };
 });
 
@@ -47,7 +46,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage>
     with SingleTickerProviderStateMixin {
   final _pythonCtrl = TextEditingController();
-  final _animeSamaCtrl = TextEditingController();
   bool _isVf = false;
   bool _autoPlay = false; // enchaînement auto de l'épisode suivant
   bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
@@ -95,7 +93,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     // Toute frappe dans un champ peut changer l'état « dirty ».
     for (final c in [
       _pythonCtrl,
-      _animeSamaCtrl,
     ]) {
       c.addListener(_recomputeDirty);
     }
@@ -105,14 +102,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   void dispose() {
     _flashController.dispose();
     _pythonCtrl.dispose();
-    _animeSamaCtrl.dispose();
     super.dispose();
   }
 
   /// Valeurs courantes des champs (pour comparaison au snapshot).
   Map<String, String> _currentValues() => {
         'python': _pythonCtrl.text.trim(),
-        'animeSama': _animeSamaCtrl.text.trim(),
         'isVf': '$_isVf',
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
@@ -148,7 +143,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
-    _animeSamaCtrl.text = settings[SettingsKeys.animeSamaScript] ?? '';
     _seekFwd = _normalizeSeek(settings[SettingsKeys.seekForwardSeconds]);
     _seekBwd = _normalizeSeek(settings[SettingsKeys.seekBackwardSeconds]);
     _snapshot = _currentValues();
@@ -164,7 +158,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   /// Réinitialise les champs aux dernières valeurs sauvegardées (bouton Annuler).
   void _resetToSnapshot() {
     _pythonCtrl.text = _snapshot['python'] ?? '';
-    _animeSamaCtrl.text = _snapshot['animeSama'] ?? '';
     setState(() {
       _isVf = _snapshot['isVf'] == 'true';
       _autoPlay = _snapshot['autoPlay'] == 'true';
@@ -186,7 +179,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     await repo.set(SettingsKeys.seekForwardSeconds, '$_seekFwd');
     await repo.set(SettingsKeys.seekBackwardSeconds, '$_seekBwd');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
-    await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
 
     // Invalide les resolvers pour qu'ils rechargent chemins/langue.
     ref.invalidate(animeSamaResolverProvider);
@@ -447,12 +439,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   label: 'Chemin Python (optionnel)',
                   hint: 'python',
                   controller: _pythonCtrl,
-                ),
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin anime_sama.py (avancé — sinon script intégré)',
-                  hint: r'…\animesama-cli\anime_sama.py',
-                  controller: _animeSamaCtrl,
                 ),
                 const SizedBox(height: 32),
 

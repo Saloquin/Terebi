@@ -33,9 +33,6 @@ abstract final class SettingsKeys {
   /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
   static const String pythonPath = 'python_path';
 
-  /// Chemin du script `anime_sama.py` du projet animesama-cli installé.
-  static const String animeSamaScript = 'anime_sama_script';
-
   /// Clé de la saison anime-sama choisie pour un média AniList donné
   /// (index 1-based). Ex. `anime_sama_season:105333`.
   static String animeSamaSeasonFor(int anilistId) =>
