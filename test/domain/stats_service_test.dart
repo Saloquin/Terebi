@@ -49,6 +49,44 @@ void main() {
       expect(svc.watchedMinutes(media: movie(1, duration: 90), entry: entry(1, status: ListStatus.completed)), 90);
       expect(svc.watchedMinutes(media: movie(1, duration: 90), entry: entry(1, status: ListStatus.planning)), 0);
     });
+    test('série TERMINÉE sans progress incrémenté : compte tous les épisodes', () {
+      // « Terminé » manuel : progress resté à 0, mais 12 épisodes connus.
+      expect(
+        svc.watchedMinutes(
+          media: tv(1, episodes: 12, duration: 24),
+          entry: entry(1, progress: 0, status: ListStatus.completed),
+        ),
+        12 * 24,
+      );
+    });
+    test('série TERMINÉE, total inconnu : retombe sur progress', () {
+      expect(
+        svc.watchedMinutes(
+          media: tv(1, episodes: null, duration: 24),
+          entry: entry(1, progress: 7, status: ListStatus.completed),
+        ),
+        7 * 24,
+      );
+    });
+    test('série TERMINÉE : ne sous-compte jamais (max progress/total)', () {
+      // progress > episodes (données incohérentes) → on garde le plus grand.
+      expect(
+        svc.watchedMinutes(
+          media: tv(1, episodes: 12, duration: 24),
+          entry: entry(1, progress: 20, status: ListStatus.completed),
+        ),
+        20 * 24,
+      );
+    });
+    test('série EN COURS : reste sur progress même avec total connu', () {
+      expect(
+        svc.watchedMinutes(
+          media: tv(1, episodes: 12, duration: 24),
+          entry: entry(1, progress: 3, status: ListStatus.current),
+        ),
+        3 * 24,
+      );
+    });
   });
 
   group('remainingMinutes', () {

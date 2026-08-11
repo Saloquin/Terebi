@@ -29,12 +29,24 @@ class StatsService {
         : kDefaultEpisodeMinutes;
   }
 
-  /// Temps déjà regardé pour une entrée = `progress` épisodes × durée épisode.
+  /// Temps déjà regardé pour une entrée = nombre d'épisodes vus × durée épisode.
+  ///
+  /// Un anime **« Terminé »** compte pour la série ENTIÈRE (`media.episodes`),
+  /// même si `entry.progress` n'a pas été incrémenté épisode par épisode : le
+  /// passage en « Terminé » est souvent manuel (aucun clic dans le lecteur), et
+  /// on ne veut pas qu'un anime terminé compte 0 minute. Si le total d'épisodes
+  /// est inconnu (anime-sama ne le fournit pas toujours), on retombe sur
+  /// `entry.progress`. On prend le `max` des deux pour ne jamais sous-compter.
   int watchedMinutes({required Media media, required ListEntry entry}) {
     if (media.isMovie) {
       return entry.status == ListStatus.completed ? episodeMinutes(media) : 0;
     }
-    return entry.progress * episodeMinutes(media);
+    final completed = entry.status == ListStatus.completed;
+    final total = media.episodes;
+    final episodesWatched = (completed && total != null && total > 0)
+        ? (total > entry.progress ? total : entry.progress)
+        : entry.progress;
+    return episodesWatched * episodeMinutes(media);
   }
 
   /// Temps total estimé pour finir [media] à partir de l'entrée courante.
