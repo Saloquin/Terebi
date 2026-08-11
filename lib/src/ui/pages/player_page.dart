@@ -62,11 +62,17 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  // Accélération matérielle en mode COPIE (voir _configurePlayer : hwdec=
-  // d3d11va-copy). Évite les surfaces vertes produites par le décodage GPU
-  // direct sur les paquets HLS abîmés. La reprise se fait via Media.start (à
-  // l'ouverture), pas par un seek après coup.
-  late final VideoController _videoController = VideoController(_player);
+  // Décodage matériel en mode COPIE via la configuration OFFICIELLE du
+  // VideoController (media_kit l'applique au bon moment sur le backend natif —
+  // un setProperty('hwdec', …) brut en initState entrait en concurrence avec
+  // l'init de media_kit et s'appliquait de façon non déterministe). Le mode
+  // -copy récupère la frame décodée en RAM : mpv peut rejeter proprement une
+  // frame HLS abîmée au lieu d'afficher une surface verte. La reprise se fait
+  // via Media.start (à l'ouverture), pas par un seek après coup.
+  late final VideoController _videoController = VideoController(
+    _player,
+    configuration: const VideoControllerConfiguration(hwdec: 'd3d11va-copy'),
+  );
 
   bool _loading = false;
   bool _ready = false;
@@ -137,7 +143,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     super.initState();
     _currentEpisode = widget.episode;
     _currentEntry = widget.entry;
-    _configurePlayer();
     _subscribePlayerStreams();
     // La lecture ne démarre PAS automatiquement : l'utilisateur clique « Lancer ».
     // On charge tout de même le nom de saison + la liste d'épisodes pour la barre.
@@ -218,38 +223,32 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
   }
 
-  /// Configure mpv pour privilégier la MEILLEURE qualité disponible sur les
-  /// flux HLS (.m3u8 multi-variantes) : par défaut mpv démarre sur une variante
-  /// basse et adapte selon le débit. `hls-bitrate=max` force la variante la plus
-  /// haute dès le départ. Sans effet sur les flux mono-qualité (mp4 Sibnet), où
-  /// la résolution est fixée par le provider.
-  void _configurePlayer() {
+  /// Applique les propriétés mpv sensibles au timing **après** l'ouverture d'un
+  /// média (backend actif). Posées en initState, elles étaient ignorées ou
+  /// écrasées par l'init de media_kit → comportement erratique du seek.
+  ///
+  /// - `hls-bitrate=max` : force la meilleure variante HLS dès le départ.
+  /// - `hr-seek=yes` + `hr-seek-framedrop=no` : seek EXACT sans laisser tomber
+  ///   de frames. Sans seek exact, mpv se cale sur les keyframes et la zone
+  ///   entre deux keyframes devient injoignable (retour arrière qui re-saute
+  ///   toujours au même point).
+  /// - `vd-lavc-show-all=no` : ne pas afficher les frames décodées en erreur.
+  /// - gros back-buffer : recul fiable sans re-télécharger/re-décoder.
+  Future<void> _applyMpvProperties() async {
     final platform = _player.platform;
-    if (platform is NativePlayer) {
-      // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
-      platform.setProperty('hls-bitrate', 'max');
-      // Seek EXACT (hr-seek=yes) : sans lui, mpv ne se cale que sur les
-      // images-clés (keyframes), ce qui rend injoignable la zone entre deux
-      // keyframes — un retour en arrière dans cet intervalle re-saute toujours
-      // au même point (« je ne peux plus revenir »). hr-seek-framedrop=no évite
-      // de laisser tomber des frames pendant le repositionnement (source des
-      // anciens artefacts). Le green screen est traité par hwdec=copy plus bas,
-      // donc on peut se permettre le seek exact.
-      platform.setProperty('hr-seek', 'yes');
-      platform.setProperty('hr-seek-framedrop', 'no');
-      // Gros back-buffer : garde les segments déjà lus pour un recul fiable
-      // (sinon re-téléchargement/re-décodage sujet à corruption).
-      platform.setProperty('demuxer-max-back-bytes', '${256 * 1024 * 1024}');
-      platform.setProperty('demuxer-max-bytes', '${256 * 1024 * 1024}');
-      // Décodage matériel en mode COPIE (green screen fix). Le décodage GPU
-      // direct affiche une surface verte quand un paquet HLS est abîmé
-      // (« Invalid NAL unit », « Reserved bit set »…). Le mode -copy récupère
-      // la frame décodée en RAM : mpv peut alors la rejeter proprement au lieu
-      // d'afficher du vert. Sous Windows : d3d11va-copy.
-      platform.setProperty('hwdec', 'd3d11va-copy');
-      // Ne pas afficher les frames corrompues (celles avec erreur de décodage).
-      platform.setProperty('vd-lavc-show-all', 'no');
+    if (platform is! NativePlayer) return;
+    Future<void> set(String k, String v) async {
+      try {
+        await platform.setProperty(k, v);
+      } catch (_) {/* best-effort */}
     }
+
+    await set('hls-bitrate', 'max');
+    await set('hr-seek', 'yes');
+    await set('hr-seek-framedrop', 'no');
+    await set('vd-lavc-show-all', 'no');
+    await set('demuxer-max-back-bytes', '${256 * 1024 * 1024}');
+    await set('demuxer-max-bytes', '${256 * 1024 * 1024}');
   }
 
   @override
@@ -473,6 +472,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ? Duration(seconds: resumeFrom)
           : null;
       await _player.open(Media(url, start: startAt), play: true);
+
+      // Applique les propriétés mpv (seek exact, buffers…) MAINTENANT que le
+      // backend est actif : posées avant l'open, elles étaient ignorées.
+      await _applyMpvProperties();
 
       // Conserve l'état pause/lecture (switch de langue effectué en pause).
       if (startPaused) {
