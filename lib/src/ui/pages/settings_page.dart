@@ -81,6 +81,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   HealthReport? _report;
   String? _checkError;
 
+  // Installation des dépendances Python
+  bool _installing = false;
+  String? _installResult;
+
   @override
   void initState() {
     super.initState();
@@ -199,6 +203,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Paramètres sauvegardés')),
       );
+    }
+  }
+
+  /// Installe les dépendances Python du résolveur anime-sama via
+  /// `python -m pip install --user requests beautifulsoup4`. Nécessite Python.
+  Future<void> _installPythonDeps() async {
+    final python = _pythonCtrl.text.trim().isEmpty
+        ? 'python'
+        : _pythonCtrl.text.trim();
+    setState(() {
+      _installing = true;
+      _installResult = null;
+    });
+    try {
+      final runner = ref.read(processRunnerProvider);
+      final r = await runner(python, [
+        '-m', 'pip', 'install', '--user', 'requests', 'beautifulsoup4',
+      ]);
+      if (mounted) {
+        setState(() {
+          _installResult = r.ok
+              ? '✓ Dépendances installées (requests, beautifulsoup4).'
+              : '✗ Échec (code ${r.exitCode}). '
+                  '${r.stderr.trim().split('\n').last}';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _installResult = '✗ Impossible de lancer Python ($python) : $e');
+      }
+    } finally {
+      if (mounted) setState(() => _installing = false);
     }
   }
 
@@ -382,11 +418,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 _SectionTitle('Source (anime-sama)'),
                 const SizedBox(height: 8),
                 Text(
-                  'La lecture provient d\'anime-sama (VOSTFR/VF), via Python + le '
-                  'projet animesama-cli. Renseignez les chemins si la détection '
-                  'automatique échoue.',
+                  'La lecture provient d\'anime-sama (VOSTFR/VF), via Python. Le '
+                  'script de résolution est intégré à l\'app : il suffit d\'avoir '
+                  'Python et ses deux dépendances (requests, beautifulsoup4).',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _installing ? null : _installPythonDeps,
+                  icon: _installing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.download_outlined),
+                  label: const Text('Installer les dépendances Python'),
+                ),
+                if (_installResult != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _installResult!,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 _PathField(
                   label: 'Chemin Python (optionnel)',
@@ -395,7 +450,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 ),
                 const SizedBox(height: 12),
                 _PathField(
-                  label: 'Chemin anime_sama.py (si non détecté)',
+                  label: 'Chemin anime_sama.py (avancé — sinon script intégré)',
                   hint: r'…\animesama-cli\anime_sama.py',
                   controller: _animeSamaCtrl,
                 ),

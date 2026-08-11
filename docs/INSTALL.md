@@ -17,9 +17,8 @@ Guide pour cloner **Terebi** et le lancer en natif sur un PC Windows personnel
 | 2 | **Flutter SDK** (inclut Dart) | Framework de l'app | Oui |
 | 3 | **Visual Studio 2022 + « Desktop C++ »** | Compiler pour Windows | **Oui** (lancement Windows) |
 | 4 | **mpv / libmpv** | Moteur du lecteur vidéo (media_kit) | Oui (lecture) |
-| 5 | **Python 3** | Exécute le résolveur anime-sama | Oui (lecture) |
-| 6 | **animesama-cli** (`anime_sama.py`) | Résout l'URL du flux VOSTFR/VF | Oui (lecture) |
-| 7 | **Developer Mode Windows** | Support des symlinks (plugins Flutter) | Oui |
+| 5 | **Python 3 + `requests`/`beautifulsoup4`** | Exécute le résolveur anime-sama (script intégré). Les deps s'installent depuis l'app. | Oui (lecture) |
+| 6 | **Developer Mode Windows** | Support des symlinks (plugins Flutter) | Oui |
 
 ---
 
@@ -79,26 +78,23 @@ media_kit (le lecteur encastré de Terebi) s'appuie sur **libmpv**.
   (media_kit télécharge normalement libmpv automatiquement au build ; garder mpv
   installé permet aussi le fallback lecteur externe).
 
-## 5. Python 3 (résolveur anime-sama)
+## 5. Python 3 + dépendances (résolveur anime-sama)
 
-Terebi résout l'URL du flux **VOSTFR/VF** via un wrapper Python autour du projet
-**animesama-cli**.
+Terebi résout l'URL du flux **VOSTFR/VF** via un script Python **intégré à
+l'app** (extrait automatiquement au lancement). Il suffit d'avoir **Python** et
+ses deux dépendances.
 
-- Télécharger : <https://www.python.org/downloads/> (ou `winget install Python.Python.3.12`).
-- Dépendances Python :
-  ```powershell
-  pip install requests beautifulsoup4
-  ```
-
-## 6. animesama-cli (`anime_sama.py`)
-
-- Dépôt : <https://github.com/Miro-sh/animesama-cli>
-  ```powershell
-  pipx install animesama-cli   # ou : git clone puis noter le chemin de anime_sama.py
-  ```
-- Dans **Terebi → Paramètres → Source (anime-sama)** : renseigne le chemin de
-  `anime_sama.py` s'il n'est pas détecté automatiquement (chemin du dépôt cloné
-  ou de l'install pipx), ainsi que le chemin Python si besoin.
+- Télécharger Python : <https://www.python.org/downloads/> (ou `winget install Python.Python.3.12`).
+- Dépendances (`requests`, `beautifulsoup4`) — deux options :
+  - **Depuis l'app** : Paramètres → *Source (anime-sama)* → bouton
+    **« Installer les dépendances Python »**.
+  - **À la main** :
+    ```powershell
+    pip install requests beautifulsoup4
+    ```
+- Rien d'autre à installer : le script `anime_sama.py` est embarqué dans Terebi
+  (plus besoin de le cloner ni de saisir son chemin). Le champ « chemin
+  anime_sama.py » des Paramètres ne sert qu'à un éventuel override avancé.
 
 > Astuce : **Scoop** (<https://scoop.sh/>) installe proprement mpv et Python.
 > Installation de Scoop :
@@ -107,7 +103,7 @@ Terebi résout l'URL du flux **VOSTFR/VF** via un wrapper Python autour du proje
 > irm get.scoop.sh | iex
 > ```
 
-## 7. Activer le Developer Mode Windows (symlinks)
+## 6. Activer le Developer Mode Windows (symlinks)
 
 Flutter en a besoin pour les plugins. Ouvre :
 ```powershell
@@ -119,7 +115,7 @@ puis active **« Mode développeur »**.
 
 ## Lancer Terebi
 
-Une fois 1→7 installés :
+Une fois 1→6 installés :
 
 ```bash
 # 1. Cloner le dépôt (remplace par l'URL de ton remote)
@@ -155,23 +151,21 @@ flutter build windows   # produit l'exécutable Release
 
 ## Tester le résolveur anime-sama (diagnostic lecture)
 
-Dans Git Bash, pour confirmer que le wrapper résout bien une URL (adapte le
-chemin de `anime_sama.py`) :
-```bash
-python anime_sama.py --help
-```
-Le lecteur de Terebi capture l'URL `.m3u8`/`.mp4` renvoyée par le résolveur pour
-alimenter le lecteur encastré.
+Le script `anime_sama.py` est intégré à l'app (extrait dans le dossier de
+support de Terebi au lancement). En cas de souci, utilise le bouton
+**Paramètres → Vérification système** (« Vérifier ») qui teste Python, la base
+et le réseau. Le lecteur capture l'URL `.m3u8`/`.mp4` renvoyée par le résolveur.
 
 ---
 
 ## Source de lecture (anime-sama, VOSTFR/VF)
 
-Terebi lit en **VOSTFR/VF** via **anime-sama**, en s'appuyant sur le projet
-**animesama-cli** (Python) — voir les étapes 5 et 6 ci-dessus.
+Terebi lit en **VOSTFR/VF** via **anime-sama**. Le script de résolution est
+**intégré** ; il ne reste qu'à avoir Python + ses deux dépendances (étape 5).
 
-- Dans **Terebi → Paramètres → Source (anime-sama)** : renseigne au besoin le
-  chemin de `anime_sama.py` et le chemin Python.
+- Dans **Terebi → Paramètres → Source (anime-sama)** : bouton « Installer les
+  dépendances Python » si besoin. Le chemin Python et le champ `anime_sama.py`
+  ne servent qu'à un override avancé.
 - La langue (VOSTFR/VF) se choisit dans **Paramètres → Lecture** (défaut) et se
   change à la volée depuis le lecteur ; elle est mémorisée par anime.
 

@@ -4,6 +4,8 @@
 /// reste dans domain/ (Dart pur) ; ici on ne fait qu'assembler.
 library;
 
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -132,13 +134,18 @@ final animeSamaResolverProvider =
       ? manualPython
       : defaults.pythonPath;
 
-  final manualScript = await settings.get(SettingsKeys.animeSamaScript);
-  final animeSamaScript = (manualScript != null && manualScript.isNotEmpty)
-      ? manualScript
-      : defaults.animeSamaScriptPath;
-
-  // Wrapper Python extrait des assets vers le disque.
+  // Scripts Python extraits des assets vers le disque (aucune install requise).
   final wrapper = await ensureWrapperScript();
+  final bundledAnimeSama = await ensureAnimeSamaScript();
+
+  // Script anime_sama.py : embarqué par défaut. Un chemin manuel ne prime que
+  // s'il désigne un fichier réel (override avancé, sinon on garde l'embarqué).
+  final manualScript = await settings.get(SettingsKeys.animeSamaScript);
+  final animeSamaScript = (manualScript != null &&
+          manualScript.isNotEmpty &&
+          File(manualScript).existsSync())
+      ? manualScript
+      : bundledAnimeSama;
 
   return AnimeSamaResolver(
     pythonPath: python,

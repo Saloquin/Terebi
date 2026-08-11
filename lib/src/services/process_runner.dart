@@ -1,6 +1,6 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Abstraction d'exécution d'un processus externe (ani-cli, mpv, `which`…),
+/// Abstraction d'exécution d'un processus externe (Python, pip, `which`…),
 /// injectable pour tester la logique sans lancer de vrai binaire.
 library;
 
