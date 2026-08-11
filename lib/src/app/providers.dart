@@ -5,7 +5,6 @@
 library;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/local/database.dart';
@@ -109,11 +108,6 @@ final calendarServiceProvider =
 /// ProcessRunner réel basé sur dart:io (injecté en prod, mocké en test).
 final processRunnerProvider = Provider<ProcessRunner>(
   (ref) => systemProcessRunner,
-);
-
-/// Secure storage pour le token AniList.
-final secureStorageProvider = Provider<FlutterSecureStorage>(
-  (ref) => const FlutterSecureStorage(),
 );
 
 /// Repository paramètres applicatifs (chemins python/mpv, langue…).
@@ -240,17 +234,12 @@ final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {
 /// le service à chaque health-check avec les chemins lus depuis
 /// [settingsRepositoryProvider].
 final healthServiceProvider = Provider<HealthService>((ref) {
-  final storage = ref.watch(secureStorageProvider);
   final db = ref.watch(databaseProvider);
   final httpClient = ref.watch(httpClientProvider);
 
   return HealthService(
     runner: ref.watch(processRunnerProvider),
     mpvPath: 'mpv',
-    hasValidToken: () async {
-      final token = await storage.read(key: 'anilist_token');
-      return token != null && token.isNotEmpty;
-    },
     databaseOk: () async {
       await db.select(db.appSettings).get();
       return true;

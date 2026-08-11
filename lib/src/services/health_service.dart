@@ -1,7 +1,7 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Health-check des dépendances externes : mpv, token AniList, base de données,
-/// réseau. Chaque sonde est injectable pour être testable.
+/// Health-check des dépendances externes : mpv, base de données, réseau.
+/// Chaque sonde est injectable pour être testable.
 library;
 
 import 'process_runner.dart';
@@ -45,9 +45,6 @@ class HealthService {
   final ProcessRunner runner;
   final String mpvPath;
 
-  /// Renvoie `true` si un token AniList valide est présent (injecté).
-  final Future<bool> Function() hasValidToken;
-
   /// Renvoie `true` si la base de données est ouvrable (injecté).
   final Future<bool> Function() databaseOk;
 
@@ -57,7 +54,6 @@ class HealthService {
   const HealthService({
     required this.runner,
     this.mpvPath = 'mpv',
-    required this.hasValidToken,
     required this.databaseOk,
     required this.networkOk,
   });
@@ -119,7 +115,6 @@ class HealthService {
   Future<HealthReport> run() async {
     final checks = await Future.wait([
       _checkBinary('mpv', mpvPath),
-      _checkBool('anilist-token', hasValidToken, 'Token AniList absent ou invalide.'),
       _checkBool('database', databaseOk, 'Base de données inaccessible.'),
       _checkBool('network', networkOk, 'AniList/réseau injoignable.'),
     ]);

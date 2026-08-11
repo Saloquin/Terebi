@@ -6,7 +6,6 @@ library;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:terebi/src/app/providers.dart';
@@ -376,16 +375,12 @@ void main() {
 
     List<Override> settingsOverrides({
       required ProcessRunner runner,
-      FlutterSecureStorage? storage,
     }) {
       return [
         databaseProvider.overrideWithValue(
           TerebiDatabase(NativeDatabase.memory()),
         ),
         processRunnerProvider.overrideWithValue(runner),
-        secureStorageProvider.overrideWithValue(
-          storage ?? const FlutterSecureStorage(),
-        ),
       ];
     }
 
@@ -474,7 +469,6 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Chemin mpv'), findsOneWidget);
-      expect(find.text('Redirect URI OAuth'), findsOneWidget);
     });
   });
 }

@@ -31,9 +31,6 @@ dependencies:
   # Réseau (AniList GraphQL + Jikan REST)
   http: ^1.2.2
 
-  # Stockage sécurisé du token OAuth
-  flutter_secure_storage: ^9.2.2
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

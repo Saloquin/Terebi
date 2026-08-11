@@ -1,8 +1,7 @@
-/// Page Paramètres : chemins ani-cli/mpv, langue, token AniList, health-check.
+/// Page Paramètres : lecture (langue, saut…), chemins mpv/anime-sama, health-check.
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -50,7 +49,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage>
     with SingleTickerProviderStateMixin {
   final _mpvCtrl = TextEditingController();
-  final _tokenCtrl = TextEditingController();
   final _pythonCtrl = TextEditingController();
   final _animeSamaCtrl = TextEditingController();
   bool _isVf = false;
@@ -88,7 +86,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     // Toute frappe dans un champ peut changer l'état « dirty ».
     for (final c in [
       _mpvCtrl,
-      _tokenCtrl,
       _pythonCtrl,
       _animeSamaCtrl,
     ]) {
@@ -100,7 +97,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   void dispose() {
     _flashController.dispose();
     _mpvCtrl.dispose();
-    _tokenCtrl.dispose();
     _pythonCtrl.dispose();
     _animeSamaCtrl.dispose();
     super.dispose();
@@ -111,7 +107,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         'mpv': _mpvCtrl.text.trim(),
         'python': _pythonCtrl.text.trim(),
         'animeSama': _animeSamaCtrl.text.trim(),
-        'token': _tokenCtrl.text.trim(),
         'isVf': '$_isVf',
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
@@ -139,17 +134,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     return true;
   }
 
-  Future<void> _loadToken() async {
-    final storage = ref.read(secureStorageProvider);
-    final token = await storage.read(key: 'anilist_token');
-    if (mounted) {
-      _tokenCtrl.text = token ?? '';
-      // Le token fait partie du snapshot : on le fige une fois chargé.
-      _snapshot = _currentValues();
-      _recomputeDirty();
-    }
-  }
-
   void _initFromSettings(Map<String, String?> settings) {
     if (_initialized) return;
     _initialized = true;
@@ -175,7 +159,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _mpvCtrl.text = _snapshot['mpv'] ?? '';
     _pythonCtrl.text = _snapshot['python'] ?? '';
     _animeSamaCtrl.text = _snapshot['animeSama'] ?? '';
-    _tokenCtrl.text = _snapshot['token'] ?? '';
     setState(() {
       _isVf = _snapshot['isVf'] == 'true';
       _autoPlay = _snapshot['autoPlay'] == 'true';
@@ -199,14 +182,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     await repo.set(SettingsKeys.seekBackwardSeconds, '$_seekBwd');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
     await repo.set(SettingsKeys.animeSamaScript, _animeSamaCtrl.text.trim());
-
-    final token = _tokenCtrl.text.trim();
-    final storage = ref.read(secureStorageProvider);
-    if (token.isEmpty) {
-      await storage.delete(key: 'anilist_token');
-    } else {
-      await storage.write(key: 'anilist_token', value: token);
-    }
 
     // Invalide les resolvers pour qu'ils rechargent chemins/langue.
     ref.invalidate(animeSamaResolverProvider);
@@ -236,7 +211,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     });
 
     try {
-      final storage = ref.read(secureStorageProvider);
       final db = ref.read(databaseProvider);
       final httpClient = ref.read(httpClientProvider);
       final runner = ref.read(processRunnerProvider);
@@ -244,10 +218,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       final service = HealthService(
         runner: runner,
         mpvPath: mpv.isEmpty ? 'mpv' : mpv,
-        hasValidToken: () async {
-          final token = await storage.read(key: 'anilist_token');
-          return token != null && token.isNotEmpty;
-        },
         databaseOk: () async {
           await db.select(db.appSettings).get();
           return true;
@@ -306,8 +276,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       error: (err, _) => Center(child: Text('Erreur : $err')),
       data: (settings) {
         _initFromSettings(settings);
-        // Charge le token la première fois (asynchrone, pas bloquant).
-        WidgetsBinding.instance.addPostFrameCallback((_) => _loadToken());
 
         return Scaffold(
           // La barre d'actions n'apparaît qu'en présence de modifs non sauvées.
@@ -439,25 +407,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   label: 'Chemin anime_sama.py (si non détecté)',
                   hint: r'…\animesama-cli\anime_sama.py',
                   controller: _animeSamaCtrl,
-                ),
-                const SizedBox(height: 24),
-
-                // --- Token AniList ---
-                _SectionTitle('Compte AniList'),
-                const SizedBox(height: 8),
-                _RedirectUriCard(),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _tokenCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Token AniList (Bearer)',
-                    hintText: 'Coller le token ici',
-                    border: OutlineInputBorder(),
-                    helperText:
-                        'Obtenu via le flux OAuth — voir le Redirect URI ci-dessus.',
-                  ),
-                  obscureText: true,
-                  maxLines: 1,
                 ),
                 const SizedBox(height: 32),
 
@@ -603,56 +552,6 @@ class _PathField extends StatelessWidget {
         labelText: label,
         hintText: hint,
         border: const OutlineInputBorder(),
-      ),
-    );
-  }
-}
-
-/// Affiche le Redirect URI OAuth (lecture seule + bouton copier).
-class _RedirectUriCard extends StatelessWidget {
-  static const _uri = 'http://localhost:8080/callback';
-
-  const _RedirectUriCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Redirect URI OAuth',
-                  style: Theme.of(context).textTheme.labelMedium,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _uri,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontFamily: 'monospace',
-                      ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.copy_outlined),
-            tooltip: 'Copier',
-            onPressed: () {
-              Clipboard.setData(const ClipboardData(text: _uri));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('URI copié')),
-              );
-            },
-          ),
-        ],
       ),
     );
   }

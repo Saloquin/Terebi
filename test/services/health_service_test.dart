@@ -13,13 +13,11 @@ void main() {
 
   HealthService service({
     Map<String, ProcessResult> binaries = const {},
-    bool token = true,
     bool db = true,
     bool net = true,
   }) =>
       HealthService(
         runner: runnerWith(binaries),
-        hasValidToken: () async => token,
         databaseOk: () async => db,
         networkOk: () async => net,
       );
@@ -43,18 +41,6 @@ void main() {
     final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
     expect(mpv.state, HealthState.missing);
     expect(mpv.detail, contains('Installation requise'));
-  });
-
-  test('token invalide → problème signalé', () async {
-    final report = await service(
-      binaries: {
-        'mpv': const ProcessResult(exitCode: 0),
-      },
-      token: false,
-    ).run();
-    expect(report.allOk, isFalse);
-    final t = report.checks.firstWhere((c) => c.component == 'anilist-token');
-    expect(t.state, HealthState.error);
   });
 
   test('binaire présent mais code non nul → error', () async {
