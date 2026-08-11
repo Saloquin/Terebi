@@ -26,9 +26,11 @@ import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/progress_repository.dart';
 import '../../domain/models/episode_progress.dart';
 import '../../domain/models/list_entry.dart';
+import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
+import 'library_page.dart';
 import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.
@@ -487,6 +489,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // backend est actif : posées avant l'open, elles étaient ignorées.
       await _applyMpvProperties();
 
+      // Lancer la lecture = « je regarde cet anime » → le passer EN COURS
+      // (et l'ajouter à la bibliothèque s'il n'y était pas). Best-effort.
+      await _ensureWatchingStatus();
+
       // Conserve l'état pause/lecture (switch de langue effectué en pause).
       if (startPaused) {
         try {
@@ -593,6 +599,38 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _currentEntry = outcome.updatedEntry;
   }
 
+  /// Garantit que l'anime est « En cours » dès qu'on lance la lecture (règle :
+  /// regarder = suivre l'anime). Crée l'entrée en base si l'anime n'était dans
+  /// aucune liste. N'écrase JAMAIS un statut « Terminé » (revoir un épisode d'un
+  /// anime fini ne doit pas le rétrograder). Best-effort : n'interrompt jamais
+  /// la lecture en cas d'erreur.
+  Future<void> _ensureWatchingStatus() async {
+    try {
+      final listRepo = ref.read(listRepositoryProvider);
+      final existing = await listRepo.getEntry(widget.media.anilistId);
+      // Déjà En cours → rien à faire. Déjà Terminé → ne pas rétrograder.
+      if (existing != null &&
+          (existing.status == ListStatus.current ||
+              existing.status == ListStatus.completed)) {
+        return;
+      }
+      final base = existing ??
+          ListEntry(
+            mediaId: widget.media.anilistId,
+            status: ListStatus.current,
+            updatedAt: DateTime.now(),
+          );
+      final updated =
+          base.copyWith(status: ListStatus.current, updatedAt: DateTime.now());
+      await listRepo.upsertEntry(updated);
+      _currentEntry = updated;
+      // Rafraîchit bibliothèque + fiche pour refléter le nouveau statut.
+      ref.invalidate(entriesByStatusProvider);
+      ref.invalidate(countByStatusProvider);
+      ref.invalidate(listEntryProvider(widget.media.anilistId));
+    } catch (_) {/* best-effort : ne bloque pas la lecture */}
+  }
+
   /// Recul appliqué à la reprise pour se remettre dans l'action (secondes).
   static const int _resumeRewindSeconds = 10;
 
@@ -680,12 +718,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* best-effort */}
   }
 
-  /// Fin d'épisode atteinte : marque vu, remet la position à 0, et lance
+  /// Fin d'épisode atteinte : marque vu, remet la position à 0, tente de passer
+  /// la série en « Terminé » si toutes les saisons sont vues, et lance
   /// l'auto-play si activé dans les réglages et qu'un épisode suivant existe.
   Future<void> _onEpisodeCompleted() async {
     await _markCurrentWatched();
     _positionSeconds = 0;
     _lastPersistedWhole = -1;
+
+    // Toutes les saisons entièrement vues → l'anime passe « Terminé » tout seul.
+    await _maybeMarkSeriesCompleted();
 
     final autoPlay = await _autoPlayEnabled();
     final next = _nextEpisode;
@@ -694,6 +736,61 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       return;
     }
     _startAutoPlayCountdown(next);
+  }
+
+  /// Passe l'anime en « Terminé » si TOUTES les saisons anime-sama ont leur
+  /// dernier épisode vu (vérification complète, pas seulement la saison
+  /// courante). S'appuie sur les données anime-sama (fiables) plutôt que sur
+  /// `media.episodes` (Jikan), null pour les longues séries comme One Piece.
+  /// Remplit aussi `entry.progress` avec le total réel d'épisodes. Best-effort.
+  Future<void> _maybeMarkSeriesCompleted() async {
+    try {
+      final listRepo = ref.read(listRepositoryProvider);
+      final existing = await listRepo.getEntry(widget.media.anilistId);
+      if (existing != null && existing.status == ListStatus.completed) return;
+
+      final title = widget.animeSamaTitle ?? widget.media.title.preferred;
+      final seasons = await ref.read(animeSamaSeasonsProvider(title).future);
+      if (seasons.isEmpty) return;
+
+      final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+      var totalEpisodes = 0;
+      for (final s in seasons) {
+        final eps = await ref.read(animeSamaEpisodesProvider(
+          (title: title, seasonIndex: s.index),
+        ).future);
+        if (eps.isEmpty) return; // saison sans épisodes listés → on n'affirme rien.
+        totalEpisodes += eps.length;
+        final watched =
+            await seasonProgress.lastWatched(widget.media.anilistId, s.index);
+        final done = watched >= SeasonProgressRepository.fullyWatchedSentinel ||
+            watched >= eps.last;
+        if (!done) return; // au moins une saison non finie → pas « Terminé ».
+      }
+
+      // Toutes les saisons sont vues → Terminé + progress = total réel.
+      final base = existing ??
+          ListEntry(
+            mediaId: widget.media.anilistId,
+            status: ListStatus.completed,
+            updatedAt: DateTime.now(),
+          );
+      final newProgress =
+          totalEpisodes > base.progress ? totalEpisodes : base.progress;
+      await listRepo.upsertEntry(base.copyWith(
+        status: ListStatus.completed,
+        progress: newProgress,
+        updatedAt: DateTime.now(),
+      ));
+      ref.invalidate(entriesByStatusProvider);
+      ref.invalidate(countByStatusProvider);
+      ref.invalidate(listEntryProvider(widget.media.anilistId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Anime terminé ! 🎉')),
+        );
+      }
+    } catch (_) {/* best-effort : ne bloque pas la lecture */}
   }
 
   Future<bool> _autoPlayEnabled() async {
@@ -765,8 +862,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Valide la fin de saison : marque le dernier épisode vu (compteur = total).
+  /// Si c'était la dernière saison non finie, l'anime passe « Terminé » tout
+  /// seul (cf. _maybeMarkSeriesCompleted).
   Future<void> _finishSeason() async {
     await _markCurrentWatched();
+    await _maybeMarkSeriesCompleted();
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Saison terminée ! 🎉')),
