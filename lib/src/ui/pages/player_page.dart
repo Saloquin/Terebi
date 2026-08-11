@@ -228,11 +228,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (platform is NativePlayer) {
       // Best-effort : on n'attend pas, et on ignore une éventuelle erreur.
       platform.setProperty('hls-bitrate', 'max');
-      // Seek par keyframe (défaut mpv, PLUS ROBUSTE). On NE force plus
-      // hr-seek=yes : le seek exact pouvait « brûler » un segment HLS limite
-      // dans le cache de la session (green screen + saut ~10s, zone injoignable
-      // jusqu'à réouverture). La reprise se fait via Media.start, pas par un
-      // seek après ouverture, donc l'exactitude n'est pas requise.
+      // Seek EXACT (hr-seek=yes) : sans lui, mpv ne se cale que sur les
+      // images-clés (keyframes), ce qui rend injoignable la zone entre deux
+      // keyframes — un retour en arrière dans cet intervalle re-saute toujours
+      // au même point (« je ne peux plus revenir »). hr-seek-framedrop=no évite
+      // de laisser tomber des frames pendant le repositionnement (source des
+      // anciens artefacts). Le green screen est traité par hwdec=copy plus bas,
+      // donc on peut se permettre le seek exact.
+      platform.setProperty('hr-seek', 'yes');
+      platform.setProperty('hr-seek-framedrop', 'no');
       // Gros back-buffer : garde les segments déjà lus pour un recul fiable
       // (sinon re-téléchargement/re-décodage sujet à corruption).
       platform.setProperty('demuxer-max-back-bytes', '${256 * 1024 * 1024}');
