@@ -239,7 +239,7 @@ final healthServiceProvider = Provider<HealthService>((ref) {
 
   return HealthService(
     runner: ref.watch(processRunnerProvider),
-    mpvPath: 'mpv',
+    pythonPath: 'python',
     databaseOk: () async {
       await db.select(db.appSettings).get();
       return true;

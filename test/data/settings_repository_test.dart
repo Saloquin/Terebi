@@ -30,31 +30,31 @@ void main() {
     });
 
     test('set puis get retourne la valeur persistée', () async {
-      await repo.set(SettingsKeys.mpvPath, '/usr/local/bin/mpv');
-      final v = await repo.get(SettingsKeys.mpvPath);
-      expect(v, equals('/usr/local/bin/mpv'));
+      await repo.set(SettingsKeys.pythonPath, '/usr/local/bin/python');
+      final v = await repo.get(SettingsKeys.pythonPath);
+      expect(v, equals('/usr/local/bin/python'));
     });
 
     test('set écrase la valeur existante (upsert)', () async {
-      await repo.set(SettingsKeys.mpvPath, 'mpv');
-      await repo.set(SettingsKeys.mpvPath, '/custom/mpv');
-      final v = await repo.get(SettingsKeys.mpvPath);
-      expect(v, equals('/custom/mpv'));
+      await repo.set(SettingsKeys.pythonPath, 'python');
+      await repo.set(SettingsKeys.pythonPath, '/custom/python');
+      final v = await repo.get(SettingsKeys.pythonPath);
+      expect(v, equals('/custom/python'));
     });
 
     test('delete supprime la clé (get retourne null après)', () async {
-      await repo.set(SettingsKeys.mpvPath, 'mpv');
-      await repo.delete(SettingsKeys.mpvPath);
-      final v = await repo.get(SettingsKeys.mpvPath);
+      await repo.set(SettingsKeys.pythonPath, 'python');
+      await repo.delete(SettingsKeys.pythonPath);
+      final v = await repo.get(SettingsKeys.pythonPath);
       expect(v, isNull);
     });
 
     test('plusieurs clés coexistent sans interférence', () async {
       await repo.set(SettingsKeys.playbackLanguage, 'vf');
-      await repo.set(SettingsKeys.mpvPath, 'mpv');
+      await repo.set(SettingsKeys.pythonPath, 'python');
 
       expect(await repo.get(SettingsKeys.playbackLanguage), equals('vf'));
-      expect(await repo.get(SettingsKeys.mpvPath), equals('mpv'));
+      expect(await repo.get(SettingsKeys.pythonPath), equals('python'));
     });
   });
 }

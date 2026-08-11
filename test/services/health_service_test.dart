@@ -25,38 +25,38 @@ void main() {
   test('tout OK → allOk, aucun problème', () async {
     final report = await service(
       binaries: {
-        'mpv': const ProcessResult(exitCode: 0, stdout: 'mpv 0.38'),
+        'python': const ProcessResult(exitCode: 0, stdout: 'Python 3.12'),
       },
     ).run();
 
     expect(report.allOk, isTrue);
     expect(report.problems, isEmpty);
-    final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
-    expect(mpv.detail, 'mpv 0.38');
+    final python = report.checks.firstWhere((c) => c.component == 'python');
+    expect(python.detail, 'Python 3.12');
   });
 
-  test('mpv absent → missing', () async {
+  test('python absent → missing', () async {
     final report = await service(binaries: const {}).run();
     expect(report.allOk, isFalse);
-    final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
-    expect(mpv.state, HealthState.missing);
-    expect(mpv.detail, contains('Installation requise'));
+    final python = report.checks.firstWhere((c) => c.component == 'python');
+    expect(python.state, HealthState.missing);
+    expect(python.detail, contains('Installation requise'));
   });
 
   test('binaire présent mais code non nul → error', () async {
     final report = await service(
       binaries: {
-        'mpv': const ProcessResult(exitCode: 2, stderr: 'bad'),
+        'python': const ProcessResult(exitCode: 2, stderr: 'bad'),
       },
     ).run();
-    final mpv = report.checks.firstWhere((c) => c.component == 'mpv');
-    expect(mpv.state, HealthState.error);
+    final python = report.checks.firstWhere((c) => c.component == 'python');
+    expect(python.state, HealthState.error);
   });
 
   test('DB et réseau KO remontent dans problems', () async {
     final report = await service(
       binaries: {
-        'mpv': const ProcessResult(exitCode: 0),
+        'python': const ProcessResult(exitCode: 0),
       },
       db: false,
       net: false,

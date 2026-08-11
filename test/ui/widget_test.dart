@@ -427,7 +427,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('mpv'), findsAtLeastNWidgets(1));
+      expect(find.text('python'), findsAtLeastNWidgets(1));
     });
 
     testWidgets(
@@ -454,10 +454,10 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('mpv'), findsAtLeastNWidgets(1));
+      expect(find.text('python'), findsAtLeastNWidgets(1));
     });
 
-    testWidgets('affiche le champ de chemin mpv', (tester) async {
+    testWidgets('affiche le champ de chemin Python', (tester) async {
       final runner =
           makeRunner(const ProcessResult(exitCode: 0, stdout: 'v1'));
 
@@ -469,7 +469,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text('Chemin mpv'), findsOneWidget);
+      expect(find.text('Chemin Python (optionnel)'), findsOneWidget);
     });
   });
 }

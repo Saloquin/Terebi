@@ -8,7 +8,6 @@ import '../local/database.dart';
 
 /// Clés standard utilisées par l'application.
 abstract final class SettingsKeys {
-  static const String mpvPath = 'mpv_path';
   static const String playbackLanguage = 'playback_language';
 
   /// Enchaînement automatique de l'épisode suivant en fin de lecture

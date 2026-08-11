@@ -1,4 +1,4 @@
-/// Page Paramètres : lecture (langue, saut…), chemins mpv/anime-sama, health-check.
+/// Page Paramètres : lecture (langue, saut…), chemins anime-sama, health-check.
 library;
 
 import 'package:flutter/material.dart';
@@ -16,8 +16,6 @@ import '../../services/health_service.dart';
 final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
   final repo = ref.watch(settingsRepositoryProvider);
   return {
-    SettingsKeys.mpvPath:
-        await repo.get(SettingsKeys.mpvPath, defaultValue: 'mpv'),
     SettingsKeys.playbackLanguage: await repo.get(
       SettingsKeys.playbackLanguage,
       defaultValue: 'vostfr',
@@ -48,7 +46,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage>
     with SingleTickerProviderStateMixin {
-  final _mpvCtrl = TextEditingController();
   final _pythonCtrl = TextEditingController();
   final _animeSamaCtrl = TextEditingController();
   bool _isVf = false;
@@ -93,7 +90,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     );
     // Toute frappe dans un champ peut changer l'état « dirty ».
     for (final c in [
-      _mpvCtrl,
       _pythonCtrl,
       _animeSamaCtrl,
     ]) {
@@ -104,7 +100,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   @override
   void dispose() {
     _flashController.dispose();
-    _mpvCtrl.dispose();
     _pythonCtrl.dispose();
     _animeSamaCtrl.dispose();
     super.dispose();
@@ -112,7 +107,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   /// Valeurs courantes des champs (pour comparaison au snapshot).
   Map<String, String> _currentValues() => {
-        'mpv': _mpvCtrl.text.trim(),
         'python': _pythonCtrl.text.trim(),
         'animeSama': _animeSamaCtrl.text.trim(),
         'isVf': '$_isVf',
@@ -146,7 +140,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   void _initFromSettings(Map<String, String?> settings) {
     if (_initialized) return;
     _initialized = true;
-    _mpvCtrl.text = settings[SettingsKeys.mpvPath] ?? 'mpv';
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
@@ -166,7 +159,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   /// Réinitialise les champs aux dernières valeurs sauvegardées (bouton Annuler).
   void _resetToSnapshot() {
-    _mpvCtrl.text = _snapshot['mpv'] ?? '';
     _pythonCtrl.text = _snapshot['python'] ?? '';
     _animeSamaCtrl.text = _snapshot['animeSama'] ?? '';
     setState(() {
@@ -181,7 +173,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   Future<void> _save() async {
     final repo = ref.read(settingsRepositoryProvider);
-    await repo.set(SettingsKeys.mpvPath, _mpvCtrl.text.trim());
     await repo.set(
       SettingsKeys.playbackLanguage,
       _isVf ? 'vf' : 'vostfr',
@@ -212,7 +203,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   }
 
   Future<void> _runHealthCheck() async {
-    final mpv = _mpvCtrl.text.trim();
+    final python = _pythonCtrl.text.trim();
 
     setState(() {
       _checking = true;
@@ -227,7 +218,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
       final service = HealthService(
         runner: runner,
-        mpvPath: mpv.isEmpty ? 'mpv' : mpv,
+        pythonPath: python.isEmpty ? 'python' : python,
         databaseOk: () async {
           await db.select(db.appSettings).get();
           return true;
@@ -384,16 +375,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 24),
-
-                // --- Lecteur vidéo (mpv) ---
-                _SectionTitle('Lecteur vidéo'),
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin mpv',
-                  hint: 'mpv',
-                  controller: _mpvCtrl,
                 ),
                 const SizedBox(height: 24),
 

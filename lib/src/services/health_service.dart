@@ -1,7 +1,7 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Health-check des dépendances externes : mpv, base de données, réseau.
-/// Chaque sonde est injectable pour être testable.
+/// Health-check des dépendances externes : Python (résolveur anime-sama),
+/// base de données, réseau. Chaque sonde est injectable pour être testable.
 library;
 
 import 'process_runner.dart';
@@ -43,7 +43,9 @@ class HealthReport {
 /// Effectue les sondes de santé. Toutes les dépendances externes sont injectées.
 class HealthService {
   final ProcessRunner runner;
-  final String mpvPath;
+
+  /// Exécutable Python utilisé par le résolveur anime-sama.
+  final String pythonPath;
 
   /// Renvoie `true` si la base de données est ouvrable (injecté).
   final Future<bool> Function() databaseOk;
@@ -53,7 +55,7 @@ class HealthService {
 
   const HealthService({
     required this.runner,
-    this.mpvPath = 'mpv',
+    this.pythonPath = 'python',
     required this.databaseOk,
     required this.networkOk,
   });
@@ -114,7 +116,7 @@ class HealthService {
   /// Lance toutes les sondes et agrège le rapport.
   Future<HealthReport> run() async {
     final checks = await Future.wait([
-      _checkBinary('mpv', mpvPath),
+      _checkBinary('python', pythonPath),
       _checkBool('database', databaseOk, 'Base de données inaccessible.'),
       _checkBool('network', networkOk, 'AniList/réseau injoignable.'),
     ]);
