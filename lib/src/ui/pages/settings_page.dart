@@ -67,12 +67,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   Map<String, String> _snapshot = const {};
   bool _dirty = false;
 
+  /// `true` une fois le snapshot initial pris. Avant, on ignore les
+  /// recalculs « dirty » (les listeners de controllers se déclenchent au
+  /// remplissage initial des champs → faux positifs).
+  bool _snapshotReady = false;
+
   /// Contrôleur d'animation pour faire clignoter la barre en rouge quand on
-  /// tente de quitter avec des modifs non sauvées.
-  late final AnimationController _flashController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 250),
-  );
+  /// tente de quitter avec des modifs non sauvées. Initialisé dans initState
+  /// (pas en `late final` paresseux : sinon il serait créé lors du dispose si
+  /// la barre n'a jamais été affichée → crash « deactivated widget »).
+  late final AnimationController _flashController;
   int _lastFlashSeen = 0;
 
   // Health-check state
@@ -83,6 +87,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   @override
   void initState() {
     super.initState();
+    _flashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
     // Toute frappe dans un champ peut changer l'état « dirty ».
     for (final c in [
       _mpvCtrl,
@@ -116,6 +124,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   /// Recalcule l'état « dirty » et le publie pour l'AppShell.
   void _recomputeDirty() {
+    if (!_snapshotReady) return; // snapshot initial pas encore pris
     final dirty = !_mapEquals(_currentValues(), _snapshot);
     if (dirty != _dirty) {
       setState(() => _dirty = dirty);
@@ -146,6 +155,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _seekFwd = _normalizeSeek(settings[SettingsKeys.seekForwardSeconds]);
     _seekBwd = _normalizeSeek(settings[SettingsKeys.seekBackwardSeconds]);
     _snapshot = _currentValues();
+    _snapshotReady = true;
   }
 
   /// Convertit une valeur stockée en un des choix proposés (défaut 10).

@@ -387,7 +387,7 @@ void main() {
     testWidgets('affiche le titre Paramètres et le bouton Vérifier',
         (tester) async {
       final runner = makeRunner(
-        const ProcessResult(exitCode: 0, stdout: 'ani-cli 9.0'),
+        const ProcessResult(exitCode: 0, stdout: 'mpv 0.38'),
       );
 
       await tester.pumpWidget(ProviderScope(
@@ -400,7 +400,8 @@ void main() {
 
       expect(find.text('Paramètres'), findsAtLeastNWidgets(1));
       expect(find.text('Vérifier'), findsOneWidget);
-      expect(find.text('Sauvegarder'), findsOneWidget);
+      // Pas de modif au chargement → la barre « Sauvegarder » n'apparaît pas.
+      expect(find.text('Sauvegarder'), findsNothing);
     });
 
     testWidgets(
