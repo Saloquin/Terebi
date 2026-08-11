@@ -16,6 +16,10 @@ import '../../services/health_service.dart';
 final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
   final repo = ref.watch(settingsRepositoryProvider);
   return {
+    SettingsKeys.themeMode:
+        await repo.get(SettingsKeys.themeMode, defaultValue: 'dark'),
+    SettingsKeys.splashEnabled:
+        await repo.get(SettingsKeys.splashEnabled, defaultValue: '1'),
     SettingsKeys.playbackLanguage: await repo.get(
       SettingsKeys.playbackLanguage,
       defaultValue: 'vostfr',
@@ -47,6 +51,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     with SingleTickerProviderStateMixin {
   final _pythonCtrl = TextEditingController();
   bool _isVf = false;
+  ThemeMode _themeMode = ThemeMode.dark;
+  bool _splash = true; // écran de démarrage animé
   bool _autoPlay = false; // enchaînement auto de l'épisode suivant
   bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
   int _seekFwd = 10; // saut avant (→), secondes
@@ -108,6 +114,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   /// Valeurs courantes des champs (pour comparaison au snapshot).
   Map<String, String> _currentValues() => {
         'python': _pythonCtrl.text.trim(),
+        'themeMode': themeModeToString(_themeMode),
+        'splash': '$_splash',
         'isVf': '$_isVf',
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
@@ -139,6 +147,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   void _initFromSettings(Map<String, String?> settings) {
     if (_initialized) return;
     _initialized = true;
+    _themeMode = themeModeFromString(settings[SettingsKeys.themeMode]);
+    _splash = (settings[SettingsKeys.splashEnabled] ?? '1') == '1';
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
@@ -159,6 +169,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   void _resetToSnapshot() {
     _pythonCtrl.text = _snapshot['python'] ?? '';
     setState(() {
+      _themeMode = themeModeFromString(_snapshot['themeMode']);
+      _splash = _snapshot['splash'] == 'true';
       _isVf = _snapshot['isVf'] == 'true';
       _autoPlay = _snapshot['autoPlay'] == 'true';
       _singleLang = _snapshot['singleLang'] == 'true';
@@ -170,6 +182,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   Future<void> _save() async {
     final repo = ref.read(settingsRepositoryProvider);
+    // Apparence : persiste + applique le thème immédiatement.
+    await repo.set(SettingsKeys.themeMode, themeModeToString(_themeMode));
+    await repo.set(SettingsKeys.splashEnabled, _splash ? '1' : '0');
+    ref.read(themeModeProvider.notifier).state = _themeMode;
     await repo.set(
       SettingsKeys.playbackLanguage,
       _isVf ? 'vf' : 'vostfr',
@@ -316,6 +332,43 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
               children: [
                 Text('Paramètres',
                     style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 24),
+
+                // --- Apparence ---
+                _SectionTitle('Apparence'),
+                const SizedBox(height: 8),
+                SegmentedButton<ThemeMode>(
+                  segments: const [
+                    ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode_outlined),
+                        label: Text('Sombre')),
+                    ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode_outlined),
+                        label: Text('Clair')),
+                    ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto_outlined),
+                        label: Text('Système')),
+                  ],
+                  selected: {_themeMode},
+                  onSelectionChanged: (s) {
+                    setState(() => _themeMode = s.first);
+                    _recomputeDirty();
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Écran de démarrage animé'),
+                  subtitle: const Text(
+                      'Joue une courte animation au lancement de l\'app.'),
+                  value: _splash,
+                  onChanged: (v) {
+                    setState(() => _splash = v);
+                    _recomputeDirty();
+                  },
+                ),
                 const SizedBox(height: 24),
 
                 // --- Lecture ---

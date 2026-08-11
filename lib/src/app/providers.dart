@@ -4,6 +4,7 @@
 /// reste dans domain/ (Dart pur) ; ici on ne fait qu'assembler.
 library;
 
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -265,3 +266,23 @@ final settingsDirtyProvider = StateProvider<bool>((ref) => false);
 /// page Paramètres avec des modifs non sauvées : déclenche le clignotement
 /// rouge de la barre d'actions en bas de page.
 final settingsFlashProvider = StateProvider<int>((ref) => 0);
+
+// --- Apparence -------------------------------------------------------------
+
+/// Convertit la valeur stockée ('dark'|'light'|'system') en [ThemeMode].
+ThemeMode themeModeFromString(String? value) => switch (value) {
+      'light' => ThemeMode.light,
+      'system' => ThemeMode.system,
+      _ => ThemeMode.dark, // défaut
+    };
+
+String themeModeToString(ThemeMode mode) => switch (mode) {
+      ThemeMode.light => 'light',
+      ThemeMode.system => 'system',
+      ThemeMode.dark => 'dark',
+    };
+
+/// Mode de thème actif. Initialisé au démarrage via override (valeur lue en
+/// base dans `main`), puis mis à jour par la page Paramètres.
+final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
+

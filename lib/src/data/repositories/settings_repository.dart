@@ -10,6 +10,12 @@ import '../local/database.dart';
 abstract final class SettingsKeys {
   static const String playbackLanguage = 'playback_language';
 
+  /// Thème de l'app : 'dark' (défaut) | 'light' | 'system'.
+  static const String themeMode = 'theme_mode';
+
+  /// Écran de démarrage animé (loading.mp4) : '1' (défaut) = activé.
+  static const String splashEnabled = 'splash_enabled';
+
   /// Enchaînement automatique de l'épisode suivant en fin de lecture
   /// ('1' = activé, autre/absent = désactivé). Désactivé par défaut.
   static const String autoPlayNext = 'auto_play_next';

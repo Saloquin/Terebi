@@ -64,9 +64,15 @@ class _AppShellState extends ConsumerState<AppShell> {
             selectedIndex: _index,
             onDestinationSelected: _onSelect,
             labelType: NavigationRailLabelType.all,
-            leading: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Text('テレビ', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            leading: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              child: Image.asset(
+                Theme.of(context).brightness == Brightness.dark
+                    ? 'assets/branding/logo_sombre.png'
+                    : 'assets/branding/logo_clair.png',
+                height: 48,
+                fit: BoxFit.contain,
+              ),
             ),
             destinations: [
               for (final d in _destinations)

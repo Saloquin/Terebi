@@ -1,26 +1,39 @@
-/// Thème de Terebi : palette sombre par défaut (app de visionnage), accent violet.
+/// Thème de Terebi — palette dérivée du logo (poste TV en bois + renard roux) :
+/// brun bois en couleur de base, orange renard en accent.
 library;
 
 import 'package:flutter/material.dart';
 
-/// Couleur d'accent de Terebi.
-const _seed = Color(0xFF7C4DFF);
+/// Brun bois (couleur du poste TV et du texte « テレビ ») — couleur de base.
+const _seedBrown = Color(0xFF9C5A34);
 
-/// Thème sombre (défaut).
+/// Orange renard — couleur d'accent (actions, sélection, progression).
+const _foxOrange = Color(0xFFE8743B);
+
+ColorScheme _scheme(Brightness brightness) {
+  final base = ColorScheme.fromSeed(
+    seedColor: _seedBrown,
+    brightness: brightness,
+  );
+  // Accent orange renard sur les éléments d'action.
+  return base.copyWith(
+    secondary: _foxOrange,
+    tertiary: _foxOrange,
+  );
+}
+
+/// Thème sombre (défaut) — utilisé avec les logos sombres.
 ThemeData terebiDarkTheme() => ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: _seed,
-        brightness: Brightness.dark,
-      ),
+      colorScheme: _scheme(Brightness.dark),
       visualDensity: VisualDensity.comfortable,
     );
 
-/// Thème clair.
+/// Thème clair — utilisé avec les logos clairs.
 ThemeData terebiLightTheme() => ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorScheme: ColorScheme.fromSeed(seedColor: _seed),
+      colorScheme: _scheme(Brightness.light),
       visualDensity: VisualDensity.comfortable,
     );
