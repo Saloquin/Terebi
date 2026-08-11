@@ -844,7 +844,10 @@ def get_seasons(html_content):
     if not matches:
         return []
     for name, path in matches:
-        if "film" not in name.lower() and name.lower() != "nom":
+        # On inclut les films (label "Film" via _format_saison_label) au même
+        # titre que les saisons/OAV : Terebi les affiche comme des "saisons"
+        # sélectionnables. Seul l'artefact de template "nom" est exclu.
+        if name.lower() != "nom":
             seasons.append({
                 'name': name,
                 'url': path
