@@ -68,8 +68,8 @@ class _AppShellState extends ConsumerState<AppShell> {
               padding: const EdgeInsets.symmetric(vertical: 12),
               child: Image.asset(
                 Theme.of(context).brightness == Brightness.dark
-                    ? 'assets/branding/logo_sombre.png'
-                    : 'assets/branding/logo_clair.png',
+                    ? 'assets/branding/logo_sombre_texte.png'
+                    : 'assets/branding/logo_clair_texte.png',
                 height: 48,
                 fit: BoxFit.contain,
               ),
