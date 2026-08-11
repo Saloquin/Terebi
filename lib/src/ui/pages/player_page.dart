@@ -62,10 +62,10 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  // Accélération matérielle (défaut) : le décodage matériel évite les artefacts
-  // verts et les zones « corrompues » où le seek échouait, produits par le
-  // décodage logiciel sur les flux HLS. La reprise se fait via Media.start (à
-  // l'ouverture), donc plus besoin de forcer le logiciel pour l'image.
+  // Accélération matérielle en mode COPIE (voir _configurePlayer : hwdec=
+  // d3d11va-copy). Évite les surfaces vertes produites par le décodage GPU
+  // direct sur les paquets HLS abîmés. La reprise se fait via Media.start (à
+  // l'ouverture), pas par un seek après coup.
   late final VideoController _videoController = VideoController(_player);
 
   bool _loading = false;
@@ -85,8 +85,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Index de saison anime-sama courant (résolu au 1er `_prepareMeta`).
   int _seasonIndex = 1;
 
-  /// Clé du bouton « réglages » de la barre du player (ancrage du menu).
+  /// Clés du bouton « réglages » de la barre du player (ancrage du menu).
+  /// DEUX clés distinctes : la barre normale et la barre plein écran sont
+  /// montées SIMULTANÉMENT par media_kit ; partager une seule GlobalKey entre
+  /// les deux lève « Multiple widgets used the same GlobalKey » (ce qui
+  /// corrompt l'arbre et laisse le lecteur tourner en fantôme au dispose).
   final GlobalKey _settingsButtonKey = GlobalKey();
+  final GlobalKey _settingsButtonKeyFs = GlobalKey();
 
   /// `true` une fois l'épisode initial calculé (dernier vu + 1), pour ne le
   /// faire qu'une seule fois (à l'arrivée).
@@ -232,6 +237,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // (sinon re-téléchargement/re-décodage sujet à corruption).
       platform.setProperty('demuxer-max-back-bytes', '${256 * 1024 * 1024}');
       platform.setProperty('demuxer-max-bytes', '${256 * 1024 * 1024}');
+      // Décodage matériel en mode COPIE (green screen fix). Le décodage GPU
+      // direct affiche une surface verte quand un paquet HLS est abîmé
+      // (« Invalid NAL unit », « Reserved bit set »…). Le mode -copy récupère
+      // la frame décodée en RAM : mpv peut alors la rejeter proprement au lieu
+      // d'afficher du vert. Sous Windows : d3d11va-copy.
+      platform.setProperty('hwdec', 'd3d11va-copy');
+      // Ne pas afficher les frames corrompues (celles avec erreur de décodage).
+      platform.setProperty('vd-lavc-show-all', 'no');
     }
   }
 
@@ -782,14 +795,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// ouvre le menu langue + vitesse. On utilise MaterialDesktopCustomButton
   /// (les PopupMenuButton bruts ne reçoivent pas les taps dans cette barre).
   Widget _buildVideo() {
-    final topBar = <Widget>[
-      const Spacer(),
-      MaterialDesktopCustomButton(
-        key: _settingsButtonKey,
-        icon: const Icon(Icons.tune),
-        onPressed: _showSettingsMenuFromButton,
-      ),
-    ];
+    // Barre haute : un bouton « réglages ». On construit une instance DISTINCTE
+    // (clé distincte) pour la barre normale et pour la barre plein écran, car
+    // media_kit monte les deux en même temps — partager le widget/la clé lève
+    // « Multiple widgets used the same GlobalKey ».
+    List<Widget> topBar(GlobalKey key) => <Widget>[
+          const Spacer(),
+          MaterialDesktopCustomButton(
+            key: key,
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showSettingsMenuFromButton(key),
+          ),
+        ];
 
     // Raccourcis clavier : reprend les défauts media_kit mais avec les durées
     // de saut avant/arrière configurées dans les Paramètres.
@@ -811,11 +828,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // Utiliser la mauvaise variante rend les boutons custom invisibles.
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
-        topButtonBar: topBar,
+        topButtonBar: topBar(_settingsButtonKey),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
-        topButtonBar: topBar,
+        topButtonBar: topBar(_settingsButtonKeyFs),
         keyboardShortcuts: shortcuts,
       ),
       child: Video(controller: _videoController),
@@ -844,8 +861,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Ouvre le menu réglages ancré sous le bouton « tune » de la barre du player.
-  Future<void> _showSettingsMenuFromButton() async {
-    final ctx = _settingsButtonKey.currentContext;
+  /// [key] désigne le bouton effectivement monté (barre normale ou plein écran).
+  Future<void> _showSettingsMenuFromButton(GlobalKey key) async {
+    final ctx = key.currentContext;
     if (ctx == null) return;
     final box = ctx.findRenderObject() as RenderBox;
     // Ancre le menu juste sous le bouton.
