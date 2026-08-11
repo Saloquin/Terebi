@@ -534,18 +534,32 @@ class _StatusDropdown extends ConsumerWidget {
   /// resolver sont lus AVANT tout `await` réseau ; le marquage des saisons
   /// persiste donc en base même si l'utilisateur quitte la page pendant l'appel.
   /// Best-effort : ignore les erreurs réseau.
-  Future<void> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
+  /// Marque toutes les saisons anime-sama comme entièrement vues et retourne le
+  /// nombre TOTAL d'épisodes (somme des saisons). Ce total sert à remplir
+  /// `entry.progress` pour un anime « Terminé » (sinon le temps de visionnage et
+  /// le label restent faux — progress resté à 0). Retourne 0 si anime-sama ne
+  /// connaît pas le titre (on ne touche alors pas progress).
+  Future<int> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final title = media.animeSamaTitle ?? media.title.preferred;
     // Passe par le provider global (cache partagé) : si la fiche a déjà chargé
     // les saisons, aucun nouvel appel réseau.
     final seasonsFuture = ref.read(animeSamaSeasonsProvider(title).future);
+    var total = 0;
     try {
       final seasons = await seasonsFuture;
       for (final s in seasons) {
         await seasonProgress.markSeasonFullyWatched(media.anilistId, s.index);
+        // Compte les épisodes réels de la saison (cache partagé).
+        try {
+          final eps = await ref.read(animeSamaEpisodesProvider(
+            (title: title, seasonIndex: s.index),
+          ).future);
+          total += eps.length;
+        } catch (_) {/* saison non comptée : total partiel, best-effort */}
       }
     } catch (_) {/* best-effort */}
+    return total;
   }
 
   @override
@@ -600,7 +614,16 @@ class _StatusDropdown extends ConsumerWidget {
           // Notifier capturé avant l'await (survit au démontage du widget).
           final refreshNotifier =
               ref.read(seasonProgressRefreshProvider.notifier);
-          await _markAllSeasonsWatched(ref, media);
+          final total = await _markAllSeasonsWatched(ref, media);
+          // Remplit entry.progress avec le nombre RÉEL d'épisodes (somme des
+          // saisons anime-sama), sinon le temps de visionnage et le label
+          // restent faux (progress était resté à 0 sur un « Terminé » manuel).
+          // On n'écrase pas un progress déjà plus grand (au cas où).
+          if (total > 0 && total > updated.progress) {
+            await repo.upsertEntry(updated.copyWith(progress: total));
+            ref.invalidate(listEntryProvider(media.anilistId));
+            ref.invalidate(entriesByStatusProvider);
+          }
           // Force les tuiles de saison à recharger leur progression. Protégé :
           // sans effet si le container a été disposé (page quittée).
           try {

@@ -31,12 +31,12 @@ class StatsService {
 
   /// Temps déjà regardé pour une entrée = nombre d'épisodes vus × durée épisode.
   ///
-  /// Un anime **« Terminé »** compte pour la série ENTIÈRE (`media.episodes`),
-  /// même si `entry.progress` n'a pas été incrémenté épisode par épisode : le
-  /// passage en « Terminé » est souvent manuel (aucun clic dans le lecteur), et
-  /// on ne veut pas qu'un anime terminé compte 0 minute. Si le total d'épisodes
-  /// est inconnu (anime-sama ne le fournit pas toujours), on retombe sur
-  /// `entry.progress`. On prend le `max` des deux pour ne jamais sous-compter.
+  /// Un anime **« Terminé »** compte pour la série ENTIÈRE. `entry.progress` est
+  /// rempli au passage en « Terminé » avec le nombre RÉEL d'épisodes (somme des
+  /// saisons anime-sama, cf. media_detail_page / recalcul rétroactif des stats),
+  /// donc `progress × durée` est correct. On garde `max(progress, media.episodes)`
+  /// comme filet : si anime-sama était indispo (progress non corrigé), on retombe
+  /// sur le total Jikan plutôt que sur 0.
   int watchedMinutes({required Media media, required ListEntry entry}) {
     if (media.isMovie) {
       return entry.status == ListStatus.completed ? episodeMinutes(media) : 0;

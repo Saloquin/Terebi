@@ -33,6 +33,11 @@ final _statsDataProvider = FutureProvider<_StatsData>((ref) async {
     }
   }
 
+  // Le recalcul rétroactif du progress des animes « Terminé » n'est PAS fait
+  // ici : un provider de données ne doit pas déclencher d'écritures en base ni
+  // de tâches de fond (fragile, et bloquerait l'affichage si anime-sama est
+  // lent). Il est piloté par la page (cf. StatsPage / _maybeRecalcCompleted).
+
   return _StatsData(
     totalMinutes: statsService.totalWatchedMinutes(
       entries: allEntries,
@@ -44,6 +49,43 @@ final _statsDataProvider = FutureProvider<_StatsData>((ref) async {
       mediaById: mediaById,
     ),
   );
+});
+
+/// Corrige le `progress` des animes « Terminé » dont le compteur est plus bas
+/// que le nombre réel d'épisodes (somme des saisons anime-sama). Piloté par la
+/// page (une fois à l'ouverture), PAS par le provider de données : un provider
+/// ne doit pas déclencher d'écritures/tâches de fond.
+///
+/// Best-effort et NON bloquant pour l'UI (lancé fire-and-forget par la page) :
+/// la résolution anime-sama passe par le wrapper Python (lent, voire indispo).
+/// Pas de `.timeout` ici (créerait un Timer pendant en test) : on laisse le
+/// Future se résoudre/échouer naturellement. Si au moins une entrée a été
+/// corrigée, on invalide `_statsDataProvider` pour réafficher les stats à jour.
+Future<void> _recalcCompletedProgress(Ref ref) async {
+  final listRepo = ref.read(listRepositoryProvider);
+  final mediaRepo = ref.read(mediaRepositoryProvider);
+  final completed = await listRepo.entriesByStatus(ListStatus.completed);
+  var changed = false;
+  for (final e in completed) {
+    final media = await mediaRepo.getMedia(e.mediaId);
+    if (media == null) continue;
+    final title = media.animeSamaTitle ?? media.title.preferred;
+    try {
+      final total = await ref.read(animeSamaTotalEpisodesProvider(title).future);
+      if (total > 0 && total > e.progress) {
+        await listRepo.upsertEntry(e.copyWith(progress: total));
+        changed = true;
+      }
+    } catch (_) {/* anime-sama indispo : on garde la valeur existante */}
+  }
+  if (changed) ref.invalidate(_statsDataProvider);
+}
+
+/// Provider déclencheur (autoDispose) : lu une fois par la page pour lancer le
+/// recalcul rétroactif. Isolé pour que sa tâche de fond ne bloque jamais
+/// `_statsDataProvider` (l'affichage).
+final _recalcTriggerProvider = FutureProvider.autoDispose<void>((ref) async {
+  await _recalcCompletedProgress(ref);
 });
 
 class _StatsData {
@@ -67,6 +109,12 @@ class StatsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Déclenche (une fois, tant que la page est montée) le recalcul rétroactif
+    // du progress des animes « Terminé ». Provider autoDispose isolé : sa tâche
+    // de fond (résolution anime-sama, lente) ne bloque jamais l'affichage des
+    // stats ci-dessous. On ne lit pas sa valeur (fire-and-forget côté UI).
+    ref.watch(_recalcTriggerProvider);
+
     final statsAsync = ref.watch(_statsDataProvider);
 
     return statsAsync.when(

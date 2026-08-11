@@ -539,13 +539,17 @@ class _EntryTile extends ConsumerWidget {
         final title = media?.title.preferred ?? 'ID ${entry.mediaId}';
         final coverUrl = media?.coverUrl;
 
-        // Borne l'affichage : si la sentinelle « tout vu » a pu se glisser dans
-        // progress, ne pas afficher « ép. 1048577 ».
-        final progressLabel = entry.progress <= 0
-            ? 'Pas encore commencé'
-            : entry.progress >= SeasonProgressRepository.fullyWatchedSentinel
-                ? 'Terminé'
-                : 'Progression : ép. ${entry.progress}';
+        // Label de progression. Un anime « Terminé » l'affiche toujours comme
+        // tel, MÊME si entry.progress est resté à 0 (le passage en « Terminé »
+        // manuel ne remplissait pas toujours progress) : on ne veut pas afficher
+        // « Pas encore commencé » sur un anime marqué fini.
+        final progressLabel = entry.status == ListStatus.completed
+            ? 'Terminé'
+            : entry.progress <= 0
+                ? 'Pas encore commencé'
+                : entry.progress >= SeasonProgressRepository.fullyWatchedSentinel
+                    ? 'Terminé'
+                    : 'Progression : ép. ${entry.progress}';
 
         return ListTile(
           leading: coverUrl != null

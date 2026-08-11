@@ -165,6 +165,25 @@ final animeSamaEpisodesProvider = FutureProvider.family<List<int>,
   return resolver.listEpisodes(title: arg.title, seasonIndex: arg.seasonIndex);
 });
 
+/// Nombre TOTAL d'épisodes d'un anime-sama = somme des épisodes de toutes ses
+/// saisons. Sert de source de vérité pour le temps de visionnage d'un anime
+/// « Terminé » : `media.episodes` (Jikan) est souvent null ou figé pour les
+/// longues séries (ex. One Piece), alors qu'anime-sama connaît le compte réel
+/// par saison. Réutilise les providers globaux (cache partagé, pas de
+/// re-scraping). Retourne 0 si anime-sama ne connaît pas le titre.
+final animeSamaTotalEpisodesProvider =
+    FutureProvider.family<int, String>((ref, title) async {
+  final seasons = await ref.watch(animeSamaSeasonsProvider(title).future);
+  var total = 0;
+  for (final s in seasons) {
+    final eps = await ref.watch(
+      animeSamaEpisodesProvider((title: title, seasonIndex: s.index)).future,
+    );
+    total += eps.length;
+  }
+  return total;
+});
+
 /// Planning hebdomadaire anime-sama. Partagé entre le calendrier et la fiche
 /// (qui l'utilise pour l'étiquette « À jour » vs « Terminée »). Respecte la
 /// langue de lecture choisie (VF/VOSTFR).
