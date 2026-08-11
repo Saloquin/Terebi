@@ -62,16 +62,15 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  // Décodage matériel en mode COPIE via la configuration OFFICIELLE du
-  // VideoController (media_kit l'applique au bon moment sur le backend natif —
-  // un setProperty('hwdec', …) brut en initState entrait en concurrence avec
-  // l'init de media_kit et s'appliquait de façon non déterministe). Le mode
-  // -copy récupère la frame décodée en RAM : mpv peut rejeter proprement une
-  // frame HLS abîmée au lieu d'afficher une surface verte. La reprise se fait
-  // via Media.start (à l'ouverture), pas par un seek après coup.
+  // Décodage LOGICIEL forcé (hwdec: 'no'). Le décodage matériel (d3d11va,
+  // d3d11va-copy) produisait un flash vert + un saut automatique + une zone
+  // injoignable sur certains flux HLS : le segment abîmé restait « brûlé » dans
+  // la session jusqu'à réouverture de l'épisode. Le flash vert est un artefact
+  // purement GPU ; le décodage logiciel l'élimine à la source (plus lourd CPU,
+  // mais un épisode d'anime 1080p reste largement dans les capacités d'un PC).
   late final VideoController _videoController = VideoController(
     _player,
-    configuration: const VideoControllerConfiguration(hwdec: 'd3d11va-copy'),
+    configuration: const VideoControllerConfiguration(hwdec: 'no'),
   );
 
   bool _loading = false;
@@ -233,7 +232,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   ///   entre deux keyframes devient injoignable (retour arrière qui re-saute
   ///   toujours au même point).
   /// - `vd-lavc-show-all=no` : ne pas afficher les frames décodées en erreur.
-  /// - gros back-buffer : recul fiable sans re-télécharger/re-décoder.
+  /// - `demuxer-lavf-o=…reconnect…` : réessaie automatiquement un segment HLS
+  ///   qui arrive mal (coupure réseau, segment tronqué) au lieu de le garder
+  ///   corrompu — c'est ce recollage raté en session qui produisait le flash
+  ///   vert + saut + zone injoignable jusqu'à réouverture.
+  /// - back-buffer VOLONTAIREMENT modeste : garder 256 Mo de segments déjà lus
+  ///   conservait aussi des segments mal recollés (le recul retombait dessus).
+  ///   Un petit back-buffer force mpv à re-télécharger proprement.
   Future<void> _applyMpvProperties() async {
     final platform = _player.platform;
     if (platform is! NativePlayer) return;
@@ -247,8 +252,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     await set('hr-seek', 'yes');
     await set('hr-seek-framedrop', 'no');
     await set('vd-lavc-show-all', 'no');
-    await set('demuxer-max-back-bytes', '${256 * 1024 * 1024}');
-    await set('demuxer-max-bytes', '${256 * 1024 * 1024}');
+    // Reconnexion/ré-essai ffmpeg sur les segments HLS interrompus ou tronqués.
+    await set('demuxer-lavf-o',
+        'reconnect=1,reconnect_streamed=1,reconnect_delay_max=5');
+    // Back-buffer modeste (16 Mo) : recul récent OK, mais on ne conserve pas de
+    // longs segments potentiellement mal recollés.
+    await set('demuxer-max-back-bytes', '${16 * 1024 * 1024}');
+    await set('demuxer-max-bytes', '${64 * 1024 * 1024}');
   }
 
   @override
