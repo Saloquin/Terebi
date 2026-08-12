@@ -599,32 +599,27 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _currentEntry = outcome.updatedEntry;
   }
 
-  /// Garantit que l'anime est « En cours » dès qu'on lance la lecture (règle :
-  /// regarder = suivre l'anime). Crée l'entrée en base si l'anime n'était dans
-  /// aucune liste. N'écrase JAMAIS un statut « Terminé » (revoir un épisode d'un
-  /// anime fini ne doit pas le rétrograder). Best-effort : n'interrompt jamais
-  /// la lecture en cas d'erreur.
+  /// Garantit qu'une entrée de bibliothèque EXISTE dès qu'on lance la lecture
+  /// (règle : regarder = suivre l'anime). Le statut « En cours » n'est PAS écrit
+  /// ici : il est DÉRIVÉ de la progression (cf. effectiveStatus) — dès que
+  /// `_markCurrentWatched` remplit `progress`, l'anime apparaît « En cours ».
+  /// On crée juste une entrée minimale si l'anime n'était dans aucune liste,
+  /// SANS toucher un statut manuel existant (planifié/pause/abandonné/re-vision)
+  /// ni le drapeau « Terminé ». Best-effort : n'interrompt jamais la lecture.
   Future<void> _ensureWatchingStatus() async {
     try {
       final listRepo = ref.read(listRepositoryProvider);
       final existing = await listRepo.getEntry(widget.media.anilistId);
-      // Déjà En cours → rien à faire. Déjà Terminé → ne pas rétrograder.
-      if (existing != null &&
-          (existing.status == ListStatus.current ||
-              existing.status == ListStatus.completed)) {
-        return;
-      }
-      final base = existing ??
-          ListEntry(
-            mediaId: widget.media.anilistId,
-            status: ListStatus.current,
-            updatedAt: DateTime.now(),
-          );
-      final updated =
-          base.copyWith(status: ListStatus.current, updatedAt: DateTime.now());
-      await listRepo.upsertEntry(updated);
-      _currentEntry = updated;
-      // Rafraîchit bibliothèque + fiche pour refléter le nouveau statut.
+      // Entrée déjà présente → on ne touche à rien (le statut effectif suivra la
+      // progression ; un statut manuel gelant est respecté).
+      if (existing != null) return;
+      // Aucune entrée → on en crée une minimale (statut `planning` : l'effectif
+      // deviendra « En cours » dès qu'il y aura de la progression).
+      await listRepo.upsertEntry(ListEntry(
+        mediaId: widget.media.anilistId,
+        status: ListStatus.planning,
+        updatedAt: DateTime.now(),
+      ));
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
       ref.invalidate(listEntryProvider(widget.media.anilistId));
@@ -866,7 +861,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Rétrograde la progression à « [ep] - 1 vus » : on considère les épisodes à
   /// partir de [ep] comme non vus. Met à jour la progression PAR SAISON et
-  /// l'entrée de liste (statut repassé « En cours » si c'était « Terminé »).
+  /// l'entrée de liste. Si l'anime était « Terminé » (drapeau), on RETIRE ce
+  /// drapeau (repasse `planning` → l'effectif redevient « En cours » car il
+  /// reste de la progression).
   Future<void> _rewindProgressTo(int ep) async {
     final target = ep - 1 < 0 ? 0 : ep - 1;
     // Progression par saison : abaisse le compteur (setLastWatched borne à >=0
@@ -875,16 +872,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         .read(seasonProgressRepositoryProvider)
         .setLastWatched(widget.media.anilistId, _seasonIndex, target);
 
-    // Entrée de liste : rétrograde progress + repasse « En cours » si l'anime
-    // était marqué « Terminé » (on n'a plus tout vu).
+    // Entrée de liste : rétrograde progress + retire le drapeau « Terminé ».
     try {
       final listRepo = ref.read(listRepositoryProvider);
       final existing = await listRepo.getEntry(widget.media.anilistId);
       if (existing != null) {
         final newProgress =
             existing.progress > target ? target : existing.progress;
+        // On ne retire QUE le drapeau completed ; un statut manuel est conservé.
         final newStatus = existing.status == ListStatus.completed
-            ? ListStatus.current
+            ? ListStatus.planning
             : existing.status;
         if (newProgress != existing.progress ||
             newStatus != existing.status) {

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/logic/effective_status_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -516,7 +517,18 @@ class _StatusDropdown extends ConsumerWidget {
 
   const _StatusDropdown({required this.media, required this.entry});
 
-  static const _labels = {
+  /// Libellés des statuts MANUELS uniquement (les seuls choisissables). « En
+  /// cours » / « Terminé » sont automatiques (dérivés de la progression) et ne
+  /// figurent PAS dans le sélecteur.
+  static const _manualLabels = {
+    ListStatus.planning: 'Planifié',
+    ListStatus.paused: 'En pause',
+    ListStatus.dropped: 'Abandonné',
+    ListStatus.repeating: 'Re-vision',
+  };
+
+  /// Libellé du statut EFFECTIF (affiché en info, incluant les auto).
+  static const _effectiveLabels = {
     ListStatus.current: 'En cours',
     ListStatus.planning: 'Planifié',
     ListStatus.completed: 'Terminé',
@@ -525,113 +537,100 @@ class _StatusDropdown extends ConsumerWidget {
     ListStatus.repeating: 'Re-vision',
   };
 
-  /// Marque toutes les saisons anime-sama comme entièrement vues. Rapide :
-  /// **un seul** appel réseau (`listSeasons` pour connaître les saisons) ; chaque
-  /// saison est marquée via la sentinelle « tout vu » — on ne compte PAS les
-  /// épisodes (pas de `listEpisodes` par saison, qui rendait l'opération lente).
-  ///
-  /// Robuste au démontage du widget : le repository de progression et le
-  /// resolver sont lus AVANT tout `await` réseau ; le marquage des saisons
-  /// persiste donc en base même si l'utilisateur quitte la page pendant l'appel.
-  /// Best-effort : ignore les erreurs réseau.
-  /// Marque toutes les saisons anime-sama comme entièrement vues et retourne le
-  /// nombre TOTAL d'épisodes (somme des saisons). Ce total sert à remplir
-  /// `entry.progress` pour un anime « Terminé » (sinon le temps de visionnage et
-  /// le label restent faux — progress resté à 0). Retourne 0 si anime-sama ne
-  /// connaît pas le titre (on ne touche alors pas progress).
-  Future<int> _markAllSeasonsWatched(WidgetRef ref, Media media) async {
-    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-    final title = media.animeSamaTitle ?? media.title.preferred;
-    // Passe par le provider global (cache partagé) : si la fiche a déjà chargé
-    // les saisons, aucun nouvel appel réseau.
-    final seasonsFuture = ref.read(animeSamaSeasonsProvider(title).future);
-    var total = 0;
-    try {
-      final seasons = await seasonsFuture;
-      for (final s in seasons) {
-        await seasonProgress.markSeasonFullyWatched(media.anilistId, s.index);
-        // Compte les épisodes réels de la saison (cache partagé).
-        try {
-          final eps = await ref.read(animeSamaEpisodesProvider(
-            (title: title, seasonIndex: s.index),
-          ).future);
-          total += eps.length;
-        } catch (_) {/* saison non comptée : total partiel, best-effort */}
-      }
-    } catch (_) {/* best-effort */}
-    return total;
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final current = entry?.status;
-
-    return DropdownButton<ListStatus>(
-      value: current,
-      hint: const Text('Ajouter à la liste'),
-      items: ListStatus.values
-          .map((s) => DropdownMenuItem(
-                value: s,
-                child: Text(_labels[s] ?? s.name),
-              ))
-          .toList(),
-      onChanged: (newStatus) async {
-        if (newStatus == null) return;
-        final repo = ref.read(listRepositoryProvider);
-        // 1) Écritures locales INSTANTANÉES (DB SQLite, pas de réseau) : le
-        //    statut est persisté avant tout appel lent, donc jamais perdu même
-        //    si l'utilisateur quitte la page aussitôt.
-        await ref.read(mediaRepositoryProvider).upsertMedia(media);
-        final existing = await repo.getEntry(media.anilistId);
-        final updated = existing?.copyWith(
-              status: newStatus,
-              updatedAt: DateTime.now(),
-            ) ??
-            ListEntry(
-              mediaId: media.anilistId,
-              status: newStatus,
-              updatedAt: DateTime.now(),
-            );
-        await repo.upsertEntry(updated);
-
-        // 2) Rafraîchissement UI IMMÉDIAT (fiche + bibliothèque) : le nouveau
-        //    statut est visible partout tout de suite, sans attendre le réseau.
-        ref.invalidate(listEntryProvider(media.anilistId));
-        ref.invalidate(entriesByStatusProvider);
-        ref.invalidate(countByStatusProvider);
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Statut mis à jour : ${_labels[newStatus]}')),
-          );
-        }
-
-        // 3) « Terminé » manuel → marque toutes les saisons à fond (1 appel
-        //    réseau). Fait APRÈS le rafraîchissement pour ne pas le bloquer ;
-        //    les repos sont lus dans _markAllSeasonsWatched avant l'await, donc
-        //    le marquage persiste même si l'utilisateur quitte la page.
-        if (newStatus == ListStatus.completed) {
-          // Notifier capturé avant l'await (survit au démontage du widget).
-          final refreshNotifier =
-              ref.read(seasonProgressRefreshProvider.notifier);
-          final total = await _markAllSeasonsWatched(ref, media);
-          // Remplit entry.progress avec le nombre RÉEL d'épisodes (somme des
-          // saisons anime-sama), sinon le temps de visionnage et le label
-          // restent faux (progress était resté à 0 sur un « Terminé » manuel).
-          // On n'écrase pas un progress déjà plus grand (au cas où).
-          if (total > 0 && total > updated.progress) {
-            await repo.upsertEntry(updated.copyWith(progress: total));
-            ref.invalidate(listEntryProvider(media.anilistId));
-            ref.invalidate(entriesByStatusProvider);
-          }
-          // Force les tuiles de saison à recharger leur progression. Protégé :
-          // sans effet si le container a été disposé (page quittée).
-          try {
-            refreshNotifier.state++;
-          } catch (_) {/* page quittée : rechargée à la prochaine ouverture */}
-        }
-      },
+    // Statut EFFECTIF (calculé) pour l'affichage informatif.
+    final eff = effectiveStatus(
+      entry: entry,
+      hasProgress: (entry?.progress ?? 0) > 0,
     );
+    // Valeur du dropdown = statut MANUEL stocké, ou null. « En cours » /
+    // « Terminé » ne sont jamais des choix manuels : si le stocké est completed
+    // (drapeau) ou absent, le dropdown n'a pas de sélection manuelle.
+    final stored = entry?.status;
+    final manualValue =
+        (stored != null && kManualStatuses.contains(stored)) ? stored : null;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Badge informatif du statut effectif (auto ou manuel).
+        if (eff != null) ...[
+          Chip(
+            label: Text(_effectiveLabels[eff] ?? eff.name),
+            visualDensity: VisualDensity.compact,
+          ),
+          const SizedBox(width: 8),
+        ],
+        DropdownButton<ListStatus?>(
+          value: manualValue,
+          hint: const Text('Définir un statut'),
+          items: [
+            const DropdownMenuItem<ListStatus?>(
+              value: null,
+              child: Text('— Auto (selon progression)'),
+            ),
+            for (final s in kManualStatuses)
+              DropdownMenuItem<ListStatus?>(
+                value: s,
+                child: Text(_manualLabels[s] ?? s.name),
+              ),
+          ],
+          onChanged: (newStatus) => _applyManualStatus(context, ref, newStatus),
+        ),
+      ],
+    );
+  }
+
+  /// Applique un statut MANUEL (ou le retire → retour au calcul auto).
+  /// - `newStatus` null → on retire l'entrée des listes manuelles : si l'anime
+  ///   a une progression, il redeviendra « En cours » (calculé) ; sinon il sort
+  ///   des listes. Concrètement on repasse le statut stocké à `planning` si une
+  ///   progression existe (pour rester « suivi »), sinon on retire l'entrée.
+  /// - sinon → on stocke ce statut manuel.
+  Future<void> _applyManualStatus(
+      BuildContext context, WidgetRef ref, ListStatus? newStatus) async {
+    final repo = ref.read(listRepositoryProvider);
+    await ref.read(mediaRepositoryProvider).upsertMedia(media);
+    final existing = await repo.getEntry(media.anilistId);
+
+    if (newStatus == null) {
+      // Retour au mode auto : on efface un éventuel statut manuel « gelant ».
+      // Si progression > 0 → stocké `planning` (l'effectif sera « En cours ») ;
+      // sinon on retire l'entrée de la bibliothèque.
+      if (existing == null) return;
+      if (existing.progress > 0) {
+        await repo.upsertEntry(existing.copyWith(
+          status: ListStatus.planning,
+          updatedAt: DateTime.now(),
+        ));
+      } else {
+        await repo.deleteEntry(media.anilistId);
+      }
+    } else {
+      final updated = existing?.copyWith(
+            status: newStatus,
+            updatedAt: DateTime.now(),
+          ) ??
+          ListEntry(
+            mediaId: media.anilistId,
+            status: newStatus,
+            updatedAt: DateTime.now(),
+          );
+      await repo.upsertEntry(updated);
+    }
+
+    ref.invalidate(listEntryProvider(media.anilistId));
+    ref.invalidate(entriesByStatusProvider);
+    ref.invalidate(countByStatusProvider);
+
+    if (context.mounted) {
+      final msg = newStatus == null
+          ? 'Statut : automatique'
+          : 'Statut : ${_manualLabels[newStatus]}';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    }
   }
 }
 
@@ -850,13 +849,15 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         .setLastWatched(widget.media.anilistId, widget.season.index, 0);
     await _reloadWatchedOnly();
 
-    // L'anime n'est plus entièrement vu → repasse « En cours » si « Terminé ».
+    // L'anime n'est plus entièrement vu → retire le drapeau « Terminé »
+    // (repasse `planning` ; l'effectif redeviendra « En cours » via la
+    // progression restante).
     try {
       final listRepo = ref.read(listRepositoryProvider);
       final existing = await listRepo.getEntry(widget.media.anilistId);
       if (existing != null && existing.status == ListStatus.completed) {
         await listRepo.upsertEntry(existing.copyWith(
-          status: ListStatus.current,
+          status: ListStatus.planning,
           updatedAt: DateTime.now(),
         ));
         ref.invalidate(entriesByStatusProvider);

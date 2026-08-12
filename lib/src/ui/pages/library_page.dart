@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
+import '../../domain/logic/effective_status_service.dart';
 import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -20,14 +21,32 @@ import 'resume_helper.dart';
 // Providers (visibles pour les tests via import)
 // ---------------------------------------------------------------------------
 
+/// Toutes les entrées regroupées par statut EFFECTIF (calculé). « En cours » et
+/// « Terminé » ne sont pas de simples filtres SQL : ils dérivent de la
+/// progression (cf. effectiveStatus). Ce provider charge tout une fois et
+/// classe localement (instantané, sans réseau).
+final _entriesByEffectiveStatusProvider =
+    FutureProvider<Map<ListStatus, List<ListEntry>>>((ref) async {
+  final all = await ref.watch(listRepositoryProvider).getAllEntries();
+  final grouped = <ListStatus, List<ListEntry>>{};
+  for (final e in all) {
+    final eff = effectiveStatus(entry: e, hasProgress: e.progress > 0);
+    if (eff == null) continue; // hors listes
+    (grouped[eff] ??= []).add(e);
+  }
+  return grouped;
+});
+
 final countByStatusProvider =
     FutureProvider<Map<ListStatus, int>>((ref) async {
-  return ref.watch(listRepositoryProvider).countByStatus();
+  final grouped = await ref.watch(_entriesByEffectiveStatusProvider.future);
+  return {for (final e in grouped.entries) e.key: e.value.length};
 });
 
 final entriesByStatusProvider =
     FutureProvider.family<List<ListEntry>, ListStatus>((ref, status) async {
-  return ref.watch(listRepositoryProvider).entriesByStatus(status);
+  final grouped = await ref.watch(_entriesByEffectiveStatusProvider.future);
+  return grouped[status] ?? const [];
 });
 
 // ---------------------------------------------------------------------------
@@ -85,9 +104,35 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // à cause d'un titre variable planning/catalogue), PUIS revalider les
     // « Terminé ».
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _normalizeLegacyStatuses();
       await _dedupeDoublons();
       await _recheckCompleted();
     });
+  }
+
+  /// Migration légère (one-shot par ouverture) : convertit les anciens statuts
+  /// STOCKÉS `current` en `planning`. Depuis la refonte, « En cours » n'est plus
+  /// stocké mais DÉRIVÉ de la progression (cf. effectiveStatus) ; une ligne
+  /// héritée `current` reste correctement affichée « En cours » tant qu'il y a
+  /// de la progression, mais on normalise le stockage pour éviter toute
+  /// incohérence (ex. `current` sans progression = fantôme hors listes).
+  Future<void> _normalizeLegacyStatuses() async {
+    try {
+      final listRepo = ref.read(listRepositoryProvider);
+      final all = await listRepo.getAllEntries();
+      var changed = false;
+      for (final e in all) {
+        if (e.status == ListStatus.current) {
+          await listRepo.upsertEntry(
+              e.copyWith(status: ListStatus.planning, updatedAt: e.updatedAt));
+          changed = true;
+        }
+      }
+      if (changed && mounted) {
+        ref.invalidate(entriesByStatusProvider);
+        ref.invalidate(countByStatusProvider);
+      }
+    } catch (_) {/* best-effort */}
   }
 
   /// Fusionne les doublons de bibliothèque : deux animes dont le titre
@@ -210,9 +255,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         // Compare au DERNIER numéro d'épisode réel (numérotation parfois non
         // contiguë : OAV, épisodes .5…), pas au simple compte de la liste.
         if (watched < eps.last) {
-          // Il reste des épisodes non vus → l'anime n'est plus « Terminé ».
+          // Il reste des épisodes non vus → retire le drapeau « Terminé »
+          // (repasse `planning` ; l'effectif redevient « En cours » via la
+          // progression).
           await listRepo.upsertEntry(entry.copyWith(
-            status: ListStatus.current,
+            status: ListStatus.planning,
             updatedAt: DateTime.now(),
           ));
           changed = true;

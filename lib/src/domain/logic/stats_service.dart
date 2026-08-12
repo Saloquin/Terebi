@@ -9,6 +9,7 @@ import '../models/anime_format.dart';
 import '../models/list_entry.dart';
 import '../models/list_status.dart';
 import '../models/media.dart';
+import 'effective_status_service.dart';
 
 /// Durées heuristiques par défaut (minutes), utilisées si la durée réelle est inconnue.
 const int kDefaultEpisodeMinutes = 24;
@@ -76,11 +77,16 @@ class StatsService {
     return sum;
   }
 
-  /// Répartition du nombre d'entrées par statut.
+  /// Répartition du nombre d'entrées par statut EFFECTIF (calculé). « En cours »
+  /// et « Terminé » sont dérivés de la progression (cf. effectiveStatus), pas du
+  /// statut stocké — sinon un anime « En cours » (stocké `planning`) serait mal
+  /// compté. Les entrées hors listes (effectif null) sont ignorées.
   Map<ListStatus, int> countByStatus(List<ListEntry> entries) {
     final map = <ListStatus, int>{};
     for (final e in entries) {
-      map[e.status] = (map[e.status] ?? 0) + 1;
+      final eff = effectiveStatus(entry: e, hasProgress: e.progress > 0);
+      if (eff == null) continue;
+      map[eff] = (map[eff] ?? 0) + 1;
     }
     return map;
   }

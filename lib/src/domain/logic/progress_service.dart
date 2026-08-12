@@ -68,7 +68,11 @@ class ProgressService {
         (media.isMovie ||
             (totalEpisodes != null && newProgress >= totalEpisodes));
 
-    final newStatus = completed ? ListStatus.completed : ListStatus.current;
+    // Statut : « En cours » n'est PLUS écrit (dérivé de la progression, cf.
+    // effectiveStatus). On ne pose QUE le drapeau `completed` quand tout est vu ;
+    // sinon on CONSERVE le statut stocké existant (planning ou statut manuel
+    // comme pause/abandonné — qu'on ne doit pas écraser).
+    final newStatus = completed ? ListStatus.completed : entry.status;
 
     final updated = entry.copyWith(
       progress: newProgress,

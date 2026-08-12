@@ -23,7 +23,7 @@ void main() {
         episodes: 1,
       );
 
-  ListEntry entry({int progress = 0, ListStatus status = ListStatus.current}) =>
+  ListEntry entry({int progress = 0, ListStatus status = ListStatus.planning}) =>
       ListEntry(mediaId: 1, status: status, progress: progress, updatedAt: DateTime.utc(2020));
 
   group('markCurrentWatchedAndAdvance — règle « épisode suivant »', () {
@@ -32,7 +32,9 @@ void main() {
         entry: entry(progress: 2), media: tv(episodes: 12), currentEpisode: 3, now: now);
       expect(r.nextEpisode, 4);
       expect(r.updatedEntry.progress, 3);
-      expect(r.updatedEntry.status, ListStatus.current);
+      // « En cours » n'est plus stocké (dérivé de la progression) : le statut
+      // d'entrée est CONSERVÉ (ici planning), pas forcé à current.
+      expect(r.updatedEntry.status, ListStatus.planning);
       expect(r.justCompleted, isFalse);
       expect(r.updatedEntry.updatedAt, now);
     });
@@ -57,8 +59,17 @@ void main() {
       final r = svc.markCurrentWatchedAndAdvance(
         entry: entry(progress: 4), media: tv(episodes: null), currentEpisode: 5, now: now);
       expect(r.nextEpisode, 6);
-      expect(r.updatedEntry.status, ListStatus.current);
+      // Statut d'entrée conservé (pas de current forcé).
+      expect(r.updatedEntry.status, ListStatus.planning);
       expect(r.justCompleted, isFalse);
+    });
+
+    test('statut manuel conservé (pause) quand on regarde un épisode', () {
+      final r = svc.markCurrentWatchedAndAdvance(
+        entry: entry(progress: 2, status: ListStatus.paused),
+        media: tv(episodes: 12), currentEpisode: 3, now: now);
+      expect(r.updatedEntry.progress, 3);
+      expect(r.updatedEntry.status, ListStatus.paused); // non écrasé
     });
 
     test('film : pas de suivant, complété immédiatement', () {
