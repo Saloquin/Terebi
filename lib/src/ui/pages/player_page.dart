@@ -827,8 +827,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Navigue vers un épisode. Avancer marque l'épisode courant comme vu ;
-  /// reculer ne modifie pas la progression. Ne lance PAS la lecture : le
-  /// bouton « Lancer » réapparaît pour le nouvel épisode.
+  /// reculer RÉTROGRADE la progression à l'épisode précédent choisi (règle
+  /// utilisateur : reculer = revenir en arrière dans sa progression). Ne lance
+  /// PAS la lecture : le bouton « Lancer » réapparaît pour le nouvel épisode.
   Future<void> _goToEpisode(int ep) async {
     if (ep == _currentEpisode) return;
     if (_navigating) return; // garde : évite un double marquage si clics rapides.
@@ -842,9 +843,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       if (ep > _currentEpisode) {
         await _markCurrentWatched();
       } else {
-        // Recul : on ne marque pas vu, mais on sauvegarde la position de
-        // l'épisode qu'on quitte pour pouvoir le reprendre plus tard.
+        // Recul : sauvegarde la position de l'épisode qu'on quitte, puis
+        // rétrograde la progression à (ep - 1) : on n'a plus « vu » les épisodes
+        // >= ep. Ex : à l'ép 10, on revient à l'ép 5 → progression = 4 vus.
         await _persistPosition();
+        await _rewindProgressTo(ep);
       }
       if (!mounted) return;
       // Nouvel épisode → position remise à zéro.
@@ -859,6 +862,48 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } finally {
       _navigating = false;
     }
+  }
+
+  /// Rétrograde la progression à « [ep] - 1 vus » : on considère les épisodes à
+  /// partir de [ep] comme non vus. Met à jour la progression PAR SAISON et
+  /// l'entrée de liste (statut repassé « En cours » si c'était « Terminé »).
+  Future<void> _rewindProgressTo(int ep) async {
+    final target = ep - 1 < 0 ? 0 : ep - 1;
+    // Progression par saison : abaisse le compteur (setLastWatched borne à >=0
+    // et écrit la valeur telle quelle, même plus basse que l'actuelle).
+    await ref
+        .read(seasonProgressRepositoryProvider)
+        .setLastWatched(widget.media.anilistId, _seasonIndex, target);
+
+    // Entrée de liste : rétrograde progress + repasse « En cours » si l'anime
+    // était marqué « Terminé » (on n'a plus tout vu).
+    try {
+      final listRepo = ref.read(listRepositoryProvider);
+      final existing = await listRepo.getEntry(widget.media.anilistId);
+      if (existing != null) {
+        final newProgress =
+            existing.progress > target ? target : existing.progress;
+        final newStatus = existing.status == ListStatus.completed
+            ? ListStatus.current
+            : existing.status;
+        if (newProgress != existing.progress ||
+            newStatus != existing.status) {
+          await listRepo.upsertEntry(existing.copyWith(
+            progress: newProgress,
+            status: newStatus,
+            updatedAt: DateTime.now(),
+          ));
+          _currentEntry = existing.copyWith(
+            progress: newProgress,
+            status: newStatus,
+            updatedAt: DateTime.now(),
+          );
+          ref.invalidate(entriesByStatusProvider);
+          ref.invalidate(countByStatusProvider);
+          ref.invalidate(listEntryProvider(widget.media.anilistId));
+        }
+      }
+    } catch (_) {/* best-effort */}
   }
 
   /// Valide la fin de saison : marque le dernier épisode vu (compteur = total).

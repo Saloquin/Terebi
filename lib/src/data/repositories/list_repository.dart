@@ -80,6 +80,13 @@ class ListRepository {
     return rows.map(_fromRow).toList();
   }
 
+  /// Toutes les entrées de la bibliothèque (tous statuts). Sert à la fusion des
+  /// doublons (même anime sous 2 ids à cause d'un titre variable).
+  Future<List<ListEntry>> getAllEntries() async {
+    final rows = await _db.select(_db.listEntries).get();
+    return rows.map(_fromRow).toList();
+  }
+
   /// Nombre d'entrées par statut.
   Future<Map<ListStatus, int>> countByStatus() async {
     final all = await _db.select(_db.listEntries).get();

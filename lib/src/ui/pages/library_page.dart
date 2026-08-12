@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -80,9 +81,66 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _statusOrder.length, vsync: this);
-    // Revalide les anime « Terminé » : si une nouvelle saison/épisode est dispo
-    // sur anime-sama (dernier vu < total), on les repasse « En cours ».
-    WidgetsBinding.instance.addPostFrameCallback((_) => _recheckCompleted());
+    // Au montage : d'abord fusionner d'éventuels doublons (même anime sous 2 ids
+    // à cause d'un titre variable planning/catalogue), PUIS revalider les
+    // « Terminé ».
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _dedupeDoublons();
+      await _recheckCompleted();
+    });
+  }
+
+  /// Fusionne les doublons de bibliothèque : deux animes dont le titre
+  /// anime-sama est inclus l'un dans l'autre (ex. « Trapped in a Dating Sim »
+  /// vs « …: The World of Otome Games… ») sont le MÊME anime apparu sous 2 ids.
+  /// On garde l'entrée avec la plus grande progression et on supprime l'autre.
+  /// One-shot best-effort : ne casse jamais la page.
+  Future<void> _dedupeDoublons() async {
+    try {
+      final listRepo = ref.read(listRepositoryProvider);
+      final mediaRepo = ref.read(mediaRepositoryProvider);
+      final entries = await listRepo.getAllEntries();
+      if (entries.length < 2) return;
+
+      // Titre anime-sama normalisé par mediaId (pour comparer par inclusion).
+      final normTitleById = <int, String>{};
+      for (final e in entries) {
+        final m = await mediaRepo.getMedia(e.mediaId);
+        final t = m?.animeSamaTitle ?? m?.title.preferred;
+        if (t != null) normTitleById[e.mediaId] = normalizeAnimeTitle(t);
+      }
+
+      var changed = false;
+      // Compare chaque paire ; fusionne si un titre est inclus dans l'autre.
+      for (var i = 0; i < entries.length; i++) {
+        for (var j = i + 1; j < entries.length; j++) {
+          final a = entries[i], b = entries[j];
+          final ta = normTitleById[a.mediaId], tb = normTitleById[b.mediaId];
+          if (ta == null || tb == null || ta.isEmpty || tb.isEmpty) continue;
+          if (!(ta.contains(tb) || tb.contains(ta))) continue;
+
+          // Garde l'entrée « la plus avancée » (progress, puis statut terminé).
+          final keep = _preferredEntry(a, b);
+          final drop = identical(keep, a) ? b : a;
+          await listRepo.deleteEntry(drop.mediaId);
+          changed = true;
+        }
+      }
+      if (changed && mounted) {
+        ref.invalidate(entriesByStatusProvider);
+        ref.invalidate(countByStatusProvider);
+      }
+    } catch (_) {/* best-effort : la dédup ne doit jamais casser la biblio */}
+  }
+
+  /// Entrée à conserver entre deux doublons : la plus avancée (progress le plus
+  /// haut ; à égalité, un « Terminé » prime).
+  ListEntry _preferredEntry(ListEntry a, ListEntry b) {
+    if (a.progress != b.progress) return a.progress > b.progress ? a : b;
+    final aDone = a.status == ListStatus.completed;
+    final bDone = b.status == ListStatus.completed;
+    if (aDone != bDone) return aDone ? a : b;
+    return a; // égalité complète : peu importe.
   }
 
   Future<void> _recheckCompleted() async {

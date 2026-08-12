@@ -842,6 +842,36 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     await _maybeMarkSeriesCompleted();
   }
 
+  /// Annule le marquage « vue » de cette saison : remet son compteur à 0 et,
+  /// si l'anime était « Terminé », le repasse « En cours » (on n'a plus tout vu).
+  Future<void> _unmarkThisSeason() async {
+    await ref
+        .read(seasonProgressRepositoryProvider)
+        .setLastWatched(widget.media.anilistId, widget.season.index, 0);
+    await _reloadWatchedOnly();
+
+    // L'anime n'est plus entièrement vu → repasse « En cours » si « Terminé ».
+    try {
+      final listRepo = ref.read(listRepositoryProvider);
+      final existing = await listRepo.getEntry(widget.media.anilistId);
+      if (existing != null && existing.status == ListStatus.completed) {
+        await listRepo.upsertEntry(existing.copyWith(
+          status: ListStatus.current,
+          updatedAt: DateTime.now(),
+        ));
+        ref.invalidate(entriesByStatusProvider);
+        ref.invalidate(countByStatusProvider);
+        ref.invalidate(listEntryProvider(widget.media.anilistId));
+      }
+    } catch (_) {/* best-effort */}
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('« ${widget.season.name} » marquée non vue')),
+      );
+    }
+  }
+
   /// Passe l'anime « Terminé » si TOUTES ses saisons anime-sama sont vues.
   /// Best-effort (données anime-sama en cache via les providers globaux).
   Future<void> _maybeMarkSeriesCompleted() async {
@@ -957,13 +987,18 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
                     fontWeight: done ? FontWeight.bold : null,
                   ),
                 ),
-                // Marquer cette saison comme vue (visible si pas déjà finie).
-                if (_loaded && !done)
+                // Bascule vu/pas vu : si la saison n'est pas finie → la marquer
+                // vue ; si elle est finie → l'annuler (remettre à 0 épisode vu).
+                if (_loaded)
                   IconButton(
-                    icon: const Icon(Icons.done_all, size: 18),
-                    tooltip: 'Marquer la saison comme vue',
+                    icon: Icon(done ? Icons.remove_done : Icons.done_all,
+                        size: 18),
+                    tooltip: done
+                        ? 'Annuler : saison non vue'
+                        : 'Marquer la saison comme vue',
                     visualDensity: VisualDensity.compact,
-                    onPressed: _markThisSeasonWatched,
+                    onPressed:
+                        done ? _unmarkThisSeason : _markThisSeasonWatched,
                   ),
               ],
             ),
