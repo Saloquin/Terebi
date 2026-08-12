@@ -32,6 +32,17 @@ class TitleMatcher {
   /// - Enrichissement AniList (cover/description) seulement si un résultat de
   ///   recherche a un titre **similaire** au titre cherché.
   Future<Media> resolve(String animeSamaTitle) async {
+    // Réconciliation d'identité (NON destructive) : le planning et le catalogue
+    // anime-sama affichent parfois des titres DIFFÉRENTS pour le même anime
+    // (ex. « Trapped in a Dating Sim » vs « …: The World of Otome Games… »).
+    // Comme l'id dérive du titre, ça créait 2 animes. On cherche donc d'abord un
+    // média DÉJÀ connu (déjà résolu, donc animeSamaTitle renseigné) dont le
+    // titre est similaire, et on réutilise SON id — aucune donnée déplacée,
+    // aucune migration : on redirige simplement le nouveau titre vers l'anime
+    // existant.
+    final reconciled = await _reconcileExisting(animeSamaTitle);
+    if (reconciled != null) return reconciled;
+
     // Base : le média anime-sama fait foi (identité stable).
     var media = Media.fromAnimeSama(title: animeSamaTitle);
 
@@ -56,6 +67,33 @@ class TitleMatcher {
     // (pas d'échec réseau) → évite de réessayer inutilement plus tard.
     await _markNoMatch(animeSamaTitle, enrich == null && !networkFailed);
     return media;
+  }
+
+  /// Cherche un média DÉJÀ résolu (donc `animeSamaTitle` renseigné) dont le
+  /// titre anime-sama est similaire à [title] par INCLUSION (l'un contient
+  /// l'autre après normalisation) — le cas concret des titres court/long entre
+  /// planning et catalogue. Si trouvé, retourne ce média EXISTANT (on réutilise
+  /// son id + sa progression), sans rien déplacer. `null` si aucun.
+  ///
+  /// On restreint volontairement à l'inclusion (pas au matching flou par
+  /// jetons) pour ne JAMAIS fusionner par erreur deux animes distincts.
+  Future<Media?> _reconcileExisting(String title) async {
+    final norm = normalizeAnimeTitle(title);
+    if (norm.isEmpty) return null;
+    final selfId = animeSamaIdFor(title);
+    final all = await mediaRepo.getAllMedia();
+    for (final m in all) {
+      if (m.anilistId == selfId) return m; // déjà le bon id (rien à réconcilier)
+      final other = m.animeSamaTitle;
+      if (other == null) continue;
+      final on = normalizeAnimeTitle(other);
+      if (on.isEmpty) continue;
+      // Inclusion stricte dans un sens ou l'autre (titre court ⊂ titre long).
+      if (norm.contains(on) || on.contains(norm)) {
+        return m;
+      }
+    }
+    return null;
   }
 
   static const _noMatchPrefix = 'anime_sama_nomatch:';

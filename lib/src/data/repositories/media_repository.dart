@@ -91,4 +91,11 @@ class MediaRepository {
           (rows) => rows.map(_fromRow).toList(),
         );
   }
+
+  /// Liste (one-shot) de tous les médias en base. Sert à réconcilier l'identité
+  /// d'un anime dont le titre varie entre sources (planning/catalogue).
+  Future<List<Media>> getAllMedia() async {
+    final rows = await _db.select(_db.mediaTable).get();
+    return rows.map(_fromRow).toList();
+  }
 }
