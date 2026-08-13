@@ -172,6 +172,35 @@ final animeSamaSeasonsProvider =
   return resolver.listSeasons(title: title);
 });
 
+/// Résout le VRAI titre anime-sama d'un anime AniList en essayant ses titres
+/// candidats (anglais, romaji, natif) contre le catalogue anime-sama. Nécessaire
+/// car anime-sama utilise souvent un titre DIFFÉRENT d'AniList (langue : « Attack
+/// on Titan » AniList vs « Shingeki no Kyojin »/français sur anime-sama) — une
+/// recherche sur le seul titre anglais échoue alors. Retourne le titre du 1er
+/// candidat qui donne un résultat catalogue, sinon le 1er candidat non vide
+/// (repli, pour ne pas bloquer). Keyé sur les candidats (cache Riverpod).
+final animeSamaResolvedTitleProvider = FutureProvider.family<String,
+    ({String? english, String? romaji, String? native})>((ref, t) async {
+  final candidates = <String>[
+    if (t.romaji != null && t.romaji!.trim().isNotEmpty) t.romaji!.trim(),
+    if (t.english != null && t.english!.trim().isNotEmpty) t.english!.trim(),
+    if (t.native != null && t.native!.trim().isNotEmpty) t.native!.trim(),
+  ];
+  if (candidates.isEmpty) return '';
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  for (final c in candidates) {
+    try {
+      final items = await resolver.search(query: c);
+      if (items.isNotEmpty) {
+        // On renvoie le titre catalogue trouvé (celui qu'anime-sama connaît),
+        // pour que saisons/lecteur cherchent avec le bon libellé.
+        return items.first.title;
+      }
+    } catch (_) {/* candidat suivant */}
+  }
+  return candidates.first; // repli : rien trouvé, on garde le 1er candidat.
+});
+
 /// Numéros d'épisodes d'une (saison) anime-sama. Keyé sur (titre, index) pour
 /// que fiche + lecteur + recheck réutilisent le même résultat.
 final animeSamaEpisodesProvider = FutureProvider.family<List<int>,

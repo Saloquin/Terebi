@@ -690,12 +690,43 @@ class _AnimeSamaSeasonsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Titre de recherche anime-sama : le titre anime-sama exact fait foi
-    // (displayTitle transmis, ou animeSamaTitle stocké). Le titre AniList
-    // (title.preferred) n'est utilisé qu'en dernier recours car il peut différer
-    // et provoquer un mauvais match (ex. « 10 saisons + OAV » d'un autre anime).
-    final searchTitle =
-        displayTitle ?? media.animeSamaTitle ?? media.title.preferred;
+    // Titre de recherche anime-sama. Priorité : titre anime-sama exact
+    // (displayTitle transmis / animeSamaTitle stocké). Sinon — cas d'un anime
+    // venu d'AniList (rangées découverte) dont le titre anglais peut ne pas
+    // exister sur anime-sama (« Attack on Titan » vs « Shingeki no Kyojin ») —
+    // on RÉSOUT le vrai titre anime-sama en essayant english/romaji/natif.
+    final known = displayTitle ?? media.animeSamaTitle;
+    if (known != null) {
+      return _SeasonsFor(media: media, searchTitle: known);
+    }
+    final resolvedAsync = ref.watch(animeSamaResolvedTitleProvider((
+      english: media.title.english,
+      romaji: media.title.romaji,
+      native: media.title.native,
+    )));
+    return resolvedAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) =>
+          _SeasonsFor(media: media, searchTitle: media.title.preferred),
+      data: (title) => _SeasonsFor(
+        media: media,
+        searchTitle: title.isEmpty ? media.title.preferred : title,
+      ),
+    );
+  }
+}
+
+/// Affiche les saisons anime-sama pour un [searchTitle] déjà résolu.
+class _SeasonsFor extends ConsumerWidget {
+  final Media media;
+  final String searchTitle;
+  const _SeasonsFor({required this.media, required this.searchTitle});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
     final seasonsAsync = ref.watch(_animeSamaSeasonsProvider(searchTitle));
 
     return seasonsAsync.when(
