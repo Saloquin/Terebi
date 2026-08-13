@@ -629,6 +629,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       updatedAt: now,
     ));
     _currentEntry = outcome.updatedEntry;
+    // La progression a changé → recalcul du statut effectif (En cours/Terminé
+    // dérivés) partout dans l'UI (onglets biblio, badge fiche, accueil).
+    _invalidateStatusProviders();
+  }
+
+  /// Invalide tous les providers dont dépend l'affichage du statut/progression,
+  /// pour que l'UI (bibliothèque, fiche, accueil) reflète EN TEMPS RÉEL un
+  /// statut calculé qui a changé (ex. Planifié → En cours après un épisode vu).
+  void _invalidateStatusProviders() {
+    ref.invalidate(entriesByStatusProvider);
+    ref.invalidate(countByStatusProvider);
+    ref.invalidate(listEntryProvider(widget.media.anilistId));
+    ref.invalidate(hasProgressProvider(widget.media.anilistId));
   }
 
   /// Garantit qu'une entrée de bibliothèque EXISTE dès qu'on lance la lecture
@@ -655,6 +668,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
       ref.invalidate(listEntryProvider(widget.media.anilistId));
+      ref.invalidate(hasProgressProvider(widget.media.anilistId));
     } catch (_) {/* best-effort : ne bloque pas la lecture */}
   }
 
@@ -845,6 +859,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
       ref.invalidate(listEntryProvider(widget.media.anilistId));
+      ref.invalidate(hasProgressProvider(widget.media.anilistId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Anime terminé ! 🎉')),
@@ -965,6 +980,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ref.invalidate(entriesByStatusProvider);
           ref.invalidate(countByStatusProvider);
           ref.invalidate(listEntryProvider(widget.media.anilistId));
+          ref.invalidate(hasProgressProvider(widget.media.anilistId));
         }
       }
     } catch (_) {/* best-effort */}

@@ -887,6 +887,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         ref.invalidate(entriesByStatusProvider);
         ref.invalidate(countByStatusProvider);
         ref.invalidate(listEntryProvider(widget.media.anilistId));
+        ref.invalidate(hasProgressProvider(widget.media.anilistId));
       }
     } catch (_) {/* best-effort */}
 
@@ -938,6 +939,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
       ref.invalidate(listEntryProvider(widget.media.anilistId));
+      ref.invalidate(hasProgressProvider(widget.media.anilistId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Anime terminé ! 🎉')),
