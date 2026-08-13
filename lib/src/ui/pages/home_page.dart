@@ -129,8 +129,35 @@ final _byGenreProvider =
   }
 });
 
-/// « Tu regardes beaucoup » : agrège l'historique de lancements par média
-/// (nombre de lancements), du plus lancé au moins lancé, résolu en [Media].
+/// Ensemble des ids déjà présents dans la bibliothèque (toute entrée de liste).
+/// Sert à EXCLURE ces animes des rangées de découverte (Tendances, Populaires,
+/// genre…) pour ne montrer que du nouveau. Les ids anime-sama étant négatifs et
+/// les ids AniList positifs, une exclusion par id ne couvre pas un anime suivi
+/// via anime-sama mais affiché ici via AniList — on complète donc par le titre
+/// normalisé (best-effort).
+final _libraryFilterProvider =
+    FutureProvider<({Set<int> ids, Set<String> titles})>((ref) async {
+  final entries = await ref.watch(listRepositoryProvider).getAllEntries();
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final ids = <int>{};
+  final titles = <String>{};
+  for (final e in entries) {
+    ids.add(e.mediaId);
+    final m = await mediaRepo.getMedia(e.mediaId);
+    if (m != null) {
+      titles.add(_normTitle(m.title.preferred));
+      if (m.animeSamaTitle != null) titles.add(_normTitle(m.animeSamaTitle!));
+    }
+  }
+  return (ids: ids, titles: titles);
+});
+
+/// Normalise un titre pour comparaison (minuscule, alphanumérique).
+String _normTitle(String t) =>
+    t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+/// « En ce moment » : ce que l'utilisateur regarde activement, dérivé de son
+/// historique de lancements agrégé (le plus lancé d'abord), résolu en [Media].
 final _mostWatchedProvider = FutureProvider<List<Media>>((ref) async {
   final history = await ref.watch(watchHistoryRepositoryProvider).all();
   if (history.isEmpty) return const [];
@@ -142,7 +169,7 @@ final _mostWatchedProvider = FutureProvider<List<Media>>((ref) async {
     ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
   final mediaRepo = ref.watch(mediaRepositoryProvider);
   final result = <Media>[];
-  for (final id in ids.take(12)) {
+  for (final id in ids.take(20)) {
     final m = await mediaRepo.getMedia(id);
     if (m != null) result.add(m);
   }
@@ -165,44 +192,48 @@ class HomePage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // 1. Continuer à regarder (avec bouton reprise).
+        // 1. En ce moment (historique récent agrégé) — bouton reprise.
+        _MediaRow(
+          title: 'En ce moment',
+          provider: _mostWatchedProvider,
+          withResume: true,
+        ),
+        // 2. Continuer à regarder (statut en cours) — bouton reprise.
         _MediaRow(
           title: 'Continuer à regarder',
           provider: _continueWatchingProvider,
           withResume: true,
         ),
-        // 2. Sortis récemment (planning de la semaine).
+        // --- Rangées de DÉCOUVERTE (excluent les animes déjà en biblio) ---
+        // 3. Sortis du moment (planning de la semaine).
         _MediaRow(
-          title: 'Sortis récemment',
+          title: 'Sortis du moment',
           provider: _recentlyReleasedProvider,
+          excludeLibrary: true,
         ),
-        // 3. Tendances du moment (AniList).
-        _MediaRow(
-          title: 'Tendances du moment',
-          provider: _trendingProvider,
-        ),
-        // 4. Recommandé pour toi : une rangée par genre favori.
-        ...genresAsync.maybeWhen(
-          data: (genres) => genres
-              .map((g) => _GenreRow(genre: g))
-              .toList(),
-          orElse: () => const <Widget>[],
-        ),
-        // 5. Populaires (AniList). Masqué s'il fait doublon avec Tendances.
-        _MediaRow(
-          title: 'Populaires',
-          provider: _popularProvider,
-          hideIfSameAs: _trendingProvider,
-        ),
-        // 6. Tu regardes beaucoup (ton historique).
-        _MediaRow(
-          title: 'Tu regardes beaucoup',
-          provider: _mostWatchedProvider,
-        ),
-        // Saison courante (conservée en bas, accès rapide).
+        // 4. Saison courante.
         _MediaRow(
           title: 'Saison courante',
           provider: _seasonPreviewProvider((season: season, year: now.year)),
+          excludeLibrary: true,
+        ),
+        // 5. Tendances du moment (AniList).
+        _MediaRow(
+          title: 'Tendances du moment',
+          provider: _trendingProvider,
+          excludeLibrary: true,
+        ),
+        // 6. Populaires (all-time). Masqué s'il fait doublon avec Tendances.
+        _MediaRow(
+          title: 'Populaires',
+          provider: _popularProvider,
+          excludeLibrary: true,
+          hideIfSameAs: _trendingProvider,
+        ),
+        // 7. Par genre favori : une rangée par genre.
+        ...genresAsync.maybeWhen(
+          data: (genres) => genres.map((g) => _GenreRow(genre: g)).toList(),
+          orElse: () => const <Widget>[],
         ),
       ],
     );
@@ -226,20 +257,33 @@ final _seasonPreviewProvider =
 // Rangée horizontale réutilisable
 // ---------------------------------------------------------------------------
 
-/// Rangée horizontale de [MediaCard]. Masquée si la liste est vide (ou en
-/// chargement/erreur). [withResume] ajoute le bouton reprise sur les cartes.
-/// [hideIfSameAs] : si fourni, masque la rangée quand son contenu commence par
-/// les mêmes médias qu'un autre provider (évite Populaires ≈ Tendances).
+/// Rangée horizontale de [MediaCard], grande taille façon Netflix, à
+/// défilement EN BOUCLE (on revient au début après le dernier). Masquée si
+/// vide/chargement/erreur.
+/// - [withResume] : bouton reprise sur les cartes.
+/// - [excludeLibrary] : retire les animes déjà dans la bibliothèque (rangées
+///   de découverte : on ne montre que du nouveau).
+/// - [hideIfSameAs] : masque la rangée si son début recoupe un autre provider
+///   (évite Populaires ≈ Tendances).
 class _MediaRow extends ConsumerWidget {
   final String title;
   final ProviderListenable<AsyncValue<List<Media>>> provider;
   final bool withResume;
+  final bool excludeLibrary;
   final ProviderListenable<AsyncValue<List<Media>>>? hideIfSameAs;
+
+  /// Nombre max de cartes par rangée (borne le carrousel).
+  static const int _maxCards = 20;
+
+  /// Largeur/hauteur des grandes cartes.
+  static const double _cardWidth = 200;
+  static const double _rowHeight = 320;
 
   const _MediaRow({
     required this.title,
     required this.provider,
     this.withResume = false,
+    this.excludeLibrary = false,
     this.hideIfSameAs,
   });
 
@@ -247,10 +291,34 @@ class _MediaRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(provider);
     return async.maybeWhen(
-      data: (items) {
+      data: (raw) {
+        var items = raw;
+
+        // Exclusion des animes déjà en bibliothèque (par id ET par titre
+        // normalisé, pour couvrir un anime suivi via anime-sama mais affiché
+        // ici via AniList).
+        if (excludeLibrary) {
+          final lib = ref.watch(_libraryFilterProvider).maybeWhen(
+                data: (f) => f,
+                orElse: () => (ids: <int>{}, titles: <String>{}),
+              );
+          if (lib.ids.isNotEmpty || lib.titles.isNotEmpty) {
+            items = items.where((m) {
+              if (lib.ids.contains(m.anilistId)) return false;
+              if (lib.titles.contains(_normTitle(m.title.preferred))) {
+                return false;
+              }
+              return true;
+            }).toList();
+          }
+        }
+
+        // Borne le nombre de cartes.
+        if (items.length > _maxCards) items = items.sublist(0, _maxCards);
+
         if (items.isEmpty) return const SizedBox.shrink();
-        // Anti-doublon : si les 5 premiers ids sont identiques à l'autre
-        // rangée, on masque celle-ci (Populaires vs Tendances se recoupent).
+
+        // Anti-doublon : si le début recoupe l'autre rangée, on masque.
         if (hideIfSameAs != null) {
           final other = ref.watch(hideIfSameAs!).maybeWhen(
                 data: (o) => o,
@@ -260,21 +328,25 @@ class _MediaRow extends ConsumerWidget {
             return const SizedBox.shrink();
           }
         }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
             SizedBox(
-              height: 200,
+              height: _rowHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                itemCount: items.length,
+                // Défilement en BOUCLE : on présente un très grand nombre
+                // d'items virtuels et on ramène l'index dans [0, items.length[
+                // par modulo (revient au début après le dernier).
+                itemCount: items.length <= 1 ? items.length : 100000,
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, i) {
-                  final media = items[i];
+                  final media = items[i % items.length];
                   return SizedBox(
-                    width: 120,
+                    width: _cardWidth,
                     child: MediaCard(
                       media: media,
                       onResume: withResume
@@ -314,7 +386,7 @@ class _MediaRow extends ConsumerWidget {
   }
 }
 
-/// Rangée « Recommandé : <genre> » (découverte AniList par genre).
+/// Rangée « Recommandé · <genre> » (découverte AniList par genre).
 class _GenreRow extends StatelessWidget {
   final String genre;
   const _GenreRow({required this.genre});
@@ -324,6 +396,7 @@ class _GenreRow extends StatelessWidget {
     return _MediaRow(
       title: 'Recommandé · $genre',
       provider: _byGenreProvider(genre),
+      excludeLibrary: true,
     );
   }
 }
