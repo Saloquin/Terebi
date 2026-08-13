@@ -26,8 +26,12 @@ import 'resume_helper.dart';
 /// « Terminé » ne sont pas de simples filtres SQL : ils dérivent de la
 /// progression (cf. effectiveStatus). Ce provider charge tout une fois et
 /// classe localement (instantané, sans réseau).
-final _entriesByEffectiveStatusProvider =
-    FutureProvider<Map<ListStatus, List<ListEntry>>>((ref) async {
+/// Classe toutes les entrées par statut EFFECTIF (calculé). « En cours » et
+/// « Terminé » ne sont pas de simples filtres SQL : ils dérivent de la
+/// progression (cf. effectiveStatus). Autonome (ne dépend d'aucun provider
+/// parent mis en cache) pour qu'une simple invalidation de ce provider suffise
+/// à rafraîchir onglets ET compteurs.
+Future<Map<ListStatus, List<ListEntry>>> _computeGrouped(Ref ref) async {
   final all = await ref.watch(listRepositoryProvider).getAllEntries();
   final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
   final grouped = <ListStatus, List<ListEntry>>{};
@@ -43,17 +47,17 @@ final _entriesByEffectiveStatusProvider =
     (grouped[eff] ??= []).add(e);
   }
   return grouped;
-});
+}
 
 final countByStatusProvider =
     FutureProvider<Map<ListStatus, int>>((ref) async {
-  final grouped = await ref.watch(_entriesByEffectiveStatusProvider.future);
+  final grouped = await _computeGrouped(ref);
   return {for (final e in grouped.entries) e.key: e.value.length};
 });
 
 final entriesByStatusProvider =
     FutureProvider.family<List<ListEntry>, ListStatus>((ref, status) async {
-  final grouped = await ref.watch(_entriesByEffectiveStatusProvider.future);
+  final grouped = await _computeGrouped(ref);
   return grouped[status] ?? const [];
 });
 
