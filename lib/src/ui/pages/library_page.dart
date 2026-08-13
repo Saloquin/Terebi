@@ -152,6 +152,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   /// Filtre courant, partagé entre tous les onglets.
   MediaFilter _filter = const MediaFilter();
 
+  /// Recherche textuelle par titre (partagée entre onglets). Vide = pas de
+  /// filtre. Comparaison insensible à la casse/accents (via normalisation).
+  String _searchQuery = '';
+  final _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -344,6 +349,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -377,6 +383,31 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
               ),
             );
           }).toList(),
+        ),
+
+        // --- Barre de recherche par titre ---
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              isDense: true,
+              prefixIcon: const Icon(Icons.search, size: 20),
+              hintText: 'Rechercher dans la bibliothèque…',
+              border: const OutlineInputBorder(),
+              suffixIcon: _searchQuery.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      tooltip: 'Effacer',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _searchQuery = '');
+                      },
+                    ),
+            ),
+            onChanged: (v) => setState(() => _searchQuery = v),
+          ),
         ),
 
         // --- Barre de tri (réactive à l'onglet actif) ---
@@ -418,6 +449,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                       sortField: _sortFields[status]!,
                       sortDesc: _sortDescs[status]!,
                       filter: _filter,
+                      searchQuery: _searchQuery,
                     ))
                 .toList(),
           ),
@@ -778,12 +810,15 @@ class _EntriesTab extends ConsumerWidget {
   final bool sortDesc;
   /// Filtre courant à appliquer sur les entrées.
   final MediaFilter filter;
+  /// Recherche textuelle par titre (vide = pas de filtre).
+  final String searchQuery;
 
   const _EntriesTab({
     required this.status,
     required this.sortField,
     required this.sortDesc,
     required this.filter,
+    required this.searchQuery,
   });
 
   @override
@@ -822,6 +857,7 @@ class _EntriesTab extends ConsumerWidget {
           sortField: sortField,
           sortDesc: sortDesc,
           filter: filter,
+          searchQuery: searchQuery,
         );
       },
     );
@@ -838,12 +874,15 @@ class _SortedEntriesList extends ConsumerWidget {
   final bool sortDesc;
   /// Filtre à appliquer sur les entrées (via la map Media du provider).
   final MediaFilter filter;
+  /// Recherche textuelle par titre (vide = pas de filtre).
+  final String searchQuery;
 
   const _SortedEntriesList({
     required this.entries,
     required this.sortField,
     required this.sortDesc,
     required this.filter,
+    required this.searchQuery,
   });
 
   @override
@@ -864,13 +903,27 @@ class _SortedEntriesList extends ConsumerWidget {
     // - Si le filtre est vide : toutes les entrées passent.
     // - Sinon : une entrée passe si son Media est connu ET matches() == true.
     //   Si le Media est inconnu, on l'exclut (on ne peut pas garantir le match).
-    final filteredEntries = filter.isEmpty
+    var filteredEntries = filter.isEmpty
         ? entries
         : entries.where((e) {
             final media = mediaMap[e.mediaId];
             if (media == null) return false;
             return filter.matches(media);
           }).toList();
+
+    // Recherche textuelle par titre (insensible casse/accents). Cherche dans le
+    // titre préféré ET le titre anime-sama. Une entrée sans Media connu est
+    // exclue quand une recherche est active (titre inconnu).
+    final query = normalizeAnimeTitle(searchQuery);
+    if (query.isNotEmpty) {
+      filteredEntries = filteredEntries.where((e) {
+        final media = mediaMap[e.mediaId];
+        if (media == null) return false;
+        final t1 = normalizeAnimeTitle(media.title.preferred);
+        final t2 = normalizeAnimeTitle(media.animeSamaTitle ?? '');
+        return t1.contains(query) || t2.contains(query);
+      }).toList();
+    }
 
     // Cache synchrone des titres disponibles depuis les FutureBuilder en cours.
     // On trie dès maintenant avec les titres disponibles (les non-chargés tombent
@@ -886,8 +939,8 @@ class _SortedEntriesList extends ConsumerWidget {
           titleOf: titleOf,
         );
 
-        if (sorted.isEmpty && !filter.isEmpty) {
-          // Aucun résultat après filtrage : message informatif.
+        if (sorted.isEmpty && (!filter.isEmpty || query.isNotEmpty)) {
+          // Aucun résultat après filtrage/recherche : message informatif.
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -896,7 +949,9 @@ class _SortedEntriesList extends ConsumerWidget {
                     size: 48, color: Colors.white38),
                 const SizedBox(height: 12),
                 Text(
-                  'Aucun anime ne correspond aux filtres',
+                  query.isNotEmpty
+                      ? 'Aucun anime ne correspond à la recherche'
+                      : 'Aucun anime ne correspond aux filtres',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ],
