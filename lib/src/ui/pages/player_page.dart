@@ -160,7 +160,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _positionSub = _player.stream.position.listen((pos) {
       _positionSeconds = pos.inMilliseconds / 1000.0;
       _maybePersistPosition();
-      _maybeRefreshSkipButton();
     });
     _durationSub = _player.stream.duration.listen((dur) {
       final s = dur.inMilliseconds / 1000.0;
@@ -169,20 +168,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _completedSub = _player.stream.completed.listen((done) {
       if (done) _onEpisodeCompleted();
     });
-  }
-
-  /// Dernier état d'affichage du bouton skip (pour ne rebuild que sur changement
-  /// — le flux position émet plusieurs fois par seconde).
-  bool _skipButtonVisible = false;
-
-  /// Rebuild UNIQUEMENT quand l'entrée/sortie d'un intervalle de skip change,
-  /// pour afficher/masquer le bouton sans reconstruire à chaque tick.
-  void _maybeRefreshSkipButton() {
-    final visible = _activeSkip != null;
-    if (visible != _skipButtonVisible) {
-      _skipButtonVisible = visible;
-      if (mounted) setState(() {});
-    }
   }
 
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
@@ -691,20 +676,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
   }
 
-  /// Cible de skip active à la position courante : « fin de l'intro » si on est
-  /// dans l'opening, « fin de l'outro » si dans l'ending, sinon `null`.
-  /// Retourne (label, positionCibleSecondes).
-  ({String label, double target})? get _activeSkip {
-    final pos = _positionSeconds;
-    if (_skip.hasOpening && pos >= _skip.opStart! && pos < _skip.opEnd!) {
-      return (label: "Passer l'intro", target: _skip.opEnd!);
-    }
-    if (_skip.hasEnding && pos >= _skip.edStart! && pos < _skip.edEnd!) {
-      return (label: "Passer l'outro", target: _skip.edEnd!);
-    }
-    return null;
-  }
-
   /// Recul appliqué à la reprise pour se remettre dans l'action (secondes).
   static const int _resumeRewindSeconds = 10;
 
@@ -929,7 +900,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _positionSeconds = 0;
       _lastPersistedWhole = -1;
       _skip = const SkipTimes();
-      _skipButtonVisible = false;
       setState(() {
         _currentEpisode = ep;
         _ready = false;
@@ -1041,8 +1011,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // (clé distincte) pour la barre normale et pour la barre plein écran, car
     // media_kit monte les deux en même temps — partager le widget/la clé lève
     // « Multiple widgets used the same GlobalKey ».
+    // Barre haute : bouton « Passer l'intro/outro » (visible seulement quand un
+    // intervalle est actif, via _SkipButton) + bouton « réglages ». Cette barre
+    // est affichée AUSSI EN PLEIN ÉCRAN par media_kit — c'est pourquoi le skip y
+    // est placé (mon Positioned du Stack n'existe pas dans l'overlay fullscreen).
+    // Clé DISTINCTE pour normal/fullscreen (media_kit monte les deux barres →
+    // partager une GlobalKey lève « Multiple widgets used the same GlobalKey »).
     List<Widget> topBar(GlobalKey key) => <Widget>[
           const Spacer(),
+          _SkipButton(player: _player, skip: _skip),
           MaterialDesktopCustomButton(
             key: key,
             icon: const Icon(Icons.tune),
@@ -1249,23 +1226,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                 onPressed: _loadAndPlay,
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('Lancer'),
-                              ),
-                            ),
-                          // Bouton « Passer l'intro / l'outro » (AniSkip),
-                          // en bas à droite, visible quand la position est dans
-                          // un intervalle de skip connu.
-                          if (_ready && _activeSkip != null)
-                            Positioned(
-                              right: 16,
-                              bottom: 56,
-                              child: FilledButton.icon(
-                                onPressed: () =>
-                                    _player.seek(Duration(
-                                        milliseconds:
-                                            (_activeSkip!.target * 1000)
-                                                .round())),
-                                icon: const Icon(Icons.skip_next),
-                                label: Text(_activeSkip!.label),
                               ),
                             ),
                           // Overlay auto-play : « Épisode suivant dans N… ».
@@ -1507,6 +1467,54 @@ class _ControlBar extends StatelessWidget {
             onPressed: enabled ? onNext : null,
           ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bouton « Passer l'intro / l'outro » (AniSkip)
+// ---------------------------------------------------------------------------
+
+/// Bouton de skip placé dans la barre de contrôles media_kit (donc visible en
+/// mode fenêtré ET EN PLEIN ÉCRAN). Il écoute lui-même la position du lecteur
+/// et ne s'affiche que lorsque celle-ci est dans un intervalle d'intro/outro
+/// connu ; un clic saute à la fin de l'intervalle. Rien affiché si aucun skip.
+class _SkipButton extends StatelessWidget {
+  final Player player;
+  final SkipTimes skip;
+
+  const _SkipButton({required this.player, required this.skip});
+
+  /// Intervalle actif à [pos] : (label, cible en secondes), ou null.
+  ({String label, double target})? _activeAt(double pos) {
+    if (skip.hasOpening && pos >= skip.opStart! && pos < skip.opEnd!) {
+      return (label: "Passer l'intro", target: skip.opEnd!);
+    }
+    if (skip.hasEnding && pos >= skip.edStart! && pos < skip.edEnd!) {
+      return (label: "Passer l'outro", target: skip.edEnd!);
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (skip.isEmpty) return const SizedBox.shrink();
+    return StreamBuilder<Duration>(
+      stream: player.stream.position,
+      builder: (context, snapshot) {
+        final pos = (snapshot.data ?? Duration.zero).inMilliseconds / 1000.0;
+        final active = _activeAt(pos);
+        if (active == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: FilledButton.icon(
+            onPressed: () => player.seek(
+                Duration(milliseconds: (active.target * 1000).round())),
+            icon: const Icon(Icons.skip_next, size: 18),
+            label: Text(active.label),
+          ),
+        );
+      },
     );
   }
 }
