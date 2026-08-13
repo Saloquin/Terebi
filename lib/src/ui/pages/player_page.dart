@@ -1007,24 +1007,39 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// ouvre le menu langue + vitesse. On utilise MaterialDesktopCustomButton
   /// (les PopupMenuButton bruts ne reçoivent pas les taps dans cette barre).
   Widget _buildVideo() {
-    // Barre haute : un bouton « réglages ». On construit une instance DISTINCTE
-    // (clé distincte) pour la barre normale et pour la barre plein écran, car
-    // media_kit monte les deux en même temps — partager le widget/la clé lève
-    // « Multiple widgets used the same GlobalKey ».
-    // Barre haute : bouton « Passer l'intro/outro » (visible seulement quand un
-    // intervalle est actif, via _SkipButton) + bouton « réglages ». Cette barre
-    // est affichée AUSSI EN PLEIN ÉCRAN par media_kit — c'est pourquoi le skip y
-    // est placé (mon Positioned du Stack n'existe pas dans l'overlay fullscreen).
-    // Clé DISTINCTE pour normal/fullscreen (media_kit monte les deux barres →
-    // partager une GlobalKey lève « Multiple widgets used the same GlobalKey »).
+    // Barre haute : bouton « Passer l'intro/outro » (via _SkipButton, visible
+    // seulement pendant un intervalle) + bouton « réglages ». Clé DISTINCTE
+    // normal/fullscreen (media_kit monte les deux barres → partager une
+    // GlobalKey lève « Multiple widgets used the same GlobalKey »).
     List<Widget> topBar(GlobalKey key) => <Widget>[
           const Spacer(),
-          _SkipButton(player: _player, skip: _skip),
           MaterialDesktopCustomButton(
             key: key,
             icon: const Icon(Icons.tune),
             onPressed: () => _showSettingsMenuFromButton(key),
           ),
+        ];
+
+    // Barre basse : identique aux défauts media_kit, MAIS avec un bouton volume
+    // dont les icônes portent des clés UNIQUES par mode. Sinon les deux barres
+    // (normale + plein écran, montées en même temps) partagent la même
+    // ValueKey(Icons.volume_up) dans l'AnimatedSwitcher du volume → crash
+    // « Duplicate keys found » quand on touche au volume (bug media_kit 1.3.1).
+    List<Widget> bottomBar(String tag) => <Widget>[
+          const MaterialDesktopSkipPreviousButton(),
+          const MaterialDesktopPlayOrPauseButton(),
+          const MaterialDesktopSkipNextButton(),
+          MaterialDesktopVolumeButton(
+            volumeMuteIcon:
+                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
+            volumeLowIcon:
+                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
+            volumeHighIcon:
+                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
+          ),
+          const MaterialDesktopPositionIndicator(),
+          const Spacer(),
+          const MaterialDesktopFullscreenButton(),
         ];
 
     // Raccourcis clavier : reprend les défauts media_kit mais avec les durées
@@ -1048,10 +1063,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
         topButtonBar: topBar(_settingsButtonKey),
+        bottomButtonBar: bottomBar('n'),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
         topButtonBar: topBar(_settingsButtonKeyFs),
+        bottomButtonBar: bottomBar('fs'),
         keyboardShortcuts: shortcuts,
       ),
       child: Video(controller: _videoController),
@@ -1227,6 +1244,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('Lancer'),
                               ),
+                            ),
+                          // Bouton « Passer l'intro/outro » (AniSkip) en overlay
+                          // bas-droite, remonté au-dessus de la barre de
+                          // contrôles. Visible seulement pendant un intervalle
+                          // (le _SkipButton se masque tout seul sinon).
+                          // NB : mode fenêtré uniquement (l'overlay plein écran
+                          // de media_kit ne monte pas ce Stack) ; on l'accepte.
+                          if (_ready)
+                            Positioned(
+                              right: 16,
+                              bottom: 72,
+                              child: _SkipButton(player: _player, skip: _skip),
                             ),
                           // Overlay auto-play : « Épisode suivant dans N… ».
                           if (_autoPlayCountdown != null)
