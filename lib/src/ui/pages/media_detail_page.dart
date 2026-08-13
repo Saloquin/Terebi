@@ -550,12 +550,20 @@ class _StatusDropdown extends ConsumerWidget {
       entry: entry,
       hasProgress: hasProgress,
     );
-    // Valeur du dropdown = statut MANUEL stocké, ou null. « En cours » /
-    // « Terminé » ne sont jamais des choix manuels : si le stocké est completed
-    // (drapeau) ou absent, le dropdown n'a pas de sélection manuelle.
+    // Valeur du dropdown = statut MANUEL réellement choisi, ou null (« Auto »).
+    // Subtilité : `planning` sert de statut par défaut/fourre-tout. On ne le
+    // considère comme un choix MANUEL « Planifié » que si l'anime n'a AUCUNE
+    // progression. Dès qu'il y a une progression, un `planning` stocké est
+    // interprété comme « Auto » (l'effectif est « En cours ») — sinon, après
+    // avoir démarqué une saison, l'anime restait bloqué sur « Planifié » sans
+    // pouvoir revenir à « Auto ».
     final stored = entry?.status;
+    final isManualPlanning = stored == ListStatus.planning && !hasProgress;
+    final isOtherManual = stored != null &&
+        stored != ListStatus.planning &&
+        kManualStatuses.contains(stored);
     final manualValue =
-        (stored != null && kManualStatuses.contains(stored)) ? stored : null;
+        (isManualPlanning || isOtherManual) ? stored : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -577,10 +585,13 @@ class _StatusDropdown extends ConsumerWidget {
               child: Text('— Auto (selon progression)'),
             ),
             for (final s in kManualStatuses)
-              DropdownMenuItem<ListStatus?>(
-                value: s,
-                child: Text(_manualLabels[s] ?? s.name),
-              ),
+              // « Planifié » = « pas encore commencé » : sans intérêt (et
+              // trompeur) sur un anime déjà entamé → on le masque dans ce cas.
+              if (!(s == ListStatus.planning && hasProgress))
+                DropdownMenuItem<ListStatus?>(
+                  value: s,
+                  child: Text(_manualLabels[s] ?? s.name),
+                ),
           ],
           onChanged: (newStatus) => _applyManualStatus(context, ref, newStatus),
         ),
