@@ -493,6 +493,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // (et l'ajouter à la bibliothèque s'il n'y était pas). Best-effort.
       await _ensureWatchingStatus();
 
+      // Historique : enregistre CE lancement de lecture (clic « Regarder »).
+      // Best-effort — ne bloque jamais la lecture.
+      try {
+        await ref.read(watchHistoryRepositoryProvider).record(
+              mediaId: widget.media.anilistId,
+              episodeNumber: _currentEpisode.toDouble(),
+              startedAt: DateTime.now(),
+            );
+      } catch (_) {/* best-effort */}
+
       // Conserve l'état pause/lecture (switch de langue effectué en pause).
       if (startPaused) {
         try {

@@ -52,6 +52,11 @@ abstract final class SettingsKeys {
   /// Date (ISO 8601) du dernier recheck des « Terminé » de la bibliothèque.
   /// Sert à ne relancer ce recheck (coûteux en requêtes anime-sama) qu'1×/jour.
   static const String lastCompletedRecheck = 'last_completed_recheck';
+
+  /// Drapeau « nouvel épisode disponible » pour un anime donné ('1' = oui).
+  /// Posé par le recheck quand un anime « Terminé » a de nouveaux épisodes ;
+  /// retiré quand l'utilisateur ouvre/regarde l'anime. Ex. `new_episode:105333`.
+  static String newEpisodeFor(int anilistId) => 'new_episode:$anilistId';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].

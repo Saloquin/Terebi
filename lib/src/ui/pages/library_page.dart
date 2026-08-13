@@ -1,4 +1,4 @@
-/// Page Bibliothèque : entrées par statut avec badges de comptage et tri.
+/// Page Bibliothèque : entrées par statut avec badges de comptage, tri et filtres.
 library;
 
 import 'package:flutter/material.dart';
@@ -9,6 +9,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
 import '../../domain/logic/filter_sort_service.dart';
+import '../../domain/models/anime_format.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -49,6 +50,24 @@ final entriesByStatusProvider =
   return grouped[status] ?? const [];
 });
 
+/// Vrai si un anime a un « nouvel épisode disponible » (drapeau posé par le
+/// recheck). Sert à afficher un badge sur sa tuile de bibliothèque.
+final newEpisodeFlagProvider =
+    FutureProvider.family<bool, int>((ref, mediaId) async {
+  final v = await ref
+      .watch(settingsRepositoryProvider)
+      .get(SettingsKeys.newEpisodeFor(mediaId));
+  return v == '1';
+});
+
+/// Map mediaId → Media chargée depuis le dépôt local (pour le filtrage).
+/// Utilisée par _FilterBar (genres/années disponibles) et _SortedEntriesList
+/// (application du filtre). Un seul appel getAllMedia() pour toute la page.
+final _allMediaMapProvider = FutureProvider<Map<int, Media>>((ref) async {
+  final all = await ref.watch(mediaRepositoryProvider).getAllMedia();
+  return {for (final m in all) m.anilistId: m};
+});
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -76,6 +95,29 @@ const _sortFieldLabels = {
   EntrySortField.updated: 'Mis à jour',
 };
 
+/// Libellés affichés pour les formats d'anime.
+const _formatLabels = {
+  AnimeFormat.tv: 'TV',
+  AnimeFormat.tvShort: 'TV court',
+  AnimeFormat.movie: 'Film',
+  AnimeFormat.special: 'Spécial',
+  AnimeFormat.ova: 'OVA',
+  AnimeFormat.ona: 'ONA',
+  AnimeFormat.music: 'Musique',
+  AnimeFormat.unknown: 'Inconnu',
+};
+
+/// Formats proposés dans la barre de filtres (on exclut `music` et `unknown`
+/// qui sont rarement présents dans une bibliothèque anime standard).
+const _filterableFormats = [
+  AnimeFormat.tv,
+  AnimeFormat.tvShort,
+  AnimeFormat.movie,
+  AnimeFormat.special,
+  AnimeFormat.ova,
+  AnimeFormat.ona,
+];
+
 /// Page de bibliothèque avec onglets par statut de liste.
 class LibraryPage extends ConsumerStatefulWidget {
   const LibraryPage({super.key});
@@ -95,6 +137,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   final _sortDescs = {
     for (final s in _statusOrder) s: true,
   };
+
+  /// Filtre courant, partagé entre tous les onglets.
+  MediaFilter _filter = const MediaFilter();
 
   @override
   void initState() {
@@ -257,11 +302,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         if (watched < eps.last) {
           // Il reste des épisodes non vus → retire le drapeau « Terminé »
           // (repasse `planning` ; l'effectif redevient « En cours » via la
-          // progression).
+          // progression). Pose le drapeau « nouvel épisode » pour l'afficher.
           await listRepo.upsertEntry(entry.copyWith(
             status: ListStatus.planning,
             updatedAt: DateTime.now(),
           ));
+          await settings.set(SettingsKeys.newEpisodeFor(entry.mediaId), '1');
           changed = true;
         }
       } catch (_) {
@@ -293,6 +339,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   @override
   Widget build(BuildContext context) {
     final countsAsync = ref.watch(countByStatusProvider);
+    final mediaMapAsync = ref.watch(_allMediaMapProvider);
 
     return Column(
       children: [
@@ -339,6 +386,17 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
           },
         ),
 
+        // --- Barre de filtres (genres, format, année) ---
+        mediaMapAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+          data: (mediaMap) => _FilterBar(
+            filter: _filter,
+            mediaMap: mediaMap,
+            onChanged: (updated) => setState(() => _filter = updated),
+          ),
+        ),
+
         // --- Contenu des onglets ---
         Expanded(
           child: TabBarView(
@@ -348,6 +406,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                       status: status,
                       sortField: _sortFields[status]!,
                       sortDesc: _sortDescs[status]!,
+                      filter: _filter,
                     ))
                 .toList(),
           ),
@@ -439,6 +498,266 @@ class _SortFieldChip extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// Barre de filtres
+// ---------------------------------------------------------------------------
+
+/// Barre de filtres : format, genres (multi-sélection), année.
+/// Affiche un bouton « Réinitialiser » si le filtre est non vide.
+class _FilterBar extends StatelessWidget {
+  final MediaFilter filter;
+  final Map<int, Media> mediaMap;
+  final void Function(MediaFilter updated) onChanged;
+
+  const _FilterBar({
+    required this.filter,
+    required this.mediaMap,
+    required this.onChanged,
+  });
+
+  // --- Données dérivées de la bibliothèque ---
+
+  /// Genres présents dans la bibliothèque, triés alphabétiquement.
+  List<String> _availableGenres() {
+    final set = <String>{};
+    for (final m in mediaMap.values) {
+      set.addAll(m.genres);
+    }
+    final list = set.toList()..sort();
+    return list;
+  }
+
+  /// Années (seasonYear) présentes dans la bibliothèque, triées décroissant.
+  List<int> _availableYears() {
+    final set = <int>{};
+    for (final m in mediaMap.values) {
+      if (m.seasonYear != null) set.add(m.seasonYear!);
+    }
+    final list = set.toList()..sort((a, b) => b.compareTo(a));
+    return list;
+  }
+
+  // --- Handlers ---
+
+  void _selectFormat(BuildContext context, AnimeFormat? current) async {
+    final result = await showMenu<AnimeFormat?>(
+      context: context,
+      position: _buttonPosition(context),
+      items: [
+        const PopupMenuItem(value: null, child: Text('Tous les formats')),
+        for (final f in _filterableFormats)
+          PopupMenuItem(
+            value: f,
+            child: Row(
+              children: [
+                if (current == f)
+                  const Icon(Icons.check, size: 16)
+                else
+                  const SizedBox(width: 16),
+                const SizedBox(width: 8),
+                Text(_formatLabels[f] ?? f.name),
+              ],
+            ),
+          ),
+      ],
+    );
+    // `result` est null si l'utilisateur a fermé le menu sans choisir ;
+    // on distingue le choix « Tous » (value: null dans PopupMenuItem) en
+    // vérifiant si un item a été sélectionné (showMenu retourne null sur
+    // dismiss, mais aussi sur choix « null » — on ne peut pas différencier).
+    // Solution : on traite toute valeur retournée comme un choix explicite.
+    // Si l'utilisateur clique ailleurs, le menu se ferme et retourne null,
+    // ce qui correspond à « Tous » — comportement acceptable.
+    onChanged(MediaFilter(
+      genres: filter.genres,
+      year: filter.year,
+      status: filter.status,
+      format: result,
+    ));
+  }
+
+  void _selectYear(BuildContext context, int? current) async {
+    final years = _availableYears();
+    final result = await showMenu<int?>(
+      context: context,
+      position: _buttonPosition(context),
+      items: [
+        const PopupMenuItem(value: null, child: Text('Toutes les années')),
+        for (final y in years)
+          PopupMenuItem(
+            value: y,
+            child: Row(
+              children: [
+                if (current == y)
+                  const Icon(Icons.check, size: 16)
+                else
+                  const SizedBox(width: 16),
+                const SizedBox(width: 8),
+                Text('$y'),
+              ],
+            ),
+          ),
+      ],
+    );
+    onChanged(MediaFilter(
+      genres: filter.genres,
+      year: result,
+      status: filter.status,
+      format: filter.format,
+    ));
+  }
+
+  /// Affiche un popup de sélection multiple de genres via des FilterChip.
+  void _showGenrePopup(BuildContext context) async {
+    final genres = _availableGenres();
+    if (genres.isEmpty) return;
+
+    // On travaille sur une copie locale pour éviter de déclencher des rebuilds
+    // à chaque clic sur un chip ; on confirme une fois la popup fermée.
+    var selected = Set<String>.from(filter.genres);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Filtrer par genre'),
+              content: SizedBox(
+                width: 400,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    for (final g in genres)
+                      FilterChip(
+                        label: Text(g),
+                        selected: selected.contains(g),
+                        visualDensity: VisualDensity.compact,
+                        onSelected: (v) {
+                          setDialogState(() {
+                            if (v) {
+                              selected = {...selected, g};
+                            } else {
+                              selected = selected.difference({g});
+                            }
+                          });
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setDialogState(() => selected = {});
+                  },
+                  child: const Text('Tout décocher'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Fermer'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    // Applique la sélection finale après fermeture de la dialog.
+    onChanged(MediaFilter(
+      genres: selected,
+      year: filter.year,
+      status: filter.status,
+      format: filter.format,
+    ));
+  }
+
+  /// Calcule la position approximative du bouton pour ancrer le showMenu.
+  RelativeRect _buttonPosition(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return RelativeRect.fill;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    return RelativeRect.fromLTRB(
+      offset.dx,
+      offset.dy + size.height,
+      offset.dx + size.width,
+      offset.dy + size.height + 8,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFormat = filter.format != null;
+    final hasGenres = filter.genres.isNotEmpty;
+    final hasYear = filter.year != null;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      child: Row(
+        children: [
+          Text('Filtrer :', style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(width: 8),
+
+          // -- Bouton FORMAT --
+          Builder(builder: (ctx) {
+            return FilterChip(
+              label: Text(
+                hasFormat
+                    ? (_formatLabels[filter.format!] ?? filter.format!.name)
+                    : 'Format',
+              ),
+              selected: hasFormat,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => _selectFormat(ctx, filter.format),
+            );
+          }),
+          const SizedBox(width: 6),
+
+          // -- Bouton GENRES --
+          FilterChip(
+            label: Text(
+              hasGenres
+                  ? 'Genres (${filter.genres.length})'
+                  : 'Genres',
+            ),
+            selected: hasGenres,
+            visualDensity: VisualDensity.compact,
+            onSelected: (_) => _showGenrePopup(context),
+          ),
+          const SizedBox(width: 6),
+
+          // -- Bouton ANNÉE --
+          Builder(builder: (ctx) {
+            return FilterChip(
+              label: Text(
+                hasYear ? '${filter.year}' : 'Année',
+              ),
+              selected: hasYear,
+              visualDensity: VisualDensity.compact,
+              onSelected: (_) => _selectYear(ctx, filter.year),
+            );
+          }),
+
+          // -- Bouton RÉINITIALISER (visible si filtre non vide) --
+          if (!filter.isEmpty) ...[
+            const SizedBox(width: 10),
+            ActionChip(
+              label: const Text('Réinitialiser'),
+              avatar: const Icon(Icons.clear, size: 14),
+              visualDensity: VisualDensity.compact,
+              onPressed: () => onChanged(const MediaFilter()),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Onglet pour un statut donné
 // ---------------------------------------------------------------------------
 
@@ -446,11 +765,14 @@ class _EntriesTab extends ConsumerWidget {
   final ListStatus status;
   final EntrySortField sortField;
   final bool sortDesc;
+  /// Filtre courant à appliquer sur les entrées.
+  final MediaFilter filter;
 
   const _EntriesTab({
     required this.status,
     required this.sortField,
     required this.sortDesc,
+    required this.filter,
   });
 
   @override
@@ -483,11 +805,12 @@ class _EntriesTab extends ConsumerWidget {
           );
         }
 
-        // Tri : le champ "titre" nécessite un cache local de titres.
+        // Tri et filtrage : le champ "titre" nécessite un cache local de titres.
         return _SortedEntriesList(
           entries: entries,
           sortField: sortField,
           sortDesc: sortDesc,
+          filter: filter,
         );
       },
     );
@@ -495,18 +818,21 @@ class _EntriesTab extends ConsumerWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Liste triée avec résolution des titres (pour tri par titre)
+// Liste triée + filtrée avec résolution des titres (pour tri par titre)
 // ---------------------------------------------------------------------------
 
 class _SortedEntriesList extends ConsumerWidget {
   final List<ListEntry> entries;
   final EntrySortField sortField;
   final bool sortDesc;
+  /// Filtre à appliquer sur les entrées (via la map Media du provider).
+  final MediaFilter filter;
 
   const _SortedEntriesList({
     required this.entries,
     required this.sortField,
     required this.sortDesc,
+    required this.filter,
   });
 
   @override
@@ -516,19 +842,57 @@ class _SortedEntriesList extends ConsumerWidget {
     final filterService = ref.read(filterSortServiceProvider);
     final mediaRepo = ref.read(mediaRepositoryProvider);
 
+    // Map Media pour le filtrage (chargée par _allMediaMapProvider).
+    final mediaMapAsync = ref.watch(_allMediaMapProvider);
+    final mediaMap = mediaMapAsync.maybeWhen(
+      data: (m) => m,
+      orElse: () => const <int, Media>{},
+    );
+
+    // Filtre les entrées selon le MediaFilter courant.
+    // - Si le filtre est vide : toutes les entrées passent.
+    // - Sinon : une entrée passe si son Media est connu ET matches() == true.
+    //   Si le Media est inconnu, on l'exclut (on ne peut pas garantir le match).
+    final filteredEntries = filter.isEmpty
+        ? entries
+        : entries.where((e) {
+            final media = mediaMap[e.mediaId];
+            if (media == null) return false;
+            return filter.matches(media);
+          }).toList();
+
     // Cache synchrone des titres disponibles depuis les FutureBuilder en cours.
     // On trie dès maintenant avec les titres disponibles (les non-chargés tombent
     // en fin de liste avec une chaîne vide).
     return _MediaTitleResolver(
-      entries: entries,
+      entries: filteredEntries,
       mediaRepo: mediaRepo,
       builder: (titleOf) {
         final sorted = filterService.sortEntries(
-          entries,
+          filteredEntries,
           sortField,
           descending: sortDesc,
           titleOf: titleOf,
         );
+
+        if (sorted.isEmpty && !filter.isEmpty) {
+          // Aucun résultat après filtrage : message informatif.
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.filter_list_off,
+                    size: 48, color: Colors.white38),
+                const SizedBox(height: 12),
+                Text(
+                  'Aucun anime ne correspond aux filtres',
+                  style: Theme.of(context).textTheme.bodyLarge,
+                ),
+              ],
+            ),
+          );
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
           itemCount: sorted.length,
@@ -633,6 +997,15 @@ class _EntryTile extends ConsumerWidget {
   Future<void> _resume(BuildContext context, WidgetRef ref, Media media) =>
       resumePlayback(context, ref, media);
 
+  /// Retire le drapeau « nouvel épisode » (l'utilisateur a ouvert/repris
+  /// l'anime → il l'a vu). Best-effort ; rafraîchit le badge.
+  void _clearNewEpisodeFlag(WidgetRef ref, int mediaId) {
+    ref
+        .read(settingsRepositoryProvider)
+        .delete(SettingsKeys.newEpisodeFor(mediaId))
+        .then((_) => ref.invalidate(newEpisodeFlagProvider(mediaId)));
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaFuture = _resolveMedia(ref);
@@ -670,7 +1043,37 @@ class _EntryTile extends ConsumerWidget {
                   ),
                 )
               : const SizedBox(width: 40, height: 56),
-          title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: Row(
+            children: [
+              Flexible(
+                child:
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+              ),
+              // Badge « nouvel épisode » (drapeau posé par le recheck).
+              if (ref.watch(newEpisodeFlagProvider(entry.mediaId)).maybeWhen(
+                    data: (v) => v,
+                    orElse: () => false,
+                  )) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.tertiary,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    'Nouv.',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onTertiary,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
           subtitle: Text(
             progressLabel,
             style: Theme.of(context).textTheme.bodySmall,
@@ -690,19 +1093,25 @@ class _EntryTile extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.play_circle_outline),
                   tooltip: 'Reprendre',
-                  onPressed: () => _resume(context, ref, media),
+                  onPressed: () {
+                    _clearNewEpisodeFlag(ref, entry.mediaId);
+                    _resume(context, ref, media);
+                  },
                 ),
             ],
           ),
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MediaDetailPage(
-                anilistId: entry.mediaId,
-                displayTitle: media?.animeSamaTitle,
+          onTap: () {
+            _clearNewEpisodeFlag(ref, entry.mediaId);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MediaDetailPage(
+                  anilistId: entry.mediaId,
+                  displayTitle: media?.animeSamaTitle,
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );

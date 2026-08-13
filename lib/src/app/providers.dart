@@ -17,6 +17,7 @@ import '../data/repositories/list_repository.dart';
 import '../data/repositories/media_repository.dart';
 import '../data/repositories/meta_cache_repository.dart';
 import '../data/repositories/progress_repository.dart';
+import '../data/repositories/watch_history_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/franchise_service.dart';
 import '../domain/season_progress_repository.dart';
@@ -58,6 +59,10 @@ final listRepositoryProvider = Provider<ListRepository>(
 
 final progressRepositoryProvider = Provider<ProgressRepository>(
   (ref) => ProgressRepository(ref.watch(databaseProvider)),
+);
+
+final watchHistoryRepositoryProvider = Provider<WatchHistoryRepository>(
+  (ref) => WatchHistoryRepository(ref.watch(databaseProvider)),
 );
 
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(

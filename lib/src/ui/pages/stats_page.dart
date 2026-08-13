@@ -8,10 +8,37 @@ import '../../app/providers.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
+import '../../domain/models/watch_history_entry.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
 // ---------------------------------------------------------------------------
+
+/// Une ligne d'historique enrichie du titre affichable de l'anime.
+class _HistoryRow {
+  final WatchHistoryEntry entry;
+  final String title;
+  const _HistoryRow({required this.entry, required this.title});
+}
+
+/// Activité récente : les derniers lancements de lecture, titre résolu en local
+/// (instantané, pas de réseau — repli sur l'id si le média n'est pas en cache).
+final _recentHistoryProvider = FutureProvider<List<_HistoryRow>>((ref) async {
+  final history = await ref.watch(watchHistoryRepositoryProvider).recent(limit: 15);
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final titleCache = <int, String>{};
+  final rows = <_HistoryRow>[];
+  for (final h in history) {
+    var title = titleCache[h.mediaId];
+    if (title == null) {
+      final m = await mediaRepo.getMedia(h.mediaId);
+      title = m?.title.preferred ?? m?.animeSamaTitle ?? 'ID ${h.mediaId}';
+      titleCache[h.mediaId] = title;
+    }
+    rows.add(_HistoryRow(entry: h, title: title));
+  }
+  return rows;
+});
 
 final _statsDataProvider = FutureProvider<_StatsData>((ref) async {
   final listRepo = ref.watch(listRepositoryProvider);
@@ -166,16 +193,17 @@ class StatsPage extends ConsumerWidget {
 // Corps principal
 // ---------------------------------------------------------------------------
 
-class _StatsBody extends StatelessWidget {
+class _StatsBody extends ConsumerWidget {
   final _StatsData data;
   const _StatsBody({required this.data});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final sortedGenres = data.minutesByGenre.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final topGenres = sortedGenres.take(10).toList();
     final maxGenreMinutes = topGenres.isEmpty ? 1 : topGenres.first.value;
+    final historyAsync = ref.watch(_recentHistoryProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -225,6 +253,34 @@ class _StatsBody extends StatelessWidget {
               maxMinutes: maxGenreMinutes,
             ),
         ],
+
+        // --- Activité récente (historique des lancements) ---
+        const SizedBox(height: 20),
+        Text(
+          'Activité récente',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        historyAsync.when(
+          loading: () => const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => const SizedBox.shrink(),
+          data: (rows) {
+            if (rows.isEmpty) {
+              return Text(
+                'Aucune lecture récente.',
+                style: Theme.of(context).textTheme.bodySmall,
+              );
+            }
+            return Column(
+              children: [
+                for (final r in rows) _HistoryTile(row: r),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
@@ -439,5 +495,52 @@ class _GenreBar extends StatelessWidget {
     final h = minutes ~/ 60;
     final m = minutes % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Ligne d'activité récente (historique de lancement)
+// ---------------------------------------------------------------------------
+
+class _HistoryTile extends StatelessWidget {
+  final _HistoryRow row;
+  const _HistoryTile({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ep = row.entry.episodeNumber;
+    // Affiche l'épisode sans « .0 » superflu.
+    final epLabel = ep == ep.roundToDouble()
+        ? 'Épisode ${ep.toInt()}'
+        : 'Épisode $ep';
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(Icons.play_circle_outline,
+          color: theme.colorScheme.primary, size: 20),
+      title: Text(row.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(epLabel, style: theme.textTheme.bodySmall),
+      trailing: Text(
+        _relativeDate(row.entry.startedAt),
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+    );
+  }
+
+  /// Date relative lisible : « à l'instant », « il y a Xh », « hier », sinon
+  /// jj/mm. On ne dépend PAS d'une locale externe (calcul manuel simple).
+  static String _relativeDate(DateTime when) {
+    final now = DateTime.now();
+    final diff = now.difference(when);
+    if (diff.inMinutes < 1) return "à l'instant";
+    if (diff.inMinutes < 60) return 'il y a ${diff.inMinutes} min';
+    if (diff.inHours < 24) return 'il y a ${diff.inHours} h';
+    if (diff.inDays == 1) return 'hier';
+    if (diff.inDays < 7) return 'il y a ${diff.inDays} j';
+    final d = when.day.toString().padLeft(2, '0');
+    final m = when.month.toString().padLeft(2, '0');
+    return '$d/$m';
   }
 }
