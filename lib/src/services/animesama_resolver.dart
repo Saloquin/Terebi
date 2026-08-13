@@ -43,6 +43,7 @@ class AnimeSamaResolver implements StreamResolver {
   static const _episodesPrefix = 'EPISODES_JSON:';
   static const _cataloguePrefix = 'CATALOGUE_JSON:';
   static const _planningPrefix = 'PLANNING_JSON:';
+  static const _skipPrefix = 'SKIP_JSON:';
 
   /// Args communs (titre + langue), pour une [action] donnée.
   ///
@@ -212,6 +213,45 @@ class AnimeSamaResolver implements StreamResolver {
     final eps = parseEpisodes(combined);
     if (eps.isNotEmpty) return eps;
     throw ResolveException(parseError(combined) ?? 'Aucun épisode trouvé.');
+  }
+
+  /// Timestamps de skip intro/outro (AniSkip) pour un épisode. Best-effort :
+  /// renvoie `SkipTimes` vide (isEmpty) si rien trouvé — n'échoue JAMAIS
+  /// (l'absence de skip n'est pas une erreur bloquante pour la lecture).
+  Future<SkipTimes> skipTimes({
+    required String title,
+    required int episode,
+    int seasonIndex = 1,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    try {
+      final args = [
+        ..._baseArgs('skip-times', title, language),
+        '--season', '$seasonIndex',
+        '--episode', '$episode',
+      ];
+      final combined = await _run(args);
+      return parseSkipTimes(combined);
+    } catch (_) {
+      return const SkipTimes();
+    }
+  }
+
+  /// Parse la ligne `SKIP_JSON: {...}` en [SkipTimes] (vide si absent/illisible).
+  SkipTimes parseSkipTimes(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_skipPrefix)) {
+        try {
+          final jsonStr = line.substring(_skipPrefix.length).trim();
+          final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+          return SkipTimes.fromJson(map);
+        } catch (_) {
+          return const SkipTimes();
+        }
+      }
+    }
+    return const SkipTimes();
   }
 
   /// Recherche dans le catalogue anime-sama. [query] est utilisé tel quel

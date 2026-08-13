@@ -235,6 +235,19 @@ final animeSamaLanguagesProvider = FutureProvider.family<Set<PlaybackLanguage>,
   };
 });
 
+/// Timestamps de skip intro/outro (AniSkip) d'un (titre, saison, épisode).
+/// Best-effort : renvoie un [SkipTimes] vide si rien trouvé (jamais d'erreur).
+/// Mis en cache Riverpod par clé → une seule requête AniSkip par épisode.
+final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
+    ({String title, int seasonIndex, int episode})>((ref, arg) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  return resolver.skipTimes(
+    title: arg.title,
+    episode: arg.episode,
+    seasonIndex: arg.seasonIndex,
+  );
+});
+
 /// Rematch titre anime-sama → Media AniList (avec cache titre→anilistId).
 final titleMatcherProvider = Provider<TitleMatcher>(
   (ref) => TitleMatcher(

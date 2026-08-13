@@ -139,6 +139,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   int _seekForward = 10;
   int _seekBackward = 10;
 
+  /// Timestamps de skip intro/outro (AniSkip) de l'épisode courant. Vide tant
+  /// que non chargé ou si aucun skip connu.
+  SkipTimes _skip = const SkipTimes();
+
   @override
   void initState() {
     super.initState();
@@ -156,6 +160,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _positionSub = _player.stream.position.listen((pos) {
       _positionSeconds = pos.inMilliseconds / 1000.0;
       _maybePersistPosition();
+      _maybeRefreshSkipButton();
     });
     _durationSub = _player.stream.duration.listen((dur) {
       final s = dur.inMilliseconds / 1000.0;
@@ -164,6 +169,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _completedSub = _player.stream.completed.listen((done) {
       if (done) _onEpisodeCompleted();
     });
+  }
+
+  /// Dernier état d'affichage du bouton skip (pour ne rebuild que sur changement
+  /// — le flux position émet plusieurs fois par seconde).
+  bool _skipButtonVisible = false;
+
+  /// Rebuild UNIQUEMENT quand l'entrée/sortie d'un intervalle de skip change,
+  /// pour afficher/masquer le bouton sans reconstruire à chaque tick.
+  void _maybeRefreshSkipButton() {
+    final visible = _activeSkip != null;
+    if (visible != _skipButtonVisible) {
+      _skipButtonVisible = visible;
+      if (mounted) setState(() {});
+    }
   }
 
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
@@ -503,6 +522,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
             );
       } catch (_) {/* best-effort */}
 
+      // Skip intro/outro (AniSkip) : chargé en arrière-plan, sans bloquer.
+      _loadSkipTimes();
+
       // Conserve l'état pause/lecture (switch de langue effectué en pause).
       if (startPaused) {
         try {
@@ -634,6 +656,34 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ref.invalidate(countByStatusProvider);
       ref.invalidate(listEntryProvider(widget.media.anilistId));
     } catch (_) {/* best-effort : ne bloque pas la lecture */}
+  }
+
+  /// Charge (best-effort, en arrière-plan) les timestamps de skip intro/outro
+  /// de l'épisode courant via AniSkip. Ne bloque jamais la lecture.
+  Future<void> _loadSkipTimes() async {
+    final title = widget.animeSamaTitle ?? widget.media.title.preferred;
+    try {
+      final skip = await ref.read(animeSamaSkipTimesProvider(
+        (title: title, seasonIndex: _seasonIndex, episode: _currentEpisode),
+      ).future);
+      if (mounted) setState(() => _skip = skip);
+    } catch (_) {
+      if (mounted) setState(() => _skip = const SkipTimes());
+    }
+  }
+
+  /// Cible de skip active à la position courante : « fin de l'intro » si on est
+  /// dans l'opening, « fin de l'outro » si dans l'ending, sinon `null`.
+  /// Retourne (label, positionCibleSecondes).
+  ({String label, double target})? get _activeSkip {
+    final pos = _positionSeconds;
+    if (_skip.hasOpening && pos >= _skip.opStart! && pos < _skip.opEnd!) {
+      return (label: "Passer l'intro", target: _skip.opEnd!);
+    }
+    if (_skip.hasEnding && pos >= _skip.edStart! && pos < _skip.edEnd!) {
+      return (label: "Passer l'outro", target: _skip.edEnd!);
+    }
+    return null;
   }
 
   /// Recul appliqué à la reprise pour se remettre dans l'action (secondes).
@@ -855,9 +905,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         await _rewindProgressTo(ep);
       }
       if (!mounted) return;
-      // Nouvel épisode → position remise à zéro.
+      // Nouvel épisode → position remise à zéro, skip times réinitialisés.
       _positionSeconds = 0;
       _lastPersistedWhole = -1;
+      _skip = const SkipTimes();
+      _skipButtonVisible = false;
       setState(() {
         _currentEpisode = ep;
         _ready = false;
@@ -1176,6 +1228,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                 onPressed: _loadAndPlay,
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('Lancer'),
+                              ),
+                            ),
+                          // Bouton « Passer l'intro / l'outro » (AniSkip),
+                          // en bas à droite, visible quand la position est dans
+                          // un intervalle de skip connu.
+                          if (_ready && _activeSkip != null)
+                            Positioned(
+                              right: 16,
+                              bottom: 56,
+                              child: FilledButton.icon(
+                                onPressed: () =>
+                                    _player.seek(Duration(
+                                        milliseconds:
+                                            (_activeSkip!.target * 1000)
+                                                .round())),
+                                icon: const Icon(Icons.skip_next),
+                                label: Text(_activeSkip!.label),
                               ),
                             ),
                           // Overlay auto-play : « Épisode suivant dans N… ».

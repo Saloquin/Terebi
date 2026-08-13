@@ -334,6 +334,23 @@ def action_search(mod, dl, args):
     sys.exit(0)
 
 
+def action_skip_times(mod, dl, args):
+    """Timestamps de skip intro/outro (AniSkip via MyAnimeList) pour un épisode.
+
+    Sortie : SKIP_JSON: {"op_start":..,"op_end":..,"ed_start":..,"ed_end":..,
+    "episode_length":..} — champs présents seulement si trouvés. SKIP_JSON: {}
+    si aucun timestamp (jamais une erreur : l'absence de skip n'est pas un échec).
+    """
+    # Libellé de saison (« Saison N ») pour affiner la recherche MAL côté AniSkip.
+    saison = f"Saison {args.season}" if args.season and args.season > 1 else None
+    try:
+        times = mod._get_skip_times(args.title, args.episode, saison)
+    except Exception:
+        times = None
+    print(f"SKIP_JSON: {json.dumps(times or {}, ensure_ascii=False)}")
+    sys.exit(0)
+
+
 def _planning_times(mod):
     """Récupère la page /planning/ et extrait un map titre_normalisé -> heure.
 
@@ -471,7 +488,7 @@ def main():
     parser.add_argument("--script", required=True, help="Chemin vers anime_sama.py")
     parser.add_argument("--action", default="resolve",
                         choices=["resolve", "list-seasons", "list-episodes",
-                                 "search", "planning"])
+                                 "search", "planning", "skip-times"])
     parser.add_argument("--title", default="", help="Titre de recherche")
     parser.add_argument("--season", type=int, default=1,
                         help="Index de saison (1-based, cf. list-seasons)")
@@ -490,6 +507,8 @@ def main():
             action_search(mod, dl, args)
         elif args.action == "planning":
             action_planning(mod, dl, args)
+        elif args.action == "skip-times":
+            action_skip_times(mod, dl, args)
         else:
             action_resolve(mod, dl, args)
     except SystemExit:

@@ -32,6 +32,34 @@ class StreamLink {
   String toString() => '$quality → $url';
 }
 
+/// Intervalles de skip (intro/outro) d'un épisode, en secondes (AniSkip).
+/// Un champ `null` signifie « intervalle inconnu / absent ».
+class SkipTimes {
+  /// Début/fin de l'opening (intro), en secondes.
+  final double? opStart;
+  final double? opEnd;
+
+  /// Début/fin de l'ending (outro), en secondes.
+  final double? edStart;
+  final double? edEnd;
+
+  const SkipTimes({this.opStart, this.opEnd, this.edStart, this.edEnd});
+
+  /// `true` si aucun intervalle exploitable n'est connu.
+  bool get isEmpty =>
+      !hasOpening && !hasEnding;
+
+  bool get hasOpening => opStart != null && opEnd != null && opEnd! > opStart!;
+  bool get hasEnding => edStart != null && edEnd != null && edEnd! > edStart!;
+
+  factory SkipTimes.fromJson(Map<String, dynamic> json) => SkipTimes(
+        opStart: (json['op_start'] as num?)?.toDouble(),
+        opEnd: (json['op_end'] as num?)?.toDouble(),
+        edStart: (json['ed_start'] as num?)?.toDouble(),
+        edEnd: (json['ed_end'] as num?)?.toDouble(),
+      );
+}
+
 /// Une saison telle qu'anime-sama la liste (Saison 1, 2, OAV…).
 /// [index] est la position 1-based dans la liste anime-sama (utilisée pour
 /// résoudre les épisodes de cette saison).
