@@ -117,36 +117,24 @@ class TitleMatcher {
   /// - (media, false) : match fiable trouvé ;
   /// - (null, false)  : recherche OK mais aucun résultat similaire (définitif) ;
   /// - (null, true)   : échec réseau / rate-limit (à retenter plus tard).
-  ///
-  /// UNE SEULE requête AniList (le titre complet), puis exploitation locale des
-  /// résultats : on teste la similarité avec le titre complet, puis en retirant
-  /// le dernier mot de la query à chaque tour (sans nouvelle requête). Attrape
-  /// les titres anime-sama à suffixe parasite (« … VOSTFR », « Saison 2 »,
-  /// sous-titre après « : ») que le titre AniList n'a pas.
   Future<(Media?, bool)> _fetchEnrichment(String query) async {
-    final List<Media> results;
     try {
-      results = await anilist.search(query);
-    } catch (_) {
-      return (null, true); // AniList indisponible / rate-limité
-    }
-    if (results.isEmpty) return (null, false);
-
-    // Query dégradée par mot (titre complet → -1 mot → …), testée contre les
-    // résultats DÉJÀ reçus. Aucune requête supplémentaire.
-    var words = query.trim().split(RegExp(r'\s+'));
-    while (words.isNotEmpty) {
-      final attempt = words.join(' ');
+      final results = await anilist.search(query);
       for (final m in results) {
-        for (final c in [m.title.english, m.title.romaji, m.title.native]) {
-          if (c != null && titlesSimilar(attempt, c)) {
+        final candidates = [
+          m.title.english,
+          m.title.romaji,
+          m.title.native,
+        ];
+        for (final c in candidates) {
+          if (c != null && titlesSimilar(query, c)) {
             return (m, false);
           }
         }
       }
-      if (words.length == 1) break;
-      words = words.sublist(0, words.length - 1);
+      return (null, false); // recherche aboutie, pas de match
+    } catch (_) {
+      return (null, true); // AniList indisponible / rate-limité
     }
-    return (null, false); // recherche aboutie, pas de match
   }
 }
