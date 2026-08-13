@@ -343,8 +343,11 @@ def action_skip_times(mod, dl, args):
     """
     # Libellé de saison (« Saison N ») pour affiner la recherche MAL côté AniSkip.
     saison = f"Saison {args.season}" if args.season and args.season > 1 else None
+    # MAL id fourni par Terebi (via AniList/Jikan) : bien plus fiable que la
+    # recherche par titre. 0 ou absent -> repli sur la recherche textuelle.
+    mal_id = args.mal_id if args.mal_id and args.mal_id > 0 else None
     try:
-        times = mod._get_skip_times(args.title, args.episode, saison)
+        times = mod._get_skip_times(args.title, args.episode, saison, mal_id=mal_id)
     except Exception:
         times = None
     print(f"SKIP_JSON: {json.dumps(times or {}, ensure_ascii=False)}")
@@ -493,6 +496,8 @@ def main():
     parser.add_argument("--season", type=int, default=1,
                         help="Index de saison (1-based, cf. list-seasons)")
     parser.add_argument("--episode", type=int, default=1, help="Numéro d'épisode")
+    parser.add_argument("--mal-id", type=int, default=0,
+                        help="MAL id (AniSkip) — 0 = recherche par titre")
     parser.add_argument("--vf", action="store_true", help="Version française (défaut VOSTFR)")
     args = parser.parse_args()
 

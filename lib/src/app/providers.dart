@@ -238,13 +238,15 @@ final animeSamaLanguagesProvider = FutureProvider.family<Set<PlaybackLanguage>,
 /// Timestamps de skip intro/outro (AniSkip) d'un (titre, saison, épisode).
 /// Best-effort : renvoie un [SkipTimes] vide si rien trouvé (jamais d'erreur).
 /// Mis en cache Riverpod par clé → une seule requête AniSkip par épisode.
+/// [malId] (via AniList/Jikan) fiabilise la résolution AniSkip s'il est connu.
 final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
-    ({String title, int seasonIndex, int episode})>((ref, arg) async {
+    ({String title, int seasonIndex, int episode, int? malId})>((ref, arg) async {
   final resolver = await ref.watch(animeSamaResolverProvider.future);
   return resolver.skipTimes(
     title: arg.title,
     episode: arg.episode,
     seasonIndex: arg.seasonIndex,
+    malId: arg.malId,
   );
 });
 

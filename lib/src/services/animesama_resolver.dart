@@ -222,6 +222,7 @@ class AnimeSamaResolver implements StreamResolver {
     required String title,
     required int episode,
     int seasonIndex = 1,
+    int? malId,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     try {
@@ -229,6 +230,7 @@ class AnimeSamaResolver implements StreamResolver {
         ..._baseArgs('skip-times', title, language),
         '--season', '$seasonIndex',
         '--episode', '$episode',
+        if (malId != null && malId > 0) ...['--mal-id', '$malId'],
       ];
       final combined = await _run(args);
       return parseSkipTimes(combined);

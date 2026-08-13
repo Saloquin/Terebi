@@ -664,7 +664,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     final title = widget.animeSamaTitle ?? widget.media.title.preferred;
     try {
       final skip = await ref.read(animeSamaSkipTimesProvider(
-        (title: title, seasonIndex: _seasonIndex, episode: _currentEpisode),
+        (
+          title: title,
+          seasonIndex: _seasonIndex,
+          episode: _currentEpisode,
+          malId: widget.media.malId,
+        ),
       ).future);
       if (mounted) setState(() => _skip = skip);
     } catch (_) {

@@ -466,7 +466,7 @@ def _fetch_aniskip_times(mal_id, episode):
         return None
 
 
-def _get_skip_times(anime_name, episode, saison=None):
+def _get_skip_times(anime_name, episode, saison=None, mal_id=None):
     if not anime_name or episode is None:
         return None
     ep_match = re.search(r'(\d+)', str(episode))
@@ -480,11 +480,21 @@ def _get_skip_times(anime_name, episode, saison=None):
         if cached is None or "episode_length" in cached:
             _dbg(f"AniSkip cache {cache_key!r} -> {cached}")
             return cached
+    # MAL id fourni par l'appelant (via AniList/Jikan cote Terebi) : bien plus
+    # fiable que la recherche textuelle sur MyAnimeList. On l'essaie EN PREMIER.
+    if mal_id:
+        times = _fetch_aniskip_times(mal_id, ep)
+        if times:
+            _dbg(f"AniSkip {anime_name!r} ep{ep} : MAL {mal_id} (fourni) -> {times}")
+            cache[cache_key] = times
+            _save_json_cache("skip_times.json", cache)
+            return times
+    # Repli : recherche du MAL id par titre (moins fiable).
     for query in _skip_queries(anime_name, saison):
-        for mal_id, mal_name in _resolve_mal_ids(query):
-            times = _fetch_aniskip_times(mal_id, ep)
+        for resolved_id, mal_name in _resolve_mal_ids(query):
+            times = _fetch_aniskip_times(resolved_id, ep)
             if times:
-                _dbg(f"AniSkip {anime_name!r} ep{ep} : MAL {mal_id} ({mal_name!r}) -> {times}")
+                _dbg(f"AniSkip {anime_name!r} ep{ep} : MAL {resolved_id} ({mal_name!r}) -> {times}")
                 cache[cache_key] = times
                 _save_json_cache("skip_times.json", cache)
                 return times
