@@ -1007,11 +1007,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// ouvre le menu langue + vitesse. On utilise MaterialDesktopCustomButton
   /// (les PopupMenuButton bruts ne reçoivent pas les taps dans cette barre).
   Widget _buildVideo() {
-    // Barre haute : un bouton « réglages » (langue + vitesse). Clé DISTINCTE
-    // pour normal/fullscreen car media_kit monte les deux barres en même temps
-    // — partager une GlobalKey lève « Multiple widgets used the same GlobalKey ».
+    // Barre haute : un bouton « réglages ». On construit une instance DISTINCTE
+    // (clé distincte) pour la barre normale et pour la barre plein écran, car
+    // media_kit monte les deux en même temps — partager le widget/la clé lève
+    // « Multiple widgets used the same GlobalKey ».
+    // Barre haute : bouton « Passer l'intro/outro » (visible seulement quand un
+    // intervalle est actif, via _SkipButton) + bouton « réglages ». Cette barre
+    // est affichée AUSSI EN PLEIN ÉCRAN par media_kit — c'est pourquoi le skip y
+    // est placé (mon Positioned du Stack n'existe pas dans l'overlay fullscreen).
+    // Clé DISTINCTE pour normal/fullscreen (media_kit monte les deux barres →
+    // partager une GlobalKey lève « Multiple widgets used the same GlobalKey »).
     List<Widget> topBar(GlobalKey key) => <Widget>[
           const Spacer(),
+          _SkipButton(player: _player, skip: _skip),
           MaterialDesktopCustomButton(
             key: key,
             icon: const Icon(Icons.tune),
@@ -1037,13 +1045,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
     // Utiliser la mauvaise variante rend les boutons custom invisibles.
-    //
-    // Le bouton « Passer l'intro/outro » est superposé via le builder `controls`
-    // du Video : media_kit RÉUTILISE ce builder en plein écran (il recrée le
-    // Video avec les mêmes controls). On empile donc les contrôles Material
-    // standard + notre bouton en overlay PERMANENT → visible dans les deux modes
-    // MÊME quand la barre de contrôles est masquée (le _SkipButton ne s'affiche
-    // que pendant un intervalle d'intro/outro).
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
         topButtonBar: topBar(_settingsButtonKey),
@@ -1053,20 +1054,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         topButtonBar: topBar(_settingsButtonKeyFs),
         keyboardShortcuts: shortcuts,
       ),
-      child: Video(
-        controller: _videoController,
-        controls: (state) => Stack(
-          children: [
-            MaterialDesktopVideoControls(state),
-            // Overlay permanent (indépendant de la visibilité des contrôles).
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: _SkipButton(player: _player, skip: _skip),
-            ),
-          ],
-        ),
-      ),
+      child: Video(controller: _videoController),
     );
   }
 
