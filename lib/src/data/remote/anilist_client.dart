@@ -57,6 +57,15 @@ abstract interface class AniListApi {
   Future<Media> mediaDetail(int anilistId);
   Future<List<MediaRelation>> relations(int anilistId);
   Future<AiringSchedule?> nextAiring(int anilistId);
+
+  /// Tendances du moment (communauté AniList, sort TRENDING_DESC).
+  Future<List<Media>> trending({int page, int perPage});
+
+  /// Animes les plus populaires (communauté AniList, sort POPULARITY_DESC).
+  Future<List<Media>> popular({int page, int perPage});
+
+  /// Animes d'un [genre] donné, triés par score décroissant (découverte).
+  Future<List<Media>> byGenre(String genre, {int page, int perPage});
 }
 
 /// Client AniList GraphQL.
@@ -148,6 +157,55 @@ class AniListClient implements AniListApi {
       'page': page,
       'perPage': perPage,
     });
+    final mediaList = data['Page']['media'] as List<dynamic>;
+    return mediaList
+        .map((e) => Media.fromAniList(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Liste de médias triés par un critère AniList (`sort`). Factorise
+  /// trending/popular (mêmes requête et parsing, seul le tri change).
+  Future<List<Media>> _mediaBySort(String sort, int page, int perPage) async {
+    final gql = '''
+      query(\$page: Int, \$perPage: Int) {
+        Page(page: \$page, perPage: \$perPage) {
+          media(type: ANIME, isAdult: false, sort: $sort) {
+            $_kMediaFragment
+          }
+        }
+      }
+    ''';
+    final data = await _query(gql, {'page': page, 'perPage': perPage});
+    final mediaList = data['Page']['media'] as List<dynamic>;
+    return mediaList
+        .map((e) => Media.fromAniList(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
+  Future<List<Media>> trending({int page = 1, int perPage = 20}) =>
+      _mediaBySort('TRENDING_DESC', page, perPage);
+
+  @override
+  Future<List<Media>> popular({int page = 1, int perPage = 20}) =>
+      _mediaBySort('POPULARITY_DESC', page, perPage);
+
+  /// Animes d'un [genre] donné, triés par score décroissant (découverte).
+  @override
+  Future<List<Media>> byGenre(String genre,
+      {int page = 1, int perPage = 20}) async {
+    const gql = '''
+      query(\$genre: String, \$page: Int, \$perPage: Int) {
+        Page(page: \$page, perPage: \$perPage) {
+          media(type: ANIME, isAdult: false, genre_in: [\$genre],
+                sort: SCORE_DESC) {
+            $_kMediaFragment
+          }
+        }
+      }
+    ''';
+    final data =
+        await _query(gql, {'genre': genre, 'page': page, 'perPage': perPage});
     final mediaList = data['Page']['media'] as List<dynamic>;
     return mediaList
         .map((e) => Media.fromAniList(e as Map<String, dynamic>))

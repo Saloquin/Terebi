@@ -47,6 +47,16 @@ class _StubAniList implements AniListApi {
   Future<List<MediaRelation>> relations(int anilistId) async => const [];
   @override
   Future<AiringSchedule?> nextAiring(int anilistId) async => null;
+  @override
+  Future<List<Media>> trending({int page = 1, int perPage = 20}) async =>
+      const [];
+  @override
+  Future<List<Media>> popular({int page = 1, int perPage = 20}) async =>
+      const [];
+  @override
+  Future<List<Media>> byGenre(String genre,
+          {int page = 1, int perPage = 20}) async =>
+      const [];
 }
 
 // ---------------------------------------------------------------------------

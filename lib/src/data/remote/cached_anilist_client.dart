@@ -154,4 +154,39 @@ class CachedAniListClient implements AniListApi {
           : AiringSchedule.fromJson(jsonDecode(s) as Map<String, dynamic>),
     );
   }
+
+  @override
+  Future<List<Media>> trending({int page = 1, int perPage = 20}) {
+    return _cached<List<Media>>(
+      // Les tendances bougent → TTL court.
+      key: 'trending:$page:$perPage',
+      ttl: CacheTtl.airing,
+      fetch: () => _inner.trending(page: page, perPage: perPage),
+      encode: _encodeMediaList,
+      decode: _decodeMediaList,
+    );
+  }
+
+  @override
+  Future<List<Media>> popular({int page = 1, int perPage = 20}) {
+    return _cached<List<Media>>(
+      // La popularité globale est stable → TTL long.
+      key: 'popular:$page:$perPage',
+      ttl: CacheTtl.metadata,
+      fetch: () => _inner.popular(page: page, perPage: perPage),
+      encode: _encodeMediaList,
+      decode: _decodeMediaList,
+    );
+  }
+
+  @override
+  Future<List<Media>> byGenre(String genre, {int page = 1, int perPage = 20}) {
+    return _cached<List<Media>>(
+      key: 'genre:$genre:$page:$perPage',
+      ttl: CacheTtl.metadata,
+      fetch: () => _inner.byGenre(genre, page: page, perPage: perPage),
+      encode: _encodeMediaList,
+      decode: _decodeMediaList,
+    );
+  }
 }

@@ -43,6 +43,19 @@ class _FakeApi implements AniListApi {
 
   @override
   Future<AiringSchedule?> nextAiring(int anilistId) async => null;
+
+  @override
+  Future<List<Media>> trending({int page = 1, int perPage = 20}) async =>
+      results;
+
+  @override
+  Future<List<Media>> popular({int page = 1, int perPage = 20}) async =>
+      results;
+
+  @override
+  Future<List<Media>> byGenre(String genre,
+          {int page = 1, int perPage = 20}) async =>
+      results;
 }
 
 void main() {
