@@ -1071,7 +1071,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         bottomButtonBar: bottomBar('fs'),
         keyboardShortcuts: shortcuts,
       ),
-      child: Video(controller: _videoController),
+      // Bouton « Passer l'intro/outro » en overlay via le builder `controls`.
+      // media_kit RÉUTILISE ce builder en plein écran → le bouton est visible
+      // DANS LES DEUX MODES, même contrôles masqués. On empile les contrôles
+      // Material standard + le bouton en Positioned (bas-droite, remonté).
+      child: Video(
+        controller: _videoController,
+        controls: (state) => Stack(
+          children: [
+            MaterialDesktopVideoControls(state),
+            Positioned(
+              right: 24,
+              bottom: 90,
+              child: _SkipButton(player: _player, skip: _skip),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1244,18 +1260,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('Lancer'),
                               ),
-                            ),
-                          // Bouton « Passer l'intro/outro » (AniSkip) en overlay
-                          // bas-droite, remonté au-dessus de la barre de
-                          // contrôles. Visible seulement pendant un intervalle
-                          // (le _SkipButton se masque tout seul sinon).
-                          // NB : mode fenêtré uniquement (l'overlay plein écran
-                          // de media_kit ne monte pas ce Stack) ; on l'accepte.
-                          if (_ready)
-                            Positioned(
-                              right: 16,
-                              bottom: 72,
-                              child: _SkipButton(player: _player, skip: _skip),
                             ),
                           // Overlay auto-play : « Épisode suivant dans N… ».
                           if (_autoPlayCountdown != null)
