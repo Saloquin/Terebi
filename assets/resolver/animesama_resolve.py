@@ -116,14 +116,24 @@ def _best_catalogue_index(query, animes):
 
 def _search_catalogue(dl, title, vf):
     """Cherche [title] ; si aucun match fiable, réessaie avec des requêtes plus
-    courtes (mots significatifs). Retourne (anime_name, anime_url) ou None."""
-    # Requêtes candidates : titre complet, puis 3 puis 2 premiers mots utiles.
+    courtes en retirant le DERNIER mot à chaque tour. Retourne (anime_name,
+    anime_url) ou None.
+
+    Les titres AniList sont souvent plus longs que ceux d'anime-sama (suffixes
+    « Season 3 », « Part 2 », sous-titre après « : »…). anime-sama ne trouve
+    alors rien sur le titre complet. On dégrade donc mot par mot (du titre
+    complet jusqu'au 1er mot) pour retrouver le nom de base présent sur
+    anime-sama, en s'arrêtant au premier match fiable."""
     tokens = [t for t in re.split(r'[^A-Za-z0-9]+', title) if t]
-    queries = [title]
-    if len(tokens) > 3:
-        queries.append(' '.join(tokens[:3]))
-    if len(tokens) > 2:
-        queries.append(' '.join(tokens[:2]))
+    if not tokens:
+        return None
+    # Requêtes : titre complet, puis on retire le dernier mot à chaque tour,
+    # jusqu'au 1er mot. Déduplication en conservant l'ordre.
+    queries = []
+    for n in range(len(tokens), 0, -1):
+        q = ' '.join(tokens[:n])
+        if q not in queries:
+            queries.append(q)
     for q in queries:
         animes, urls = dl.get_catalogue(q, vf=vf)
         if not animes:
