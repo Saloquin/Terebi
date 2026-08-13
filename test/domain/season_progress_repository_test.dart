@@ -53,5 +53,29 @@ void main() {
       // quelle que soit la valeur de total constatée ensuite.
       expect(v, greaterThanOrEqualTo(9999));
     });
+
+    group('hasAnyProgress', () {
+      test('faux si aucune saison entamée', () async {
+        expect(await repo.hasAnyProgress(1), isFalse);
+      });
+
+      test('vrai dès qu\'une saison a un épisode vu', () async {
+        await repo.setLastWatched(1, 2, 3);
+        expect(await repo.hasAnyProgress(1), isTrue);
+        // Autre média non impacté.
+        expect(await repo.hasAnyProgress(2), isFalse);
+      });
+
+      test('vrai si une saison est marquée entièrement vue (sentinelle)',
+          () async {
+        await repo.markSeasonFullyWatched(5, 1);
+        expect(await repo.hasAnyProgress(5), isTrue);
+      });
+
+      test('faux si la valeur est 0 explicitement', () async {
+        await repo.setLastWatched(9, 1, 0);
+        expect(await repo.hasAnyProgress(9), isFalse);
+      });
+    });
   });
 }

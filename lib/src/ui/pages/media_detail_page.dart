@@ -539,10 +539,16 @@ class _StatusDropdown extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // « A une progression » : progress global OU une saison anime-sama entamée
+    // (sinon un anime suivi via le lecteur, progress=0, resterait « Planifié »).
+    final hasProgress = ref.watch(hasProgressProvider(media.anilistId)).maybeWhen(
+          data: (v) => v,
+          orElse: () => (entry?.progress ?? 0) > 0,
+        );
     // Statut EFFECTIF (calculé) pour l'affichage informatif.
     final eff = effectiveStatus(
       entry: entry,
-      hasProgress: (entry?.progress ?? 0) > 0,
+      hasProgress: hasProgress,
     );
     // Valeur du dropdown = statut MANUEL stocké, ou null. « En cours » /
     // « Terminé » ne sont jamais des choix manuels : si le stocké est completed
@@ -596,10 +602,16 @@ class _StatusDropdown extends ConsumerWidget {
 
     if (newStatus == null) {
       // Retour au mode auto : on efface un éventuel statut manuel « gelant ».
-      // Si progression > 0 → stocké `planning` (l'effectif sera « En cours ») ;
-      // sinon on retire l'entrée de la bibliothèque.
+      // Si l'anime a une progression (globale OU par saison) → stocké `planning`
+      // (l'effectif sera « En cours ») ; sinon on retire l'entrée. On teste la
+      // progression PAR SAISON aussi (un anime suivi via le lecteur a souvent
+      // progress=0 mais une progression par saison → ne PAS le supprimer).
       if (existing == null) return;
-      if (existing.progress > 0) {
+      final hasProgress = existing.progress > 0 ||
+          await ref
+              .read(seasonProgressRepositoryProvider)
+              .hasAnyProgress(media.anilistId);
+      if (hasProgress) {
         await repo.upsertEntry(existing.copyWith(
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
@@ -623,6 +635,7 @@ class _StatusDropdown extends ConsumerWidget {
     ref.invalidate(listEntryProvider(media.anilistId));
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
+    ref.invalidate(hasProgressProvider(media.anilistId));
 
     if (context.mounted) {
       final msg = newStatus == null

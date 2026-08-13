@@ -86,4 +86,15 @@ class SettingsRepository {
           ..where((t) => t.key.equals(key)))
         .go();
   }
+
+  /// Toutes les paires (clé, valeur) dont la clé commence par [prefix].
+  /// Sert à scanner la progression par saison d'un média sans connaître ses
+  /// saisons (clés `anime_sama_watched:<mediaId>:<seasonIndex>`).
+  Future<Map<String, String>> entriesWithPrefix(String prefix) async {
+    final rows = await _db.select(_db.appSettings).get();
+    return {
+      for (final r in rows)
+        if (r.key.startsWith(prefix)) r.key: r.value,
+    };
+  }
 }

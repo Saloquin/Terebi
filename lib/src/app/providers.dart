@@ -65,6 +65,16 @@ final watchHistoryRepositoryProvider = Provider<WatchHistoryRepository>(
   (ref) => WatchHistoryRepository(ref.watch(databaseProvider)),
 );
 
+/// `true` si l'anime [mediaId] a une progression locale (progress global > 0 ou
+/// au moins une saison anime-sama entamée). Sert à dériver « En cours » à
+/// l'affichage (fiche/biblio) de façon instantanée, sans réseau.
+final hasProgressProvider =
+    FutureProvider.family<bool, int>((ref, mediaId) async {
+  final entry = await ref.watch(listRepositoryProvider).getEntry(mediaId);
+  if ((entry?.progress ?? 0) > 0) return true;
+  return ref.watch(seasonProgressRepositoryProvider).hasAnyProgress(mediaId);
+});
+
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
   (ref) => MetaCacheRepository(ref.watch(databaseProvider)),
 );

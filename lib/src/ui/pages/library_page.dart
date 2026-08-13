@@ -29,9 +29,16 @@ import 'resume_helper.dart';
 final _entriesByEffectiveStatusProvider =
     FutureProvider<Map<ListStatus, List<ListEntry>>>((ref) async {
   final all = await ref.watch(listRepositoryProvider).getAllEntries();
+  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
   final grouped = <ListStatus, List<ListEntry>>{};
   for (final e in all) {
-    final eff = effectiveStatus(entry: e, hasProgress: e.progress > 0);
+    // « A une progression » = progress global > 0 OU au moins une saison
+    // anime-sama entamée. Indispensable : un anime suivi via le lecteur peut
+    // avoir progress=0 mais une progression PAR SAISON (sinon il resterait
+    // faussement « Planifié » au lieu d'« En cours »).
+    final hasProgress =
+        e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
+    final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
     if (eff == null) continue; // hors listes
     (grouped[eff] ??= []).add(e);
   }

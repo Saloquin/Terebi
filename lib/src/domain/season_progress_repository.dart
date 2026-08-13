@@ -51,4 +51,18 @@ class SeasonProgressRepository {
       await setLastWatched(anilistId, seasonIndex, episode);
     }
   }
+
+  /// `true` si l'anime a une progression sur AU MOINS UNE saison (un épisode vu,
+  /// ou saison marquée entièrement vue). Local et instantané : scanne les clés
+  /// `anime_sama_watched:<mediaId>:*` sans connaître la liste des saisons (donc
+  /// sans réseau). Sert à dériver le statut « En cours » à l'affichage.
+  Future<bool> hasAnyProgress(int anilistId) async {
+    final prefix = 'anime_sama_watched:$anilistId:';
+    final entries = await _settings.entriesWithPrefix(prefix);
+    for (final v in entries.values) {
+      final n = int.tryParse(v) ?? 0;
+      if (n > 0) return true;
+    }
+    return false;
+  }
 }
