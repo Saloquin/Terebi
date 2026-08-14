@@ -712,6 +712,29 @@ _CLASSIC_SLUGS = [
 ]
 
 
+def _catalogue_url(domain, genre="", page=1):
+    """Construit une URL de catalogue avec les filtres dans l'URL (filtrage cote
+    SERVEUR anime-sama). `type[]=Anime` est TOUJOURS present -> jamais de scan
+    dans le resultat. `genre[]` optionnel. Les autres criteres (annee, episodes,
+    chapitres, search) sont vides mais listes comme sur le site. `page` >1 ajoute
+    la pagination.
+
+    Exemple complet :
+      /catalogue/?type[]=Anime&annee_min=&annee_max=&episodes_min=&episodes_max=
+      &chapitres_min=&chapitres_max=&genre[]=<Genre>&search=&page=N
+    """
+    from urllib.parse import quote
+    qs = (
+        "type%5B%5D=Anime"
+        "&annee_min=&annee_max=&episodes_min=&episodes_max="
+        "&chapitres_min=&chapitres_max="
+        "&genre%5B%5D={}&search=".format(quote(genre))
+    )
+    if page > 1:
+        qs += "&page={}".format(page)
+    return "https://{}/catalogue/?{}".format(domain, qs)
+
+
 def action_home(mod, dl, args):
     """Sections de l'accueil.
 
@@ -719,7 +742,8 @@ def action_home(mod, dl, args):
       anime-sama sont peuplees par JS, non scrapables). Slugs verifies presents
       au catalogue. Titre approximatif depuis le slug ; le vrai titre/genres/cover
       sont enrichis cote app (cache/revalidation + image derivee du slug).
-    - latest_episodes : premiere page du catalogue (tri par defaut = recence).
+    - latest_episodes : premiere page du catalogue FILTRE animes (type[]=Anime)
+      -> jamais de scan.
     """
     import requests
     domain = mod.DOMAIN
@@ -735,7 +759,7 @@ def action_home(mod, dl, args):
         })
 
     try:
-        html = requests.get("https://{}/catalogue/".format(domain),
+        html = requests.get(_catalogue_url(domain),
                             headers=mod.HEADERS_BASE, timeout=15).text
         home["latest_episodes"] = _cards_from_html(mod, html)
     except requests.RequestException:
@@ -756,17 +780,16 @@ def action_catalogue_filter(mod, dl, args):
     """Catalogue filtre par genre, via le FILTRE SERVEUR d'anime-sama.
 
     Contrairement a une hypothese initiale, le filtre serveur fonctionne :
-      /catalogue/?type[]=Anime&genre[]=<Genre>[&page=N]
+      /catalogue/?type[]=Anime&...&genre[]=<Genre>[&page=N]   (cf. _catalogue_url)
     renvoie exactement les oeuvres du genre (ex. Thriller = 46, Ghibli = 20),
     scans exclus grace a type[]=Anime. C'est bien plus exact et rapide que de
     scanner tout le catalogue et filtrer cote client.
 
     On pagine ce resultat filtre (bornee par la derniere page reelle) et on
-    s'arrete des qu'on a de quoi remplir une rangee (TARGET). Le genre est
-    URL-encode. Repli : si le serveur ne renvoie rien (genre non reconnu cote
-    serveur), on scanne le catalogue et on filtre cote client comme avant."""
+    s'arrete des qu'on a de quoi remplir une rangee (TARGET). Repli : si le
+    serveur ne renvoie rien (genre non reconnu cote serveur), on scanne le
+    catalogue et on filtre cote client comme avant."""
     import requests
-    from urllib.parse import quote
     domain = mod.DOMAIN
     genre = args.genre.strip()
     if not genre:
@@ -780,9 +803,7 @@ def action_catalogue_filter(mod, dl, args):
     last_page = hard_max_pages
     page = 1
     while page <= last_page:
-        page_suffix = "&page={}".format(page) if page > 1 else ""
-        url = "https://{}/catalogue/?type%5B%5D=Anime&genre%5B%5D={}{}".format(
-            domain, quote(genre), page_suffix)
+        url = _catalogue_url(domain, genre=genre, page=page)
         try:
             html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
         except requests.RequestException:
