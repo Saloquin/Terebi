@@ -62,6 +62,18 @@ class TitleMatcher {
     final (enrich, networkFailed) = await _fetchEnrichment(animeSamaTitle);
     if (enrich != null) media = media.enrichedWith(enrich);
 
+    // Réconciliation par MAL id (NON destructive) : une fois enrichi, on connaît
+    // le malId AniList de l'anime racine. Deux titres catalogue anime-sama
+    // DIFFÉRENTS qui pointent vers le même anime AniList (ex. « Attack on Titan »
+    // vs « Shingeki no Kyojin ») partagent alors le même malId. Si un média
+    // EXISTANT (déjà suivi, avec progression) a ce malId sous un AUTRE id, on
+    // adopte SON identité pour ne pas perdre la progression. Le malId est un pont
+    // fiable et unique — bien plus sûr que la comparaison de titres.
+    if (media.malId != null) {
+      final byMal = await _reconcileByMalId(media.malId!, media.anilistId);
+      if (byMal != null) return byMal;
+    }
+
     await mediaRepo.upsertMedia(media);
     // Mémorise « pas de match » seulement si la recherche a abouti sans trouver
     // (pas d'échec réseau) → évite de réessayer inutilement plus tard.
@@ -92,6 +104,20 @@ class TitleMatcher {
       if (norm.contains(on) || on.contains(norm)) {
         return m;
       }
+    }
+    return null;
+  }
+
+  /// Cherche un média EXISTANT dont le [malId] est identique mais l'id (donc le
+  /// titre anime-sama d'origine) diffère de [selfId]. Retourne ce média (on
+  /// réutilise son identité + sa progression) ou `null`. Le malId identifiant un
+  /// anime de façon unique sur MyAnimeList/AniList, une égalité de malId est un
+  /// pont fiable entre deux libellés anime-sama du même anime.
+  Future<Media?> _reconcileByMalId(int malId, int selfId) async {
+    final all = await mediaRepo.getAllMedia();
+    for (final m in all) {
+      if (m.anilistId == selfId) continue; // c'est déjà nous
+      if (m.malId == malId) return m; // même anime AniList → on adopte son id
     }
     return null;
   }

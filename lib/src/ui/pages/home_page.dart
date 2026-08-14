@@ -275,6 +275,11 @@ class _MediaRow extends ConsumerWidget {
   /// Nombre max de cartes par rangée (borne le carrousel).
   static const int _maxCards = 20;
 
+  /// Nombre MIN de cartes pour activer la boucle infinie. En dessous, il n'y a
+  /// pas assez d'items pour remplir une page large sans qu'un même item
+  /// réapparaisse en double à l'écran → on désactive la boucle (liste finie).
+  static const int _minCardsForLoop = 13;
+
   /// Largeur/hauteur des grandes cartes.
   static const double _cardWidth = 200;
   static const double _rowHeight = 320;
@@ -338,10 +343,14 @@ class _MediaRow extends ConsumerWidget {
               height: _rowHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                // Défilement en BOUCLE : on présente un très grand nombre
-                // d'items virtuels et on ramène l'index dans [0, items.length[
-                // par modulo (revient au début après le dernier).
-                itemCount: items.length <= 1 ? items.length : 100000,
+                // Défilement en BOUCLE seulement s'il y a assez d'items pour
+                // remplir une page large sans qu'un même item réapparaisse en
+                // double à l'écran (>= _minCardsForLoop). Sinon liste finie :
+                // on présente un très grand nombre d'items virtuels et on ramène
+                // l'index dans [0, items.length[ par modulo.
+                itemCount: items.length < _minCardsForLoop
+                    ? items.length
+                    : 100000,
                 separatorBuilder: (_, __) => const SizedBox(width: 12),
                 itemBuilder: (context, i) {
                   final media = items[i % items.length];
