@@ -58,27 +58,10 @@ class TitleMatcher {
       // sinon : échec réseau précédent → on retente l'enrichissement ci-dessous
     }
 
-    // Enrichissement AniList (best-effort). networkFailed distingue
-    // « pas de résultat fiable » (définitif) d'un « échec réseau » (temporaire).
-    final (enrich, networkFailed) = await _fetchEnrichment(animeSamaTitle);
-    if (enrich != null) media = media.enrichedWith(enrich);
-
-    // Réconciliation par MAL id (NON destructive) : une fois enrichi, on connaît
-    // le malId AniList de l'anime racine. Deux titres catalogue anime-sama
-    // DIFFÉRENTS qui pointent vers le même anime AniList (ex. « Attack on Titan »
-    // vs « Shingeki no Kyojin ») partagent alors le même malId. Si un média
-    // EXISTANT (déjà suivi, avec progression) a ce malId sous un AUTRE id, on
-    // adopte SON identité pour ne pas perdre la progression. Le malId est un pont
-    // fiable et unique — bien plus sûr que la comparaison de titres.
-    if (media.malId != null) {
-      final byMal = await _reconcileByMalId(media.malId!, media.anilistId);
-      if (byMal != null) return byMal;
-    }
-
+    // TODO(T13): enrichissement AniList et réconciliation malId supprimés ici.
+    // _fetchEnrichment / enrichedWith / _reconcileByMalId retirés en Task 13.
+    await _markNoMatch(animeSamaTitle, true);
     await mediaRepo.upsertMedia(media);
-    // Mémorise « pas de match » seulement si la recherche a abouti sans trouver
-    // (pas d'échec réseau) → évite de réessayer inutilement plus tard.
-    await _markNoMatch(animeSamaTitle, enrich == null && !networkFailed);
     return media;
   }
 
