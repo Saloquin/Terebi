@@ -2,10 +2,11 @@ import 'package:test/test.dart';
 import 'package:terebi/src/domain/models/media.dart';
 import 'package:terebi/src/domain/models/anime_format.dart';
 import 'package:terebi/src/domain/models/enums.dart';
+import 'package:terebi/src/domain/logic/anime_id.dart';
 
 void main() {
   group('MediaTitle.preferred', () {
-    test('préfère anglais > romaji > natif', () {
+    test('prefere anglais > romaji > natif', () {
       expect(
         const MediaTitle(romaji: 'r', english: 'e', native: 'n').preferred,
         'e',
@@ -16,104 +17,21 @@ void main() {
     });
   });
 
-  group('Media.fromAniList', () {
-    final json = <String, dynamic>{
-      'id': 21,
-      'idMal': 21,
-      'title': {'romaji': 'One Piece', 'english': 'One Piece', 'native': 'ワンピース'},
-      'format': 'TV',
-      'status': 'RELEASING',
-      'episodes': null,
-      'duration': 24,
-      'season': 'FALL',
-      'seasonYear': 1999,
-      'coverImage': {'large': 'https://img/large.jpg', 'medium': 'https://img/med.jpg'},
-      'bannerImage': 'https://img/banner.jpg',
-      'description': 'Pirates.',
-      'genres': ['Action', 'Adventure'],
-      'averageScore': 88,
-    };
-
-    test('mappe les champs principaux', () {
-      final m = Media.fromAniList(json);
-      expect(m.anilistId, 21);
-      expect(m.malId, 21);
-      expect(m.title.preferred, 'One Piece');
-      expect(m.format, AnimeFormat.tv);
-      expect(m.status, ReleaseStatus.releasing);
-      expect(m.episodes, isNull);
-      expect(m.durationMinutes, 24);
-      expect(m.season, AnimeSeason.fall);
-      expect(m.seasonYear, 1999);
-      expect(m.coverUrl, 'https://img/large.jpg');
-      expect(m.genres, ['Action', 'Adventure']);
-      expect(m.averageScore, 88);
-      expect(m.isMovie, isFalse);
-    });
-
-    test('coverUrl retombe sur medium si large absent', () {
-      final j = Map<String, dynamic>.from(json)
-        ..['coverImage'] = {'medium': 'https://img/med.jpg'};
-      expect(Media.fromAniList(j).coverUrl, 'https://img/med.jpg');
-    });
-
-    test('isMovie vrai pour un film', () {
-      final j = Map<String, dynamic>.from(json)..['format'] = 'MOVIE';
-      expect(Media.fromAniList(j).isMovie, isTrue);
-    });
-
-    test('gère les champs optionnels absents', () {
-      final m = Media.fromAniList({'id': 1, 'title': {'romaji': 'X'}});
-      expect(m.anilistId, 1);
-      expect(m.malId, isNull);
-      expect(m.format, AnimeFormat.unknown);
-      expect(m.status, ReleaseStatus.unknown);
-      expect(m.genres, isEmpty);
-      expect(m.season, isNull);
-    });
-  });
-
   group('Media round-trip JSON (cache)', () {
-    test('parse et préserve nextAiringEpisode (calendrier)', () {
-      final m = Media.fromAniList({
-        'id': 100,
-        'title': {'romaji': 'Airing Show'},
-        'format': 'TV',
-        'status': 'RELEASING',
-        'nextAiringEpisode': {'airingAt': 1700000000, 'episode': 7},
-      });
-      expect(m.nextAiringEpisode, 7);
-      expect(
-        m.nextAiringAt,
-        DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000, isUtc: true),
+    test('toJson -> fromJson preserve les donnees', () {
+      final original = Media(
+        anilistId: 21,
+        malId: 21,
+        title: const MediaTitle(romaji: 'One Piece', english: 'One Piece'),
+        format: AnimeFormat.tv,
+        status: ReleaseStatus.releasing,
+        durationMinutes: 24,
+        season: AnimeSeason.fall,
+        seasonYear: 1999,
+        coverUrl: 'https://img/large.jpg',
+        genres: const ['Action'],
+        averageScore: 88,
       );
-
-      final restored = Media.fromJson(m.toJson());
-      expect(restored.nextAiringEpisode, 7);
-      expect(restored.nextAiringAt, m.nextAiringAt);
-    });
-
-    test('nextAiring null si absent', () {
-      final m = Media.fromAniList({'id': 1, 'title': {'romaji': 'X'}});
-      expect(m.nextAiringAt, isNull);
-      expect(m.nextAiringEpisode, isNull);
-      expect(Media.fromJson(m.toJson()).nextAiringAt, isNull);
-    });
-
-    test('toJson → fromJson préserve les données', () {
-      final original = Media.fromAniList({
-        'id': 21,
-        'idMal': 21,
-        'title': {'romaji': 'One Piece', 'english': 'One Piece'},
-        'format': 'TV',
-        'status': 'RELEASING',
-        'duration': 24,
-        'season': 'FALL',
-        'seasonYear': 1999,
-        'coverImage': {'large': 'https://img/large.jpg'},
-        'genres': ['Action'],
-        'averageScore': 88,
-      });
 
       final restored = Media.fromJson(original.toJson());
 
@@ -130,11 +48,70 @@ void main() {
       expect(restored.averageScore, original.averageScore);
     });
 
-    test('round-trip avec season null', () {
-      final m = Media.fromAniList({'id': 5, 'title': {'romaji': 'Film'}, 'format': 'MOVIE'});
+    test('round-trip avec season null et isMovie', () {
+      const m = Media(
+        anilistId: 5,
+        title: MediaTitle(romaji: 'Film'),
+        format: AnimeFormat.movie,
+      );
       final restored = Media.fromJson(m.toJson());
       expect(restored.season, isNull);
       expect(restored.isMovie, isTrue);
+    });
+
+    test('parse et preserve nextAiringAt/Episode', () {
+      final airing =
+          DateTime.fromMillisecondsSinceEpoch(1700000000 * 1000, isUtc: true);
+      final m = Media(
+        anilistId: 100,
+        title: const MediaTitle(romaji: 'Airing Show'),
+        format: AnimeFormat.tv,
+        status: ReleaseStatus.releasing,
+        nextAiringAt: airing,
+        nextAiringEpisode: 7,
+      );
+      expect(m.nextAiringEpisode, 7);
+      expect(m.nextAiringAt, airing);
+
+      final restored = Media.fromJson(m.toJson());
+      expect(restored.nextAiringEpisode, 7);
+      expect(restored.nextAiringAt, m.nextAiringAt);
+    });
+
+    test('nextAiring null si absent', () {
+      const m = Media(anilistId: 1, title: MediaTitle(romaji: 'X'));
+      expect(m.nextAiringAt, isNull);
+      expect(m.nextAiringEpisode, isNull);
+      expect(Media.fromJson(m.toJson()).nextAiringAt, isNull);
+    });
+  });
+
+  group('Media.fromAnimeSama enrichi (identite slug)', () {
+    test('id derive du slug, porte slug/synopsis/genres/cover', () {
+      final m = Media.fromAnimeSama(
+        slug: 'one-piece',
+        title: 'One Piece',
+        synopsis: 'Un pirate',
+        genres: ['Action', 'Aventure'],
+        coverUrl: 'https://cdn/c.jpg',
+      );
+      expect(m.anilistId, animeSamaIdForSlug('one-piece'));
+      expect(m.anilistId, greaterThan(0));
+      expect(m.animeSamaSlug, 'one-piece');
+      expect(m.animeSamaTitle, 'One Piece');
+      expect(m.title.preferred, 'One Piece');
+      expect(m.description, 'Un pirate');
+      expect(m.genres, ['Action', 'Aventure']);
+      expect(m.coverUrl, 'https://cdn/c.jpg');
+    });
+
+    test('round-trip JSON conserve slug et enrichissement', () {
+      final m = Media.fromAnimeSama(
+          slug: 'naruto', title: 'Naruto', genres: ['Action']);
+      final back = Media.fromJson(m.toJson());
+      expect(back.anilistId, m.anilistId);
+      expect(back.animeSamaSlug, 'naruto');
+      expect(back.genres, ['Action']);
     });
   });
 }

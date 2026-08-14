@@ -3,7 +3,6 @@ library;
 
 import 'package:test/test.dart';
 import 'package:terebi/src/domain/logic/anime_id.dart';
-import 'package:terebi/src/domain/models/media.dart';
 
 void main() {
   group('animeSamaIdFor', () {
@@ -35,24 +34,6 @@ void main() {
 
     test('ne peut pas entrer en collision avec un anilistId réel (positif)', () {
       expect(animeSamaIdFor('Naruto'), isNot(greaterThanOrEqualTo(0)));
-    });
-  });
-
-  group('Media.fromAnimeSama', () {
-    test('construit un Media avec id négatif stable + animeSamaTitle', () {
-      final m = Media.fromAnimeSama(title: 'Dr Stone');
-      expect(m.anilistId, animeSamaIdFor('Dr Stone'));
-      expect(m.anilistId, lessThan(0));
-      expect(m.animeSamaTitle, 'Dr Stone');
-      expect(m.title.preferred, 'Dr Stone');
-    });
-
-    test('round-trip JSON conserve animeSamaTitle', () {
-      final m = Media.fromAnimeSama(title: 'One Piece', coverUrl: 'http://x/c.jpg');
-      final back = Media.fromJson(m.toJson());
-      expect(back.anilistId, m.anilistId);
-      expect(back.animeSamaTitle, 'One Piece');
-      expect(back.coverUrl, 'http://x/c.jpg');
     });
   });
 
@@ -93,39 +74,6 @@ void main() {
     test('assoupli ne casse pas le garde-fou (aucun mot-clé commun → non)', () {
       expect(titlesSimilar('Demon Slayer Kimetsu no Yaiba', 'Onigiri Princess'),
           isFalse);
-    });
-  });
-
-  group('enrichedWith', () {
-    test('garde l\'identité anime-sama, prend cover/description AniList', () {
-      final sama = Media.fromAnimeSama(title: 'Demon Slayer');
-      final anilist = Media(
-        anilistId: 999, // vrai id AniList — NE DOIT PAS être adopté
-        title: const MediaTitle(english: 'Onigiri'),
-        coverUrl: 'http://a/cover.jpg',
-        description: 'desc',
-      );
-      final merged = sama.enrichedWith(anilist);
-      expect(merged.anilistId, sama.anilistId); // identité conservée
-      expect(merged.animeSamaTitle, 'Demon Slayer');
-      expect(merged.title.preferred, 'Demon Slayer'); // titre conservé
-      expect(merged.coverUrl, 'http://a/cover.jpg'); // image AniList
-      expect(merged.description, 'desc');
-    });
-
-    test('récupère nextAiringAt/Episode depuis AniList (jamais de l\'anime-sama)',
-        () {
-      final sama = Media.fromAnimeSama(title: 'One Piece'); // nextAiring null
-      final airing = DateTime.utc(2026, 8, 15, 18, 30);
-      final anilist = Media(
-        anilistId: 21,
-        title: const MediaTitle(romaji: 'One Piece'),
-        nextAiringAt: airing,
-        nextAiringEpisode: 1130,
-      );
-      final merged = sama.enrichedWith(anilist);
-      expect(merged.nextAiringAt, airing);
-      expect(merged.nextAiringEpisode, 1130);
     });
   });
 
