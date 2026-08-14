@@ -50,6 +50,10 @@ class MediaTable extends Table {
   /// NULL pour les médias importés uniquement depuis AniList. Ajouté en v2.
   TextColumn get animeSamaTitle => text().nullable()();
 
+  /// Slug d'URL anime-sama (identite logique). NULL pour un media legacy non
+  /// encore migre. Ajoute en v3.
+  TextColumn get animeSamaSlug => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {anilistId};
 }
@@ -171,7 +175,7 @@ class TerebiDatabase extends _$TerebiDatabase {
   TerebiDatabase(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -180,6 +184,12 @@ class TerebiDatabase extends _$TerebiDatabase {
           // v1 → v2 : ajout de la colonne animeSamaTitle sur media_table.
           if (from < 2) {
             await m.addColumn(mediaTable, mediaTable.animeSamaTitle);
+          }
+          // v2 -> v3 : ajout de la colonne animeSamaSlug (la re-indexation
+          // titre->slug est faite hors migration par SlugMigrationService au
+          // 1er boot, cf. tache ulterieure).
+          if (from < 3) {
+            await m.addColumn(mediaTable, mediaTable.animeSamaSlug);
           }
         },
       );

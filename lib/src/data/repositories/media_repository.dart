@@ -39,6 +39,7 @@ class MediaRepository {
         genresJson: Value(jsonEncode(m.genres)),
         averageScore: Value(m.averageScore),
         animeSamaTitle: Value(m.animeSamaTitle),
+        animeSamaSlug: Value(m.animeSamaSlug),
         updatedAt: Value(DateTime.now().toUtc()),
       );
 
@@ -66,6 +67,7 @@ class MediaRepository {
             .toList(),
         averageScore: row.averageScore,
         animeSamaTitle: row.animeSamaTitle,
+        animeSamaSlug: row.animeSamaSlug,
       );
 
   // ---------------------------------------------------------------------------
@@ -90,6 +92,14 @@ class MediaRepository {
     return _db.select(_db.mediaTable).watch().map(
           (rows) => rows.map(_fromRow).toList(),
         );
+  }
+
+  /// Stream du media [anilistId] (emet a chaque ecriture le concernant).
+  Stream<Media?> watchMedia(int anilistId) {
+    return (_db.select(_db.mediaTable)
+          ..where((t) => t.anilistId.equals(anilistId)))
+        .watchSingleOrNull()
+        .map((row) => row == null ? null : _fromRow(row));
   }
 
   /// Liste (one-shot) de tous les médias en base. Sert à réconcilier l'identité

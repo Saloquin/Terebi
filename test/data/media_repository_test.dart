@@ -99,5 +99,23 @@ void main() {
       expect(await repo.getMedia(3), isNotNull);
       expect(await repo.getMedia(4), isNull);
     });
+
+    test('upsert/get conserve animeSamaSlug', () async {
+      final media = Media.fromAnimeSama(slug: 'one-piece', title: 'One Piece');
+      await repo.upsertMedia(media);
+      final back = await repo.getMedia(media.anilistId);
+      expect(back, isNotNull);
+      expect(back!.animeSamaSlug, 'one-piece');
+    });
+
+    test('watchMedia emet a chaque ecriture', () async {
+      final media = Media.fromAnimeSama(slug: 'bleach', title: 'Bleach');
+      final emissions = <Media?>[];
+      final sub = repo.watchMedia(media.anilistId).listen(emissions.add);
+      await repo.upsertMedia(media);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await sub.cancel();
+      expect(emissions.last?.animeSamaSlug, 'bleach');
+    });
   });
 }

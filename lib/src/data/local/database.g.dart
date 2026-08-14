@@ -121,6 +121,12 @@ class $MediaTableTable extends MediaTable
   late final GeneratedColumn<String> animeSamaTitle = GeneratedColumn<String>(
       'anime_sama_title', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _animeSamaSlugMeta =
+      const VerificationMeta('animeSamaSlug');
+  @override
+  late final GeneratedColumn<String> animeSamaSlug = GeneratedColumn<String>(
+      'anime_sama_slug', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         anilistId,
@@ -140,7 +146,8 @@ class $MediaTableTable extends MediaTable
         genresJson,
         averageScore,
         updatedAt,
-        animeSamaTitle
+        animeSamaTitle,
+        animeSamaSlug
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -242,6 +249,12 @@ class $MediaTableTable extends MediaTable
           animeSamaTitle.isAcceptableOrUnknown(
               data['anime_sama_title']!, _animeSamaTitleMeta));
     }
+    if (data.containsKey('anime_sama_slug')) {
+      context.handle(
+          _animeSamaSlugMeta,
+          animeSamaSlug.isAcceptableOrUnknown(
+              data['anime_sama_slug']!, _animeSamaSlugMeta));
+    }
     return context;
   }
 
@@ -287,6 +300,8 @@ class $MediaTableTable extends MediaTable
           .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
       animeSamaTitle: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}anime_sama_title']),
+      animeSamaSlug: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}anime_sama_slug']),
     );
   }
 
@@ -329,6 +344,10 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
   /// Titre anime-sama de référence (source de vérité pour saisons/épisodes).
   /// NULL pour les médias importés uniquement depuis AniList. Ajouté en v2.
   final String? animeSamaTitle;
+
+  /// Slug d'URL anime-sama (identite logique). NULL pour un media legacy non
+  /// encore migre. Ajoute en v3.
+  final String? animeSamaSlug;
   const MediaTableData(
       {required this.anilistId,
       this.malId,
@@ -347,7 +366,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       required this.genresJson,
       this.averageScore,
       required this.updatedAt,
-      this.animeSamaTitle});
+      this.animeSamaTitle,
+      this.animeSamaSlug});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -394,6 +414,9 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
     map['updated_at'] = Variable<DateTime>(updatedAt);
     if (!nullToAbsent || animeSamaTitle != null) {
       map['anime_sama_title'] = Variable<String>(animeSamaTitle);
+    }
+    if (!nullToAbsent || animeSamaSlug != null) {
+      map['anime_sama_slug'] = Variable<String>(animeSamaSlug);
     }
     return map;
   }
@@ -442,6 +465,9 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       animeSamaTitle: animeSamaTitle == null && nullToAbsent
           ? const Value.absent()
           : Value(animeSamaTitle),
+      animeSamaSlug: animeSamaSlug == null && nullToAbsent
+          ? const Value.absent()
+          : Value(animeSamaSlug),
     );
   }
 
@@ -467,6 +493,7 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       averageScore: serializer.fromJson<int?>(json['averageScore']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       animeSamaTitle: serializer.fromJson<String?>(json['animeSamaTitle']),
+      animeSamaSlug: serializer.fromJson<String?>(json['animeSamaSlug']),
     );
   }
   @override
@@ -491,6 +518,7 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       'averageScore': serializer.toJson<int?>(averageScore),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'animeSamaTitle': serializer.toJson<String?>(animeSamaTitle),
+      'animeSamaSlug': serializer.toJson<String?>(animeSamaSlug),
     };
   }
 
@@ -512,7 +540,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
           String? genresJson,
           Value<int?> averageScore = const Value.absent(),
           DateTime? updatedAt,
-          Value<String?> animeSamaTitle = const Value.absent()}) =>
+          Value<String?> animeSamaTitle = const Value.absent(),
+          Value<String?> animeSamaSlug = const Value.absent()}) =>
       MediaTableData(
         anilistId: anilistId ?? this.anilistId,
         malId: malId.present ? malId.value : this.malId,
@@ -537,6 +566,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
         updatedAt: updatedAt ?? this.updatedAt,
         animeSamaTitle:
             animeSamaTitle.present ? animeSamaTitle.value : this.animeSamaTitle,
+        animeSamaSlug:
+            animeSamaSlug.present ? animeSamaSlug.value : this.animeSamaSlug,
       );
   MediaTableData copyWithCompanion(MediaTableCompanion data) {
     return MediaTableData(
@@ -571,6 +602,9 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       animeSamaTitle: data.animeSamaTitle.present
           ? data.animeSamaTitle.value
           : this.animeSamaTitle,
+      animeSamaSlug: data.animeSamaSlug.present
+          ? data.animeSamaSlug.value
+          : this.animeSamaSlug,
     );
   }
 
@@ -594,7 +628,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
           ..write('genresJson: $genresJson, ')
           ..write('averageScore: $averageScore, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('animeSamaTitle: $animeSamaTitle')
+          ..write('animeSamaTitle: $animeSamaTitle, ')
+          ..write('animeSamaSlug: $animeSamaSlug')
           ..write(')'))
         .toString();
   }
@@ -618,7 +653,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
       genresJson,
       averageScore,
       updatedAt,
-      animeSamaTitle);
+      animeSamaTitle,
+      animeSamaSlug);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -640,7 +676,8 @@ class MediaTableData extends DataClass implements Insertable<MediaTableData> {
           other.genresJson == this.genresJson &&
           other.averageScore == this.averageScore &&
           other.updatedAt == this.updatedAt &&
-          other.animeSamaTitle == this.animeSamaTitle);
+          other.animeSamaTitle == this.animeSamaTitle &&
+          other.animeSamaSlug == this.animeSamaSlug);
 }
 
 class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
@@ -662,6 +699,7 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
   final Value<int?> averageScore;
   final Value<DateTime> updatedAt;
   final Value<String?> animeSamaTitle;
+  final Value<String?> animeSamaSlug;
   const MediaTableCompanion({
     this.anilistId = const Value.absent(),
     this.malId = const Value.absent(),
@@ -681,6 +719,7 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
     this.averageScore = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.animeSamaTitle = const Value.absent(),
+    this.animeSamaSlug = const Value.absent(),
   });
   MediaTableCompanion.insert({
     this.anilistId = const Value.absent(),
@@ -701,6 +740,7 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
     this.averageScore = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.animeSamaTitle = const Value.absent(),
+    this.animeSamaSlug = const Value.absent(),
   });
   static Insertable<MediaTableData> custom({
     Expression<int>? anilistId,
@@ -721,6 +761,7 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
     Expression<int>? averageScore,
     Expression<DateTime>? updatedAt,
     Expression<String>? animeSamaTitle,
+    Expression<String>? animeSamaSlug,
   }) {
     return RawValuesInsertable({
       if (anilistId != null) 'anilist_id': anilistId,
@@ -741,6 +782,7 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
       if (averageScore != null) 'average_score': averageScore,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (animeSamaTitle != null) 'anime_sama_title': animeSamaTitle,
+      if (animeSamaSlug != null) 'anime_sama_slug': animeSamaSlug,
     });
   }
 
@@ -762,7 +804,8 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
       Value<String>? genresJson,
       Value<int?>? averageScore,
       Value<DateTime>? updatedAt,
-      Value<String?>? animeSamaTitle}) {
+      Value<String?>? animeSamaTitle,
+      Value<String?>? animeSamaSlug}) {
     return MediaTableCompanion(
       anilistId: anilistId ?? this.anilistId,
       malId: malId ?? this.malId,
@@ -782,6 +825,7 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
       averageScore: averageScore ?? this.averageScore,
       updatedAt: updatedAt ?? this.updatedAt,
       animeSamaTitle: animeSamaTitle ?? this.animeSamaTitle,
+      animeSamaSlug: animeSamaSlug ?? this.animeSamaSlug,
     );
   }
 
@@ -842,6 +886,9 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
     if (animeSamaTitle.present) {
       map['anime_sama_title'] = Variable<String>(animeSamaTitle.value);
     }
+    if (animeSamaSlug.present) {
+      map['anime_sama_slug'] = Variable<String>(animeSamaSlug.value);
+    }
     return map;
   }
 
@@ -865,7 +912,8 @@ class MediaTableCompanion extends UpdateCompanion<MediaTableData> {
           ..write('genresJson: $genresJson, ')
           ..write('averageScore: $averageScore, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('animeSamaTitle: $animeSamaTitle')
+          ..write('animeSamaTitle: $animeSamaTitle, ')
+          ..write('animeSamaSlug: $animeSamaSlug')
           ..write(')'))
         .toString();
   }
@@ -3185,6 +3233,7 @@ typedef $$MediaTableTableCreateCompanionBuilder = MediaTableCompanion Function({
   Value<int?> averageScore,
   Value<DateTime> updatedAt,
   Value<String?> animeSamaTitle,
+  Value<String?> animeSamaSlug,
 });
 typedef $$MediaTableTableUpdateCompanionBuilder = MediaTableCompanion Function({
   Value<int> anilistId,
@@ -3205,6 +3254,7 @@ typedef $$MediaTableTableUpdateCompanionBuilder = MediaTableCompanion Function({
   Value<int?> averageScore,
   Value<DateTime> updatedAt,
   Value<String?> animeSamaTitle,
+  Value<String?> animeSamaSlug,
 });
 
 class $$MediaTableTableFilterComposer
@@ -3271,6 +3321,9 @@ class $$MediaTableTableFilterComposer
   ColumnFilters<String> get animeSamaTitle => $composableBuilder(
       column: $table.animeSamaTitle,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get animeSamaSlug => $composableBuilder(
+      column: $table.animeSamaSlug, builder: (column) => ColumnFilters(column));
 }
 
 class $$MediaTableTableOrderingComposer
@@ -3339,6 +3392,10 @@ class $$MediaTableTableOrderingComposer
   ColumnOrderings<String> get animeSamaTitle => $composableBuilder(
       column: $table.animeSamaTitle,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get animeSamaSlug => $composableBuilder(
+      column: $table.animeSamaSlug,
+      builder: (column) => ColumnOrderings(column));
 }
 
 class $$MediaTableTableAnnotationComposer
@@ -3403,6 +3460,9 @@ class $$MediaTableTableAnnotationComposer
 
   GeneratedColumn<String> get animeSamaTitle => $composableBuilder(
       column: $table.animeSamaTitle, builder: (column) => column);
+
+  GeneratedColumn<String> get animeSamaSlug => $composableBuilder(
+      column: $table.animeSamaSlug, builder: (column) => column);
 }
 
 class $$MediaTableTableTableManager extends RootTableManager<
@@ -3449,6 +3509,7 @@ class $$MediaTableTableTableManager extends RootTableManager<
             Value<int?> averageScore = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<String?> animeSamaTitle = const Value.absent(),
+            Value<String?> animeSamaSlug = const Value.absent(),
           }) =>
               MediaTableCompanion(
             anilistId: anilistId,
@@ -3469,6 +3530,7 @@ class $$MediaTableTableTableManager extends RootTableManager<
             averageScore: averageScore,
             updatedAt: updatedAt,
             animeSamaTitle: animeSamaTitle,
+            animeSamaSlug: animeSamaSlug,
           ),
           createCompanionCallback: ({
             Value<int> anilistId = const Value.absent(),
@@ -3489,6 +3551,7 @@ class $$MediaTableTableTableManager extends RootTableManager<
             Value<int?> averageScore = const Value.absent(),
             Value<DateTime> updatedAt = const Value.absent(),
             Value<String?> animeSamaTitle = const Value.absent(),
+            Value<String?> animeSamaSlug = const Value.absent(),
           }) =>
               MediaTableCompanion.insert(
             anilistId: anilistId,
@@ -3509,6 +3572,7 @@ class $$MediaTableTableTableManager extends RootTableManager<
             averageScore: averageScore,
             updatedAt: updatedAt,
             animeSamaTitle: animeSamaTitle,
+            animeSamaSlug: animeSamaSlug,
           ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
