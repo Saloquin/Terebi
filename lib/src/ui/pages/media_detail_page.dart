@@ -21,61 +21,30 @@ import 'resume_helper.dart';
 // Providers locaux
 // ---------------------------------------------------------------------------
 
-/// Charge le média. Si on a un titre anime-sama, on délègue à
-/// [TitleMatcher.resolve] qui gère le cache ET le réessai d'enrichissement
-/// (image AniList) : réutilise le cache si déjà enrichi ou si « pas de match »
-/// définitif, mais retente si l'échec précédent était réseau. Sans titre : id
-/// AniList réel → lecture directe. `null` → le widget fabrique un Media minimal.
+/// Media affiché par la fiche. Cache-first via le slug quand il est connu ;
+/// sinon on suit le cache DB par id. Réactif (StreamProvider) : toute écriture
+/// (revalidation, purge, progression) se propage à l'écran.
 final _mediaDetailProvider =
-    FutureProvider.family<Media?, ({int id, String? title})>((ref, arg) async {
-  // Avec titre : resolve() est la source de vérité (cache + réessai gérés).
-  if (arg.title != null) {
-    try {
-      return await ref.read(titleMatcherProvider).resolve(arg.title!);
-    } catch (_) {
-      final local = await ref.read(mediaRepositoryProvider).getMedia(arg.id);
-      return local ?? Media.fromAnimeSama(
-          slug: normalizeAnimeTitle(arg.title!), title: arg.title!);
-    }
+    StreamProvider.family<Media?, ({int id, String? title})>((ref, arg) async* {
+  final repo = ref.watch(mediaRepositoryProvider);
+  // 1) Media déjà en cache (par id) ? On a alors son slug.
+  final cached = await repo.getMedia(arg.id);
+  final slug = cached?.animeSamaSlug;
+  if (slug != null && slug.isNotEmpty) {
+    final service = await ref.watch(animeSamaCatalogServiceProvider.future);
+    yield* service.watchDetail(slug);
+    return;
   }
-
-  final local = await ref.watch(mediaRepositoryProvider).getMedia(arg.id);
-  if (local != null) return local;
-
-  // Pas de titre : id AniList réel. On charge la fiche AniList, MAIS l'entrée
-  // peut être une SAISON precise (ex. « Attack on Titan Season 3 ») avec sa
-  // propre description/image de saison. Pour retomber sur l'anime RACINE, on
-  // resout le titre anime-sama (l'anime entier) puis on re-resout via
-  // TitleMatcher : la recherche AniList sur ce titre racine ramene la fiche
-  // globale (bonne description/image), et fixe l'identite anime-sama.
-  if (arg.id <= 0) return null;
-  try {
-    final aniListMedia =
-        await ref.watch(aniListClientProvider).mediaDetail(arg.id);
-    // Résout le vrai titre anime-sama depuis les titres AniList.
-    final samaTitle = await ref.read(animeSamaResolvedTitleProvider((
-      english: aniListMedia.title.english,
-      romaji: aniListMedia.title.romaji,
-      native: aniListMedia.title.native,
-    )).future);
-    if (samaTitle.isNotEmpty) {
-      // Re-résolution sur le titre racine anime-sama → fiche anime entier.
-      return await ref.read(titleMatcherProvider).resolve(samaTitle);
-    }
-    // Repli : pas de correspondance anime-sama, on garde la fiche AniList.
-    await ref.read(mediaRepositoryProvider).upsertMedia(aniListMedia);
-    return aniListMedia;
-  } catch (_) {
-    return null;
-  }
+  // 2) Pas de slug connu : on suit le cache par id (peut être null).
+  yield* repo.watchMedia(arg.id);
 });
 
 
-/// Entrée de liste (statut/progression) d'un média. Public pour que d'autres
-/// pages (bibliothèque) puissent l'invalider après un changement de statut.
+/// Entrée de liste (statut/progression) d'un média, en flux temps réel.
+/// Public pour que d'autres pages puissent observer les changements de statut.
 final listEntryProvider =
-    FutureProvider.family<ListEntry?, int>((ref, mediaId) async {
-  return ref.watch(listRepositoryProvider).getEntry(mediaId);
+    StreamProvider.family<ListEntry?, int>((ref, mediaId) {
+  return ref.watch(listRepositoryProvider).watchEntry(mediaId);
 });
 
 /// Compteur de rafraîchissement de la progression des saisons. Les tuiles de
@@ -490,7 +459,6 @@ class _ActionBar extends ConsumerWidget {
     if (confirmed != true) return;
 
     await ref.read(listRepositoryProvider).deleteEntry(media.anilistId);
-    ref.invalidate(listEntryProvider(media.anilistId));
     // Rafraîchit la bibliothèque (onglets + compteurs).
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
@@ -534,20 +502,21 @@ class _ActionBar extends ConsumerWidget {
     if (confirmed != true) return;
 
     final id = media.anilistId;
+    final t = media.animeSamaTitle;
+    final settings = ref.read(settingsRepositoryProvider);
+    // Écritures DB : les StreamProviders (media/entrée/progression) ré-émettent
+    // automatiquement. Aucune invalidation manuelle de ces providers.
     await ref.read(listRepositoryProvider).deleteEntry(id);
     await ref.read(mediaRepositoryProvider).deleteMedia(id);
-    // Progression par saison : clés `anime_sama_watched:<id>:*`.
-    await ref
-        .read(settingsRepositoryProvider)
-        .deleteWithPrefix('anime_sama_watched:$id:');
-    // Marqueur « pas de match » AniList (par titre normalisé).
-    final t = media.animeSamaTitle;
+    await settings.deleteWithPrefix('anime_sama_watched:$id:');
+    await settings.delete('anime_sama_season:$id');
+    await settings.delete('anime_sama_lang:$id');
+    await settings.delete('new_episode:$id');
     if (t != null) {
-      await ref
-          .read(settingsRepositoryProvider)
-          .delete('anime_sama_nomatch:${normalizeAnimeTitle(t)}');
+      await settings.delete('anime_sama_nomatch:${normalizeAnimeTitle(t)}');
     }
-    ref.invalidate(listEntryProvider(id));
+    // entriesByStatus/countByStatus sont encore des FutureProvider : on les
+    // invalide encore (convertis en stream à la tâche suivante).
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
     if (context.mounted) {
@@ -732,10 +701,8 @@ class _StatusDropdown extends ConsumerWidget {
       await repo.upsertEntry(updated);
     }
 
-    ref.invalidate(listEntryProvider(media.anilistId));
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
-    ref.invalidate(hasProgressProvider(media.anilistId));
 
     if (context.mounted) {
       final msg = newStatus == null
@@ -779,32 +746,12 @@ class _AnimeSamaSeasonsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Titre de recherche anime-sama. Priorité : titre anime-sama exact
-    // (displayTitle transmis / animeSamaTitle stocké). Sinon — cas d'un anime
-    // venu d'AniList (rangées découverte) dont le titre anglais peut ne pas
-    // exister sur anime-sama (« Attack on Titan » vs « Shingeki no Kyojin ») —
-    // on RÉSOUT le vrai titre anime-sama en essayant english/romaji/natif.
-    final known = displayTitle ?? media.animeSamaTitle;
-    if (known != null) {
-      return _SeasonsFor(media: media, searchTitle: known);
-    }
-    final resolvedAsync = ref.watch(animeSamaResolvedTitleProvider((
-      english: media.title.english,
-      romaji: media.title.romaji,
-      native: media.title.native,
-    )));
-    return resolvedAsync.when(
-      loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (_, __) =>
-          _SeasonsFor(media: media, searchTitle: media.title.preferred),
-      data: (title) => _SeasonsFor(
-        media: media,
-        searchTitle: title.isEmpty ? media.title.preferred : title,
-      ),
-    );
+    // Titre de recherche anime-sama. Priorité : titre anime-sama exact stocké
+    // en DB (animeSamaTitle), puis displayTitle transmis par la page parente,
+    // enfin le titre préféré AniList en dernier recours.
+    final searchTitle =
+        media.animeSamaTitle ?? displayTitle ?? media.title.preferred;
+    return _SeasonsFor(media: media, searchTitle: searchTitle);
   }
 }
 
@@ -1006,8 +953,6 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         ));
         ref.invalidate(entriesByStatusProvider);
         ref.invalidate(countByStatusProvider);
-        ref.invalidate(listEntryProvider(widget.media.anilistId));
-        ref.invalidate(hasProgressProvider(widget.media.anilistId));
       }
     } catch (_) {/* best-effort */}
 
@@ -1058,8 +1003,6 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
       ));
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
-      ref.invalidate(listEntryProvider(widget.media.anilistId));
-      ref.invalidate(hasProgressProvider(widget.media.anilistId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Anime terminé ! 🎉')),
