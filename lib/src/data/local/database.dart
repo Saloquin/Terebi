@@ -11,12 +11,13 @@ part 'database.g.dart';
 // Tables
 // ---------------------------------------------------------------------------
 
-/// Métadonnées d'un média anime (source AniList/Jikan).
+/// Métadonnées d'un média anime (source anime-sama).
 class MediaTable extends Table {
-  /// ID AniList — clé primaire.
+  /// Identifiant technique principal — clé primaire.
+  /// Pour les animes anime-sama, derive du slug via animeSamaIdForSlug.
   IntColumn get anilistId => integer()();
 
-  /// ID MyAnimeList (optionnel).
+  /// ID MyAnimeList (optionnel, conserve pour compatibilite donnees legacy).
   IntColumn get malId => integer().nullable()();
 
   TextColumn get titleRomaji => text().nullable()();
@@ -47,7 +48,7 @@ class MediaTable extends Table {
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   /// Titre anime-sama de référence (source de vérité pour saisons/épisodes).
-  /// NULL pour les médias importés uniquement depuis AniList. Ajouté en v2.
+  /// Ajouté en v2.
   TextColumn get animeSamaTitle => text().nullable()();
 
   /// Slug d'URL anime-sama (identite logique). NULL pour un media legacy non

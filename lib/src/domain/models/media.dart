@@ -32,12 +32,14 @@ class MediaTitle {
       };
 }
 
-/// Un média anime avec ses métadonnées (issu d'AniList/Jikan).
+/// Un média anime avec ses métadonnées (source anime-sama).
 class Media {
-  /// ID AniList (identifiant principal).
+  /// Identifiant technique principal. Pour les animes anime-sama, derive du
+  /// slug via [animeSamaIdForSlug]. Conserve le nom `anilistId` pour
+  /// compatibilite avec les donnees existantes (round-trip JSON/DB).
   final int anilistId;
 
-  /// ID MyAnimeList / Jikan (optionnel).
+  /// ID MyAnimeList (optionnel, conserve pour compatibilite donnees legacy).
   final int? malId;
 
   final MediaTitle title;
@@ -68,7 +70,7 @@ class Media {
   final int? nextAiringEpisode;
 
   /// Titre anime-sama de référence (source de vérité pour la résolution des
-  /// saisons/épisodes). `null` si le média vient uniquement d'AniList.
+  /// saisons/épisodes).
   final String? animeSamaTitle;
 
   /// Slug d'URL anime-sama (identite logique). `null` pour un media legacy non

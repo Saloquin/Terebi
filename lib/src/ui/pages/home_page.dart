@@ -6,7 +6,7 @@
 ///  3. Sortis du moment (planning anime-sama de la semaine)
 ///  4. Les classiques (home anime-sama)
 ///  5. Derniers episodes ajoutes (home anime-sama)
-///  6. Recommande - <genre> (catalogue anime-sama, par genre favori)
+///  6. Recommande - `<genre>` (catalogue anime-sama, par genre favori)
 library;
 
 import 'package:flutter/material.dart';
@@ -17,7 +17,7 @@ import '../../domain/logic/anime_id.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart'
-    show AnimeSamaCatalogueItem, AnimeSamaHome;
+    show AnimeSamaCatalogueItem;
 import '../widgets/media_card.dart';
 import 'library_page.dart' show entriesByStatusProvider;
 import 'media_detail_page.dart';
@@ -234,7 +234,6 @@ class _MediaRow extends ConsumerWidget {
   final ProviderListenable<AsyncValue<List<Media>>> provider;
   final bool withResume;
   final bool excludeLibrary;
-  final ProviderListenable<AsyncValue<List<Media>>>? hideIfSameAs;
 
   /// Nombre max de cartes par rangée (borne le carrousel).
   static const int _maxCards = 20;
@@ -251,7 +250,6 @@ class _MediaRow extends ConsumerWidget {
     required this.provider,
     this.withResume = false,
     this.excludeLibrary = false,
-    this.hideIfSameAs,
   });
 
   @override
@@ -282,17 +280,6 @@ class _MediaRow extends ConsumerWidget {
         if (items.length > _maxCards) items = items.sublist(0, _maxCards);
 
         if (items.isEmpty) return const SizedBox.shrink();
-
-        // Anti-doublon : si le début recoupe l'autre rangée, on masque.
-        if (hideIfSameAs != null) {
-          final other = ref.watch(hideIfSameAs!).maybeWhen(
-                data: (o) => o,
-                orElse: () => const <Media>[],
-              );
-          if (other.isNotEmpty && _sameHead(items, other)) {
-            return const SizedBox.shrink();
-          }
-        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -337,20 +324,9 @@ class _MediaRow extends ConsumerWidget {
       orElse: () => const SizedBox.shrink(),
     );
   }
-
-  /// Vrai si les deux listes commencent par les mêmes médias (recoupement fort).
-  static bool _sameHead(List<Media> a, List<Media> b) {
-    final n = a.length < b.length ? a.length : b.length;
-    final head = n < 5 ? n : 5;
-    if (head == 0) return false;
-    for (var i = 0; i < head; i++) {
-      if (a[i].anilistId != b[i].anilistId) return false;
-    }
-    return true;
-  }
 }
 
-/// Rangée « Recommande · <genre> » (découverte anime-sama par genre).
+/// Rangée « Recommande · `<genre>` » (découverte anime-sama par genre).
 class _GenreRow extends StatelessWidget {
   final String genre;
   const _GenreRow({required this.genre});
