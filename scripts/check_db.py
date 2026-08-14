@@ -12,6 +12,10 @@ Usage :
     python scripts/check_db.py --purge-slug-report            # DRY-RUN : liste sans rien supprimer
     python scripts/check_db.py --purge-slug-report --apply    # supprime reellement (avec sauvegarde .bak)
 
+    # Nettoyage des images residuelles AniList/MAL/Kitsu (cover_url/banner_url) :
+    python scripts/check_db.py --clean-anilist-images         # DRY-RUN : liste les images concernees
+    python scripts/check_db.py --clean-anilist-images --apply # met ces images a NULL (avec .bak)
+
 Le rapport affiche : nombre d'animes, combien ont un slug (migres) vs legacy
 (id negatif), la progression par anime (statut + episode de liste + progression
 par saison 'anime_sama_watched:<id>:<s>'), et 'slug_migration_report' /
@@ -80,6 +84,7 @@ def _has_column(con, table, column):
 def main():
     args = sys.argv[1:]
     purge = "--purge-slug-report" in args
+    clean_images = "--clean-anilist-images" in args
     apply_changes = "--apply" in args
     positional = [a for a in args if not a.startswith("--")]
 
@@ -111,6 +116,97 @@ def main():
     # Purge optionnelle des animes non resolus (listes dans slug_migration_report).
     if purge:
         _purge_slug_report(path, apply_changes)
+
+    # Nettoyage optionnel des images residuelles AniList (cover_url/banner_url).
+    if clean_images:
+        _clean_anilist_images(path, apply_changes)
+
+
+# Hotes d'images des anciennes sources (AniList / MyAnimeList / Kitsu). Une
+# cover_url/banner_url contenant l'un de ces fragments est un residu a nettoyer.
+_LEGACY_IMAGE_HOSTS = (
+    "anilist.co",        # s4.anilist.co/...
+    "myanimelist.net",   # cdn.myanimelist.net/...
+    "kitsu.io",
+    "kitsu.app",
+)
+
+
+def _clean_anilist_images(path, apply_changes):
+    print("\n" + "#" * 70)
+    print("NETTOYAGE DES IMAGES RESIDUELLES ANILIST (cover_url / banner_url)")
+    print("#" * 70)
+
+    con = _open_readonly(path)
+    try:
+        if not _table_exists(con, "media_table"):
+            print("(table media_table absente — rien a nettoyer.)")
+            return
+        like = " OR ".join(
+            ["cover_url LIKE '%{}%'".format(h) for h in _LEGACY_IMAGE_HOSTS]
+            + ["banner_url LIKE '%{}%'".format(h) for h in _LEGACY_IMAGE_HOSTS]
+        )
+        rows = con.execute(
+            "SELECT anilist_id, "
+            "COALESCE(anime_sama_title, title_english, title_romaji, title_native), "
+            "cover_url, banner_url FROM media_table WHERE " + like
+        ).fetchall()
+    finally:
+        con.close()
+
+    if not rows:
+        print("Aucune image residuelle AniList/MAL/Kitsu detectee. Rien a faire.")
+        return
+
+    def _is_legacy(url):
+        return bool(url) and any(h in url for h in _LEGACY_IMAGE_HOSTS)
+
+    print("\n{} media(s) avec une image residuelle :".format(len(rows)))
+    for mid, title, cover, banner in rows:
+        parts = []
+        if _is_legacy(cover):
+            parts.append("cover")
+        if _is_legacy(banner):
+            parts.append("banner")
+        print("  [NETTOIE {}] id={:<12} {}".format(
+            "+".join(parts), mid, (title or "?")[:45]))
+
+    if not apply_changes:
+        print("\n--- DRY-RUN : aucune image modifiee. ---")
+        print("Les images seront mises a NULL (l'app les re-resout via anime-sama")
+        print("au prochain affichage, cache-first). Pour appliquer :")
+        print('  python scripts/check_db.py "{}" --clean-anilist-images --apply'.format(path))
+        return
+
+    backup = path + ".bak"
+    shutil.copy2(path, backup)
+    print("\nSauvegarde creee :", backup)
+
+    con = sqlite3.connect(path)  # lecture-ecriture
+    try:
+        con.execute("BEGIN")
+        for host in _LEGACY_IMAGE_HOSTS:
+            con.execute(
+                "UPDATE media_table SET cover_url = NULL "
+                "WHERE cover_url LIKE ?", ("%{}%".format(host),))
+            con.execute(
+                "UPDATE media_table SET banner_url = NULL "
+                "WHERE banner_url LIKE ?", ("%{}%".format(host),))
+        con.execute("COMMIT")
+    except sqlite3.Error as e:
+        con.execute("ROLLBACK")
+        print("ERREUR — nettoyage annule (ROLLBACK) :", e)
+        print("Base intacte ; sauvegarde disponible :", backup)
+        con.close()
+        sys.exit(1)
+    finally:
+        con.close()
+
+    print("\n{} media(s) nettoye(s) : cover_url/banner_url AniList mis a NULL.".format(
+        len(rows)))
+    print("L'app re-resoudra les images via anime-sama au prochain affichage.")
+    print("En cas de probleme, restaure la sauvegarde :")
+    print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
 
 def _write_progress_receipt(out_path, db_path, found, applied):
