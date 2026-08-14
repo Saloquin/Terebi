@@ -32,6 +32,7 @@ progression des animes cibles dans 'purged_progress.txt' (a cote de la base),
 pour pouvoir la re-saisir a la main dans l'app apres coup.
 """
 
+import json
 import os
 import shutil
 import sqlite3
@@ -516,6 +517,82 @@ def _report(con):
                   else "slug_migration_report : (absente)")
     else:
         print("(table app_settings absente)")
+
+    # --- Diagnostic ACCUEIL (rangees) --------------------------------------
+    # Explique pourquoi les rangees "Regarde recemment", "Ca pourrait vous
+    # plaire" et "par genre" seraient vides : elles derivent de l'historique de
+    # visionnage (table watch_histories) et des genres des medias regardes.
+    print("\n" + "-" * 70)
+    print("ACCUEIL (diagnostic des rangees)")
+    print("-" * 70)
+    has_history = _table_exists(con, "watch_histories")
+    if not has_history:
+        print("(!) table 'watch_histories' absente : aucune lecture jamais lancee")
+        print("    -> 'Regarde recemment', 'Ca pourrait vous plaire' et les")
+        print("       rangees par genre restent VIDES tant qu'aucun episode")
+        print("       n'a ete lance DEPUIS LE LECTEUR de l'app.")
+    else:
+        hist_rows = con.execute(
+            "SELECT COUNT(*) FROM watch_histories"
+        ).fetchone()[0]
+        hist_ids = [
+            r[0]
+            for r in con.execute(
+                "SELECT DISTINCT media_id FROM watch_histories"
+            ).fetchall()
+        ]
+        print("Lancements de lecture enregistres :", hist_rows)
+        print("Animes distincts regardes         :", len(hist_ids))
+        if hist_rows == 0:
+            print("(!) Historique VIDE -> 'Regarde recemment', 'Ca pourrait vous")
+            print("    plaire' et les rangees par genre ne s'affichent pas.")
+            print("    Lance un episode depuis le lecteur pour amorcer l'historique.")
+        elif has_media:
+            # Combien de ces animes existent en media_table (sinon 'Regarde
+            # recemment' les ignore) et combien ont des genres (sinon pas de
+            # rangee par genre ni 'Ca pourrait vous plaire').
+            found = 0
+            with_genres = 0
+            genre_counts = {}
+            for mid in hist_ids:
+                row = con.execute(
+                    "SELECT genres_json FROM media_table WHERE anilist_id=?",
+                    (mid,),
+                ).fetchone()
+                if row is None:
+                    continue
+                found += 1
+                raw = row[0] or "[]"
+                try:
+                    genres = json.loads(raw)
+                except (ValueError, TypeError):
+                    genres = []
+                if genres:
+                    with_genres += 1
+                    # Pondere par le nombre de visionnages de cet anime.
+                    plays = con.execute(
+                        "SELECT COUNT(*) FROM watch_histories WHERE media_id=?",
+                        (mid,),
+                    ).fetchone()[0]
+                    for g in genres:
+                        genre_counts[g] = genre_counts.get(g, 0) + plays
+            print("  presents dans media_table       :", found, "/", len(hist_ids),
+                  "  <- les absents sont ignores par 'Regarde recemment'"
+                  if found < len(hist_ids) else "")
+            print("  avec genres renseignes          :", with_genres, "/", found)
+            if with_genres == 0:
+                print("(!) Aucun anime regarde n'a de genres en base -> pas de")
+                print("    rangee 'Ca pourrait vous plaire' ni de rangee par genre.")
+                print("    (les genres se remplissent via la fiche/le scraper ;")
+                print("     ouvre la fiche des animes concernes pour les enrichir.)")
+            else:
+                ordered = sorted(
+                    genre_counts.items(),
+                    key=lambda kv: (-kv[1], kv[0]),
+                )
+                print("  Genres regardes (par nb de visionnages, ordre des rangees) :")
+                for g, c in ordered:
+                    print("     - {:<20} {}".format(g, c))
 
     print("\n" + "=" * 70)
     print("Rapport termine (lecture seule — la base n'a PAS ete modifiee).")
