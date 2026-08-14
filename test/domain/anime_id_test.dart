@@ -162,4 +162,45 @@ void main() {
       expect(s, greaterThan(0));
     });
   });
+
+  group('slugFromCatalogueUrl', () {
+    test('extrait le slug depuis /catalogue/<slug>/', () {
+      expect(slugFromCatalogueUrl('/catalogue/one-piece/'), 'one-piece');
+      expect(slugFromCatalogueUrl('/catalogue/dr-stone'), 'dr-stone');
+      expect(slugFromCatalogueUrl('https://anime-sama.to/catalogue/naruto/'),
+          'naruto');
+    });
+
+    test('ignore les segments de langue/saison apres le slug', () {
+      expect(slugFromCatalogueUrl('/catalogue/bleach/saison1/vostfr/'), 'bleach');
+    });
+
+    test('URL sans /catalogue/ -> chaine vide', () {
+      expect(slugFromCatalogueUrl('/planning/'), '');
+      expect(slugFromCatalogueUrl(''), '');
+    });
+  });
+
+  group('animeSamaIdForSlug', () {
+    test('est deterministe (meme slug -> meme id)', () {
+      expect(animeSamaIdForSlug('one-piece'), animeSamaIdForSlug('one-piece'));
+    });
+
+    test('est toujours strictement positif (jamais 0, jamais negatif)', () {
+      for (final s in ['one-piece', 'naruto', 'a', 'dr-stone', 'x-2024']) {
+        expect(animeSamaIdForSlug(s), greaterThan(0), reason: 'slug=$s');
+      }
+    });
+
+    test('slugs differents -> ids differents (pas de collision triviale)', () {
+      final ids = {
+        animeSamaIdForSlug('one-piece'),
+        animeSamaIdForSlug('naruto'),
+        animeSamaIdForSlug('bleach'),
+        animeSamaIdForSlug('dr-stone'),
+        animeSamaIdForSlug('fate'),
+      };
+      expect(ids.length, 5);
+    });
+  });
 }

@@ -135,3 +135,32 @@ int titleMatchScore(String query, String candidate) {
   final ratio = common / qt.length; // part des jetons de la query couverts
   return (ratio * 600).round().clamp(1, 600);
 }
+
+/// Extrait le slug d'une URL catalogue anime-sama.
+///
+/// `/catalogue/one-piece/` donne `one-piece`. Tolère l'URL absolue
+/// (`https://anime-sama.to/catalogue/...`) et les segments qui suivent le slug
+/// (`/catalogue/bleach/saison1/vostfr/` donne `bleach`). Retourne '' si l'URL
+/// ne contient pas de segment `/catalogue/<slug>`.
+String slugFromCatalogueUrl(String url) {
+  final match = RegExp(r'/catalogue/([^/]+)').firstMatch(url);
+  return match?.group(1)?.trim() ?? '';
+}
+
+/// Identifiant technique positif et stable derivé du slug anime-sama.
+///
+/// Le slug d'URL est l'identité logique (unique par construction) ; cet entier
+/// en est l'identité technique, pour garder les clés étrangères entières des
+/// tables de progression. Déterministe (même slug -> même id), toujours > 0.
+int animeSamaIdForSlug(String slug) {
+  final norm = slug.toLowerCase().trim();
+  // FNV-1a 32 bits, déterministe et indépendant de la plateforme.
+  var hash = 0x811c9dc5;
+  for (final unit in norm.codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0xffffffff;
+  }
+  // Réduit à un positif non nul (31 bits) : jamais 0, jamais négatif.
+  final positive = hash & 0x7fffffff;
+  return positive == 0 ? 1 : positive;
+}
