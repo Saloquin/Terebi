@@ -15,6 +15,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
+import '../widgets/anime_sama_image.dart';
 import 'library_page.dart';
 import 'player_page.dart';
 import 'resume_helper.dart';
@@ -221,20 +222,29 @@ class _Header extends StatelessWidget {
       height: 220,
       child: Stack(
         children: [
-          // Banner
+          // Banner : derive du slug anime-sama (teste plusieurs extensions,
+          // repli sur bannerUrl en base), comme les cartes. Sinon container.
           Positioned.fill(
-            child: media.bannerUrl != null
-                ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest,
-                        ))
-                : Container(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest,
-                  ),
+            child: (media.animeSamaSlug != null &&
+                    media.animeSamaSlug!.isNotEmpty)
+                ? AnimeSamaImage(
+                    slug: media.animeSamaSlug!,
+                    banner: true,
+                    fallbackUrl: media.bannerUrl,
+                    fit: BoxFit.cover,
+                  )
+                : media.bannerUrl != null
+                    ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                            ))
+                    : Container(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerHighest,
+                      ),
           ),
           // Gradient overlay
           Positioned.fill(
@@ -258,17 +268,28 @@ class _Header extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // Cover
+                // Cover : derive du slug (comme les cartes), repli coverUrl.
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  child: media.coverUrl != null
-                      ? Image.network(media.coverUrl!,
+                  child: (media.animeSamaSlug != null &&
+                          media.animeSamaSlug!.isNotEmpty)
+                      ? SizedBox(
                           width: 80,
                           height: 110,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              const SizedBox(width: 80, height: 110))
-                      : const SizedBox(width: 80, height: 110),
+                          child: AnimeSamaImage(
+                            slug: media.animeSamaSlug!,
+                            fallbackUrl: media.coverUrl,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      : media.coverUrl != null
+                          ? Image.network(media.coverUrl!,
+                              width: 80,
+                              height: 110,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  const SizedBox(width: 80, height: 110))
+                          : const SizedBox(width: 80, height: 110),
                 ),
                 const SizedBox(width: 12),
                 // Titre + score
