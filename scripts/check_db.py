@@ -100,6 +100,7 @@ def main():
     clear_history = "--clear-history" in args
     purge_scans = "--purge-scans" in args
     apply_changes = "--apply" in args
+    force = "--force" in args
     positional = [a for a in args if not a.startswith("--")]
 
     path = _resolve_db_path(positional)
@@ -136,8 +137,10 @@ def main():
         _clean_anilist_images(path, apply_changes)
 
     # Re-resolution optionnelle des genres manquants (re-scrape les fiches).
+    # --force : re-scrape TOUS les animes avec slug (corrige les genres AniList
+    # anglais residuels comme "Drama"/"Supernatural").
     if refresh_genres:
-        _refresh_genres(path, apply_changes)
+        _refresh_genres(path, apply_changes, force=force)
 
     # Purge optionnelle de l'historique de visionnage orphelin (ids legacy).
     if clear_history:
@@ -263,9 +266,12 @@ def _scrape_genres(slug, timeout=15):
     return [g.strip() for g in pills if g.strip()]
 
 
-def _refresh_genres(path, apply_changes):
+def _refresh_genres(path, apply_changes, force=False):
     print("\n" + "#" * 70)
-    print("RE-RESOLUTION DES GENRES MANQUANTS (genres_json vide)")
+    if force:
+        print("RE-RESOLUTION DES GENRES — TOUS les animes avec slug (--force)")
+    else:
+        print("RE-RESOLUTION DES GENRES MANQUANTS (genres_json vide)")
     print("#" * 70)
 
     con = _open_readonly(path)
@@ -278,33 +284,44 @@ def _refresh_genres(path, apply_changes):
             print("(colonne anime_sama_slug absente — base non migree, "
                   "impossible de scraper. Migration requise d'abord.)")
             return
-        # Medias a genres vides : genres_json NULL, '', '[]' ou absent.
-        rows = con.execute(
+        base_select = (
             "SELECT anilist_id, anime_sama_slug, "
             "COALESCE(anime_sama_title, title_english, title_romaji, "
-            "title_native), genres_json "
-            "FROM media_table "
-            "WHERE anime_sama_slug IS NOT NULL AND anime_sama_slug <> '' "
-            "AND (genres_json IS NULL OR genres_json = '' "
-            "OR genres_json = '[]')"
-        ).fetchall()
+            "title_native), genres_json FROM media_table "
+            "WHERE anime_sama_slug IS NOT NULL AND anime_sama_slug <> ''"
+        )
+        if force:
+            # Tous les animes avec slug : re-scrape et ECRASE les genres, y compris
+            # les residus AniList en anglais (Drama, Supernatural...) qui ne
+            # seraient jamais corriges par le mode "vides seulement".
+            rows = con.execute(base_select).fetchall()
+        else:
+            # Genres vides uniquement : genres_json NULL, '', '[]' ou absent.
+            rows = con.execute(
+                base_select + " AND (genres_json IS NULL OR genres_json = '' "
+                "OR genres_json = '[]')"
+            ).fetchall()
     finally:
         con.close()
 
     if not rows:
-        print("Aucun media a genres vides (avec slug). Rien a faire.")
+        print("Aucun media a traiter (avec slug). Rien a faire.")
         return
 
-    print("\n{} media(s) a genres vides (avec slug) :".format(len(rows)))
-    for mid, slug, title, _ in rows:
+    label = "avec slug" if force else "a genres vides (avec slug)"
+    print("\n{} media(s) {} :".format(len(rows), label))
+    for mid, slug, title, _ in rows[:60]:
         print("  id={:<12} [{:<28}] {}".format(
             mid, slug[:28], (title or "?")[:35]))
+    if len(rows) > 60:
+        print("  ... (+{} autres)".format(len(rows) - 60))
 
     if not apply_changes:
         print("\n--- DRY-RUN : aucun scrape, aucune ecriture. ---")
         print("Pour re-resoudre reellement (scrape reseau + ecriture, avec .bak) :")
-        print('  python scripts/check_db.py "{}" --refresh-genres --apply'.format(
-            path))
+        extra = " --force" if force else ""
+        print('  python scripts/check_db.py "{}" --refresh-genres{} --apply'
+              .format(path, extra))
         return
 
     backup = path + ".bak"
@@ -920,106 +937,105 @@ def _report(con, db_path=None):
         print("(table app_settings absente)")
 
     # --- Diagnostic ACCUEIL (rangees) --------------------------------------
-    # Explique pourquoi les rangees "Regarde recemment", "Ca pourrait vous
-    # plaire" et "par genre" seraient vides : elles derivent de l'historique de
-    # visionnage (table watch_histories) et des genres des medias regardes.
+    # Reproduit la logique de l'app : les rangees "Ca pourrait vous plaire" et
+    # "par genre" derivent des animes de la BIBLIOTHEQUE dont le statut EFFECTIF
+    # est termine / en cours / revisionnage (PAS de l'historique de visionnage).
+    # "En cours" (current) n'est jamais stocke : il est DERIVE de la progression
+    # (progress de liste > 0 OU progression par saison > 0). On compte donc comme
+    # l'app, sinon le total est faux (une poignee au lieu de ~150).
     print("\n" + "-" * 70)
     print("ACCUEIL (diagnostic des rangees)")
     print("-" * 70)
-    has_history = _table_exists(con, "watch_histories")
-    if not has_history:
-        print("(!) table 'watch_histories' absente : aucune lecture jamais lancee")
-        print("    -> 'Regarde recemment', 'Ca pourrait vous plaire' et les")
-        print("       rangees par genre restent VIDES tant qu'aucun episode")
-        print("       n'a ete lance DEPUIS LE LECTEUR de l'app.")
+    if not has_entries:
+        print("(!) table 'list_entries' absente : bibliotheque vide -> aucune")
+        print("    rangee 'Ca pourrait vous plaire' ni par genre.")
     else:
-        hist_rows = con.execute(
-            "SELECT COUNT(*) FROM watch_histories"
-        ).fetchone()[0]
-        hist_ids = [
-            r[0]
-            for r in con.execute(
-                "SELECT DISTINCT media_id FROM watch_histories"
-            ).fetchall()
-        ]
-        print("Lancements de lecture enregistres :", hist_rows)
-        print("Animes distincts regardes         :", len(hist_ids))
-        if hist_rows == 0:
-            print("(!) Historique VIDE -> 'Regarde recemment', 'Ca pourrait vous")
-            print("    plaire' et les rangees par genre ne s'affichent pas.")
-            print("    Lance un episode depuis le lecteur pour amorcer l'historique.")
-        elif has_media:
-            # Combien de ces animes existent en media_table (sinon 'Regarde
-            # recemment' les ignore) et combien ont des genres (sinon pas de
-            # rangee par genre ni 'Ca pourrait vous plaire').
-            found = 0
-            missing_ids = []      # ids d'historique SANS ligne media_table
-            without_genres = []   # ids presents mais genres_json vide
-            with_genres = 0
-            genre_counts = {}
-            for mid in hist_ids:
+        # Statuts manuels "gelants" (cf. effective_status_service.dart) : ils
+        # empechent le passage auto en 'current' meme avec de la progression.
+        freezing = {"paused", "dropped", "repeating"}
+
+        def _has_progress(mid, progress):
+            if (progress or 0) > 0:
+                return True
+            for _s, v in watched_by_id.get(str(mid), []):
+                try:
+                    if int(v) > 0:
+                        return True
+                except (TypeError, ValueError):
+                    pass
+            return False
+
+        def _effective(status, mid, progress):
+            """Statut effectif, reproduisant effectiveStatus() cote Dart."""
+            if status == "completed":
+                return "completed"
+            if status in freezing:
+                return status
+            if _has_progress(mid, progress):
+                return "current"
+            if status == "planning":
+                return "planning"
+            return None
+
+        # Genres favoris = animes dont le statut effectif est dans {completed,
+        # current, repeating}, comme _watchedGenresProvider.
+        kept = {"completed", "current", "repeating"}
+        entries = con.execute(
+            "SELECT media_id, status, progress FROM list_entries"
+        ).fetchall()
+
+        counted = 0            # animes retenus (biblio, statut effectif garde)
+        with_genres = 0        # parmi eux, ceux ayant des genres en base
+        without_genres = []    # ids retenus mais genres vides
+        genre_counts = {}
+        eff_distribution = {}
+        for mid, status, progress in entries:
+            eff = _effective(status, mid, progress)
+            eff_distribution[eff or "(hors listes)"] = \
+                eff_distribution.get(eff or "(hors listes)", 0) + 1
+            if eff not in kept:
+                continue
+            counted += 1
+            genres = []
+            if has_media:
                 row = con.execute(
                     "SELECT genres_json FROM media_table WHERE anilist_id=?",
                     (mid,),
                 ).fetchone()
-                if row is None:
-                    missing_ids.append(mid)
-                    continue
-                found += 1
-                raw = row[0] or "[]"
-                try:
-                    genres = json.loads(raw)
-                except (ValueError, TypeError):
-                    genres = []
-                if genres:
-                    with_genres += 1
-                    # Pondere par le nombre de visionnages de cet anime.
-                    plays = con.execute(
-                        "SELECT COUNT(*) FROM watch_histories WHERE media_id=?",
-                        (mid,),
-                    ).fetchone()[0]
-                    for g in genres:
-                        genre_counts[g] = genre_counts.get(g, 0) + plays
-                else:
-                    without_genres.append(mid)
-            print("  presents dans media_table       :", found, "/", len(hist_ids))
-            print("  avec genres renseignes          :", with_genres, "/", found)
+                if row is not None:
+                    try:
+                        genres = json.loads(row[0] or "[]")
+                    except (ValueError, TypeError):
+                        genres = []
+            if genres:
+                with_genres += 1
+                for g in genres:
+                    genre_counts[g] = genre_counts.get(g, 0) + 1
+            else:
+                without_genres.append(mid)
 
-            # Cas 1 : l'historique pointe vers des ids ABSENTS de media_table.
-            # Typiquement l'historique a ete ecrit avec d'anciens ids (legacy /
-            # AniList, souvent negatifs) alors que la migration a recree des
-            # lignes avec des ids-slug positifs -> l'historique est orphelin.
-            if missing_ids:
-                neg = [m for m in missing_ids if m < 0]
-                print("\n(!) {} anime(s) de l'historique n'ont AUCUNE ligne dans "
-                      "media_table".format(len(missing_ids)))
-                if neg:
-                    print("    dont {} avec un id NEGATIF (legacy) : l'historique a "
-                          "ete".format(len(neg)))
-                    print("    enregistre avant la migration slug -> il pointe vers")
-                    print("    des ids qui n'existent plus (remplaces par des ids-slug).")
-                print("    -> 'Regarde recemment' ignore ces animes, et ils ne")
-                print("       comptent NI pour 'Ca pourrait vous plaire' NI par genre.")
-                print("    ids concernes :", missing_ids[:20],
-                      "..." if len(missing_ids) > 20 else "")
+        print("Entrees de bibliotheque           :", len(entries))
+        print("Repartition par statut effectif   :")
+        for k, v in sorted(eff_distribution.items(), key=lambda kv: -kv[1]):
+            print("     - {:<14} {}".format(k, v))
+        print("Animes comptes (fini/en cours)    :", counted)
+        print("  dont avec genres en base        :", with_genres, "/", counted)
 
-            # Cas 2 : ids presents mais genres_json vide -> --refresh-genres.
-            if without_genres:
-                print("\n(!) {} anime(s) regarde(s) presents mais SANS genres. "
-                      "Repeuple avec :".format(len(without_genres)))
-                print('    python scripts/check_db.py "{}" --refresh-genres --apply'
-                      .format(db_path or "<base>"))
+        if without_genres:
+            print("\n(!) {} anime(s) fini/en cours SANS genres en base. "
+                  "Repeuple avec :".format(len(without_genres)))
+            print('    python scripts/check_db.py "{}" --refresh-genres --apply'
+                  .format(db_path or "<base>"))
 
-            if with_genres == 0 and not missing_ids and not without_genres:
-                print("(!) Aucun anime regarde n'a de genres en base.")
-            elif with_genres > 0:
-                ordered = sorted(
-                    genre_counts.items(),
-                    key=lambda kv: (-kv[1], kv[0]),
-                )
-                print("\n  Genres regardes (par nb de visionnages, ordre des rangees) :")
-                for g, c in ordered:
-                    print("     - {:<20} {}".format(g, c))
+        if with_genres > 0:
+            ordered = sorted(
+                genre_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+            print("\n  Genres regardes (par nb d'animes, ordre des rangees) :")
+            for g, c in ordered:
+                print("     - {:<20} {}".format(g, c))
+        elif counted > 0:
+            print("(!) Aucun anime fini/en cours n'a de genres en base "
+                  "-> lance --refresh-genres.")
 
     print("\n" + "=" * 70)
     print("Rapport termine (lecture seule — la base n'a PAS ete modifiee).")
