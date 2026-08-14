@@ -273,6 +273,21 @@ void main() {
       expect(r.parseCatalogue(out).first.slug, 'bleach');
     });
 
+    test('parseCatalogue gere une URL absolue + genres (structure catalogue)', () {
+      // Le scraper renvoie desormais des URLs absolues et les genres/cover reels.
+      const out = 'CATALOGUE_JSON: [{'
+          '"title":"86 Eighty Six",'
+          '"url":"https://anime-sama.to/catalogue/86-eighty-six/",'
+          '"slug":"86-eighty-six",'
+          '"cover_url":"https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/86-eighty-six1.webp",'
+          '"genres":["Action","Drame","Science-fiction"]}]';
+      final items = r.parseCatalogue(out);
+      expect(items, hasLength(1));
+      expect(items.first.slug, '86-eighty-six');
+      expect(items.first.cover, contains('86-eighty-six1.webp'));
+      expect(items.first.genres, containsAll(['Action', 'Drame']));
+    });
+
     test('parseDetail lit synopsis/genres/cover/banner', () {
       const out = 'DETAIL_JSON: {"slug":"one-piece","title":"One Piece",'
           '"synopsis":"Un pirate","genres":["Action","Aventure"],'

@@ -479,7 +479,7 @@ void main() {
       ));
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Les classiques'), findsOneWidget);
-      expect(find.text('Derniers episodes ajoutes'), findsOneWidget);
+      expect(find.text('Derniers contenus ajoutes'), findsOneWidget);
       await db.close();
     });
   });

@@ -582,59 +582,156 @@ def action_catalogue_detail(mod, dl, args):
 
 
 def _cards_from_html(mod, html):
-    """Extrait des cartes (title,url,slug,cover_url,genres) d'un fragment HTML."""
+    """Extrait des cartes (title,url,slug,cover_url,genres) d'un fragment HTML.
+
+    Structure reelle anime-sama.to (page catalogue) : chaque carte est un
+    <a href="https://.../catalogue/<slug>/"> contenant <img class="card-image"
+    src="..."> (vrai nom de fichier CDN, suffixe possible), <h2 class="card-title">
+    et un bloc <div class="catalog-info"> avec les genres en tags.
+    """
+    card_re = re.compile(
+        r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/[^"]*"[^>]*>'
+        r'(.*?)</a>',
+        re.DOTALL,
+    )
+    img_re = re.compile(
+        r'<img[^>]+class="[^"]*card-image[^"]*"[^>]+src="([^"]+)"', re.DOTALL)
+    img_alt_re = re.compile(r'<img[^>]+src="([^"]+)"', re.DOTALL)  # repli
+    title_re = re.compile(
+        r'<h2[^>]*card-title[^>]*>([^<]+)</h2>', re.DOTALL)
+    info_re = re.compile(
+        r'<div[^>]+catalog-info[^>]*>(.*?)</div>', re.DOTALL)
+
     items = []
-    for m in re.finditer(
-            r'<a href="(/catalogue/[^"]+)"[^>]*>.*?(?:<img[^>]*src="([^"]*)"[^>]*>)?'
-            r'.*?<h[13][^>]*>([^<]+)</h[13]>', html, re.DOTALL):
-        url, cover, title = m.group(1), m.group(2), m.group(3)
-        if hasattr(mod, '_is_scan_url') and mod._is_scan_url(url):
+    for m in card_re.finditer(html):
+        slug, inner = m.group(1).strip(), m.group(2)
+        # Ignore les scans (mangas) — on ne garde que les animes.
+        if hasattr(mod, '_is_scan_url') and mod._is_scan_url(slug):
             continue
-        slug = _slug_from_url(url)
+        mt = title_re.search(inner)
+        if not mt:
+            continue  # pas une carte anime exploitable
+        title = mt.group(1).strip()
+        # Cover : src reel de card-image (repli : autre <img>, sinon CDN slug).
+        mc = img_re.search(inner) or img_alt_re.search(inner)
+        cover_url = mc.group(1).strip() if mc else _cdn_image_url(slug, probe=False)
+        # Genres : textes des tags du bloc catalog-info.
+        genres = []
+        mg = info_re.search(inner)
+        if mg:
+            genres = [g.strip() for g in re.findall(r'>([^<\n]+)<', mg.group(1))
+                      if len(g.strip()) > 1]
         items.append({
-            "title": title.strip(),
-            "url": url.strip(),
+            "title": title,
+            "url": "https://{}/catalogue/{}/".format(mod.DOMAIN, slug),
             "slug": slug,
-            "cover_url": cover or _cdn_image_url(slug, probe=False),
-            "genres": [],
+            "cover_url": cover_url,
+            "genres": genres,
         })
     return items
 
 
+def _genre_matches(genre_norm, card_genres):
+    """Vrai si [genre_norm] (normalise) correspond a un genre de la carte.
+
+    Egalite normalisee OU inclusion mutuelle (couvre « Tranche de vie » vs
+    « tranchedevie », « Science-fiction » vs « sciencefiction »…).
+    """
+    for g in card_genres:
+        gn = _norm(g)
+        if not gn:
+            continue
+        if gn == genre_norm or genre_norm in gn or gn in genre_norm:
+            return True
+    return False
+
+
+# Slugs des animes « classiques » (sections de la home anime-sama non
+# scrapables — peuplees par JS). Liste verifiee presente au catalogue ; les
+# titres absents d'anime-sama ont ete ecartes pour ne pas creer de cartes cassees.
+_CLASSIC_SLUGS = [
+    "one-piece", "demon-slayer", "slam-dunk", "detective-conan", "dragon-ball",
+    "shingeki-no-kyojin", "naruto", "haikyuu", "fullmetal-alchemist",
+    "jojos-bizarre-adventure", "hunter-x-hunter", "gintama", "kingdom",
+    "world-trigger", "my-hero-academia", "yuyu-hakusho", "jujutsu-kaisen",
+    "ken-le-survivant", "bleach", "banana-fish", "inuyasha", "ashita-no-joe",
+    "kenshin-le-vagabond", "golden-kamui", "tokyo-ghoul",
+    "the-quintessential-quintuplets", "the-promised-neverland", "hajime-no-ippo",
+    "master-keaton", "kaguya-sama-love-is-war", "assassination-classroom",
+    "kuroko-no-basket", "black-butler", "candy-candy", "city-hunter",
+    "chainsaw-man", "parasite", "urusei-yatsura", "card-captor-sakura",
+    "bungou-stray-dogs", "fairy-tail", "katekyo-hitman-reborn", "hana-yori-dango",
+    "galaxy-express-999", "devilman-crybaby", "magi-the-labyrinth-of-magic",
+    "hikaru-no-go", "major", "fire-force", "toilet-bound-hanako-kun",
+    "karakuri-circus", "fruits-basket", "berserk", "rent-a-girlfriend",
+    "d-gray-man", "captain-tsubasa", "march-comes-in-like-a-lion", "dr-stone",
+]
+
+
 def action_home(mod, dl, args):
-    """Sections de l'accueil : classiques + derniers episodes ajoutes."""
+    """Sections de l'accueil.
+
+    - classics : liste statique de slugs classiques (les sections de la home
+      anime-sama sont peuplees par JS, non scrapables). Slugs verifies presents
+      au catalogue. Titre approximatif depuis le slug ; le vrai titre/genres/cover
+      sont enrichis cote app (cache/revalidation + image derivee du slug).
+    - latest_episodes : premiere page du catalogue (tri par defaut = recence).
+    """
     import requests
     domain = mod.DOMAIN
     home = {"classics": [], "latest_episodes": []}
+
+    for slug in _CLASSIC_SLUGS:
+        home["classics"].append({
+            "title": slug.replace("-", " ").title(),
+            "url": "https://{}/catalogue/{}/".format(domain, slug),
+            "slug": slug,
+            "cover_url": _cdn_image_url(slug, probe=False),
+            "genres": [],
+        })
+
     try:
-        html = requests.get(f"https://{domain}/", headers=mod.HEADERS_BASE,
-                            timeout=15).text
-        def section(label):
-            m = re.search(label + r'(.*?)(?:<h2|<footer|\Z)', html,
-                          re.DOTALL | re.I)
-            return _cards_from_html(mod, m.group(1)) if m else []
-        home["classics"] = section(r'Classiques?')
-        home["latest_episodes"] = section(r'Derniers?\s+[eé]pisodes?')
+        html = requests.get("https://{}/catalogue/".format(domain),
+                            headers=mod.HEADERS_BASE, timeout=15).text
+        home["latest_episodes"] = _cards_from_html(mod, html)
     except requests.RequestException:
         pass
+
     print(f"HOME_JSON: {json.dumps(home, ensure_ascii=False)}")
     sys.exit(0)
 
 
 def action_catalogue_filter(mod, dl, args):
-    """Catalogue filtre par genre (page /catalogue/ avec parametre de genre)."""
+    """Catalogue filtre par genre. Le filtre serveur (?genre[]=) etant ignore, on
+    scrape plusieurs pages du catalogue et on filtre par genre cote scraper."""
     import requests
     domain = mod.DOMAIN
     genre = args.genre.strip()
     if not genre:
         _fail("catalogue-filter requiert --genre")
+    genre_norm = _norm(genre)
+
+    max_pages = 5
     items = []
-    try:
-        url = f"https://{domain}/catalogue/?genre[]={requests.utils.quote(genre)}"
-        html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
-        items = _cards_from_html(mod, html)
-    except requests.RequestException:
-        pass
+    seen = set()
+    for page in range(1, max_pages + 1):
+        suffix = "?page={}".format(page) if page > 1 else ""
+        url = "https://{}/catalogue/{}".format(domain, suffix)
+        try:
+            html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
+        except requests.RequestException:
+            break
+        cards = _cards_from_html(mod, html)
+        fresh = 0
+        for it in cards:
+            if it["slug"] in seen:
+                continue
+            seen.add(it["slug"])
+            fresh += 1
+            if _genre_matches(genre_norm, it.get("genres", [])):
+                items.append(it)
+        if fresh == 0:
+            break  # pagination epuisee (ou param page ignore -> memes cartes)
     print(f"CATALOGUE_JSON: {json.dumps(items, ensure_ascii=False)}")
     sys.exit(0)
 
