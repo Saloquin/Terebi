@@ -6,52 +6,64 @@ A executer sur le PC de developpement (non reproductible en CI).
 
 ## 0. Prerequis
 
-- L'application est deja buildee et lancee au moins une fois (pour que les scripts
-  Python soient extraits dans le dossier support de l'application).
+- Il y a DEUX scripts Python (embarques dans les assets du repo sous
+  `assets/resolver/`, extraits au 1er lancement dans le dossier support) :
+  - **`animesama_resolve.py`** : le wrapper maison (celui qu'on lance) ;
+  - **`anime_sama.py`** : le script tiers, passe au wrapper via `--script`.
 - Sur Windows, le dossier support est typiquement :
   `%APPDATA%\terebi\` ou `%LOCALAPPDATA%\terebi\`
-  (verifier via : `dart run` ou en cherchant `anime_sama.py` dans
-  `%APPDATA%`, `%LOCALAPPDATA%` ou `~/Library/Application Support/terebi`).
-- Le wrapper Python (`animesama_wrapper.py` ou `animesama_cli.py`) et
-  `anime_sama.py` sont co-localises dans ce dossier support.
+  (verifier en cherchant `animesama_resolve.py` dans `%APPDATA%`,
+  `%LOCALAPPDATA%` ou `~/Library/Application Support/terebi`).
 
-> Astuce : pendant les tests, on peut directement utiliser les fichiers
-> sources dans `assets/scripts/` du repo, en passant les memes arguments.
+> Astuce : pour un test rapide, on peut lancer directement les fichiers sources
+> du repo, dans `assets/resolver/`, avec les memes arguments.
 
 ---
 
 ## 1. Scripts Python — verification directe
 
-Remplacer `<SUPPORT_DIR>` par le chemin reel du dossier support de l'app
-(ou par `assets/scripts/` dans le repo pour un test rapide).
+Le wrapper prend TOUJOURS `--script <chemin d'anime_sama.py>` et `--action <action>`.
+Ci-dessous, on teste depuis le repo (`assets/resolver/`) ; remplacer par
+`<SUPPORT_DIR>` pour tester les fichiers extraits par l'app.
 
-### 1a. Catalogue detail (fiche d'un anime)
+### 1a. Catalogue detail (enrichissement d'un anime)
 
 ```bash
-python <SUPPORT_DIR>/animesama_wrapper.py catalogue-detail --slug one-piece
+python assets/resolver/animesama_resolve.py \
+  --script assets/resolver/anime_sama.py \
+  --action catalogue-detail --slug one-piece
 ```
 
-Attendu : JSON valide avec les cles `slug`, `title`, `synopsis`, `genres`,
-`cover`, `seasons`. Verifie que `seasons` contient les saisons de One Piece
-(et PAS les saisons de Dragon Ball Z Heroes ou similaire).
+Attendu : une ligne `DETAIL_JSON: {...}` avec les cles `slug`, `title`,
+`synopsis`, `genres`, `cover_url`, `banner_url`. Verifie que `title`/`synopsis`
+correspondent bien a One Piece (et pas a une autre serie). Note : les SAISONS
+ne sont PAS dans cette action — elles se testent avec `--action list-seasons`.
 
 ### 1b. Page d'accueil
 
 ```bash
-python <SUPPORT_DIR>/animesama_wrapper.py home
+python assets/resolver/animesama_resolve.py \
+  --script assets/resolver/anime_sama.py \
+  --action home
 ```
 
-Attendu : JSON valide avec les cles `classics` (liste) et `latest_episodes`
-(liste). Chaque item doit avoir au moins `slug`, `title`, `cover`.
+Attendu : une ligne `HOME_JSON: {...}` avec les cles `classics` (liste) et
+`latest_episodes` (liste). Chaque item a au moins `slug`, `title`, `cover_url`.
 
 ### 1c. Catalogue filtre par genre
 
 ```bash
-python <SUPPORT_DIR>/animesama_wrapper.py catalogue-filter --genre Action
+python assets/resolver/animesama_resolve.py \
+  --script assets/resolver/anime_sama.py \
+  --action catalogue-filter --genre Action
 ```
 
-Attendu : JSON valide, liste d'items anime avec `slug`, `title`, `cover`,
-`genres`. Verifier que les resultats correspondent bien au genre "Action".
+Attendu : une ligne `CATALOGUE_JSON: [...]`, liste d'items avec `slug`, `title`,
+`url`, `cover_url`, `genres`. Verifier que les resultats correspondent au genre.
+
+> En cas de sortie vide (`[]` / champs `null`) : le HTML d'anime-sama a
+> probablement change ; les regex de `assets/resolver/animesama_resolve.py`
+> (`action_catalogue_detail`, `action_home`, `_cards_from_html`) sont a ajuster.
 
 ---
 
@@ -65,7 +77,7 @@ Attendu : JSON valide, liste d'items anime avec `slug`, `title`, `cover`,
   - **Sortis du moment** : planning de la semaine courante
   - **Recommande - <genre>** (une ou plusieurs rangees selon la bibliotheque)
 - [ ] Les images des cartes se chargent depuis le CDN anime-sama
-  (URLs en `cdn.anime-sama.fr/...` ou similaire), pas d'image cassee.
+  (URLs en `cdn.jsdelivr.net/gh/Anime-Sama/IMG/...`), pas d'image cassee.
 - [ ] Les rangees "En ce moment" et "Continuer a regarder" s'affichent si
   l'utilisateur a des animes en cours (peuvent etre vides au 1er lancement).
 
