@@ -129,21 +129,30 @@ final _byGenreProvider =
 });
 
 /// Genres favoris de l'utilisateur, agrégés depuis les animes TERMINÉS et EN
-/// COURS de sa bibliothèque (statuts completed / current / repeating). Chaque
-/// anime compte une fois par genre. Tri par occurrence décroissante ; à
-/// départage égal, ordre alphabétique pour un affichage stable. Retourne TOUS
-/// les genres concernés.
+/// COURS de sa bibliothèque. Chaque anime compte une fois par genre. Tri par
+/// occurrence décroissante ; à départage égal, ordre alphabétique pour un
+/// affichage stable. Retourne TOUS les genres concernés.
+///
+/// IMPORTANT : on filtre sur le statut EFFECTIF (cf. [effectiveStatus]), pas sur
+/// `e.status` : « en cours » (current) n'est JAMAIS stocké, il est dérivé de la
+/// progression. Filtrer la colonne `status` ignorerait tous les animes en cours
+/// de visionnage — soit l'essentiel de ce que l'utilisateur regarde — et
+/// fausserait le tri des rangées de genre.
 final _watchedGenresProvider = FutureProvider<List<String>>((ref) async {
   final entries = await ref.watch(listRepositoryProvider).getAllEntries();
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
   const kept = {
     ListStatus.completed,
     ListStatus.current,
     ListStatus.repeating,
   };
-  final mediaRepo = ref.watch(mediaRepositoryProvider);
   final counts = <String, int>{};
   for (final e in entries) {
-    if (!kept.contains(e.status)) continue;
+    final hasProgress =
+        e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
+    final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+    if (eff == null || !kept.contains(eff)) continue;
     final genres = (await mediaRepo.getMedia(e.mediaId))?.genres ?? const [];
     for (final g in genres) {
       counts[g] = (counts[g] ?? 0) + 1;
