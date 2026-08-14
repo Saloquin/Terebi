@@ -40,12 +40,29 @@ final _mediaDetailProvider =
   final local = await ref.watch(mediaRepositoryProvider).getMedia(arg.id);
   if (local != null) return local;
 
-  // Pas de titre : id AniList réel → lecture directe (bonus).
+  // Pas de titre : id AniList réel. On charge la fiche AniList, MAIS l'entrée
+  // peut être une SAISON precise (ex. « Attack on Titan Season 3 ») avec sa
+  // propre description/image de saison. Pour retomber sur l'anime RACINE, on
+  // resout le titre anime-sama (l'anime entier) puis on re-resout via
+  // TitleMatcher : la recherche AniList sur ce titre racine ramene la fiche
+  // globale (bonne description/image), et fixe l'identite anime-sama.
   if (arg.id <= 0) return null;
   try {
-    final media = await ref.watch(aniListClientProvider).mediaDetail(arg.id);
-    await ref.read(mediaRepositoryProvider).upsertMedia(media);
-    return media;
+    final aniListMedia =
+        await ref.watch(aniListClientProvider).mediaDetail(arg.id);
+    // Résout le vrai titre anime-sama depuis les titres AniList.
+    final samaTitle = await ref.read(animeSamaResolvedTitleProvider((
+      english: aniListMedia.title.english,
+      romaji: aniListMedia.title.romaji,
+      native: aniListMedia.title.native,
+    )).future);
+    if (samaTitle.isNotEmpty) {
+      // Re-résolution sur le titre racine anime-sama → fiche anime entier.
+      return await ref.read(titleMatcherProvider).resolve(samaTitle);
+    }
+    // Repli : pas de correspondance anime-sama, on garde la fiche AniList.
+    await ref.read(mediaRepositoryProvider).upsertMedia(aniListMedia);
+    return aniListMedia;
   } catch (_) {
     return null;
   }
