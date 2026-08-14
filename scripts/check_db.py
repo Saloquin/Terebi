@@ -22,6 +22,10 @@ par saison 'anime_sama_watched:<id>:<s>'), et 'slug_migration_report' /
 anime_sama_watched/season/lang/new_episode), puis vide le rapport. Sans --apply,
 il ne fait que LISTER (dry-run). Avec --apply, il copie d'abord la base en
 '<db>.bak' et opere dans une transaction.
+
+Dans les deux cas (dry-run ET --apply), il ecrit un releve lisible de la
+progression des animes cibles dans 'purged_progress.txt' (a cote de la base),
+pour pouvoir la re-saisir a la main dans l'app apres coup.
 """
 
 import os
@@ -109,6 +113,39 @@ def main():
         _purge_slug_report(path, apply_changes)
 
 
+def _write_progress_receipt(out_path, db_path, found, applied):
+    """Ecrit un releve LISIBLE de la progression des animes cibles par la purge.
+
+    Sert a re-saisir manuellement dans l'app apres suppression : pour chaque
+    anime, titre + statut + episode de liste + progression par saison.
+    Ecrit en dry-run comme en --apply (mention de l'etat dans l'entete).
+    """
+    lines = []
+    lines.append("Progression des animes purges de la base Terebi")
+    lines.append("Base : {}".format(db_path))
+    lines.append("Mode : {}".format(
+        "SUPPRESSION APPLIQUEE (--apply)" if applied else "DRY-RUN (rien supprime)"
+    ))
+    lines.append("A re-saisir a la main dans l'app pour ces animes.")
+    lines.append("=" * 60)
+    for t in found:
+        lines.append("")
+        lines.append("Titre  : {}".format(t["title"]))
+        lines.append("  id ancien   : {}".format(t["media_id"]))
+        lines.append("  statut      : {}".format(t["status"]))
+        lines.append("  episode liste: {}".format(t["progress"]))
+        if t["seasons"]:
+            lines.append("  progression par saison :")
+            for s, v in t["seasons"]:
+                lines.append("    - saison {} : dernier episode vu = {}".format(s, v))
+        else:
+            lines.append("  progression par saison : (aucune)")
+    lines.append("")
+    # ecriture UTF-8 (titres accentues/japonais possibles).
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def _purge_slug_report(path, apply_changes):
     print("\n" + "#" * 70)
     print("PURGE DES ANIMES NON RESOLUS (slug_migration_report)")
@@ -133,8 +170,19 @@ def _purge_slug_report(path, apply_changes):
         has_entries = _table_exists(con, "list_entries")
         has_slug = has_media and _has_column(con, "media_table", "anime_sama_slug")
 
-        # Pour chaque titre du rapport, retrouver le media correspondant.
-        targets = []  # (title, media_id)
+        # Progression par saison de TOUS les medias (cles anime_sama_watched:<id>:<s>).
+        watched_by_id = {}
+        rows = con.execute(
+            "SELECT key, value FROM app_settings WHERE key LIKE 'anime_sama_watched:%'"
+        ).fetchall()
+        for key, value in rows:
+            parts = key.split(":")
+            if len(parts) >= 3:
+                watched_by_id.setdefault(parts[1], []).append((parts[2], value))
+
+        # Pour chaque titre du rapport, retrouver le media + sa progression.
+        # target = dict(title, media_id, status, progress, seasons)
+        targets = []
         for title in titles:
             r = con.execute(
                 "SELECT anilist_id FROM media_table "
@@ -144,24 +192,51 @@ def _purge_slug_report(path, apply_changes):
             ).fetchall() if has_media else []
             if r:
                 for (mid,) in r:
-                    targets.append((title, mid))
+                    status, progress = "?", "?"
+                    if has_entries:
+                        e = con.execute(
+                            "SELECT status, progress FROM list_entries WHERE media_id = ?",
+                            (mid,),
+                        ).fetchone()
+                        if e:
+                            status, progress = e[0], e[1]
+                        else:
+                            status, progress = "(pas dans la liste)", 0
+                    seasons = sorted(watched_by_id.get(str(mid), []))
+                    targets.append({
+                        "title": title, "media_id": mid,
+                        "status": status, "progress": progress, "seasons": seasons,
+                    })
             else:
-                targets.append((title, None))  # introuvable en base
+                targets.append({
+                    "title": title, "media_id": None,
+                    "status": None, "progress": None, "seasons": [],
+                })
     finally:
         con.close()
 
-    # Affiche le plan de suppression.
+    # Affiche le plan de suppression AVEC la progression.
     print("\n{} titre(s) dans le rapport :".format(len(titles)))
-    found = [(t, mid) for (t, mid) in targets if mid is not None]
-    missing = [t for (t, mid) in targets if mid is None]
-    for title, mid in found:
-        print("  [SUPPR] id={:<12} {}".format(mid, title))
-    for title in missing:
-        print("  [absent en base, ignore] {}".format(title))
+    found = [t for t in targets if t["media_id"] is not None]
+    missing = [t for t in targets if t["media_id"] is None]
+    for t in found:
+        seasons_str = ", ".join("S{}={}".format(s, v) for s, v in t["seasons"]) or "-"
+        print("  [SUPPR] id={:<12} {:<40} statut={} prog_liste={} saisons=[{}]".format(
+            t["media_id"], t["title"][:40], t["status"], t["progress"], seasons_str
+        ))
+    for t in missing:
+        print("  [absent en base, ignore] {}".format(t["title"]))
 
     if not found:
         print("\nAucun media correspondant en base — rien a supprimer.")
         return
+
+    # Ecrit TOUJOURS (dry-run ET apply) un releve lisible de la progression, a
+    # cote de la base, pour pouvoir re-saisir a la main dans l'app apres coup.
+    progress_file = os.path.join(os.path.dirname(os.path.abspath(path)),
+                                 "purged_progress.txt")
+    _write_progress_receipt(progress_file, path, found, applied=apply_changes)
+    print("\nProgression sauvegardee (pour re-saisie manuelle) :", progress_file)
 
     if not apply_changes:
         print("\n--- DRY-RUN : rien n'a ete supprime. ---")
@@ -174,7 +249,7 @@ def _purge_slug_report(path, apply_changes):
     shutil.copy2(path, backup)
     print("\nSauvegarde creee :", backup)
 
-    ids = [mid for (_, mid) in found]
+    ids = [t["media_id"] for t in found]
     con = sqlite3.connect(path)  # lecture-ecriture
     try:
         con.execute("BEGIN")
