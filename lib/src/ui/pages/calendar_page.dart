@@ -31,12 +31,16 @@ import 'player_page.dart';
 final _planningProvider = animeSamaPlanningProvider;
 
 /// Résout (lazy, caché) un titre anime-sama en [Media] pour la vignette.
-/// Utilise resolve() : identité anime-sama stable + enrichissement AniList
-/// (cover) si titre similaire.
+/// Cherche d'abord le cache local (par id anime-sama), puis retourne un Media
+/// minimal si absent (couverture absente = dégradé gracieux).
 final _mediaForTitleProvider =
     FutureProvider.family<Media?, String>((ref, title) async {
-  final matcher = ref.watch(titleMatcherProvider);
-  return matcher.resolve(title);
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final id = animeSamaIdFor(title);
+  final cached = await mediaRepo.getMedia(id);
+  if (cached != null) return cached;
+  // Pas encore en cache : retourne null (la couverture sera absente).
+  return null;
 });
 
 /// IDs des médias présents dans la bibliothèque (TOUS statuts). Sert à savoir
@@ -312,10 +316,18 @@ class _PlanningCard extends ConsumerStatefulWidget {
 class _PlanningCardState extends ConsumerState<_PlanningCard> {
   bool _busy = false;
 
-  /// Rematch AniList à la demande (utilise le cache du provider si déjà résolu).
-  /// Résout le média (jamais null) : AniList si connu, sinon Media anime-sama.
-  Future<Media> _resolveMedia() =>
-      ref.read(titleMatcherProvider).resolve(widget.item.title);
+  /// Récupère le Media depuis le cache local (par id anime-sama), ou construit
+  /// un Media minimal si absent. Jamais null : le lecteur a toujours un titre.
+  Future<Media> _resolveMedia() async {
+    final id = animeSamaIdFor(widget.item.title);
+    final cached = await ref.read(mediaRepositoryProvider).getMedia(id);
+    if (cached != null) return cached;
+    return Media(
+      anilistId: id,
+      title: MediaTitle(romaji: widget.item.title),
+      animeSamaTitle: widget.item.title,
+    );
+  }
 
   Future<void> _launch() async {
     if (_busy) return;

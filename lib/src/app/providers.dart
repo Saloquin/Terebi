@@ -9,10 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/local/database.dart';
-import '../data/remote/anilist_client.dart';
-import '../data/remote/cached_anilist_client.dart';
-import '../data/remote/jikan_client.dart';
-import '../data/remote/request_queue.dart';
 import '../data/repositories/list_repository.dart';
 import '../data/repositories/media_repository.dart';
 import '../data/repositories/meta_cache_repository.dart';
@@ -38,7 +34,6 @@ import '../services/resolver_assets.dart';
 import '../services/slug_migration_service.dart';
 import '../services/stream_resolver.dart';
 import '../services/system_process_runner.dart';
-import '../services/title_matcher.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
 /// `ProviderScope(overrides: [databaseProvider.overrideWithValue(db)])`
@@ -89,29 +84,6 @@ final hasProgressProvider = StreamProvider.family<bool, int>((ref, mediaId) {
 
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
   (ref) => MetaCacheRepository(ref.watch(databaseProvider)),
-);
-
-// --- Clients distants -----------------------------------------------------
-
-/// File de requêtes partagée (rate-limit + retry) pour AniList → évite le 429.
-final requestQueueProvider = Provider<RequestQueue>((ref) => RequestQueue());
-/// Client AniList brut (accès réseau direct).
-final rawAniListClientProvider = Provider<AniListClient>(
-  (ref) => AniListClient(client: ref.watch(httpClientProvider)),
-);
-
-/// Client AniList exposé à l'app : **caché** (cache-aside + TTL + file anti-429).
-/// L'UI dépend de [AniListApi], donc le cache est transparent.
-final aniListClientProvider = Provider<AniListApi>(
-  (ref) => CachedAniListClient(
-    inner: ref.watch(rawAniListClientProvider),
-    cache: ref.watch(metaCacheRepositoryProvider),
-    queue: ref.watch(requestQueueProvider),
-  ),
-);
-
-final jikanClientProvider = Provider<JikanClient>(
-  (ref) => JikanClient(client: ref.watch(httpClientProvider)),
 );
 
 // --- Services de logique (purs, sans état) --------------------------------
@@ -253,46 +225,6 @@ final animeSamaSeasonsProvider =
   return resolver.listSeasons(title: title);
 });
 
-/// Résout le VRAI titre anime-sama d'un anime AniList en essayant ses titres
-/// candidats (anglais, romaji, natif) contre le catalogue anime-sama. Nécessaire
-/// car anime-sama utilise souvent un titre DIFFÉRENT d'AniList (langue : « Attack
-/// on Titan » AniList vs « Shingeki no Kyojin »/français sur anime-sama) — une
-/// recherche sur le seul titre anglais échoue alors. Retourne le titre du 1er
-/// candidat qui donne un résultat catalogue, sinon le 1er candidat non vide
-/// (repli, pour ne pas bloquer). Keyé sur les candidats (cache Riverpod).
-final animeSamaResolvedTitleProvider = FutureProvider.family<String,
-    ({String? english, String? romaji, String? native})>((ref, t) async {
-  final candidates = <String>[
-    if (t.romaji != null && t.romaji!.trim().isNotEmpty) t.romaji!.trim(),
-    if (t.english != null && t.english!.trim().isNotEmpty) t.english!.trim(),
-    if (t.native != null && t.native!.trim().isNotEmpty) t.native!.trim(),
-  ];
-  if (candidates.isEmpty) return '';
-  final resolver = await ref.watch(animeSamaResolverProvider.future);
-  var bestTitle = '';
-  var bestScore = -1;
-  for (final c in candidates) {
-    try {
-      final items = await resolver.search(query: c);
-      // anime-sama renvoie souvent PLUSIEURS résultats dans un ordre arbitraire
-      // (ex. « naruto » ⟶ [boruto, naruto, naruto shippuden…]). Prendre
-      // items.first choisirait « boruto ». On score chaque titre catalogue
-      // contre le candidat et on garde le meilleur (match exact/racine > dérivé).
-      for (final it in items) {
-        final s = titleMatchScore(c, it.title);
-        if (s > bestScore) {
-          bestScore = s;
-          bestTitle = it.title;
-        }
-      }
-      // Match exact trouvé pour ce candidat : inutile d'essayer les suivants.
-      if (bestScore >= 1000) break;
-    } catch (_) {/* candidat suivant */}
-  }
-  if (bestScore > 0) return bestTitle;
-  return candidates.first; // repli : rien trouvé, on garde le 1er candidat.
-});
-
 /// Numéros d'épisodes d'une (saison) anime-sama. Keyé sur (titre, index) pour
 /// que fiche + lecteur + recheck réutilisent le même résultat.
 final animeSamaEpisodesProvider = FutureProvider.family<List<int>,
@@ -381,15 +313,6 @@ final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
   );
 });
 
-/// Rematch titre anime-sama → Media AniList (avec cache titre→anilistId).
-final titleMatcherProvider = Provider<TitleMatcher>(
-  (ref) => TitleMatcher(
-    anilist: ref.watch(aniListClientProvider),
-    settings: ref.watch(settingsRepositoryProvider),
-    mediaRepo: ref.watch(mediaRepositoryProvider),
-  ),
-);
-
 /// Résolveur de flux actif : anime-sama (unique source, VOSTFR/VF).
 final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {
   return ref.watch(animeSamaResolverProvider.future);
@@ -413,11 +336,9 @@ final healthServiceProvider = Provider<HealthService>((ref) {
     },
     networkOk: () async {
       try {
-        final resp = await httpClient.post(
-          Uri.parse('https://graphql.anilist.co'),
-          headers: {'Content-Type': 'application/json'},
-          body: '{"query":"{ Page(page:1,perPage:1){ media{ id } } }"}',
-        );
+        final resp = await httpClient
+            .get(Uri.parse('https://anime-sama.to/'))
+            .timeout(const Duration(seconds: 8));
         return resp.statusCode < 500;
       } catch (_) {
         return false;

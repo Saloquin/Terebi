@@ -22,43 +22,36 @@ import 'resume_helper.dart';
 // Providers (visibles pour les tests via import)
 // ---------------------------------------------------------------------------
 
-/// Toutes les entrées regroupées par statut EFFECTIF (calculé). « En cours » et
-/// « Terminé » ne sont pas de simples filtres SQL : ils dérivent de la
-/// progression (cf. effectiveStatus). Ce provider charge tout une fois et
-/// classe localement (instantané, sans réseau).
-/// Classe toutes les entrées par statut EFFECTIF (calculé). « En cours » et
-/// « Terminé » ne sont pas de simples filtres SQL : ils dérivent de la
-/// progression (cf. effectiveStatus). Autonome (ne dépend d'aucun provider
-/// parent mis en cache) pour qu'une simple invalidation de ce provider suffise
-/// à rafraîchir onglets ET compteurs.
-Future<Map<ListStatus, List<ListEntry>>> _computeGrouped(Ref ref) async {
-  final all = await ref.watch(listRepositoryProvider).getAllEntries();
+final countByStatusProvider = StreamProvider<Map<ListStatus, int>>((ref) {
+  final listRepo = ref.watch(listRepositoryProvider);
   final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  final grouped = <ListStatus, List<ListEntry>>{};
-  for (final e in all) {
-    // « A une progression » = progress global > 0 OU au moins une saison
-    // anime-sama entamée. Indispensable : un anime suivi via le lecteur peut
-    // avoir progress=0 mais une progression PAR SAISON (sinon il resterait
-    // faussement « Planifié » au lieu d'« En cours »).
-    final hasProgress =
-        e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-    final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-    if (eff == null) continue; // hors listes
-    (grouped[eff] ??= []).add(e);
-  }
-  return grouped;
-}
-
-final countByStatusProvider =
-    FutureProvider<Map<ListStatus, int>>((ref) async {
-  final grouped = await _computeGrouped(ref);
-  return {for (final e in grouped.entries) e.key: e.value.length};
+  return listRepo.watchAllEntries().asyncMap((all) async {
+    final counts = <ListStatus, int>{};
+    for (final e in all) {
+      final hasProgress =
+          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
+      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+      if (eff == null) continue;
+      counts[eff] = (counts[eff] ?? 0) + 1;
+    }
+    return counts;
+  });
 });
 
 final entriesByStatusProvider =
-    FutureProvider.family<List<ListEntry>, ListStatus>((ref, status) async {
-  final grouped = await _computeGrouped(ref);
-  return grouped[status] ?? const [];
+    StreamProvider.family<List<ListEntry>, ListStatus>((ref, status) {
+  final listRepo = ref.watch(listRepositoryProvider);
+  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
+  return listRepo.watchAllEntries().asyncMap((all) async {
+    final result = <ListEntry>[];
+    for (final e in all) {
+      final hasProgress =
+          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
+      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+      if (eff == status) result.add(e);
+    }
+    return result;
+  });
 });
 
 /// Vrai si un anime a un « nouvel épisode disponible » (drapeau posé par le
@@ -1038,24 +1031,11 @@ class _EntryTile extends ConsumerWidget {
   final ListEntry entry;
   const _EntryTile({required this.entry});
 
-  /// Récupère le média : d'abord le cache local, sinon AniList (client caché),
-  /// puis le sauvegarde. Évite l'affichage « ID xxxxx » quand seules les
-  /// entrées de liste ont été enregistrées sans leurs métadonnées.
+  /// Récupère le média depuis le cache local. anime-sama étant la source unique,
+  /// l'enrichissement (image/synopsis) est écrit en DB par le catalog service ;
+  /// ici on lit simplement le cache (null si absent -> fallback d'affichage).
   Future<Media?> _resolveMedia(WidgetRef ref) async {
-    final repo = ref.read(mediaRepositoryProvider);
-    final local = await repo.getMedia(entry.mediaId);
-    if (local != null) return local;
-    // Un id NÉGATIF est une identité anime-sama (pas un anilistId) : inutile —
-    // et invalide — d'interroger AniList avec. On garde le fallback local.
-    if (entry.mediaId <= 0) return null;
-    try {
-      final fetched =
-          await ref.read(aniListClientProvider).mediaDetail(entry.mediaId);
-      await repo.upsertMedia(fetched);
-      return fetched;
-    } catch (_) {
-      return null; // Hors-ligne / rate-limité : on gardera le fallback ID.
-    }
+    return ref.read(mediaRepositoryProvider).getMedia(entry.mediaId);
   }
 
   /// Lance le lecteur directement (sans passer par la fiche) sur l'épisode à

@@ -32,13 +32,20 @@ final _searchResultsProvider =
   return resolver.search(query: query.trim(), language: language);
 });
 
-/// Résout un titre anime-sama en [Media] (image/description). Utilise resolve()
-/// : image déjà en cache local si on l'a, sinon recherche AniList (best-effort,
-/// jamais bloquante). Réutilisé par la vignette de chaque résultat.
+/// Résout un titre anime-sama en [Media] (image/description). Cherche d'abord
+/// le cache local (par id anime-sama) ; retourne un Media minimal si absent.
+/// Réutilisé par la vignette de chaque résultat.
 final _mediaForTitleProvider =
     FutureProvider.family<Media, String>((ref, title) async {
-  final matcher = ref.watch(titleMatcherProvider);
-  return matcher.resolve(title);
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final id = animeSamaIdFor(title);
+  final cached = await mediaRepo.getMedia(id);
+  if (cached != null) return cached;
+  return Media(
+    anilistId: id,
+    title: MediaTitle(romaji: title),
+    animeSamaTitle: title,
+  );
 });
 
 /// Page de recherche du catalogue.
