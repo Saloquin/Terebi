@@ -97,6 +97,7 @@ def main():
     purge = "--purge-slug-report" in args
     clean_images = "--clean-anilist-images" in args
     refresh_genres = "--refresh-genres" in args
+    resolve_slugs = "--resolve-slugs" in args
     clear_history = "--clear-history" in args
     purge_scans = "--purge-scans" in args
     apply_changes = "--apply" in args
@@ -135,6 +136,11 @@ def main():
     # Nettoyage optionnel des images residuelles AniList (cover_url/banner_url).
     if clean_images:
         _clean_anilist_images(path, apply_changes)
+
+    # Re-resolution optionnelle des slugs manquants (recherche par titre). A
+    # lancer AVANT --refresh-genres pour que les medias sans slug en gagnent un.
+    if resolve_slugs:
+        _resolve_slugs(path, apply_changes)
 
     # Re-resolution optionnelle des genres manquants (re-scrape les fiches).
     # --force : re-scrape TOUS les animes avec slug (corrige les genres AniList
@@ -307,6 +313,155 @@ def _scrape_detail(slug, timeout=15):
         "https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/{}.jpg".format(
             slug))
     return out
+
+
+def _search_slug(title, timeout=15):
+    """Cherche le slug anime-sama d'un [title] via le catalogue (filtre serveur
+    search=). Renvoie le slug du meilleur resultat, '' si rien, None si le module
+    requests manque.
+
+    Autonome (ne depend pas de anime_sama.py). Strategie proche de la migration :
+    on prend le resultat dont le titre normalise correspond le mieux (egalite >
+    inclusion > 1er resultat)."""
+    import re
+    try:
+        import requests
+    except ImportError:
+        return None
+    from urllib.parse import quote
+
+    def norm(s):
+        return re.sub(r'[^a-z0-9]', '', (s or '').lower())
+
+    url = ("https://anime-sama.to/catalogue/?type%5B%5D=Anime"
+           "&search={}".format(quote(title)))
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        html = requests.get(url, headers=headers, timeout=timeout).text
+    except Exception:  # noqa: BLE001 — best-effort
+        return ""
+    card_re = re.compile(
+        r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/?[^"]*"[^>]*>'
+        r'(.*?)</a>', re.DOTALL)
+    title_re = re.compile(r'<h2[^>]*card-title[^>]*>([^<]+)</h2>', re.DOTALL)
+    qn = norm(title)
+    first = ""
+    best_incl = ""
+    for m in card_re.finditer(html):
+        slug, inner = m.group(1).strip(), m.group(2)
+        if not first:
+            first = slug
+        mt = title_re.search(inner)
+        cn = norm(mt.group(1)) if mt else norm(slug)
+        if cn == qn:
+            return slug  # correspondance exacte
+        if not best_incl and qn and cn and (qn in cn or cn in qn):
+            best_incl = slug
+    return best_incl or first
+
+
+def _resolve_slugs(path, apply_changes):
+    """Re-resout le slug anime-sama des medias qui n'en ont PAS (anime_sama_slug
+    null/vide), par recherche du titre dans le catalogue. Ecrit uniquement la
+    colonne anime_sama_slug (conserve l'id existant) : cela suffit pour que
+    l'image (derivee du slug) s'affiche et que --refresh-genres puisse ensuite
+    remplir synopsis/genres.
+
+    Ne touche PAS aux medias ayant deja un slug. Dry-run + .bak + transactionnel."""
+    print("\n" + "#" * 70)
+    print("RE-RESOLUTION DES SLUGS MANQUANTS (anime_sama_slug vide)")
+    print("#" * 70)
+
+    con = _open_readonly(path)
+    try:
+        if not _table_exists(con, "media_table"):
+            print("(table media_table absente — rien a faire.)")
+            return
+        if not _has_column(con, "media_table", "anime_sama_slug"):
+            print("(colonne anime_sama_slug absente — base non migree.)")
+            return
+        rows = con.execute(
+            "SELECT anilist_id, "
+            "COALESCE(anime_sama_title, title_english, title_romaji, "
+            "title_native) FROM media_table "
+            "WHERE anime_sama_slug IS NULL OR anime_sama_slug = ''"
+        ).fetchall()
+    finally:
+        con.close()
+
+    if not rows:
+        print("Tous les medias ont deja un slug. Rien a faire.")
+        return
+
+    print("\n{} media(s) SANS slug :".format(len(rows)))
+    for mid, title in rows[:60]:
+        print("  id={:<12} {}".format(mid, (title or "?")[:45]))
+    if len(rows) > 60:
+        print("  ... (+{} autres)".format(len(rows) - 60))
+
+    if not apply_changes:
+        print("\n--- DRY-RUN : aucune recherche reseau, aucune ecriture. ---")
+        print("Pour resoudre reellement (recherche catalogue + ecriture, .bak) :")
+        print('  python scripts/check_db.py "{}" --resolve-slugs --apply'.format(
+            path))
+        print("Puis 'python scripts/check_db.py \"{}\" --refresh-genres --apply'"
+              .format(path))
+        print("pour remplir synopsis/genres des slugs nouvellement resolus.")
+        return
+
+    backup = path + ".bak"
+    shutil.copy2(path, backup)
+    print("\nSauvegarde creee :", backup)
+
+    resolved = {}   # anilist_id -> slug
+    missing_dep = False
+    print("\nRecherche des slugs (peut prendre un moment)...")
+    for mid, title in rows:
+        if not title:
+            print("  --   id={} (aucun titre, ignore)".format(mid))
+            continue
+        slug = _search_slug(title)
+        if slug is None:
+            missing_dep = True
+            break
+        if slug:
+            resolved[mid] = slug
+            print("  OK   {:<40} -> {}".format(title[:40], slug))
+        else:
+            print("  vide {:<40} (aucun resultat catalogue)".format(title[:40]))
+
+    if missing_dep:
+        print("\nERREUR : le module 'requests' est requis.")
+        print("  pip install requests")
+        print("Base intacte ; sauvegarde disponible :", backup)
+        return
+
+    if not resolved:
+        print("\nAucun slug resolu. Base inchangee.")
+        return
+
+    con = sqlite3.connect(path)  # lecture-ecriture
+    try:
+        con.execute("BEGIN")
+        for mid, slug in resolved.items():
+            con.execute(
+                "UPDATE media_table SET anime_sama_slug = ? WHERE anilist_id = ?",
+                (slug, mid))
+        con.execute("COMMIT")
+    except sqlite3.Error as e:
+        con.execute("ROLLBACK")
+        print("ERREUR — resolution annulee (ROLLBACK) :", e)
+        print("Base intacte ; sauvegarde disponible :", backup)
+        con.close()
+        sys.exit(1)
+    finally:
+        con.close()
+
+    print("\n{} slug(s) resolu(s) et ecrit(s).".format(len(resolved)))
+    print("Enchaine avec --refresh-genres --apply pour remplir synopsis/genres :")
+    print('  python scripts/check_db.py "{}" --refresh-genres --apply'.format(path))
+    print("En cas de probleme, restaure la sauvegarde :")
+    print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
 
 def _refresh_genres(path, apply_changes, force=False):
