@@ -4,6 +4,7 @@ import 'package:terebi/src/data/local/database.dart';
 import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/media_repository.dart';
 import 'package:terebi/src/data/repositories/settings_repository.dart';
+import 'package:terebi/src/data/repositories/watch_history_repository.dart';
 import 'package:terebi/src/domain/logic/anime_id.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
@@ -15,12 +16,14 @@ void main() {
   late MediaRepository mediaRepo;
   late ListRepository listRepo;
   late SettingsRepository settings;
+  late WatchHistoryRepository historyRepo;
 
   setUp(() {
     db = TerebiDatabase(NativeDatabase.memory());
     mediaRepo = MediaRepository(db);
     listRepo = ListRepository(db);
     settings = SettingsRepository(db);
+    historyRepo = WatchHistoryRepository(db);
   });
   tearDown(() => db.close());
 
@@ -35,11 +38,14 @@ void main() {
         mediaId: oldId, status: ListStatus.current, progress: 12,
         updatedAt: DateTime.utc(2026)));
     await settings.set('anime_sama_watched:$oldId:1', '12');
+    await historyRepo.record(
+        mediaId: oldId, episodeNumber: 5, startedAt: DateTime.utc(2026));
 
     final service = SlugMigrationService(
       mediaRepo: mediaRepo,
       listRepo: listRepo,
       settings: settings,
+      historyRepo: historyRepo,
       resolveSlug: (title) async => 'one-piece',
     );
     await service.runOnce();
@@ -53,6 +59,11 @@ void main() {
     expect(entry?.progress, 12);
     expect(await settings.get('anime_sama_watched:$newId:1'), '12');
     expect(await settings.get('anime_sama_watched:$oldId:1'), isNull);
+    // L'historique de visionnage suit aussi le nouvel id (sinon 'Regarde
+    // recemment' devient orphelin).
+    final hist = await historyRepo.all();
+    expect(hist, hasLength(1));
+    expect(hist.first.mediaId, newId);
     expect(await settings.get('slug_migration_done'), '1');
   });
 
@@ -61,6 +72,7 @@ void main() {
     var called = 0;
     final service = SlugMigrationService(
       mediaRepo: mediaRepo, listRepo: listRepo, settings: settings,
+      historyRepo: historyRepo,
       resolveSlug: (title) async { called++; return 'x'; },
     );
     await service.runOnce();
@@ -74,6 +86,7 @@ void main() {
       animeSamaTitle: 'Introuvable'));
     final service = SlugMigrationService(
       mediaRepo: mediaRepo, listRepo: listRepo, settings: settings,
+      historyRepo: historyRepo,
       resolveSlug: (title) async => '',
     );
     await service.runOnce();

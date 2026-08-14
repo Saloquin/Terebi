@@ -52,4 +52,12 @@ class WatchHistoryRepository {
         .get();
     return rows.map(_fromRow).toList();
   }
+
+  /// Deplace toutes les lignes d'historique de [oldId] vers [newId] (migration
+  /// slug : l'historique a ete enregistre avec l'ancien id entier). Best-effort.
+  Future<void> reindexMediaId(int oldId, int newId) async {
+    await (_db.update(_db.watchHistories)
+          ..where((t) => t.mediaId.equals(oldId)))
+        .write(WatchHistoriesCompanion(mediaId: Value(newId)));
+  }
 }

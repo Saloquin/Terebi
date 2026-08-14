@@ -21,6 +21,11 @@ Usage :
     python scripts/check_db.py --refresh-genres               # DRY-RUN : liste les medias a re-resoudre
     python scripts/check_db.py --refresh-genres --apply       # scrape et ecrit genres_json (avec .bak)
 
+    # Purge de l'historique orphelin (lancements pointant vers des ids disparus
+    # apres la migration slug -> casse 'Regarde recemment') :
+    python scripts/check_db.py --clear-history                # DRY-RUN : liste les lignes orphelines
+    python scripts/check_db.py --clear-history --apply        # supprime ces lignes (avec .bak)
+
 Le rapport affiche : nombre d'animes, combien ont un slug (migres) vs legacy
 (id negatif), la progression par anime (statut + episode de liste + progression
 par saison 'anime_sama_watched:<id>:<s>'), et 'slug_migration_report' /
@@ -92,6 +97,7 @@ def main():
     purge = "--purge-slug-report" in args
     clean_images = "--clean-anilist-images" in args
     refresh_genres = "--refresh-genres" in args
+    clear_history = "--clear-history" in args
     apply_changes = "--apply" in args
     positional = [a for a in args if not a.startswith("--")]
 
@@ -131,6 +137,10 @@ def main():
     # Re-resolution optionnelle des genres manquants (re-scrape les fiches).
     if refresh_genres:
         _refresh_genres(path, apply_changes)
+
+    # Purge optionnelle de l'historique de visionnage orphelin (ids legacy).
+    if clear_history:
+        _clear_history(path, apply_changes)
 
 
 # Hotes d'images des anciennes sources (AniList / MyAnimeList / Kitsu). Une
@@ -341,6 +351,81 @@ def _refresh_genres(path, apply_changes):
     print("\n{} media(s) mis a jour (genres_json ecrit).".format(len(resolved)))
     print("Relance 'python scripts/check_db.py' : la section ACCUEIL doit")
     print("maintenant lister les genres regardes.")
+    print("En cas de probleme, restaure la sauvegarde :")
+    print('  copy "{}" "{}"   (Windows)'.format(backup, path))
+
+
+def _clear_history(path, apply_changes):
+    print("\n" + "#" * 70)
+    print("PURGE DE L'HISTORIQUE ORPHELIN (watch_histories sans media_table)")
+    print("#" * 70)
+
+    con = _open_readonly(path)
+    try:
+        if not _table_exists(con, "watch_histories"):
+            print("(table watch_histories absente — rien a faire.)")
+            return
+        # Lignes dont le media_id n'a AUCUNE ligne dans media_table : l'anime a
+        # ete migre vers un id-slug et l'historique pointe dans le vide.
+        has_media = _table_exists(con, "media_table")
+        if has_media:
+            rows = con.execute(
+                "SELECT media_id, COUNT(*) FROM watch_histories "
+                "WHERE media_id NOT IN (SELECT anilist_id FROM media_table) "
+                "GROUP BY media_id ORDER BY media_id"
+            ).fetchall()
+        else:
+            rows = con.execute(
+                "SELECT media_id, COUNT(*) FROM watch_histories "
+                "GROUP BY media_id ORDER BY media_id"
+            ).fetchall()
+        total = con.execute("SELECT COUNT(*) FROM watch_histories").fetchone()[0]
+    finally:
+        con.close()
+
+    if not rows:
+        print("Aucune ligne d'historique orpheline. Rien a faire.")
+        print("({} lancement(s) au total, tous rattaches a un media.)".format(total))
+        return
+
+    orphan_ids = [r[0] for r in rows]
+    orphan_rows = sum(r[1] for r in rows)
+    print("\n{} anime(s) orphelin(s) dans l'historique "
+          "({} lancement(s) sur {}) :".format(
+              len(orphan_ids), orphan_rows, total))
+    for mid, cnt in rows:
+        print("  id={:<12} {} lancement(s)".format(mid, cnt))
+
+    if not apply_changes:
+        print("\n--- DRY-RUN : aucune ligne supprimee. ---")
+        print("Ces lancements pointent vers des ids qui n'existent plus (migration")
+        print("slug). Les supprimer nettoie 'Regarde recemment' sans toucher au")
+        print("reste. Pour appliquer (avec .bak) :")
+        print('  python scripts/check_db.py "{}" --clear-history --apply'.format(
+            path))
+        return
+
+    backup = path + ".bak"
+    shutil.copy2(path, backup)
+    print("\nSauvegarde creee :", backup)
+
+    con = sqlite3.connect(path)  # lecture-ecriture
+    try:
+        con.execute("BEGIN")
+        con.executemany(
+            "DELETE FROM watch_histories WHERE media_id = ?",
+            [(mid,) for mid in orphan_ids])
+        con.execute("COMMIT")
+    except sqlite3.Error as e:
+        con.execute("ROLLBACK")
+        print("ERREUR — purge annulee (ROLLBACK) :", e)
+        print("Base intacte ; sauvegarde disponible :", backup)
+        con.close()
+        sys.exit(1)
+    finally:
+        con.close()
+
+    print("\n{} lancement(s) orphelin(s) supprime(s).".format(orphan_rows))
     print("En cas de probleme, restaure la sauvegarde :")
     print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 

@@ -604,7 +604,7 @@ def _cards_from_html(mod, html):
     et un bloc <div class="catalog-info"> avec les genres en tags.
     """
     card_re = re.compile(
-        r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/[^"]*"[^>]*>'
+        r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/?[^"]*"[^>]*>'
         r'(.*?)</a>',
         re.DOTALL,
     )
@@ -613,8 +613,9 @@ def _cards_from_html(mod, html):
     img_alt_re = re.compile(r'<img[^>]+src="([^"]+)"', re.DOTALL)  # repli
     title_re = re.compile(
         r'<h2[^>]*card-title[^>]*>([^<]+)</h2>', re.DOTALL)
-    info_re = re.compile(
-        r'<div[^>]+catalog-info[^>]*>(.*?)</div>', re.DOTALL)
+    # Genres : tags <span class="genre-tag">Nom</span> dans le bloc catalog-info.
+    genre_tag_re = re.compile(
+        r'<span[^>]+class="[^"]*genre-tag[^"]*"[^>]*>([^<]+)</span>', re.I)
 
     items = []
     for m in card_re.finditer(html):
@@ -629,12 +630,9 @@ def _cards_from_html(mod, html):
         # Cover : src reel de card-image (repli : autre <img>, sinon CDN slug).
         mc = img_re.search(inner) or img_alt_re.search(inner)
         cover_url = mc.group(1).strip() if mc else _cdn_image_url(slug, probe=False)
-        # Genres : textes des tags du bloc catalog-info.
-        genres = []
-        mg = info_re.search(inner)
-        if mg:
-            genres = [g.strip() for g in re.findall(r'>([^<\n]+)<', mg.group(1))
-                      if len(g.strip()) > 1]
+        # Genres : textes des tags <span class="genre-tag">.
+        genres = [g.strip() for g in genre_tag_re.findall(inner)
+                  if len(g.strip()) > 1]
         items.append({
             "title": title,
             "url": "https://{}/catalogue/{}/".format(mod.DOMAIN, slug),

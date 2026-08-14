@@ -10,6 +10,7 @@ library;
 import '../data/repositories/list_repository.dart';
 import '../data/repositories/media_repository.dart';
 import '../data/repositories/settings_repository.dart';
+import '../data/repositories/watch_history_repository.dart';
 import '../domain/logic/anime_id.dart';
 import '../domain/models/media.dart';
 
@@ -24,12 +25,14 @@ class SlugMigrationService {
   final MediaRepository mediaRepo;
   final ListRepository listRepo;
   final SettingsRepository settings;
+  final WatchHistoryRepository historyRepo;
   final SlugResolver resolveSlug;
 
   const SlugMigrationService({
     required this.mediaRepo,
     required this.listRepo,
     required this.settings,
+    required this.historyRepo,
     required this.resolveSlug,
   });
 
@@ -77,7 +80,9 @@ class SlugMigrationService {
     await mediaRepo.deleteMedia(oldId);
     // 2) Entree de liste.
     await listRepo.reindexMediaId(oldId, newId);
-    // 3) Progression par saison + reglages par media.
+    // 3) Historique de visionnage (sinon 'Regarde recemment' devient orphelin).
+    await historyRepo.reindexMediaId(oldId, newId);
+    // 4) Progression par saison + reglages par media.
     await settings.renameKeyPrefix(
         'anime_sama_watched:$oldId:', 'anime_sama_watched:$newId:');
     await settings.renameKeyPrefix(
