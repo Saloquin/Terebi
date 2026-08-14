@@ -334,10 +334,10 @@ def action_resolve(mod, dl, args):
 
 
 def action_search(mod, dl, args):
-    """Recherche catalogue : renvoie la liste des animes correspondants."""
+    """Recherche catalogue : renvoie la liste des animes (titre, url, slug)."""
     animes, urls = dl.get_catalogue(args.title, vf=args.vf)
     payload = [
-        {"title": t, "url": u}
+        {"title": t, "url": u, "slug": _slug_from_url(u)}
         for t, u in zip(animes, urls)
     ]
     print(f"CATALOGUE_JSON: {json.dumps(payload, ensure_ascii=False)}")
@@ -412,6 +412,12 @@ def _planning_times(mod):
     return times
 
 
+def _slug_from_url(url):
+    """Extrait le slug d'une URL /catalogue/<slug>/ (ex. one-piece). '' sinon."""
+    m = re.search(r'/catalogue/([^/]+)', url or '')
+    return m.group(1).strip() if m else ''
+
+
 def _norm(text):
     """Normalise un titre pour le matching (minuscule, alphanumérique)."""
     return re.sub(r'[^a-z0-9]', '', text.lower())
@@ -476,6 +482,7 @@ def action_planning(mod, dl, args):
                         "time": times.get(_norm(title), ""),
                         "title": title,
                         "url": url,
+                        "slug": _slug_from_url(url),
                         "_vf": is_vf,
                     }
                 continue
@@ -485,6 +492,7 @@ def action_planning(mod, dl, args):
                 "time": times.get(_norm(title), ""),
                 "title": title,
                 "url": url,
+                "slug": _slug_from_url(url),
                 "_vf": is_vf,
             })
 
@@ -496,12 +504,111 @@ def action_planning(mod, dl, args):
     sys.exit(0)
 
 
+def action_catalogue_detail(mod, dl, args):
+    """Scrape /catalogue/<slug>/ : titre, synopsis, genres, image de couverture.
+
+    Tolerant : tout champ absent -> null/[] ; ne leve jamais d'exception qui
+    casse la sortie JSON (au pire DETAIL_JSON minimal {slug,title}).
+    """
+    import requests
+    slug = args.slug.strip()
+    if not slug:
+        _fail("catalogue-detail requiert --slug")
+    domain = mod.DOMAIN
+    url = f"https://{domain}/catalogue/{slug}/"
+    detail = {"slug": slug, "title": slug, "synopsis": None,
+              "genres": [], "cover_url": None, "banner_url": None}
+    try:
+        html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
+        mt = re.search(r'<h1[^>]*>([^<]+)</h1>', html)
+        if mt:
+            detail["title"] = mt.group(1).strip()
+        ms = re.search(
+            r'Synopsis\s*</[^>]+>\s*<p[^>]*>(.*?)</p>', html, re.DOTALL | re.I)
+        if ms:
+            detail["synopsis"] = re.sub(r'<[^>]+>', '', ms.group(1)).strip()
+        mg = re.search(r'Genres?\s*</[^>]+>\s*<[^>]*>(.*?)</', html,
+                       re.DOTALL | re.I)
+        if mg:
+            detail["genres"] = [g.strip() for g in re.split(r'[,\n]', mg.group(1))
+                                if g.strip() and '<' not in g]
+        detail["cover_url"] = (
+            f"https://cdn.jsdelivr.net/gh/Anime-Sama/IMG/img/contenu/{slug}.jpg")
+        mb = re.search(r'<img[^>]+id="coverOeuvre"[^>]+src="([^"]+)"', html)
+        if mb:
+            detail["banner_url"] = mb.group(1)
+    except requests.RequestException:
+        pass
+    print(f"DETAIL_JSON: {json.dumps(detail, ensure_ascii=False)}")
+    sys.exit(0)
+
+
+def _cards_from_html(mod, html):
+    """Extrait des cartes (title,url,slug,cover_url,genres) d'un fragment HTML."""
+    items = []
+    for m in re.finditer(
+            r'<a href="(/catalogue/[^"]+)"[^>]*>.*?(?:<img[^>]*src="([^"]*)"[^>]*>)?'
+            r'.*?<h[13][^>]*>([^<]+)</h[13]>', html, re.DOTALL):
+        url, cover, title = m.group(1), m.group(2), m.group(3)
+        if hasattr(mod, '_is_scan_url') and mod._is_scan_url(url):
+            continue
+        slug = _slug_from_url(url)
+        items.append({
+            "title": title.strip(),
+            "url": url.strip(),
+            "slug": slug,
+            "cover_url": cover or
+            f"https://cdn.jsdelivr.net/gh/Anime-Sama/IMG/img/contenu/{slug}.jpg",
+            "genres": [],
+        })
+    return items
+
+
+def action_home(mod, dl, args):
+    """Sections de l'accueil : classiques + derniers episodes ajoutes."""
+    import requests
+    domain = mod.DOMAIN
+    home = {"classics": [], "latest_episodes": []}
+    try:
+        html = requests.get(f"https://{domain}/", headers=mod.HEADERS_BASE,
+                            timeout=15).text
+        def section(label):
+            m = re.search(label + r'(.*?)(?:<h2|<footer|\Z)', html,
+                          re.DOTALL | re.I)
+            return _cards_from_html(mod, m.group(1)) if m else []
+        home["classics"] = section(r'Classiques?')
+        home["latest_episodes"] = section(r'Derniers?\s+[eé]pisodes?')
+    except requests.RequestException:
+        pass
+    print(f"HOME_JSON: {json.dumps(home, ensure_ascii=False)}")
+    sys.exit(0)
+
+
+def action_catalogue_filter(mod, dl, args):
+    """Catalogue filtre par genre (page /catalogue/ avec parametre de genre)."""
+    import requests
+    domain = mod.DOMAIN
+    genre = args.genre.strip()
+    if not genre:
+        _fail("catalogue-filter requiert --genre")
+    items = []
+    try:
+        url = f"https://{domain}/catalogue/?genre[]={requests.utils.quote(genre)}"
+        html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
+        items = _cards_from_html(mod, html)
+    except requests.RequestException:
+        pass
+    print(f"CATALOGUE_JSON: {json.dumps(items, ensure_ascii=False)}")
+    sys.exit(0)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Résolveur anime-sama pour Terebi")
     parser.add_argument("--script", required=True, help="Chemin vers anime_sama.py")
     parser.add_argument("--action", default="resolve",
                         choices=["resolve", "list-seasons", "list-episodes",
-                                 "search", "planning", "skip-times"])
+                                 "search", "planning", "skip-times",
+                                 "catalogue-detail", "home", "catalogue-filter"])
     parser.add_argument("--title", default="", help="Titre de recherche")
     parser.add_argument("--season", type=int, default=1,
                         help="Index de saison (1-based, cf. list-seasons)")
@@ -509,6 +616,8 @@ def main():
     parser.add_argument("--mal-id", type=int, default=0,
                         help="MAL id (AniSkip) — 0 = recherche par titre")
     parser.add_argument("--vf", action="store_true", help="Version française (défaut VOSTFR)")
+    parser.add_argument("--slug", default="", help="Slug catalogue (catalogue-detail)")
+    parser.add_argument("--genre", default="", help="Genre (catalogue-filter)")
     args = parser.parse_args()
 
     try:
@@ -524,6 +633,12 @@ def main():
             action_planning(mod, dl, args)
         elif args.action == "skip-times":
             action_skip_times(mod, dl, args)
+        elif args.action == "catalogue-detail":
+            action_catalogue_detail(mod, dl, args)
+        elif args.action == "home":
+            action_home(mod, dl, args)
+        elif args.action == "catalogue-filter":
+            action_catalogue_filter(mod, dl, args)
         else:
             action_resolve(mod, dl, args)
     except SystemExit:
