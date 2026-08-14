@@ -163,6 +163,46 @@ void main() {
     });
   });
 
+  group('AnimeSamaCatalogueItem enrichi', () {
+    test('porte slug, cover et genres', () {
+      const it = AnimeSamaCatalogueItem(
+        title: 'One Piece',
+        url: '/catalogue/one-piece/',
+        slug: 'one-piece',
+        cover: 'https://cdn/one-piece.jpg',
+        genres: ['Action', 'Aventure'],
+      );
+      expect(it.slug, 'one-piece');
+      expect(it.cover, 'https://cdn/one-piece.jpg');
+      expect(it.genres, ['Action', 'Aventure']);
+    });
+
+    test('slug/cover/genres ont des valeurs par defaut', () {
+      const it = AnimeSamaCatalogueItem(title: 'X', url: '/catalogue/x/');
+      expect(it.slug, '');
+      expect(it.cover, isNull);
+      expect(it.genres, isEmpty);
+    });
+  });
+
+  group('AnimeSamaDetail', () {
+    test('porte les champs enrichis', () {
+      const d = AnimeSamaDetail(
+        slug: 'one-piece',
+        title: 'One Piece',
+        synopsis: 'Un pirate...',
+        genres: ['Action'],
+        cover: 'https://cdn/c.jpg',
+        banner: 'https://cdn/b.jpg',
+      );
+      expect(d.slug, 'one-piece');
+      expect(d.synopsis, 'Un pirate...');
+      expect(d.genres, ['Action']);
+      expect(d.cover, 'https://cdn/c.jpg');
+      expect(d.banner, 'https://cdn/b.jpg');
+    });
+  });
+
   group('planning', () {
     const out =
         'PLANNING_JSON: [{"day":"Lundi","time":"18h00","title":"Dr Stone","url":"/catalogue/dr-stone/"},'

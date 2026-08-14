@@ -79,24 +79,68 @@ class AnimeSamaSeason {
   String toString() => '#$index $name';
 }
 
-/// Un anime du catalogue anime-sama (résultat de recherche).
-/// [url] est le path catalogue (ex. `/catalogue/dr-stone/`).
+/// Un anime du catalogue anime-sama (resultat de recherche / home / genre).
+/// [url] est le path catalogue (ex. `/catalogue/dr-stone/`), [slug] son
+/// identite (`dr-stone`). [cover]/[genres] sont fournis par les actions
+/// enrichies (home, catalogue-filter) ; vides pour une simple recherche.
 class AnimeSamaCatalogueItem {
   final String title;
   final String url;
-  const AnimeSamaCatalogueItem({required this.title, required this.url});
+  final String slug;
+  final String? cover;
+  final List<String> genres;
+
+  const AnimeSamaCatalogueItem({
+    required this.title,
+    required this.url,
+    this.slug = '',
+    this.cover,
+    this.genres = const [],
+  });
 
   @override
   bool operator ==(Object other) =>
       other is AnimeSamaCatalogueItem &&
       other.title == title &&
-      other.url == url;
+      other.url == url &&
+      other.slug == slug;
 
   @override
-  int get hashCode => Object.hash(title, url);
+  int get hashCode => Object.hash(title, url, slug);
 
   @override
   String toString() => '$title ($url)';
+}
+
+/// Detail enrichi d'une page catalogue anime-sama (`/catalogue/<slug>/`).
+/// Remplace l'enrichissement AniList (synopsis/genres/image).
+class AnimeSamaDetail {
+  final String slug;
+  final String title;
+  final String? synopsis;
+  final List<String> genres;
+  final String? cover;
+  final String? banner;
+
+  const AnimeSamaDetail({
+    required this.slug,
+    required this.title,
+    this.synopsis,
+    this.genres = const [],
+    this.cover,
+    this.banner,
+  });
+}
+
+/// Sections de decouverte de l'accueil anime-sama.
+class AnimeSamaHome {
+  final List<AnimeSamaCatalogueItem> classics;
+  final List<AnimeSamaCatalogueItem> latestEpisodes;
+
+  const AnimeSamaHome({
+    this.classics = const [],
+    this.latestEpisodes = const [],
+  });
 }
 
 /// Une entrée du planning hebdomadaire anime-sama.
@@ -107,12 +151,14 @@ class AnimeSamaPlanningItem {
   final String time;
   final String title;
   final String url;
+  final String slug;
 
   const AnimeSamaPlanningItem({
     required this.day,
     required this.time,
     required this.title,
     required this.url,
+    this.slug = '',
   });
 
   @override
@@ -121,10 +167,11 @@ class AnimeSamaPlanningItem {
       other.day == day &&
       other.time == time &&
       other.title == title &&
-      other.url == url;
+      other.url == url &&
+      other.slug == slug;
 
   @override
-  int get hashCode => Object.hash(day, time, title, url);
+  int get hashCode => Object.hash(day, time, title, url, slug);
 
   @override
   String toString() => '$day $time — $title';
