@@ -122,8 +122,22 @@ class Media {
   bool get isMovie => format == AnimeFormat.movie;
 
   /// Retourne une copie du média avec le [animeSamaTitle] renseigné.
-  Media withAnimeSamaTitle(String samaTitle) => Media(
-        anilistId: anilistId,
+  Media withAnimeSamaTitle(String samaTitle) =>
+      _copy(animeSamaTitle: samaTitle);
+
+  /// Copie avec le slug anime-sama renseigne (migration).
+  Media withSlug(String slug) => _copy(animeSamaSlug: slug);
+
+  /// Copie avec un autre [anilistId] (re-indexation migration slug).
+  Media withId(int newId) => _copy(anilistId: newId);
+
+  Media _copy({
+    int? anilistId,
+    String? animeSamaSlug,
+    String? animeSamaTitle,
+  }) =>
+      Media(
+        anilistId: anilistId ?? this.anilistId,
         malId: malId,
         title: title,
         format: format,
@@ -139,8 +153,8 @@ class Media {
         averageScore: averageScore,
         nextAiringAt: nextAiringAt,
         nextAiringEpisode: nextAiringEpisode,
-        animeSamaTitle: samaTitle,
-        animeSamaSlug: animeSamaSlug,
+        animeSamaTitle: animeSamaTitle ?? this.animeSamaTitle,
+        animeSamaSlug: animeSamaSlug ?? this.animeSamaSlug,
       );
 
   /// Sérialisation JSON pour le cache local (round-trip avec [Media.fromJson]).
