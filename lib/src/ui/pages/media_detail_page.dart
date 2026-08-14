@@ -24,21 +24,57 @@ import 'resume_helper.dart';
 // Providers locaux
 // ---------------------------------------------------------------------------
 
+/// Résout le slug anime-sama d'un titre via une recherche catalogue (meilleur
+/// score de correspondance). Renvoie '' si rien trouvé ou en cas d'erreur.
+/// Sert de secours quand un média ouvert n'a pas encore de slug en base : sans
+/// slug, la fiche ne peut ni afficher l'image ni s'enrichir (synopsis/genres).
+final _resolvedSlugProvider =
+    FutureProvider.family<String, String>((ref, title) async {
+  if (title.trim().isEmpty) return '';
+  try {
+    final resolver = await ref.watch(animeSamaResolverProvider.future);
+    final items = await resolver.search(query: title);
+    if (items.isEmpty) return '';
+    var best = items.first;
+    var bestScore = -1;
+    for (final it in items) {
+      final s = titleMatchScore(title, it.title);
+      if (s > bestScore) {
+        bestScore = s;
+        best = it;
+      }
+    }
+    return best.slug;
+  } catch (_) {
+    return '';
+  }
+});
+
 /// Media affiché par la fiche. Cache-first via le slug quand il est connu ;
-/// sinon on suit le cache DB par id. Réactif (StreamProvider) : toute écriture
-/// (revalidation, purge, progression) se propage à l'écran.
+/// sinon on résout le slug depuis le titre (recherche catalogue) pour pouvoir
+/// enrichir la fiche même pour un anime jamais mis en base. Réactif
+/// (StreamProvider) : toute écriture (revalidation, purge, progression) se
+/// propage à l'écran.
 final _mediaDetailProvider =
     StreamProvider.family<Media?, ({int id, String? title})>((ref, arg) async* {
   final repo = ref.watch(mediaRepositoryProvider);
   // 1) Media déjà en cache (par id) ? On a alors son slug.
   final cached = await repo.getMedia(arg.id);
-  final slug = cached?.animeSamaSlug;
+  var slug = cached?.animeSamaSlug;
+  // 2) Pas de slug en cache : on tente de le résoudre depuis le titre affiché
+  //    (recherche catalogue). Indispensable pour un anime ouvert depuis une
+  //    recherche/carte et jamais enregistré : sinon la fiche reste vide.
+  if ((slug == null || slug.isEmpty) &&
+      arg.title != null &&
+      arg.title!.trim().isNotEmpty) {
+    slug = await ref.watch(_resolvedSlugProvider(arg.title!).future);
+  }
   if (slug != null && slug.isNotEmpty) {
     final service = await ref.watch(animeSamaCatalogServiceProvider.future);
     yield* service.watchDetail(slug);
     return;
   }
-  // 2) Pas de slug connu : on suit le cache par id (peut être null).
+  // 3) Aucun slug résolu : on suit le cache par id (peut être null).
   yield* repo.watchMedia(arg.id);
 });
 
