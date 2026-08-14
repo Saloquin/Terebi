@@ -19,7 +19,6 @@ import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart'
     show AnimeSamaCatalogueItem;
 import '../widgets/media_card.dart';
-import 'library_page.dart' show entriesByStatusProvider;
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
 
@@ -27,20 +26,33 @@ import 'resume_helper.dart';
 // Providers de rangées
 // ---------------------------------------------------------------------------
 
+/// Ids des animes TERMINÉS (statut completed). Sert à les exclure des rangées
+/// « Regardé récemment » et « Continuer à regarder » (un anime fini n'est ni à
+/// reprendre ni en cours). Réactif via le stream du repository de listes.
+final _completedIdsProvider = StreamProvider<Set<int>>((ref) {
+  return ref
+      .watch(listRepositoryProvider)
+      .watchEntriesByStatus(ListStatus.completed)
+      .map((entries) => entries.map((e) => e.mediaId).toSet());
+});
+
 /// « Continuer à regarder » : médias en cours, triés du plus récemment mis à
-/// jour au plus ancien, résolus en [Media] (cache local).
-final _continueWatchingProvider = FutureProvider<List<Media>>((ref) async {
-  final entries =
-      await ref.watch(entriesByStatusProvider(ListStatus.current).future);
-  final sorted = [...entries]
-    ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+/// jour au plus ancien, résolus en [Media] (cache local). Réactif (stream).
+final _continueWatchingProvider = StreamProvider<List<Media>>((ref) {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final result = <Media>[];
-  for (final e in sorted.take(20)) {
-    final m = await mediaRepo.getMedia(e.mediaId);
-    if (m != null) result.add(m);
-  }
-  return result;
+  return ref
+      .watch(listRepositoryProvider)
+      .watchEntriesByStatus(ListStatus.current)
+      .asyncMap((entries) async {
+    final sorted = [...entries]
+      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final result = <Media>[];
+    for (final e in sorted.take(20)) {
+      final m = await mediaRepo.getMedia(e.mediaId);
+      if (m != null) result.add(m);
+    }
+    return result;
+  });
 });
 
 /// « Sortis du moment » : planning anime-sama de la semaine, résolu en Media via
@@ -153,23 +165,31 @@ String _normTitle(String t) =>
     t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 /// « Regarde recemment » : les derniers animes LANCES (historique recent, ordre
-/// chronologique inverse), dedupliques par mediaId. Distinct d'« En ce moment »
-/// (qui agrege par frequence). Resolu en [Media] via le cache local.
-final _recentlyWatchedProvider = FutureProvider<List<Media>>((ref) async {
-  final history =
-      await ref.watch(watchHistoryRepositoryProvider).recent(limit: 50);
-  final seen = <int>{};
-  final ids = <int>[];
-  for (final h in history) {
-    if (seen.add(h.mediaId)) ids.add(h.mediaId);
-  }
+/// chronologique inverse), dedupliques par mediaId, en EXCLUANT les animes
+/// termines. Reactif (stream) : se met a jour a chaque lancement de lecture.
+final _recentlyWatchedProvider = StreamProvider<List<Media>>((ref) {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final result = <Media>[];
-  for (final id in ids.take(20)) {
-    final m = await mediaRepo.getMedia(id);
-    if (m != null) result.add(m);
-  }
-  return result;
+  final completed = ref.watch(_completedIdsProvider).maybeWhen(
+        data: (ids) => ids,
+        orElse: () => const <int>{},
+      );
+  return ref
+      .watch(watchHistoryRepositoryProvider)
+      .watchRecent(limit: 50)
+      .asyncMap((history) async {
+    final seen = <int>{};
+    final ids = <int>[];
+    for (final h in history) {
+      if (completed.contains(h.mediaId)) continue; // exclut les termines
+      if (seen.add(h.mediaId)) ids.add(h.mediaId);
+    }
+    final result = <Media>[];
+    for (final id in ids.take(20)) {
+      final m = await mediaRepo.getMedia(id);
+      if (m != null) result.add(m);
+    }
+    return result;
+  });
 });
 
 /// « Ça pourrait vous plaire » : union des animes (catalogue anime-sama) des 3

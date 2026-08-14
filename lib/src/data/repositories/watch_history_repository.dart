@@ -45,6 +45,16 @@ class WatchHistoryRepository {
     return rows.map(_fromRow).toList();
   }
 
+  /// Stream réactif de l'historique récent (le plus récent d'abord). Réémet à
+  /// chaque nouveau lancement de lecture -> l'accueil se met à jour en direct.
+  Stream<List<WatchHistoryEntry>> watchRecent({int limit = 50}) {
+    return (_db.select(_db.watchHistories)
+          ..orderBy([(t) => OrderingTerm.desc(t.startedAt)])
+          ..limit(limit))
+        .watch()
+        .map((rows) => rows.map(_fromRow).toList());
+  }
+
   /// Toutes les entrées d'historique (pour agréger l'activité par jour).
   Future<List<WatchHistoryEntry>> all() async {
     final rows = await (_db.select(_db.watchHistories)
