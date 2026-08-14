@@ -116,7 +116,7 @@ def main():
     # Rapport (toujours en lecture seule).
     con = _open_readonly(path)
     try:
-        _report(con)
+        _report(con, db_path=path)
     finally:
         con.close()
 
@@ -516,7 +516,7 @@ def _purge_slug_report(path, apply_changes):
     print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
 
-def _report(con):
+def _report(con, db_path=None):
     # --- Schema / version ---------------------------------------------------
     try:
         uv = con.execute("PRAGMA user_version").fetchone()[0]
@@ -687,6 +687,8 @@ def _report(con):
             # recemment' les ignore) et combien ont des genres (sinon pas de
             # rangee par genre ni 'Ca pourrait vous plaire').
             found = 0
+            missing_ids = []      # ids d'historique SANS ligne media_table
+            without_genres = []   # ids presents mais genres_json vide
             with_genres = 0
             genre_counts = {}
             for mid in hist_ids:
@@ -695,6 +697,7 @@ def _report(con):
                     (mid,),
                 ).fetchone()
                 if row is None:
+                    missing_ids.append(mid)
                     continue
                 found += 1
                 raw = row[0] or "[]"
@@ -711,21 +714,44 @@ def _report(con):
                     ).fetchone()[0]
                     for g in genres:
                         genre_counts[g] = genre_counts.get(g, 0) + plays
-            print("  presents dans media_table       :", found, "/", len(hist_ids),
-                  "  <- les absents sont ignores par 'Regarde recemment'"
-                  if found < len(hist_ids) else "")
+                else:
+                    without_genres.append(mid)
+            print("  presents dans media_table       :", found, "/", len(hist_ids))
             print("  avec genres renseignes          :", with_genres, "/", found)
-            if with_genres == 0:
-                print("(!) Aucun anime regarde n'a de genres en base -> pas de")
-                print("    rangee 'Ca pourrait vous plaire' ni de rangee par genre.")
-                print("    (les genres se remplissent via la fiche/le scraper ;")
-                print("     ouvre la fiche des animes concernes pour les enrichir.)")
-            else:
+
+            # Cas 1 : l'historique pointe vers des ids ABSENTS de media_table.
+            # Typiquement l'historique a ete ecrit avec d'anciens ids (legacy /
+            # AniList, souvent negatifs) alors que la migration a recree des
+            # lignes avec des ids-slug positifs -> l'historique est orphelin.
+            if missing_ids:
+                neg = [m for m in missing_ids if m < 0]
+                print("\n(!) {} anime(s) de l'historique n'ont AUCUNE ligne dans "
+                      "media_table".format(len(missing_ids)))
+                if neg:
+                    print("    dont {} avec un id NEGATIF (legacy) : l'historique a "
+                          "ete".format(len(neg)))
+                    print("    enregistre avant la migration slug -> il pointe vers")
+                    print("    des ids qui n'existent plus (remplaces par des ids-slug).")
+                print("    -> 'Regarde recemment' ignore ces animes, et ils ne")
+                print("       comptent NI pour 'Ca pourrait vous plaire' NI par genre.")
+                print("    ids concernes :", missing_ids[:20],
+                      "..." if len(missing_ids) > 20 else "")
+
+            # Cas 2 : ids presents mais genres_json vide -> --refresh-genres.
+            if without_genres:
+                print("\n(!) {} anime(s) regarde(s) presents mais SANS genres. "
+                      "Repeuple avec :".format(len(without_genres)))
+                print('    python scripts/check_db.py "{}" --refresh-genres --apply'
+                      .format(db_path or "<base>"))
+
+            if with_genres == 0 and not missing_ids and not without_genres:
+                print("(!) Aucun anime regarde n'a de genres en base.")
+            elif with_genres > 0:
                 ordered = sorted(
                     genre_counts.items(),
                     key=lambda kv: (-kv[1], kv[0]),
                 )
-                print("  Genres regardes (par nb de visionnages, ordre des rangees) :")
+                print("\n  Genres regardes (par nb de visionnages, ordre des rangees) :")
                 for g, c in ordered:
                     print("     - {:<20} {}".format(g, c))
 
