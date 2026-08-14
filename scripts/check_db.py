@@ -98,6 +98,7 @@ def main():
     clean_images = "--clean-anilist-images" in args
     refresh_genres = "--refresh-genres" in args
     clear_history = "--clear-history" in args
+    purge_scans = "--purge-scans" in args
     apply_changes = "--apply" in args
     positional = [a for a in args if not a.startswith("--")]
 
@@ -141,6 +142,10 @@ def main():
     # Purge optionnelle de l'historique de visionnage orphelin (ids legacy).
     if clear_history:
         _clear_history(path, apply_changes)
+
+    # Purge optionnelle des medias de type scan (manga) orphelins.
+    if purge_scans:
+        _purge_scans(path, apply_changes)
 
 
 # Hotes d'images des anciennes sources (AniList / MyAnimeList / Kitsu). Une
@@ -426,6 +431,182 @@ def _clear_history(path, apply_changes):
         con.close()
 
     print("\n{} lancement(s) orphelin(s) supprime(s).".format(orphan_rows))
+    print("En cas de probleme, restaure la sauvegarde :")
+    print('  copy "{}" "{}"   (Windows)'.format(backup, path))
+
+
+def _scrape_scan_slugs(max_pages=60, timeout=15):
+    """Re-scrape le catalogue anime-sama COMPLET et renvoie l'ensemble des slugs
+    qui sont des SCANS PURS (manga, sans video : type « Scans » sans « Anime »
+    ni « Film »).
+
+    On lit le type dans le bloc `type-row` de chaque carte (meme logique que le
+    wrapper). Un slug present dans une carte video (Anime/Film) N'est PAS un scan
+    pur, meme s'il a aussi des scans. Renvoie (scan_slugs, video_slugs, None) ou
+    (None, None, message) si echec (dependance/reseau)."""
+    import re
+    try:
+        import requests
+    except ImportError:
+        return None, None, "le module 'requests' est requis (pip install requests)"
+
+    headers = {"User-Agent": "Mozilla/5.0"}
+    card_re = re.compile(
+        r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/?[^"]*"[^>]*>'
+        r'(.*?)</a>', re.DOTALL)
+    type_re = re.compile(
+        r'type-row"?\s*>.*?<p[^>]+class="[^"]*info-value[^"]*"[^>]*>'
+        r'([^<]+)</p>', re.DOTALL | re.I)
+    page_re = re.compile(r'[?&]page=(\d+)')
+
+    scan_slugs, video_slugs = set(), set()
+    last_page = max_pages
+    for page in range(1, last_page + 1):
+        suffix = "?page={}".format(page) if page > 1 else ""
+        url = "https://anime-sama.to/catalogue/{}".format(suffix)
+        try:
+            html = requests.get(url, headers=headers, timeout=timeout).text
+        except Exception:  # noqa: BLE001 — best-effort
+            break
+        if page == 1:
+            nums = [int(n) for n in page_re.findall(html)]
+            if nums:
+                last_page = min(max(nums), max_pages)
+        fresh = 0
+        for m in card_re.finditer(html):
+            slug, inner = m.group(1).strip(), m.group(2)
+            if slug in scan_slugs or slug in video_slugs:
+                continue
+            fresh += 1
+            mt = type_re.search(inner)
+            t = (mt.group(1).strip().lower() if mt else "")
+            if t and "anime" not in t and "film" not in t:
+                scan_slugs.add(slug)
+            else:
+                video_slugs.add(slug)  # video, ou type inconnu (prudence : garde)
+        if fresh == 0:
+            break
+    return scan_slugs, video_slugs, None
+
+
+def _purge_scans(path, apply_changes):
+    """Supprime les media_table de type SCAN PUR qui sont ORPHELINS (aucune
+    entree de liste, aucune progression par saison, aucun historique). Ces
+    lignes ont pu etre creees en ouvrant la fiche d'un scan avant le fix
+    type[]=Anime. Un scan qui serait dans la bibliotheque ou aurait de la
+    progression est CONSERVE par securite (jamais de perte de donnees utilisateur)."""
+    print("\n" + "#" * 70)
+    print("PURGE DES MEDIAS DE TYPE SCAN (orphelins : hors biblio + sans progression)")
+    print("#" * 70)
+
+    con = _open_readonly(path)
+    try:
+        if not _table_exists(con, "media_table"):
+            print("(table media_table absente — rien a purger.)")
+            return
+        if not _has_column(con, "media_table", "anime_sama_slug"):
+            print("(colonne anime_sama_slug absente — base non migree, "
+                  "impossible d'identifier les scans par slug.)")
+            return
+        has_entries = _table_exists(con, "list_entries")
+        has_history = _table_exists(con, "watch_histories")
+
+        media = con.execute(
+            "SELECT anilist_id, anime_sama_slug, "
+            "COALESCE(anime_sama_title, title_english, title_romaji, "
+            "title_native) FROM media_table "
+            "WHERE anime_sama_slug IS NOT NULL AND anime_sama_slug <> ''"
+        ).fetchall()
+
+        # Ids ayant une progression par saison (cle anime_sama_watched:<id>:<s>
+        # avec une valeur > 0).
+        watched_ids = set()
+        for key, value in con.execute(
+            "SELECT key, value FROM app_settings "
+            "WHERE key LIKE 'anime_sama_watched:%'"
+        ).fetchall():
+            parts = key.split(":")
+            if len(parts) >= 3:
+                try:
+                    if int(value) > 0:
+                        watched_ids.add(parts[1])
+                except (TypeError, ValueError):
+                    pass
+
+        entry_ids = set()
+        if has_entries:
+            entry_ids = {str(r[0]) for r in con.execute(
+                "SELECT DISTINCT media_id FROM list_entries").fetchall()}
+        history_ids = set()
+        if has_history:
+            history_ids = {str(r[0]) for r in con.execute(
+                "SELECT DISTINCT media_id FROM watch_histories").fetchall()}
+    finally:
+        con.close()
+
+    if not media:
+        print("Aucun media avec slug. Rien a purger.")
+        return
+
+    # Un media est ORPHELIN s'il n'est ni en liste, ni progresse, ni dans l'historique.
+    def _orphan(mid):
+        s = str(mid)
+        return (s not in entry_ids and s not in watched_ids
+                and s not in history_ids)
+
+    orphans = [(mid, slug, title) for (mid, slug, title) in media if _orphan(mid)]
+    if not orphans:
+        print("Aucun media orphelin (tous en biblio / progresses). Rien a purger.")
+        return
+
+    print("\n{} media(s) orphelin(s) — verification du type via le catalogue..."
+          .format(len(orphans)))
+    scan_slugs, _video, err = _scrape_scan_slugs()
+    if err:
+        print("ERREUR :", err)
+        print("Base intacte.")
+        return
+    print("  ({} slugs scan-purs recenses au catalogue.)".format(len(scan_slugs)))
+
+    to_delete = [(mid, slug, title) for (mid, slug, title) in orphans
+                 if slug in scan_slugs]
+    if not to_delete:
+        print("\nAucun media orphelin n'est un scan pur. Rien a supprimer.")
+        return
+
+    print("\n{} media(s) SCAN orphelin(s) a supprimer :".format(len(to_delete)))
+    for mid, slug, title in to_delete:
+        print("  [SUPPR] id={:<12} [{:<28}] {}".format(
+            mid, slug[:28], (title or "?")[:35]))
+
+    if not apply_changes:
+        print("\n--- DRY-RUN : aucune ligne supprimee. ---")
+        print("Ces medias sont des scans (manga) ouverts par erreur, hors biblio")
+        print("et sans progression. Pour supprimer reellement (avec .bak) :")
+        print('  python scripts/check_db.py "{}" --purge-scans --apply'.format(path))
+        return
+
+    backup = path + ".bak"
+    shutil.copy2(path, backup)
+    print("\nSauvegarde creee :", backup)
+
+    ids = [mid for (mid, _s, _t) in to_delete]
+    con = sqlite3.connect(path)  # lecture-ecriture
+    try:
+        con.execute("BEGIN")
+        con.executemany(
+            "DELETE FROM media_table WHERE anilist_id = ?", [(i,) for i in ids])
+        con.execute("COMMIT")
+    except sqlite3.Error as e:
+        con.execute("ROLLBACK")
+        print("ERREUR — purge annulee (ROLLBACK) :", e)
+        print("Base intacte ; sauvegarde disponible :", backup)
+        con.close()
+        sys.exit(1)
+    finally:
+        con.close()
+
+    print("\n{} media(s) scan supprime(s).".format(len(ids)))
     print("En cas de probleme, restaure la sauvegarde :")
     print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
