@@ -87,3 +87,51 @@ int _commonPrefixLength(String a, String b) {
   }
   return i;
 }
+
+/// Score de correspondance [0..1000] entre une [query] et un titre [candidate]
+/// du catalogue anime-sama. Plus c'est haut, mieux c'est. Sert à choisir le BON
+/// résultat parmi ceux qu'anime-sama renvoie (ex. « naruto » ramène
+/// [boruto, naruto, naruto shippuden…] — sans scoring on prendrait « boruto »,
+/// le premier). 0 = titres sans rapport.
+///
+/// Barème :
+/// - égalité normalisée exacte → 1000 ;
+/// - la query EST le titre catalogue à un préfixe près (candidate commence par
+///   query) → 900 moins la longueur excédentaire (préfère le plus court, donc
+///   l'anime « racine » plutôt qu'une déclinaison) ;
+/// - inclusion dans un sens quelconque → 700 moins l'écart de longueur ;
+/// - chevauchement de jetons significatifs → proportionnel (0..600) ;
+/// - sinon 0.
+int titleMatchScore(String query, String candidate) {
+  final q = normalizeAnimeTitle(query);
+  final c = normalizeAnimeTitle(candidate);
+  if (q.isEmpty || c.isEmpty) return 0;
+
+  if (q == c) return 1000;
+
+  // candidate commence par query (« naruto » ⟶ « narutoshippuden ») : bon match,
+  // mais on préfère le titre le plus court (le plus proche de la query racine).
+  if (c.startsWith(q)) {
+    final extra = c.length - q.length;
+    return (900 - extra).clamp(700, 900);
+  }
+  // query commence par candidate (query plus longue, ex. AniList « … Season 3 »).
+  if (q.startsWith(c)) {
+    final extra = q.length - c.length;
+    return (850 - extra).clamp(650, 850);
+  }
+  // Inclusion ailleurs qu'en préfixe.
+  if (c.contains(q) || q.contains(c)) {
+    final diff = (c.length - q.length).abs();
+    return (700 - diff).clamp(400, 700);
+  }
+
+  // Chevauchement de jetons significatifs (0..600).
+  final qt = _titleTokens(query);
+  final ct = _titleTokens(candidate);
+  if (qt.isEmpty || ct.isEmpty) return 0;
+  final common = qt.intersection(ct).length;
+  if (common == 0) return 0;
+  final ratio = common / qt.length; // part des jetons de la query couverts
+  return (ratio * 600).round().clamp(1, 600);
+}

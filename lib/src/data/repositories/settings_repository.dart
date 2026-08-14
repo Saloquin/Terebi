@@ -97,4 +97,15 @@ class SettingsRepository {
         if (r.key.startsWith(prefix)) r.key: r.value,
     };
   }
+
+  /// Supprime toutes les clés commençant par [prefix]. Sert au nettoyage manuel
+  /// de la progression par saison d'un média (`anime_sama_watched:<id>:*`).
+  Future<void> deleteWithPrefix(String prefix) async {
+    final rows = await _db.select(_db.appSettings).get();
+    for (final r in rows) {
+      if (r.key.startsWith(prefix)) {
+        await delete(r.key);
+      }
+    }
+  }
 }

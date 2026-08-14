@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -498,6 +499,65 @@ class _ActionBar extends ConsumerWidget {
     }
   }
 
+  /// Purge COMPLÈTE (temporaire/debug) : efface le média de la base, son entrée
+  /// de liste, sa progression par saison ET le marqueur « pas de match » — utile
+  /// pour repartir de zéro sur un anime mal résolu (mauvais titre catalogue).
+  /// Après purge, on ferme la fiche (l'identité va être recalculée au prochain
+  /// accès). Contrairement à « Retirer », ceci NE conserve PAS la progression.
+  Future<void> _purge(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Purger de la base ?'),
+        content: Text(
+          '« ${_titleShown()} » sera COMPLÈTEMENT effacé de la base : fiche, '
+          'statut ET progression (épisodes vus). Cette action sert à corriger '
+          'une entrée mal résolue — elle est irréversible.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Purger'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final id = media.anilistId;
+    await ref.read(listRepositoryProvider).deleteEntry(id);
+    await ref.read(mediaRepositoryProvider).deleteMedia(id);
+    // Progression par saison : clés `anime_sama_watched:<id>:*`.
+    await ref
+        .read(settingsRepositoryProvider)
+        .deleteWithPrefix('anime_sama_watched:$id:');
+    // Marqueur « pas de match » AniList (par titre normalisé).
+    final t = media.animeSamaTitle;
+    if (t != null) {
+      await ref
+          .read(settingsRepositoryProvider)
+          .delete('anime_sama_nomatch:${normalizeAnimeTitle(t)}');
+    }
+    ref.invalidate(listEntryProvider(id));
+    ref.invalidate(entriesByStatusProvider);
+    ref.invalidate(countByStatusProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('« ${_titleShown()} » purgé de la base')),
+      );
+      Navigator.of(context).pop(); // ferme la fiche
+    }
+  }
+
+  String _titleShown() => media.animeSamaTitle ?? media.title.preferred;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // La lecture se lance depuis la section « Saisons (anime-sama) » ci-dessous.
@@ -523,6 +583,16 @@ class _ActionBar extends ConsumerWidget {
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
           ),
+        // Bouton temporaire (debug) : purge complète pour corriger une mauvaise
+        // résolution de titre. Toujours visible, même sans entrée de liste.
+        OutlinedButton.icon(
+          onPressed: () => _purge(context, ref),
+          icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+          label: const Text('Purger de la base'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.error,
+          ),
+        ),
       ],
     );
   }

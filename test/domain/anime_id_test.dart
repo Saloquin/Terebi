@@ -128,4 +128,38 @@ void main() {
       expect(merged.nextAiringEpisode, 1130);
     });
   });
+
+  group('titleMatchScore (choix du bon résultat catalogue)', () {
+    test('égalité normalisée = score maximal', () {
+      expect(titleMatchScore('Naruto', 'Naruto'), 1000);
+      expect(titleMatchScore('naruto', 'Naruto'), 1000); // casse ignorée
+    });
+
+    test('« naruto » : le bon résultat bat « boruto » et « shippuden »', () {
+      // Cas réel : anime-sama renvoie [boruto, naruto, naruto shippuden…].
+      final naruto = titleMatchScore('Naruto', 'Naruto');
+      final boruto = titleMatchScore('Naruto', 'Boruto');
+      final shippuden = titleMatchScore('Naruto', 'Naruto Shippuden');
+      expect(naruto, greaterThan(boruto));
+      expect(naruto, greaterThan(shippuden));
+      // La déclinaison (préfixe commun) reste au-dessus du sans-rapport.
+      expect(shippuden, greaterThan(boruto));
+    });
+
+    test('titre racine court préféré à une déclinaison plus longue', () {
+      final court = titleMatchScore('One Piece', 'One Piece');
+      final long = titleMatchScore('One Piece', 'One Piece Film Red');
+      expect(court, greaterThan(long));
+    });
+
+    test('titres sans rapport → 0', () {
+      expect(titleMatchScore('Naruto', 'Bleach'), 0);
+    });
+
+    test('query AniList plus longue incluant le titre catalogue', () {
+      // AniList « Attack on Titan Season 3 » vs catalogue « Attack on Titan ».
+      final s = titleMatchScore('Attack on Titan Season 3', 'Attack on Titan');
+      expect(s, greaterThan(0));
+    });
+  });
 }

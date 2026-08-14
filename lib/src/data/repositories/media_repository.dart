@@ -98,4 +98,13 @@ class MediaRepository {
     final rows = await _db.select(_db.mediaTable).get();
     return rows.map(_fromRow).toList();
   }
+
+  /// Supprime le média [anilistId] de la base (n'affecte ni l'entrée de liste ni
+  /// la progression : à nettoyer séparément par l'appelant). Sert au nettoyage
+  /// manuel d'une entrée mal résolue.
+  Future<void> deleteMedia(int anilistId) async {
+    await (_db.delete(_db.mediaTable)
+          ..where((t) => t.anilistId.equals(anilistId)))
+        .go();
+  }
 }

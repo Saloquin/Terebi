@@ -19,6 +19,7 @@ import '../data/repositories/meta_cache_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/watch_history_repository.dart';
 import '../data/repositories/settings_repository.dart';
+import '../domain/logic/anime_id.dart';
 import '../domain/logic/franchise_service.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
@@ -188,16 +189,27 @@ final animeSamaResolvedTitleProvider = FutureProvider.family<String,
   ];
   if (candidates.isEmpty) return '';
   final resolver = await ref.watch(animeSamaResolverProvider.future);
+  var bestTitle = '';
+  var bestScore = -1;
   for (final c in candidates) {
     try {
       final items = await resolver.search(query: c);
-      if (items.isNotEmpty) {
-        // On renvoie le titre catalogue trouvé (celui qu'anime-sama connaît),
-        // pour que saisons/lecteur cherchent avec le bon libellé.
-        return items.first.title;
+      // anime-sama renvoie souvent PLUSIEURS résultats dans un ordre arbitraire
+      // (ex. « naruto » ⟶ [boruto, naruto, naruto shippuden…]). Prendre
+      // items.first choisirait « boruto ». On score chaque titre catalogue
+      // contre le candidat et on garde le meilleur (match exact/racine > dérivé).
+      for (final it in items) {
+        final s = titleMatchScore(c, it.title);
+        if (s > bestScore) {
+          bestScore = s;
+          bestTitle = it.title;
+        }
       }
+      // Match exact trouvé pour ce candidat : inutile d'essayer les suivants.
+      if (bestScore >= 1000) break;
     } catch (_) {/* candidat suivant */}
   }
+  if (bestScore > 0) return bestTitle;
   return candidates.first; // repli : rien trouvé, on garde le 1er candidat.
 });
 
