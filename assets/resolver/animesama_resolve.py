@@ -595,13 +595,45 @@ def action_catalogue_detail(mod, dl, args):
     sys.exit(0)
 
 
+def _card_type(inner):
+    """Type de contenu d'une carte catalogue : « Anime », « Scans »,
+    « Anime, Scans », « Film »… Lu dans le bloc `type-row` (premier
+    <p class="info-value"> qui suit). '' si introuvable.
+
+    NB : le SVG icone entre `type-row` et le <p> est long -> fenetre DOTALL
+    large, pas de limite de caracteres.
+    """
+    m = re.search(
+        r'type-row"?\s*>.*?<p[^>]+class="[^"]*info-value[^"]*"[^>]*>([^<]+)</p>',
+        inner, re.DOTALL | re.I)
+    return m.group(1).strip() if m else ''
+
+
+def _is_video_card(inner):
+    """Vrai si la carte contient du contenu VIDEO (anime et/ou film), donc
+    lisible dans Terebi. Une carte de type « Scans » pur (manga) est ecartee.
+
+    Le type du catalogue est « Anime », « Film », « Scans », ou une combinaison
+    (« Anime, Scans »). On garde des qu'« anime » ou « film » apparait ; on
+    n'ecarte que le pur « Scans ». Si le type est absent (structure inattendue),
+    on garde par prudence (repli sur le comportement historique)."""
+    t = _card_type(inner).lower()
+    if not t:
+        return True
+    return ('anime' in t) or ('film' in t)
+
+
 def _cards_from_html(mod, html):
     """Extrait des cartes (title,url,slug,cover_url,genres) d'un fragment HTML.
 
     Structure reelle anime-sama.to (page catalogue) : chaque carte est un
     <a href="https://.../catalogue/<slug>/"> contenant <img class="card-image"
     src="..."> (vrai nom de fichier CDN, suffixe possible), <h2 class="card-title">
-    et un bloc <div class="catalog-info"> avec les genres en tags.
+    et un bloc <div class="catalog-info"> avec les genres en tags et le type
+    (« Anime » / « Scans » / « Film ») dans un bloc `type-row`.
+
+    Les cartes de type « Scans » PUR (mangas, sans video) sont ecartees : elles
+    n'ont rien de lisible dans Terebi et polluaient le catalogue / la base.
     """
     card_re = re.compile(
         r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/?[^"]*"[^>]*>'
@@ -620,8 +652,8 @@ def _cards_from_html(mod, html):
     items = []
     for m in card_re.finditer(html):
         slug, inner = m.group(1).strip(), m.group(2)
-        # Ignore les scans (mangas) — on ne garde que les animes.
-        if hasattr(mod, '_is_scan_url') and mod._is_scan_url(slug):
+        # Ecarte les scans (mangas) : type « Scans » pur, sans video.
+        if not _is_video_card(inner):
             continue
         mt = title_re.search(inner)
         if not mt:
@@ -713,26 +745,92 @@ def action_home(mod, dl, args):
     sys.exit(0)
 
 
+def _catalogue_last_page(html):
+    """Numero de la derniere page du catalogue, lu dans les liens de pagination
+    (?page=N) de la page 1. Repli 1 si aucune pagination trouvee."""
+    nums = [int(n) for n in re.findall(r'[?&]page=(\d+)', html or '')]
+    return max(nums) if nums else 1
+
+
 def action_catalogue_filter(mod, dl, args):
-    """Catalogue filtre par genre. Le filtre serveur (?genre[]=) etant ignore, on
-    scrape plusieurs pages du catalogue et on filtre par genre cote scraper."""
+    """Catalogue filtre par genre, via le FILTRE SERVEUR d'anime-sama.
+
+    Contrairement a une hypothese initiale, le filtre serveur fonctionne :
+      /catalogue/?type[]=Anime&genre[]=<Genre>[&page=N]
+    renvoie exactement les oeuvres du genre (ex. Thriller = 46, Ghibli = 20),
+    scans exclus grace a type[]=Anime. C'est bien plus exact et rapide que de
+    scanner tout le catalogue et filtrer cote client.
+
+    On pagine ce resultat filtre (bornee par la derniere page reelle) et on
+    s'arrete des qu'on a de quoi remplir une rangee (TARGET). Le genre est
+    URL-encode. Repli : si le serveur ne renvoie rien (genre non reconnu cote
+    serveur), on scanne le catalogue et on filtre cote client comme avant."""
     import requests
+    from urllib.parse import quote
     domain = mod.DOMAIN
     genre = args.genre.strip()
     if not genre:
         _fail("catalogue-filter requiert --genre")
-    genre_norm = _norm(genre)
 
-    max_pages = 5
+    target = 40
+    hard_max_pages = 60
+
     items = []
     seen = set()
-    for page in range(1, max_pages + 1):
+    last_page = hard_max_pages
+    page = 1
+    while page <= last_page:
+        page_suffix = "&page={}".format(page) if page > 1 else ""
+        url = "https://{}/catalogue/?type%5B%5D=Anime&genre%5B%5D={}{}".format(
+            domain, quote(genre), page_suffix)
+        try:
+            html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
+        except requests.RequestException:
+            break
+        if page == 1:
+            last_page = min(_catalogue_last_page(html), hard_max_pages)
+        cards = _cards_from_html(mod, html)
+        fresh = 0
+        for it in cards:
+            if it["slug"] in seen:
+                continue
+            seen.add(it["slug"])
+            fresh += 1
+            items.append(it)
+        if fresh == 0:
+            break
+        if len(items) >= target:
+            break
+        page += 1
+
+    # Repli cote client si le filtre serveur n'a rien donne (genre inconnu du
+    # serveur mais present dans les tags des cartes).
+    if not items:
+        items = _filter_genre_client_side(mod, domain, genre, target,
+                                          hard_max_pages)
+
+    print(f"CATALOGUE_JSON: {json.dumps(items, ensure_ascii=False)}")
+    sys.exit(0)
+
+
+def _filter_genre_client_side(mod, domain, genre, target, hard_max_pages):
+    """Repli : scanne la pagination du catalogue et filtre par genre cote
+    scraper (tags des cartes). Utilise si le filtre serveur ne renvoie rien."""
+    import requests
+    genre_norm = _norm(genre)
+    items = []
+    seen = set()
+    last_page = hard_max_pages
+    page = 1
+    while page <= last_page:
         suffix = "?page={}".format(page) if page > 1 else ""
         url = "https://{}/catalogue/{}".format(domain, suffix)
         try:
             html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
         except requests.RequestException:
             break
+        if page == 1:
+            last_page = min(_catalogue_last_page(html), hard_max_pages)
         cards = _cards_from_html(mod, html)
         fresh = 0
         for it in cards:
@@ -743,9 +841,11 @@ def action_catalogue_filter(mod, dl, args):
             if _genre_matches(genre_norm, it.get("genres", [])):
                 items.append(it)
         if fresh == 0:
-            break  # pagination epuisee (ou param page ignore -> memes cartes)
-    print(f"CATALOGUE_JSON: {json.dumps(items, ensure_ascii=False)}")
-    sys.exit(0)
+            break
+        if len(items) >= target:
+            break
+        page += 1
+    return items
 
 
 def main():

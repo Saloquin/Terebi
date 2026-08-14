@@ -8,6 +8,8 @@ import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
+import '../../domain/models/anime_format.dart';
+import '../../domain/models/enums.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -326,12 +328,15 @@ class _MetaChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = <String>[
-      _formatLabel(media),
+      // Format et statut ne sont ajoutes que s'ils sont CONNUS : un anime
+      // resolu uniquement via anime-sama n'a pas ces metadonnees AniList/Jikan,
+      // et une chip « ? » / « Inconnu » n'apporte rien (bruit visuel).
+      if (media.format != AnimeFormat.unknown) _formatLabel(media),
       if (media.episodes != null) '${media.episodes} épisodes',
       if (media.durationMinutes != null) '${media.durationMinutes} min/ep',
       if (media.seasonYear != null)
         '${_seasonLabel(media.season?.name)} ${media.seasonYear}',
-      _statusLabel(media.status.name),
+      if (media.status != ReleaseStatus.unknown) _statusLabel(media.status.name),
     ];
 
     final nextAt = media.nextAiringAt;

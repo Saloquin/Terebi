@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../domain/logic/anime_id.dart';
+import '../../domain/logic/effective_status_service.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart'
@@ -36,19 +37,34 @@ final _completedIdsProvider = StreamProvider<Set<int>>((ref) {
       .map((entries) => entries.map((e) => e.mediaId).toSet());
 });
 
-/// « Continuer à regarder » : médias en cours, triés du plus récemment mis à
-/// jour au plus ancien, résolus en [Media] (cache local). Réactif (stream).
+/// « Continuer à regarder » : médias dont le statut EFFECTIF est « en cours »
+/// (progression > 0 et non figé/terminé), triés du plus récemment mis à jour au
+/// plus ancien, résolus en [Media] (cache local). Réactif (stream).
+///
+/// IMPORTANT : `current` n'est JAMAIS stocké en base — c'est un statut DÉRIVÉ
+/// (cf. [effectiveStatus]). On reproduit donc la sémantique de la bibliothèque
+/// (watchAllEntries + effectiveStatus + hasAnyProgress) au lieu de filtrer sur
+/// la colonne `status`, qui ne contient jamais `current`.
 final _continueWatchingProvider = StreamProvider<List<Media>>((ref) {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
   return ref
       .watch(listRepositoryProvider)
-      .watchEntriesByStatus(ListStatus.current)
-      .asyncMap((entries) async {
-    final sorted = [...entries]
-      ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      .watchAllEntries()
+      .asyncMap((all) async {
+    final current = <({DateTime updatedAt, int mediaId})>[];
+    for (final e in all) {
+      final hasProgress =
+          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
+      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+      if (eff == ListStatus.current) {
+        current.add((updatedAt: e.updatedAt, mediaId: e.mediaId));
+      }
+    }
+    current.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final result = <Media>[];
-    for (final e in sorted.take(20)) {
-      final m = await mediaRepo.getMedia(e.mediaId);
+    for (final c in current.take(20)) {
+      final m = await mediaRepo.getMedia(c.mediaId);
       if (m != null) result.add(m);
     }
     return result;
