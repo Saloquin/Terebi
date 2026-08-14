@@ -30,6 +30,7 @@ dependencies:
 
   # Réseau (AniList GraphQL + Jikan REST)
   http: ^1.2.2
+  rxdart: ^0.28.0
 
 dev_dependencies:
   flutter_test:

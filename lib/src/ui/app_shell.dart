@@ -57,6 +57,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(slugMigrationProvider); // declenche la migration au 1er boot (non bloquant)
     return Scaffold(
       body: Row(
         children: [

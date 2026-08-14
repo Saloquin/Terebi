@@ -26,10 +26,16 @@ import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
 import '../domain/logic/calendar_service.dart';
+import 'package:rxdart/rxdart.dart';
+
+import '../domain/models/list_entry.dart';
+import '../domain/models/media.dart';
+import '../services/animesama_catalog_service.dart';
 import '../services/animesama_resolver.dart';
 import '../services/health_service.dart';
 import '../services/process_runner.dart';
 import '../services/resolver_assets.dart';
+import '../services/slug_migration_service.dart';
 import '../services/stream_resolver.dart';
 import '../services/system_process_runner.dart';
 import '../services/title_matcher.dart';
@@ -66,14 +72,19 @@ final watchHistoryRepositoryProvider = Provider<WatchHistoryRepository>(
   (ref) => WatchHistoryRepository(ref.watch(databaseProvider)),
 );
 
-/// `true` si l'anime [mediaId] a une progression locale (progress global > 0 ou
-/// au moins une saison anime-sama entamée). Sert à dériver « En cours » à
-/// l'affichage (fiche/biblio) de façon instantanée, sans réseau.
-final hasProgressProvider =
-    FutureProvider.family<bool, int>((ref, mediaId) async {
-  final entry = await ref.watch(listRepositoryProvider).getEntry(mediaId);
-  if ((entry?.progress ?? 0) > 0) return true;
-  return ref.watch(seasonProgressRepositoryProvider).hasAnyProgress(mediaId);
+/// `true` si l'anime [mediaId] a une progression locale. Reactif : re-emet des
+/// qu'une entree de liste ou une cle `anime_sama_watched:<id>:*` change.
+final hasProgressProvider = StreamProvider.family<bool, int>((ref, mediaId) {
+  final listRepo = ref.watch(listRepositoryProvider);
+  final settings = ref.watch(settingsRepositoryProvider);
+  return Rx.combineLatest2(
+    listRepo.watchEntry(mediaId),
+    settings.watchWithPrefix('anime_sama_watched:$mediaId:'),
+    (ListEntry? entry, Map<String, String> watched) {
+      if ((entry?.progress ?? 0) > 0) return true;
+      return watched.values.any((v) => (int.tryParse(v) ?? 0) > 0);
+    },
+  );
 });
 
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
@@ -165,6 +176,75 @@ final animeSamaResolverProvider =
 /// Ces providers évitent de relancer le wrapper Python plusieurs fois pour le
 /// même anime : fiche, tuiles de saison, lecteur et recheck partagent le même
 /// résultat mis en cache tant qu'ils ne sont pas invalidés.
+
+/// Service catalogue anime-sama (cache-first + revalidation background).
+final animeSamaCatalogServiceProvider =
+    FutureProvider<AnimeSamaCatalogService>((ref) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  return AnimeSamaCatalogService(
+    mediaRepo: ref.watch(mediaRepositoryProvider),
+    fetchDetail: (slug) => resolver.catalogueDetail(slug: slug),
+  );
+});
+
+/// Stream cache-first du media enrichi pour un slug anime-sama.
+final animeSamaDetailProvider =
+    StreamProvider.family<Media?, String>((ref, slug) async* {
+  final service = await ref.watch(animeSamaCatalogServiceProvider.future);
+  yield* service.watchDetail(slug);
+});
+
+/// Sections de l'accueil anime-sama (classiques + derniers episodes).
+final animeSamaHomeProvider = FutureProvider<AnimeSamaHome>((ref) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  try {
+    return await resolver.home();
+  } catch (_) {
+    return const AnimeSamaHome();
+  }
+});
+
+/// Catalogue filtre par genre.
+final animeSamaByGenreProvider =
+    FutureProvider.family<List<AnimeSamaCatalogueItem>, String>(
+        (ref, genre) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  try {
+    return await resolver.catalogueByGenre(genre: genre);
+  } catch (_) {
+    return const [];
+  }
+});
+
+/// Declenche la re-indexation legacy titre->slug une seule fois (idempotente,
+/// non bloquante). Watche au demarrage du shell.
+final slugMigrationProvider = FutureProvider<void>((ref) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  final service = SlugMigrationService(
+    mediaRepo: ref.watch(mediaRepositoryProvider),
+    listRepo: ref.watch(listRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+    resolveSlug: (title) async {
+      try {
+        final items = await resolver.search(query: title);
+        if (items.isEmpty) return '';
+        var best = items.first;
+        var bestScore = -1;
+        for (final it in items) {
+          final s = titleMatchScore(title, it.title);
+          if (s > bestScore) {
+            bestScore = s;
+            best = it;
+          }
+        }
+        return best.slug;
+      } catch (_) {
+        return '';
+      }
+    },
+  );
+  await service.runOnce();
+});
 
 /// Saisons anime-sama d'un titre (VOSTFR par défaut, cf. wrapper).
 final animeSamaSeasonsProvider =
