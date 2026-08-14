@@ -272,6 +272,57 @@ def _scrape_genres(slug, timeout=15):
     return [g.strip() for g in pills if g.strip()]
 
 
+def _normalize_genres(raw):
+    """Nettoie et normalise une liste de genres scrapes.
+
+    anime-sama renvoie des genres bruts avec plusieurs defauts constates :
+    - entites HTML (&amp;, &eacute;...) non decodees ;
+    - espaces / retours ligne parasites ('Surnaturel\\n', 'Surnaturel\\r\\n') ;
+    - « Science-Fiction » eclate en deux pills « Science » puis « Fiction » ;
+    - variantes de casse. On recolle, decode, deduplique en conservant l'ordre.
+    """
+    import html as _html
+    import re
+
+    # 1. Nettoyage unitaire : decode entites, supprime espaces/sauts de ligne.
+    cleaned = []
+    for g in raw:
+        g = _html.unescape(g)              # &amp; -> & , &eacute; -> e...
+        g = re.sub(r'\s+', ' ', g).strip()  # \r\n, tabs, espaces multiples -> 1
+        if g and len(g) > 1:
+            cleaned.append(g)
+
+    # 2. Recolle « Science » + « Fiction » adjacents -> « Science-Fiction ».
+    merged = []
+    i = 0
+    while i < len(cleaned):
+        cur = cleaned[i]
+        nxt = cleaned[i + 1] if i + 1 < len(cleaned) else None
+        if cur.lower() == "science" and nxt and nxt.lower() == "fiction":
+            merged.append("Science-Fiction")
+            i += 2
+            continue
+        # « Fiction » isole (reste d'un « Science-Fiction » deja partiel) : on le
+        # fusionne dans le precedent si c'etait Science, sinon on l'ignore comme
+        # genre bruit (une « Fiction » seule n'est pas un vrai genre anime-sama).
+        if cur.lower() == "fiction":
+            i += 1
+            continue
+        merged.append(cur)
+        i += 1
+
+    # 3. Deduplication insensible a la casse, ordre conserve.
+    seen = set()
+    out = []
+    for g in merged:
+        k = g.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(g)
+    return out
+
+
 def _scrape_detail(slug, timeout=15):
     """Re-scrape la fiche /catalogue/<slug>/ et renvoie synopsis + banniere +
     cover + genres. Reproduit action_catalogue_detail du wrapper.
@@ -303,7 +354,7 @@ def _scrape_detail(slug, timeout=15):
         pills = re.findall(
             r'<span[^>]+class="[^"]*genre-pill[^"]*"[^>]*>([^<]+)</span>',
             mw.group(1), re.I)
-        out["genres"] = [g.strip() for g in pills if g.strip()]
+        out["genres"] = _normalize_genres(pills)
     # Cover (thumbnail) derivee du slug ; banniere = image de la fiche si presente.
     out["cover_url"] = (
         "https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/"

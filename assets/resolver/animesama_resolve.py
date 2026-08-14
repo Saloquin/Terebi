@@ -459,6 +459,45 @@ def _norm(text):
     return re.sub(r'[^a-z0-9]', '', text.lower())
 
 
+def _normalize_genres(raw):
+    """Nettoie et normalise une liste de genres scrapes anime-sama.
+
+    Corrige les defauts constates : entites HTML non decodees (&amp;), espaces /
+    retours ligne parasites ('Surnaturel\\n'), « Science-Fiction » eclate en deux
+    pills « Science » + « Fiction », variantes de casse. Recolle, decode,
+    deduplique en conservant l'ordre.
+    """
+    import html as _html
+    cleaned = []
+    for g in raw:
+        g = _html.unescape(g)
+        g = re.sub(r'\s+', ' ', g).strip()
+        if g and len(g) > 1:
+            cleaned.append(g)
+    merged = []
+    i = 0
+    while i < len(cleaned):
+        cur = cleaned[i]
+        nxt = cleaned[i + 1] if i + 1 < len(cleaned) else None
+        if cur.lower() == "science" and nxt and nxt.lower() == "fiction":
+            merged.append("Science-Fiction")
+            i += 2
+            continue
+        if cur.lower() == "fiction":  # « Fiction » orpheline = bruit
+            i += 1
+            continue
+        merged.append(cur)
+        i += 1
+    seen = set()
+    out = []
+    for g in merged:
+        k = g.lower()
+        if k not in seen:
+            seen.add(k)
+            out.append(g)
+    return out
+
+
 def action_planning(mod, dl, args):
     """Planning hebdomadaire : jour + heure + titre + url + index de saison courante.
 
@@ -574,14 +613,14 @@ def action_catalogue_detail(mod, dl, args):
             pills = re.findall(
                 r'<span[^>]+class="[^"]*genre-pill[^"]*"[^>]*>([^<]+)</span>',
                 mw.group(1), re.I)
-            detail["genres"] = [g.strip() for g in pills if g.strip()]
+            detail["genres"] = _normalize_genres(pills)
         if not detail["genres"]:
             mg = re.search(r'Genres?\s*</[^>]+>\s*<[^>]*>(.*?)</', html,
                            re.DOTALL | re.I)
             if mg:
-                detail["genres"] = [
-                    g.strip() for g in re.split(r'[,\n]', mg.group(1))
-                    if g.strip() and '<' not in g]
+                detail["genres"] = _normalize_genres(
+                    [g for g in re.split(r'[,\n]', mg.group(1))
+                     if g.strip() and '<' not in g])
         # Cover (thumbnail) et banniere derivees du slug sur le CDN Anime-Sama
         # (extension testee dans l'ordre jpg/webp/png). La cover est la
         # vignette utilisee par les cartes.
@@ -662,9 +701,9 @@ def _cards_from_html(mod, html):
         # Cover : src reel de card-image (repli : autre <img>, sinon CDN slug).
         mc = img_re.search(inner) or img_alt_re.search(inner)
         cover_url = mc.group(1).strip() if mc else _cdn_image_url(slug, probe=False)
-        # Genres : textes des tags <span class="genre-tag">.
-        genres = [g.strip() for g in genre_tag_re.findall(inner)
-                  if len(g.strip()) > 1]
+        # Genres : textes des tags <span class="genre-tag">, normalises
+        # (decodage entites, recollage Science-Fiction, dedup).
+        genres = _normalize_genres(genre_tag_re.findall(inner))
         items.append({
             "title": title,
             "url": "https://{}/catalogue/{}/".format(mod.DOMAIN, slug),
