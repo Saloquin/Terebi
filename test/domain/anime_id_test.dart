@@ -153,18 +153,18 @@ void main() {
   });
 
   group('URLs image CDN derivees du slug', () {
-    test('animeSamaCoverUrl : chemin thumb + extension', () {
+    test('animeSamaCoverUrl : chemin thumb, defaut webp', () {
       expect(
         animeSamaCoverUrl('link-click'),
-        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/link-click.jpg',
+        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/link-click.webp',
       );
       expect(
-        animeSamaCoverUrl('one-piece', ext: 'webp'),
-        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/one-piece.webp',
+        animeSamaCoverUrl('one-piece', ext: 'jpg'),
+        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/one-piece.jpg',
       );
     });
 
-    test('animeSamaBannerUrl : chemin sans thumb + extension', () {
+    test('animeSamaBannerUrl : chemin sans thumb, defaut jpg', () {
       expect(
         animeSamaBannerUrl('one-piece'),
         'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/one-piece.jpg',
@@ -175,8 +175,10 @@ void main() {
       );
     });
 
-    test('ordre des extensions testees : jpg, webp, png', () {
-      expect(animeSamaImageExtensions, ['jpg', 'webp', 'png']);
+    test('ordres d extensions par type (cover=webp d abord, banner=jpg d abord)',
+        () {
+      expect(animeSamaCoverExtensions, ['webp', 'jpg', 'png']);
+      expect(animeSamaBannerExtensions, ['jpg', 'webp', 'png']);
     });
   });
 }

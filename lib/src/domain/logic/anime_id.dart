@@ -165,20 +165,24 @@ int animeSamaIdForSlug(String slug) {
   return positive == 0 ? 1 : positive;
 }
 
-/// Extensions d'image testées dans l'ordre pour une couverture/bannière CDN
-/// (le nom de fichier CDN ne porte pas d'extension connue d'avance).
-const animeSamaImageExtensions = ['jpg', 'webp', 'png'];
+/// Extensions testées dans l'ordre pour une **couverture/thumbnail** CDN.
+/// Les thumbs Anime-Sama sont quasi toujours en `.webp` → on l'essaie d'abord
+/// (evite un 404 systematique sur `.jpg`). Les autres sont un repli.
+const animeSamaCoverExtensions = ['webp', 'jpg', 'png'];
+
+/// Extensions testées dans l'ordre pour une **bannière** CDN.
+/// Les bannieres sont quasi toujours en `.jpg` → on l'essaie d'abord.
+const animeSamaBannerExtensions = ['jpg', 'webp', 'png'];
 
 /// URL de couverture (thumbnail) d'un [slug] sur le CDN Anime-Sama, pour une
-/// extension [ext] donnée. Les thumbs sont quasi toujours en `.webp`, mais
-/// l'appelant teste [animeSamaImageExtensions] dans l'ordre.
+/// extension [ext] donnée (defaut `webp`, l'extension reelle des thumbs).
 ///
-/// Ex. `link-click` → `.../IMG@img/contenu/thumb/link-click.jpg`.
-String animeSamaCoverUrl(String slug, {String ext = 'jpg'}) =>
+/// Ex. `link-click` → `.../IMG@img/contenu/thumb/link-click.webp`.
+String animeSamaCoverUrl(String slug, {String ext = 'webp'}) =>
     'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/$slug.$ext';
 
 /// URL de bannière (grande image) d'un [slug] sur le CDN Anime-Sama, pour une
-/// extension [ext] donnée. Quasi toujours en `.jpg`.
+/// extension [ext] donnée (defaut `jpg`, l'extension reelle des bannieres).
 ///
 /// Ex. `one-piece` → `.../IMG@img/contenu/one-piece.jpg`.
 String animeSamaBannerUrl(String slug, {String ext = 'jpg'}) =>

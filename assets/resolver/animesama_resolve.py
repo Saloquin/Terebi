@@ -418,28 +418,32 @@ def _slug_from_url(url):
     return m.group(1).strip() if m else ''
 
 
-# Extensions testees dans l'ordre pour trouver l'image CDN d'un slug.
-_CDN_IMAGE_EXTS = ("jpg", "webp", "png")
+# Extensions testees dans l'ordre pour trouver l'image CDN d'un slug, selon le
+# type : les thumbnails sont en .webp, les bannieres en .jpg (constate sur le
+# CDN Anime-Sama). On met la plus probable en premier pour eviter un 404 inutile.
+_CDN_COVER_EXTS = ("webp", "jpg", "png")
+_CDN_BANNER_EXTS = ("jpg", "webp", "png")
 
 
 def _cdn_image_url(slug, banner=False, probe=True):
     """URL de l'image CDN Anime-Sama derivee du [slug].
 
-    - cover/thumbnail : .../IMG@img/contenu/thumb/<slug>.<ext>
-    - banniere         : .../IMG@img/contenu/<slug>.<ext>
+    - cover/thumbnail : .../IMG@img/contenu/thumb/<slug>.<ext> (defaut .webp)
+    - banniere         : .../IMG@img/contenu/<slug>.<ext>       (defaut .jpg)
 
-    Si [probe] (defaut), teste _CDN_IMAGE_EXTS (jpg, webp, png) via HEAD et
-    retient la premiere qui repond 200. Sinon (listes de cartes : on evite N
-    requetes reseau), renvoie directement la 1re extension : cote Dart, le
-    widget re-teste les extensions a l'affichage.
+    Si [probe] (defaut), teste les extensions du bon type (webp d'abord pour la
+    cover, jpg d'abord pour la banniere) via HEAD et retient la premiere qui
+    repond 200. Sinon (listes de cartes : on evite N requetes reseau), renvoie
+    directement la 1re extension : cote Dart, le widget re-teste les extensions.
     """
     sub = "thumb/" if not banner else ""
+    exts = _CDN_BANNER_EXTS if banner else _CDN_COVER_EXTS
     base = "https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/" + sub
-    default = "{}{}.{}".format(base, slug, _CDN_IMAGE_EXTS[0])
+    default = "{}{}.{}".format(base, slug, exts[0])
     if not probe:
         return default
     import requests
-    for ext in _CDN_IMAGE_EXTS:
+    for ext in exts:
         url = "{}{}.{}".format(base, slug, ext)
         try:
             r = requests.head(url, timeout=8, allow_redirects=True)

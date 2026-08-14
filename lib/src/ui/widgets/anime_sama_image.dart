@@ -1,8 +1,8 @@
 /// Widget d'image d'anime dérivée du **slug** anime-sama (CDN).
 ///
 /// L'image (cover/thumbnail ou bannière) n'existe pas sous une extension connue
-/// d'avance sur le CDN : on essaie les extensions dans l'ordre
-/// [animeSamaImageExtensions] (`jpg`, `webp`, `png`) via l'`errorBuilder` de
+/// d'avance sur le CDN : on essaie les extensions dans l'ordre adapté au type
+/// (cover → `webp` d'abord, banner → `jpg` d'abord) via l'`errorBuilder` de
 /// `Image.network`, en passant à la suivante à chaque échec, jusqu'à en trouver
 /// une qui charge. Un [fallbackUrl] optionnel (ex. URL déjà en base) est essayé
 /// en tout premier. Si tout échoue, affiche un placeholder.
@@ -70,15 +70,20 @@ class _AnimeSamaImageState extends State<AnimeSamaImage> {
   }
 
   /// Construit la liste ordonnée : [fallbackUrl] (si présent) puis chaque
-  /// extension du CDN dans l'ordre [animeSamaImageExtensions].
+  /// extension du CDN dans l'ordre adapté au type (cover=webp d'abord,
+  /// banner=jpg d'abord).
   List<String> _buildCandidates() {
     final urls = <String>[];
     final fb = widget.fallbackUrl;
     if (fb != null && fb.isNotEmpty) urls.add(fb);
-    for (final ext in animeSamaImageExtensions) {
-      urls.add(widget.banner
+    final exts = widget.banner
+        ? animeSamaBannerExtensions
+        : animeSamaCoverExtensions;
+    for (final ext in exts) {
+      final url = widget.banner
           ? animeSamaBannerUrl(widget.slug, ext: ext)
-          : animeSamaCoverUrl(widget.slug, ext: ext));
+          : animeSamaCoverUrl(widget.slug, ext: ext);
+      if (!urls.contains(url)) urls.add(url);
     }
     return urls;
   }
@@ -92,9 +97,17 @@ class _AnimeSamaImageState extends State<AnimeSamaImage> {
     if (widget.slug.isEmpty || _index >= _candidates.length) {
       return placeholder;
     }
+    final url = _candidates[_index];
     return Image.network(
-      _candidates[_index],
+      url,
+      // Cle sur l'URL : force le rechargement quand l'URL change (recyclage de
+      // tuile en liste, ou passage a l'extension suivante) au lieu de garder
+      // l'ancienne image affichee.
+      key: ValueKey(url),
       fit: widget.fit,
+      // Garde l'image precedente affichee pendant le chargement de la nouvelle
+      // (evite un flash de placeholder au recyclage/scroll).
+      gaplessPlayback: true,
       // Passe à la candidate suivante au prochain frame (evite setState en build).
       errorBuilder: (context, _, __) {
         if (_index < _candidates.length - 1) {
