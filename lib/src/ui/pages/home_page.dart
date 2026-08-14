@@ -2,13 +2,11 @@
 ///
 /// Ordre des rangées :
 ///  1. Regardé récemment (historique de lancements récent)
-///  2. En ce moment (historique de lancements agrégé par fréquence)
-///  3. Continuer à regarder (statut en cours)
-///  4. Sortis du moment (planning anime-sama de la semaine)
-///  5. Les classiques (liste anime-sama)
-///  6. Derniers contenus ajoutes (catalogue anime-sama)
-///  7. Ca pourrait vous plaire (union des genres favoris)
-///  8. Par genre (catalogue anime-sama, une rangée par genre, ordre alphabétique)
+///  2. Continuer à regarder (statut en cours)
+///  3. Sortis du moment (planning anime-sama de la semaine)
+///  4. Les classiques (liste anime-sama)
+///  5. Ça pourrait vous plaire (union des 3 genres les plus regardés)
+///  6. Par genre (une rangée par genre regardé, du plus au moins regardé)
 library;
 
 import 'package:flutter/material.dart';
@@ -95,12 +93,6 @@ final _classicsProvider = FutureProvider<List<Media>>((ref) async {
   return _itemsToMedia(ref, home.classics);
 });
 
-/// « Derniers episodes ajoutes » (home anime-sama).
-final _latestProvider = FutureProvider<List<Media>>((ref) async {
-  final home = await ref.watch(animeSamaHomeProvider.future);
-  return _itemsToMedia(ref, home.latestEpisodes);
-});
-
 /// Recommandations par genre (catalogue anime-sama).
 final _byGenreProvider =
     FutureProvider.family<List<Media>, String>((ref, genre) async {
@@ -108,23 +100,29 @@ final _byGenreProvider =
   return _itemsToMedia(ref, items);
 });
 
-/// Genres favoris de l'utilisateur (les plus présents dans sa bibliothèque),
-/// classés par occurrence décroissante. Retourne au plus [max] genres.
-final _favoriteGenresProvider =
-    FutureProvider.family<List<String>, int>((ref, max) async {
-  final all = await ref.watch(mediaRepositoryProvider).getAllMedia();
-  final entries = await ref.watch(listRepositoryProvider).getAllEntries();
-  final followed = entries.map((e) => e.mediaId).toSet();
+/// Genres regardés par l'utilisateur, agrégés depuis l'historique de visionnage
+/// (chaque lancement de lecture compte). Tri par NOMBRE DE VISUALISATIONS
+/// décroissant. Retourne TOUS les genres vus au moins une fois. À départage
+/// égal, ordre alphabétique pour un affichage stable.
+final _watchedGenresProvider = FutureProvider<List<String>>((ref) async {
+  final history = await ref.watch(watchHistoryRepositoryProvider).all();
+  if (history.isEmpty) return const [];
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
+  final genresByMedia = <int, List<String>>{};
   final counts = <String, int>{};
-  for (final m in all) {
-    if (!followed.contains(m.anilistId)) continue;
-    for (final g in m.genres) {
+  for (final h in history) {
+    final genres = genresByMedia[h.mediaId] ??=
+        (await mediaRepo.getMedia(h.mediaId))?.genres ?? const [];
+    for (final g in genres) {
       counts[g] = (counts[g] ?? 0) + 1;
     }
   }
   final sorted = counts.keys.toList()
-    ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
-  return sorted.take(max).toList();
+    ..sort((a, b) {
+      final byCount = counts[b]!.compareTo(counts[a]!);
+      return byCount != 0 ? byCount : a.compareTo(b);
+    });
+  return sorted;
 });
 
 /// Ensemble des ids déjà présents dans la bibliothèque (toute entrée de liste).
@@ -150,26 +148,6 @@ final _libraryFilterProvider =
 String _normTitle(String t) =>
     t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
-/// « En ce moment » : ce que l'utilisateur regarde activement, dérivé de son
-/// historique de lancements agrégé (le plus lancé d'abord), résolu en [Media].
-final _mostWatchedProvider = FutureProvider<List<Media>>((ref) async {
-  final history = await ref.watch(watchHistoryRepositoryProvider).all();
-  if (history.isEmpty) return const [];
-  final counts = <int, int>{};
-  for (final h in history) {
-    counts[h.mediaId] = (counts[h.mediaId] ?? 0) + 1;
-  }
-  final ids = counts.keys.toList()
-    ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
-  final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final result = <Media>[];
-  for (final id in ids.take(20)) {
-    final m = await mediaRepo.getMedia(id);
-    if (m != null) result.add(m);
-  }
-  return result;
-});
-
 /// « Regarde recemment » : les derniers animes LANCES (historique recent, ordre
 /// chronologique inverse), dedupliques par mediaId. Distinct d'« En ce moment »
 /// (qui agrege par frequence). Resolu en [Media] via le cache local.
@@ -191,13 +169,14 @@ final _recentlyWatchedProvider = FutureProvider<List<Media>>((ref) async {
 });
 
 /// « Ça pourrait vous plaire » : union des animes (catalogue anime-sama) des 3
-/// genres les plus présents dans la bibliothèque, dédupliqués. Vide si aucun
-/// genre favori connu. Exclusion biblio appliquée par la rangée.
+/// genres les plus REGARDÉS (historique de visionnage), dédupliqués. Vide si
+/// aucun genre regardé connu. Exclusion biblio appliquée par la rangée.
 final _recommendedProvider = FutureProvider<List<Media>>((ref) async {
-  final genres = await ref.watch(_favoriteGenresProvider(3).future);
+  final genres = await ref.watch(_watchedGenresProvider.future);
   if (genres.isEmpty) return const [];
+  final top = genres.take(3);
   final results = await Future.wait(
-    genres.map((g) => ref.watch(animeSamaByGenreProvider(g).future)),
+    top.map((g) => ref.watch(animeSamaByGenreProvider(g).future)),
   );
   final seen = <int>{};
   final all = <AnimeSamaCatalogueItem>[];
@@ -220,8 +199,8 @@ class HomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Jusqu'à 10 genres pour les rangées par genre ; triés alphabétiquement.
-    final genresAsync = ref.watch(_favoriteGenresProvider(10));
+    // Tous les genres regardés, triés par nombre de visualisations décroissant.
+    final genresAsync = ref.watch(_watchedGenresProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -233,48 +212,35 @@ class HomePage extends ConsumerWidget {
           provider: _recentlyWatchedProvider,
           withResume: true,
         ),
-        // 2. En ce moment (historique agrégé par fréquence) — bouton reprise.
-        _MediaRow(
-          title: 'En ce moment',
-          provider: _mostWatchedProvider,
-          withResume: true,
-        ),
-        // 3. Continuer à regarder (statut en cours) — bouton reprise.
+        // 2. Continuer à regarder (statut en cours) — bouton reprise. Pas
+        //    d'exclusion biblio : ce sont ses propres animes.
         _MediaRow(
           title: 'Continuer à regarder',
           provider: _continueWatchingProvider,
           withResume: true,
         ),
-        // 4. Sortis du moment (planning de la semaine).
+        // 3. Sortis du moment (planning de la semaine).
         _MediaRow(
           title: 'Sortis du moment',
           provider: _recentlyReleasedProvider,
           excludeLibrary: true,
         ),
-        // 5. Les classiques (liste anime-sama).
+        // 4. Les classiques (liste anime-sama).
         _MediaRow(
           title: 'Les classiques',
           provider: _classicsProvider,
           excludeLibrary: true,
         ),
-        // 6. Derniers contenus ajoutés (catalogue anime-sama).
-        _MediaRow(
-          title: 'Derniers contenus ajoutes',
-          provider: _latestProvider,
-          excludeLibrary: true,
-        ),
-        // 7. Ça pourrait vous plaire (union des genres favoris).
+        // 5. Ça pourrait vous plaire (union des 3 genres les plus regardés).
         _MediaRow(
           title: 'Ca pourrait vous plaire',
           provider: _recommendedProvider,
           excludeLibrary: true,
         ),
-        // 8. Par genre : une rangée par genre, en ordre alphabétique.
+        // 6. Par genre : une rangée par genre regardé, par nb de visualisations
+        //    décroissant (l'ordre du provider est déjà celui-là).
         ...genresAsync.maybeWhen(
-          data: (genres) {
-            final sorted = [...genres]..sort();
-            return sorted.map((g) => _GenreRow(genre: g)).toList();
-          },
+          data: (genres) => genres.map((g) => _GenreRow(genre: g)).toList(),
           orElse: () => const <Widget>[],
         ),
       ],
@@ -295,11 +261,9 @@ class _MediaRow extends ConsumerWidget {
   final bool withResume;
   final bool excludeLibrary;
 
-  /// Nombre max de cartes par rangée (borne le carrousel).
-  static const int _maxCards = 20;
-
-  /// Nombre MIN de cartes pour activer la boucle infinie.
-  static const int _minCardsForLoop = 13;
+  /// Nombre MIN de cartes pour activer la boucle infinie (en dessous, on
+  /// affiche la liste telle quelle sans reboucler).
+  static const int _minCardsForLoop = 6;
 
   /// Largeur/hauteur des grandes cartes.
   static const double _cardWidth = 200;
@@ -335,9 +299,6 @@ class _MediaRow extends ConsumerWidget {
             }).toList();
           }
         }
-
-        // Borne le nombre de cartes.
-        if (items.length > _maxCards) items = items.sublist(0, _maxCards);
 
         if (items.isEmpty) return const SizedBox.shrink();
 

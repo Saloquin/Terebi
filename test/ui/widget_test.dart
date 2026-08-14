@@ -479,7 +479,9 @@ void main() {
       ));
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Les classiques'), findsOneWidget);
-      expect(find.text('Derniers contenus ajoutes'), findsOneWidget);
+      // « Derniers contenus » a ete retiree ; seule « Les classiques » utilise
+      // la section home ici.
+      expect(find.text('Derniers contenus ajoutes'), findsNothing);
       await db.close();
     });
   });
