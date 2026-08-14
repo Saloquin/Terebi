@@ -32,20 +32,17 @@ final _searchResultsProvider =
   return resolver.search(query: query.trim(), language: language);
 });
 
-/// Résout un titre anime-sama en [Media] (image/description). Cherche d'abord
-/// le cache local (par id anime-sama) ; retourne un Media minimal si absent.
+/// Résout un item catalogue en [Media] (image/description). Cherche d'abord
+/// le cache local (par id slug anime-sama) ; retourne un Media minimal si absent.
 /// Réutilisé par la vignette de chaque résultat.
-final _mediaForTitleProvider =
-    FutureProvider.family<Media, String>((ref, title) async {
+final _mediaForItemProvider =
+    FutureProvider.family<Media, ({String slug, String title})>(
+        (ref, arg) async {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final id = animeSamaIdFor(title);
+  final id = animeSamaIdForSlug(arg.slug);
   final cached = await mediaRepo.getMedia(id);
   if (cached != null) return cached;
-  return Media(
-    anilistId: id,
-    title: MediaTitle(romaji: title),
-    animeSamaTitle: title,
-  );
+  return Media.fromAnimeSama(slug: arg.slug, title: arg.title);
 });
 
 /// Page de recherche du catalogue.
@@ -205,15 +202,15 @@ class _CatalogTile extends ConsumerWidget {
   final AnimeSamaCatalogueItem item;
   const _CatalogTile({required this.item});
 
-  void _openDetail(BuildContext context) {
-    // Navigation IMMÉDIATE (pas d'attente réseau) : l'identité est l'id
-    // anime-sama dérivé du titre (instantané). La fiche charge l'enrichissement
-    // AniList (image/description) en arrière-plan via son propre provider.
+  void _openDetail(BuildContext context, String slug) {
+    // Navigation IMMÉDIATE (pas d'attente réseau) : l'identité est l'id slug
+    // anime-sama (positif, stable). La fiche charge l'enrichissement AniList
+    // (image/description) en arrière-plan via son propre provider.
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => MediaDetailPage(
-          anilistId: animeSamaIdFor(item.title),
+          anilistId: animeSamaIdForSlug(slug),
           displayTitle: item.title,
         ),
       ),
@@ -222,14 +219,15 @@ class _CatalogTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaAsync = ref.watch(_mediaForTitleProvider(item.title));
+    final slug = item.slug.isNotEmpty ? item.slug : slugFromCatalogueUrl(item.url);
+    final mediaAsync = ref.watch(_mediaForItemProvider((slug: slug, title: item.title)));
     final coverUrl = mediaAsync.asData?.value.coverUrl;
 
     return ListTile(
       leading: _Thumbnail(coverUrl: coverUrl, loading: mediaAsync.isLoading),
       title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       trailing: const Icon(Icons.chevron_right),
-      onTap: () => _openDetail(context),
+      onTap: () => _openDetail(context, slug),
     );
   }
 }

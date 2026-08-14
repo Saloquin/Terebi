@@ -30,13 +30,14 @@ import 'player_page.dart';
 /// fiche de détail — évite un second scraping du planning.
 final _planningProvider = animeSamaPlanningProvider;
 
-/// Résout (lazy, caché) un titre anime-sama en [Media] pour la vignette.
-/// Cherche d'abord le cache local (par id anime-sama), puis retourne un Media
-/// minimal si absent (couverture absente = dégradé gracieux).
-final _mediaForTitleProvider =
-    FutureProvider.family<Media?, String>((ref, title) async {
+/// Résout (lazy, caché) un item planning anime-sama en [Media] pour la vignette.
+/// Cherche d'abord le cache local (par id slug anime-sama), puis retourne null
+/// si absent (couverture absente = dégradé gracieux).
+final _mediaForItemProvider =
+    FutureProvider.family<Media?, ({String slug, String title})>(
+        (ref, arg) async {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final id = animeSamaIdFor(title);
+  final id = animeSamaIdForSlug(arg.slug);
   final cached = await mediaRepo.getMedia(id);
   if (cached != null) return cached;
   // Pas encore en cache : retourne null (la couverture sera absente).
@@ -118,7 +119,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       List<AnimeSamaPlanningItem> items, Set<int> persoIds) {
     if (persoIds.isEmpty) return false;
     for (final it in items) {
-      if (persoIds.contains(animeSamaIdFor(it.title))) return true;
+      final slug = it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
+      if (persoIds.contains(animeSamaIdForSlug(slug))) return true;
     }
     return false;
   }
@@ -316,17 +318,16 @@ class _PlanningCard extends ConsumerStatefulWidget {
 class _PlanningCardState extends ConsumerState<_PlanningCard> {
   bool _busy = false;
 
-  /// Récupère le Media depuis le cache local (par id anime-sama), ou construit
-  /// un Media minimal si absent. Jamais null : le lecteur a toujours un titre.
+  /// Récupère le Media depuis le cache local (par id slug anime-sama), ou
+  /// construit un Media minimal si absent. Jamais null : le lecteur a toujours un titre.
   Future<Media> _resolveMedia() async {
-    final id = animeSamaIdFor(widget.item.title);
+    final slug = widget.item.slug.isNotEmpty
+        ? widget.item.slug
+        : slugFromCatalogueUrl(widget.item.url);
+    final id = animeSamaIdForSlug(slug);
     final cached = await ref.read(mediaRepositoryProvider).getMedia(id);
     if (cached != null) return cached;
-    return Media(
-      anilistId: id,
-      title: MediaTitle(romaji: widget.item.title),
-      animeSamaTitle: widget.item.title,
-    );
+    return Media.fromAnimeSama(slug: slug, title: widget.item.title);
   }
 
   Future<void> _launch() async {
@@ -415,12 +416,13 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final mediaAsync = ref.watch(_mediaForTitleProvider(item.title));
+    final slug = item.slug.isNotEmpty ? item.slug : slugFromCatalogueUrl(item.url);
+    final mediaAsync = ref.watch(_mediaForItemProvider((slug: slug, title: item.title)));
     final media = mediaAsync.asData?.value;
 
-    // Identité stable de l'anime (id anime-sama dérivé du titre) : indépendante
+    // Identité stable de l'anime (id slug anime-sama) : positive, indépendante
     // du rematch AniList, disponible immédiatement.
-    final id = animeSamaIdFor(item.title);
+    final id = animeSamaIdForSlug(slug);
     final inLibrary = widget.libraryIds.contains(id);
     final inPerso = widget.persoIds.contains(id);
 

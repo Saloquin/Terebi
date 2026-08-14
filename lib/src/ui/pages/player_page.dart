@@ -625,8 +625,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   void _invalidateStatusProviders() {
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
-    ref.invalidate(listEntryProvider(widget.media.anilistId));
-    ref.invalidate(hasProgressProvider(widget.media.anilistId));
   }
 
   /// Garantit qu'une entrée de bibliothèque EXISTE dès qu'on lance la lecture
@@ -652,8 +650,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ));
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
-      ref.invalidate(listEntryProvider(widget.media.anilistId));
-      ref.invalidate(hasProgressProvider(widget.media.anilistId));
     } catch (_) {/* best-effort : ne bloque pas la lecture */}
   }
 
@@ -829,8 +825,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ));
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
-      ref.invalidate(listEntryProvider(widget.media.anilistId));
-      ref.invalidate(hasProgressProvider(widget.media.anilistId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Anime terminé ! 🎉')),
@@ -949,8 +943,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           );
           ref.invalidate(entriesByStatusProvider);
           ref.invalidate(countByStatusProvider);
-          ref.invalidate(listEntryProvider(widget.media.anilistId));
-          ref.invalidate(hasProgressProvider(widget.media.anilistId));
         }
       }
     } catch (_) {/* best-effort */}
