@@ -16,6 +16,11 @@ Usage :
     python scripts/check_db.py --clean-anilist-images         # DRY-RUN : liste les images concernees
     python scripts/check_db.py --clean-anilist-images --apply # met ces images a NULL (avec .bak)
 
+    # Re-resolution des genres manquants (re-scrape la fiche anime-sama de chaque
+    # media a genres_json vide et ecrit les genres en base) :
+    python scripts/check_db.py --refresh-genres               # DRY-RUN : liste les medias a re-resoudre
+    python scripts/check_db.py --refresh-genres --apply       # scrape et ecrit genres_json (avec .bak)
+
 Le rapport affiche : nombre d'animes, combien ont un slug (migres) vs legacy
 (id negatif), la progression par anime (statut + episode de liste + progression
 par saison 'anime_sama_watched:<id>:<s>'), et 'slug_migration_report' /
@@ -86,6 +91,7 @@ def main():
     args = sys.argv[1:]
     purge = "--purge-slug-report" in args
     clean_images = "--clean-anilist-images" in args
+    refresh_genres = "--refresh-genres" in args
     apply_changes = "--apply" in args
     positional = [a for a in args if not a.startswith("--")]
 
@@ -121,6 +127,10 @@ def main():
     # Nettoyage optionnel des images residuelles AniList (cover_url/banner_url).
     if clean_images:
         _clean_anilist_images(path, apply_changes)
+
+    # Re-resolution optionnelle des genres manquants (re-scrape les fiches).
+    if refresh_genres:
+        _refresh_genres(path, apply_changes)
 
 
 # Hotes d'images des anciennes sources (AniList / MyAnimeList / Kitsu). Une
@@ -206,6 +216,131 @@ def _clean_anilist_images(path, apply_changes):
     print("\n{} media(s) nettoye(s) : cover_url/banner_url AniList mis a NULL.".format(
         len(rows)))
     print("L'app re-resoudra les images via anime-sama au prochain affichage.")
+    print("En cas de probleme, restaure la sauvegarde :")
+    print('  copy "{}" "{}"   (Windows)'.format(backup, path))
+
+
+def _scrape_genres(slug, timeout=15):
+    """Re-scrape la fiche /catalogue/<slug>/ et renvoie la liste des genres.
+
+    Reproduit le parsing du wrapper (genres-wrap / genre-pill). Autonome : ne
+    depend pas de anime_sama.py. Renvoie [] si echec reseau ou aucun genre.
+    """
+    import re
+    try:
+        import requests
+    except ImportError:
+        return None  # signal : dependance manquante
+    url = "https://anime-sama.to/catalogue/{}/".format(slug)
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        html = requests.get(url, headers=headers, timeout=timeout).text
+    except Exception:  # noqa: BLE001 — best-effort, tout echec = pas de genres
+        return []
+    mw = re.search(
+        r'<div[^>]+class="[^"]*genres-wrap[^"]*"[^>]*>(.*?)</div>',
+        html, re.DOTALL | re.I)
+    if not mw:
+        return []
+    pills = re.findall(
+        r'<span[^>]+class="[^"]*genre-pill[^"]*"[^>]*>([^<]+)</span>',
+        mw.group(1), re.I)
+    return [g.strip() for g in pills if g.strip()]
+
+
+def _refresh_genres(path, apply_changes):
+    print("\n" + "#" * 70)
+    print("RE-RESOLUTION DES GENRES MANQUANTS (genres_json vide)")
+    print("#" * 70)
+
+    con = _open_readonly(path)
+    try:
+        if not _table_exists(con, "media_table"):
+            print("(table media_table absente — rien a faire.)")
+            return
+        has_slug = _has_column(con, "media_table", "anime_sama_slug")
+        if not has_slug:
+            print("(colonne anime_sama_slug absente — base non migree, "
+                  "impossible de scraper. Migration requise d'abord.)")
+            return
+        # Medias a genres vides : genres_json NULL, '', '[]' ou absent.
+        rows = con.execute(
+            "SELECT anilist_id, anime_sama_slug, "
+            "COALESCE(anime_sama_title, title_english, title_romaji, "
+            "title_native), genres_json "
+            "FROM media_table "
+            "WHERE anime_sama_slug IS NOT NULL AND anime_sama_slug <> '' "
+            "AND (genres_json IS NULL OR genres_json = '' "
+            "OR genres_json = '[]')"
+        ).fetchall()
+    finally:
+        con.close()
+
+    if not rows:
+        print("Aucun media a genres vides (avec slug). Rien a faire.")
+        return
+
+    print("\n{} media(s) a genres vides (avec slug) :".format(len(rows)))
+    for mid, slug, title, _ in rows:
+        print("  id={:<12} [{:<28}] {}".format(
+            mid, slug[:28], (title or "?")[:35]))
+
+    if not apply_changes:
+        print("\n--- DRY-RUN : aucun scrape, aucune ecriture. ---")
+        print("Pour re-resoudre reellement (scrape reseau + ecriture, avec .bak) :")
+        print('  python scripts/check_db.py "{}" --refresh-genres --apply'.format(
+            path))
+        return
+
+    backup = path + ".bak"
+    shutil.copy2(path, backup)
+    print("\nSauvegarde creee :", backup)
+
+    # Scrape chaque fiche (reseau). Best-effort : on ecrit ce qu'on trouve.
+    resolved = {}   # anilist_id -> [genres]
+    missing_dep = False
+    print("\nScraping des fiches (peut prendre un moment)...")
+    for mid, slug, title, _ in rows:
+        genres = _scrape_genres(slug)
+        if genres is None:
+            missing_dep = True
+            break
+        if genres:
+            resolved[mid] = genres
+            print("  OK   {:<28} -> {}".format(slug[:28], ", ".join(genres)))
+        else:
+            print("  vide {:<28} (aucun genre trouve)".format(slug[:28]))
+
+    if missing_dep:
+        print("\nERREUR : le module 'requests' est requis pour scraper.")
+        print("  pip install requests")
+        print("Base intacte ; sauvegarde disponible :", backup)
+        return
+
+    if not resolved:
+        print("\nAucun genre resolu (reseau ou fiches vides). Base inchangee.")
+        return
+
+    con = sqlite3.connect(path)  # lecture-ecriture
+    try:
+        con.execute("BEGIN")
+        for mid, genres in resolved.items():
+            con.execute(
+                "UPDATE media_table SET genres_json = ? WHERE anilist_id = ?",
+                (json.dumps(genres, ensure_ascii=False), mid))
+        con.execute("COMMIT")
+    except sqlite3.Error as e:
+        con.execute("ROLLBACK")
+        print("ERREUR — re-resolution annulee (ROLLBACK) :", e)
+        print("Base intacte ; sauvegarde disponible :", backup)
+        con.close()
+        sys.exit(1)
+    finally:
+        con.close()
+
+    print("\n{} media(s) mis a jour (genres_json ecrit).".format(len(resolved)))
+    print("Relance 'python scripts/check_db.py' : la section ACCUEIL doit")
+    print("maintenant lister les genres regardes.")
     print("En cas de probleme, restaure la sauvegarde :")
     print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
