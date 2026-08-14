@@ -92,8 +92,14 @@ class MediaCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  _FormatBadge(media: media),
+                  // Badge format/episodes : masque s'il n'apporte aucune info
+                  // (anime-sama ne fournit ni format ni nb d'episodes global ->
+                  // eviter un badge « ? » inutile sur toutes les cartes).
+                  if (media.format != AnimeFormat.unknown ||
+                      media.episodes != null) ...[
+                    const SizedBox(height: 4),
+                    _FormatBadge(media: media),
+                  ],
                 ],
               ),
             ),
