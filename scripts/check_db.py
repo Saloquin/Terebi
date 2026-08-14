@@ -1,20 +1,31 @@
 #!/usr/bin/env python3
-"""Inspecte la base SQLite de Terebi (LECTURE SEULE) et affiche un rapport.
+"""Inspecte la base SQLite de Terebi et affiche un rapport (LECTURE SEULE par defaut).
 
 Sert a verifier l'etat de la progression AVANT et APRES le 1er demarrage
-post-refactor (migration titre -> slug). N'ECRIT JAMAIS dans la base.
+post-refactor (migration titre -> slug).
 
 Usage :
-    python scripts/check_db.py                      # cherche la db aux emplacements connus
-    python scripts/check_db.py "C:/chemin/vers/terebi.db"
+    python scripts/check_db.py                       # rapport seul (aucune ecriture)
+    python scripts/check_db.py "C:/.../terebi.db"    # chemin explicite
 
-Sortie : nombre d'animes, combien ont deja un slug (migres) vs legacy (id
-negatif, pas encore migres), la progression par anime (statut + episode de liste
-+ progression par saison via les cles app_settings 'anime_sama_watched:<id>:<s>'),
-et le contenu de 'slug_migration_report' / 'slug_migration_done' s'ils existent.
+    # Purge des animes NON resolus par la migration (listes dans slug_migration_report) :
+    python scripts/check_db.py --purge-slug-report            # DRY-RUN : liste sans rien supprimer
+    python scripts/check_db.py --purge-slug-report --apply    # supprime reellement (avec sauvegarde .bak)
+
+Le rapport affiche : nombre d'animes, combien ont un slug (migres) vs legacy
+(id negatif), la progression par anime (statut + episode de liste + progression
+par saison 'anime_sama_watched:<id>:<s>'), et 'slug_migration_report' /
+'slug_migration_done'.
+
+--purge-slug-report supprime les animes dont le TITRE figure dans
+'slug_migration_report' (media_table + list_entries + cles de progression
+anime_sama_watched/season/lang/new_episode), puis vide le rapport. Sans --apply,
+il ne fait que LISTER (dry-run). Avec --apply, il copie d'abord la base en
+'<db>.bak' et opere dans une transaction.
 """
 
 import os
+import shutil
 import sqlite3
 import sys
 
@@ -35,9 +46,9 @@ def _candidate_paths():
     return paths
 
 
-def _resolve_db_path(argv):
-    if len(argv) > 1:
-        return argv[1]
+def _resolve_db_path(positional):
+    if positional:
+        return positional[0]
     for p in _candidate_paths():
         if os.path.isfile(p):
             return p
@@ -63,7 +74,12 @@ def _has_column(con, table, column):
 
 
 def main():
-    path = _resolve_db_path(sys.argv)
+    args = sys.argv[1:]
+    purge = "--purge-slug-report" in args
+    apply_changes = "--apply" in args
+    positional = [a for a in args if not a.startswith("--")]
+
+    path = _resolve_db_path(positional)
     if not path:
         print("ERREUR : base introuvable. Passe le chemin en argument :")
         print('  python scripts/check_db.py "C:/Users/<toi>/AppData/Roaming/terebi/terebi.db"')
@@ -81,11 +97,116 @@ def main():
     print("Taille : {:.1f} Ko".format(os.path.getsize(path) / 1024))
     print("=" * 70)
 
+    # Rapport (toujours en lecture seule).
     con = _open_readonly(path)
     try:
         _report(con)
     finally:
         con.close()
+
+    # Purge optionnelle des animes non resolus (listes dans slug_migration_report).
+    if purge:
+        _purge_slug_report(path, apply_changes)
+
+
+def _purge_slug_report(path, apply_changes):
+    print("\n" + "#" * 70)
+    print("PURGE DES ANIMES NON RESOLUS (slug_migration_report)")
+    print("#" * 70)
+
+    # Lecture seule d'abord : recuperer la liste des titres non resolus.
+    con = _open_readonly(path)
+    try:
+        if not _table_exists(con, "app_settings"):
+            print("(table app_settings absente — rien a purger.)")
+            return
+        row = con.execute(
+            "SELECT value FROM app_settings WHERE key='slug_migration_report'"
+        ).fetchone()
+        titles = [t.strip() for t in (row[0].split("\n") if row and row[0] else []) if t.strip()]
+
+        if not titles:
+            print("slug_migration_report vide ou absent — aucun anime a purger.")
+            return
+
+        has_media = _table_exists(con, "media_table")
+        has_entries = _table_exists(con, "list_entries")
+        has_slug = has_media and _has_column(con, "media_table", "anime_sama_slug")
+
+        # Pour chaque titre du rapport, retrouver le media correspondant.
+        targets = []  # (title, media_id)
+        for title in titles:
+            r = con.execute(
+                "SELECT anilist_id FROM media_table "
+                "WHERE anime_sama_title = ? "
+                "   OR title_english = ? OR title_romaji = ? OR title_native = ?",
+                (title, title, title, title),
+            ).fetchall() if has_media else []
+            if r:
+                for (mid,) in r:
+                    targets.append((title, mid))
+            else:
+                targets.append((title, None))  # introuvable en base
+    finally:
+        con.close()
+
+    # Affiche le plan de suppression.
+    print("\n{} titre(s) dans le rapport :".format(len(titles)))
+    found = [(t, mid) for (t, mid) in targets if mid is not None]
+    missing = [t for (t, mid) in targets if mid is None]
+    for title, mid in found:
+        print("  [SUPPR] id={:<12} {}".format(mid, title))
+    for title in missing:
+        print("  [absent en base, ignore] {}".format(title))
+
+    if not found:
+        print("\nAucun media correspondant en base — rien a supprimer.")
+        return
+
+    if not apply_changes:
+        print("\n--- DRY-RUN : rien n'a ete supprime. ---")
+        print("Pour supprimer reellement (avec sauvegarde .bak) :")
+        print('  python scripts/check_db.py "{}" --purge-slug-report --apply'.format(path))
+        return
+
+    # --apply : sauvegarde puis suppression transactionnelle.
+    backup = path + ".bak"
+    shutil.copy2(path, backup)
+    print("\nSauvegarde creee :", backup)
+
+    ids = [mid for (_, mid) in found]
+    con = sqlite3.connect(path)  # lecture-ecriture
+    try:
+        con.execute("BEGIN")
+        for mid in ids:
+            con.execute("DELETE FROM media_table WHERE anilist_id = ?", (mid,))
+            con.execute("DELETE FROM list_entries WHERE media_id = ?", (mid,))
+            # Progression + reglages par media (cles app_settings prefixees).
+            con.execute(
+                "DELETE FROM app_settings WHERE key LIKE ?",
+                ("anime_sama_watched:{}:%".format(mid),),
+            )
+            for prefix in ("anime_sama_season:", "anime_sama_lang:", "new_episode:"):
+                con.execute(
+                    "DELETE FROM app_settings WHERE key = ?", (prefix + str(mid),)
+                )
+        # Vide le rapport (les cas sont traites).
+        con.execute(
+            "UPDATE app_settings SET value = '' WHERE key = 'slug_migration_report'"
+        )
+        con.execute("COMMIT")
+    except sqlite3.Error as e:
+        con.execute("ROLLBACK")
+        print("ERREUR — suppression annulee (ROLLBACK) :", e)
+        print("La base d'origine est intacte ; sauvegarde disponible :", backup)
+        con.close()
+        sys.exit(1)
+    finally:
+        con.close()
+
+    print("\n{} anime(s) supprime(s). slug_migration_report vide.".format(len(ids)))
+    print("En cas de probleme, restaure la sauvegarde :")
+    print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
 
 def _report(con):
