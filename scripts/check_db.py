@@ -266,12 +266,56 @@ def _scrape_genres(slug, timeout=15):
     return [g.strip() for g in pills if g.strip()]
 
 
+def _scrape_detail(slug, timeout=15):
+    """Re-scrape la fiche /catalogue/<slug>/ et renvoie synopsis + banniere +
+    cover + genres. Reproduit action_catalogue_detail du wrapper.
+
+    Renvoie None si le module requests manque (signal dependance). Sinon un dict
+    {synopsis, banner_url, cover_url, genres} ; chaque champ vaut None/[] si
+    absent ou en cas d'echec reseau (best-effort, ne leve jamais)."""
+    import re
+    try:
+        import requests
+    except ImportError:
+        return None  # signal : dependance manquante
+    out = {"synopsis": None, "banner_url": None, "cover_url": None, "genres": []}
+    url = "https://anime-sama.to/catalogue/{}/".format(slug)
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        html = requests.get(url, headers=headers, timeout=timeout).text
+    except Exception:  # noqa: BLE001 — best-effort
+        return out
+    ms = re.search(
+        r'<p[^>]+id="synopsisText"[^>]*>(.*?)</p>', html, re.DOTALL | re.I)
+    if ms:
+        text = re.sub(r'<[^>]+>', '', ms.group(1)).strip()
+        out["synopsis"] = text or None
+    mw = re.search(
+        r'<div[^>]+class="[^"]*genres-wrap[^"]*"[^>]*>(.*?)</div>',
+        html, re.DOTALL | re.I)
+    if mw:
+        pills = re.findall(
+            r'<span[^>]+class="[^"]*genre-pill[^"]*"[^>]*>([^<]+)</span>',
+            mw.group(1), re.I)
+        out["genres"] = [g.strip() for g in pills if g.strip()]
+    # Cover (thumbnail) derivee du slug ; banniere = image de la fiche si presente.
+    out["cover_url"] = (
+        "https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/"
+        "{}.webp".format(slug))
+    mb = re.search(r'<img[^>]+id="coverOeuvre"[^>]+src="([^"]+)"', html)
+    out["banner_url"] = mb.group(1) if mb else (
+        "https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/{}.jpg".format(
+            slug))
+    return out
+
+
 def _refresh_genres(path, apply_changes, force=False):
     print("\n" + "#" * 70)
     if force:
-        print("RE-RESOLUTION DES GENRES — TOUS les animes avec slug (--force)")
+        print("RE-RESOLUTION FICHE — TOUS les animes avec slug (--force)")
+        print("(synopsis + banniere + genres re-scrapes et ECRASES)")
     else:
-        print("RE-RESOLUTION DES GENRES MANQUANTS (genres_json vide)")
+        print("RE-RESOLUTION FICHE — champs manquants (synopsis/banniere/genres)")
     print("#" * 70)
 
     con = _open_readonly(path)
@@ -287,19 +331,23 @@ def _refresh_genres(path, apply_changes, force=False):
         base_select = (
             "SELECT anilist_id, anime_sama_slug, "
             "COALESCE(anime_sama_title, title_english, title_romaji, "
-            "title_native), genres_json FROM media_table "
+            "title_native), genres_json, description, banner_url "
+            "FROM media_table "
             "WHERE anime_sama_slug IS NOT NULL AND anime_sama_slug <> ''"
         )
         if force:
-            # Tous les animes avec slug : re-scrape et ECRASE les genres, y compris
-            # les residus AniList en anglais (Drama, Supernatural...) qui ne
-            # seraient jamais corriges par le mode "vides seulement".
+            # Tous les animes avec slug : re-scrape et ECRASE synopsis/banniere/
+            # genres, y compris les residus AniList en anglais (Drama,
+            # Supernatural...) et les fiches sans description/banniere.
             rows = con.execute(base_select).fetchall()
         else:
-            # Genres vides uniquement : genres_json NULL, '', '[]' ou absent.
+            # Champs manquants uniquement : genres vides OU description vide OU
+            # banniere vide.
             rows = con.execute(
-                base_select + " AND (genres_json IS NULL OR genres_json = '' "
-                "OR genres_json = '[]')"
+                base_select + " AND ("
+                "genres_json IS NULL OR genres_json = '' OR genres_json = '[]' "
+                "OR description IS NULL OR description = '' "
+                "OR banner_url IS NULL OR banner_url = '')"
             ).fetchall()
     finally:
         con.close()
@@ -308,9 +356,10 @@ def _refresh_genres(path, apply_changes, force=False):
         print("Aucun media a traiter (avec slug). Rien a faire.")
         return
 
-    label = "avec slug" if force else "a genres vides (avec slug)"
+    label = "avec slug" if force else "a champ(s) manquant(s)"
     print("\n{} media(s) {} :".format(len(rows), label))
-    for mid, slug, title, _ in rows[:60]:
+    for r in rows[:60]:
+        mid, slug, title = r[0], r[1], r[2]
         print("  id={:<12} [{:<28}] {}".format(
             mid, slug[:28], (title or "?")[:35]))
     if len(rows) > 60:
@@ -329,19 +378,35 @@ def _refresh_genres(path, apply_changes, force=False):
     print("\nSauvegarde creee :", backup)
 
     # Scrape chaque fiche (reseau). Best-effort : on ecrit ce qu'on trouve.
-    resolved = {}   # anilist_id -> [genres]
+    # resolved[mid] = dict des colonnes a mettre a jour (selon le mode).
+    resolved = {}
     missing_dep = False
     print("\nScraping des fiches (peut prendre un moment)...")
-    for mid, slug, title, _ in rows:
-        genres = _scrape_genres(slug)
-        if genres is None:
+    for r in rows:
+        mid, slug, title = r[0], r[1], r[2]
+        cur_genres, cur_desc, cur_banner = r[3], r[4], r[5]
+        detail = _scrape_detail(slug)
+        if detail is None:
             missing_dep = True
             break
-        if genres:
-            resolved[mid] = genres
-            print("  OK   {:<28} -> {}".format(slug[:28], ", ".join(genres)))
+        updates = {}
+        # Genres : en force on ecrase si on a trouve ; sinon on ne remplit que si vide.
+        genres_empty = (not cur_genres) or cur_genres in ("", "[]")
+        if detail["genres"] and (force or genres_empty):
+            updates["genres_json"] = json.dumps(
+                detail["genres"], ensure_ascii=False)
+        # Synopsis : idem.
+        if detail["synopsis"] and (force or not cur_desc):
+            updates["description"] = detail["synopsis"]
+        # Banniere : idem.
+        if detail["banner_url"] and (force or not cur_banner):
+            updates["banner_url"] = detail["banner_url"]
+        if updates:
+            resolved[mid] = updates
+            champs = "+".join(sorted(k.split("_")[0] for k in updates))
+            print("  OK   {:<28} -> {}".format(slug[:28], champs))
         else:
-            print("  vide {:<28} (aucun genre trouve)".format(slug[:28]))
+            print("  --   {:<28} (rien a mettre a jour)".format(slug[:28]))
 
     if missing_dep:
         print("\nERREUR : le module 'requests' est requis pour scraper.")
@@ -350,16 +415,18 @@ def _refresh_genres(path, apply_changes, force=False):
         return
 
     if not resolved:
-        print("\nAucun genre resolu (reseau ou fiches vides). Base inchangee.")
+        print("\nAucun champ resolu (reseau ou fiches vides). Base inchangee.")
         return
 
     con = sqlite3.connect(path)  # lecture-ecriture
     try:
         con.execute("BEGIN")
-        for mid, genres in resolved.items():
+        for mid, updates in resolved.items():
+            sets = ", ".join("{} = ?".format(c) for c in updates)
+            params = list(updates.values()) + [mid]
             con.execute(
-                "UPDATE media_table SET genres_json = ? WHERE anilist_id = ?",
-                (json.dumps(genres, ensure_ascii=False), mid))
+                "UPDATE media_table SET {} WHERE anilist_id = ?".format(sets),
+                params)
         con.execute("COMMIT")
     except sqlite3.Error as e:
         con.execute("ROLLBACK")
@@ -370,9 +437,9 @@ def _refresh_genres(path, apply_changes, force=False):
     finally:
         con.close()
 
-    print("\n{} media(s) mis a jour (genres_json ecrit).".format(len(resolved)))
-    print("Relance 'python scripts/check_db.py' : la section ACCUEIL doit")
-    print("maintenant lister les genres regardes.")
+    print("\n{} media(s) mis a jour (synopsis/banniere/genres).".format(
+        len(resolved)))
+    print("Relance 'python scripts/check_db.py' pour verifier.")
     print("En cas de probleme, restaure la sauvegarde :")
     print('  copy "{}" "{}"   (Windows)'.format(backup, path))
 
