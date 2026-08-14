@@ -12,6 +12,7 @@ library;
 
 import 'dart:convert';
 
+import '../domain/logic/anime_id.dart';
 import 'process_runner.dart';
 import 'stream_resolver.dart';
 
@@ -44,6 +45,8 @@ class AnimeSamaResolver implements StreamResolver {
   static const _cataloguePrefix = 'CATALOGUE_JSON:';
   static const _planningPrefix = 'PLANNING_JSON:';
   static const _skipPrefix = 'SKIP_JSON:';
+  static const _detailPrefix = 'DETAIL_JSON:';
+  static const _homePrefix = 'HOME_JSON:';
 
   /// Args communs (titre + langue), pour une [action] donnée.
   ///
@@ -133,22 +136,77 @@ class AnimeSamaResolver implements StreamResolver {
     return const [];
   }
 
-  /// Parse la ligne `CATALOGUE_JSON: [...]` en liste d'items catalogue.
+  /// Parse la ligne `CATALOGUE_JSON: [...]` en items catalogue (slug/cover/genres
+  /// optionnels ; slug derive de l'URL si absent).
   List<AnimeSamaCatalogueItem> parseCatalogue(String output) {
     for (final raw in output.split('\n')) {
       final line = raw.trim();
       if (line.startsWith(_cataloguePrefix)) {
         final jsonStr = line.substring(_cataloguePrefix.length).trim();
         final list = jsonDecode(jsonStr) as List<dynamic>;
-        return list
-            .map((e) => AnimeSamaCatalogueItem(
-                  title: (e as Map<String, dynamic>)['title'] as String,
-                  url: e['url'] as String,
-                ))
-            .toList();
+        return list.map(_catalogueItemFromJson).toList();
       }
     }
     return const [];
+  }
+
+  /// Construit un [AnimeSamaCatalogueItem] depuis un objet JSON du wrapper.
+  AnimeSamaCatalogueItem _catalogueItemFromJson(dynamic e) {
+    final m = e as Map<String, dynamic>;
+    final url = m['url'] as String? ?? '';
+    final slug = (m['slug'] as String?)?.trim();
+    return AnimeSamaCatalogueItem(
+      title: m['title'] as String? ?? '',
+      url: url,
+      slug: (slug != null && slug.isNotEmpty) ? slug : slugFromCatalogueUrl(url),
+      cover: m['cover_url'] as String?,
+      genres: (m['genres'] as List<dynamic>?)
+              ?.map((g) => g.toString())
+              .toList() ??
+          const [],
+    );
+  }
+
+  /// Parse la ligne `DETAIL_JSON: {...}` en [AnimeSamaDetail], ou null si absent.
+  AnimeSamaDetail? parseDetail(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_detailPrefix)) {
+        final jsonStr = line.substring(_detailPrefix.length).trim();
+        final m = jsonDecode(jsonStr) as Map<String, dynamic>;
+        return AnimeSamaDetail(
+          slug: m['slug'] as String? ?? '',
+          title: m['title'] as String? ?? '',
+          synopsis: m['synopsis'] as String?,
+          genres: (m['genres'] as List<dynamic>?)
+                  ?.map((g) => g.toString())
+                  .toList() ??
+              const [],
+          cover: m['cover_url'] as String?,
+          banner: m['banner_url'] as String?,
+        );
+      }
+    }
+    return null;
+  }
+
+  /// Parse la ligne `HOME_JSON: {...}` en [AnimeSamaHome] (sections vides si absent).
+  AnimeSamaHome parseHome(String output) {
+    for (final raw in output.split('\n')) {
+      final line = raw.trim();
+      if (line.startsWith(_homePrefix)) {
+        final jsonStr = line.substring(_homePrefix.length).trim();
+        final m = jsonDecode(jsonStr) as Map<String, dynamic>;
+        List<AnimeSamaCatalogueItem> section(String key) =>
+            (m[key] as List<dynamic>?)?.map(_catalogueItemFromJson).toList() ??
+            const [];
+        return AnimeSamaHome(
+          classics: section('classics'),
+          latestEpisodes: section('latest_episodes'),
+        );
+      }
+    }
+    return const AnimeSamaHome();
   }
 
   /// Parse la ligne `PLANNING_JSON: [...]` en liste d'items de planning.
@@ -179,6 +237,9 @@ class AnimeSamaResolver implements StreamResolver {
             time: m['time'] as String? ?? '',
             title: title,
             url: m['url'] as String? ?? '',
+            slug: (m['slug'] as String?)?.trim().isNotEmpty == true
+                ? (m['slug'] as String).trim()
+                : slugFromCatalogueUrl(m['url'] as String? ?? ''),
           ));
         }
         return result;
@@ -292,6 +353,44 @@ class AnimeSamaResolver implements StreamResolver {
     final items = parsePlanning(combined);
     if (items.isNotEmpty) return items;
     throw ResolveException(parseError(combined) ?? 'Planning indisponible.');
+  }
+
+  /// Detail enrichi d'une page catalogue (`catalogue-detail --slug`).
+  /// Retourne null si le wrapper ne renvoie pas de DETAIL_JSON.
+  Future<AnimeSamaDetail?> catalogueDetail({required String slug}) async {
+    final args = [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', 'catalogue-detail',
+      '--slug', slug,
+    ];
+    final combined = await _run(args);
+    return parseDetail(combined);
+  }
+
+  /// Sections de decouverte de l'accueil (`home`).
+  Future<AnimeSamaHome> home() async {
+    final args = [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', 'home',
+    ];
+    final combined = await _run(args);
+    return parseHome(combined);
+  }
+
+  /// Catalogue filtre par genre (`catalogue-filter --genre`).
+  Future<List<AnimeSamaCatalogueItem>> catalogueByGenre({
+    required String genre,
+  }) async {
+    final args = [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', 'catalogue-filter',
+      '--genre', genre,
+    ];
+    final combined = await _run(args);
+    return parseCatalogue(combined);
   }
 
   /// Lance le wrapper Python et retourne stdout+stderr combinés.

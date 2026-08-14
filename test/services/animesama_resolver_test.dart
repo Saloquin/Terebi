@@ -142,7 +142,7 @@ void main() {
       final items = await r.search(query: 'dr stone');
       expect(items.length, 2);
       expect(items.first,
-          const AnimeSamaCatalogueItem(title: 'Dr Stone', url: '/catalogue/dr-stone/'));
+          const AnimeSamaCatalogueItem(title: 'Dr Stone', url: '/catalogue/dr-stone/', slug: 'dr-stone'));
       expect(captured, containsAllInOrder(['--action', 'search']));
       // La requête n'est PAS nettoyée (pas de cleanSearchTitle ici).
       expect(captured, containsAllInOrder(['--title', 'dr stone']));
@@ -221,7 +221,8 @@ void main() {
               day: 'Lundi',
               time: '18h00',
               title: 'Dr Stone',
-              url: '/catalogue/dr-stone/'));
+              url: '/catalogue/dr-stone/',
+              slug: 'dr-stone'));
       expect(items[1].time, ''); // heure inconnue tolérée
       expect(captured, containsAllInOrder(['--action', 'planning']));
     });
@@ -245,6 +246,73 @@ void main() {
       expect(items.where((i) => i.day == 'Lundi').length, 1);
       // Le suffixe de version est retiré du titre affiché.
       expect(items.first.title, 'Naruto');
+    });
+  });
+
+  group('parseurs enrichis', () {
+    // Resolver minimal : les parseurs n'utilisent pas le runner.
+    final r = AnimeSamaResolver(
+      wrapperScriptPath: 'w.py',
+      animeSamaScriptPath: 'a.py',
+      runner: (exe, args, {Map<String, String>? environment}) async =>
+          throw UnimplementedError(),
+    );
+
+    test('parseCatalogue lit le slug', () {
+      const out = 'CATALOGUE_JSON: '
+          '[{"title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"}]';
+      final items = r.parseCatalogue(out);
+      expect(items, hasLength(1));
+      expect(items.first.slug, 'one-piece');
+      expect(items.first.title, 'One Piece');
+    });
+
+    test('parseCatalogue derive le slug de l URL si absent', () {
+      const out =
+          'CATALOGUE_JSON: [{"title":"Bleach","url":"/catalogue/bleach/"}]';
+      expect(r.parseCatalogue(out).first.slug, 'bleach');
+    });
+
+    test('parseDetail lit synopsis/genres/cover/banner', () {
+      const out = 'DETAIL_JSON: {"slug":"one-piece","title":"One Piece",'
+          '"synopsis":"Un pirate","genres":["Action","Aventure"],'
+          '"cover_url":"https://cdn/c.jpg","banner_url":"https://cdn/b.jpg"}';
+      final d = r.parseDetail(out);
+      expect(d, isNotNull);
+      expect(d!.slug, 'one-piece');
+      expect(d.synopsis, 'Un pirate');
+      expect(d.genres, ['Action', 'Aventure']);
+      expect(d.cover, 'https://cdn/c.jpg');
+      expect(d.banner, 'https://cdn/b.jpg');
+    });
+
+    test('parseDetail tolere les champs manquants', () {
+      const out = 'DETAIL_JSON: {"slug":"x","title":"X"}';
+      final d = r.parseDetail(out);
+      expect(d!.synopsis, isNull);
+      expect(d.genres, isEmpty);
+      expect(d.cover, isNull);
+    });
+
+    test('parseHome lit classics et latest_episodes', () {
+      const out = 'HOME_JSON: {'
+          '"classics":[{"title":"Naruto","url":"/catalogue/naruto/","slug":"naruto","cover_url":"https://cdn/n.jpg","genres":["Action"]}],'
+          '"latest_episodes":[{"title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"}]}';
+      final h = r.parseHome(out);
+      expect(h.classics, hasLength(1));
+      expect(h.classics.first.title, 'Naruto');
+      expect(h.classics.first.cover, 'https://cdn/n.jpg');
+      expect(h.classics.first.genres, ['Action']);
+      expect(h.latestEpisodes, hasLength(1));
+      expect(h.latestEpisodes.first.slug, 'one-piece');
+    });
+
+    test('parsePlanning lit le slug', () {
+      const out = 'PLANNING_JSON: '
+          '[{"day":"Lundi","time":"18h00","title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"}]';
+      final items = r.parsePlanning(out);
+      expect(items.first.slug, 'one-piece');
+      expect(items.first.time, '18h00');
     });
   });
 }
