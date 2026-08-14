@@ -109,6 +109,16 @@ class MediaRepository {
     return rows.map(_fromRow).toList();
   }
 
+  /// Date de derniere ecriture du media [anilistId] (epoch 0 si absent). Sert au
+  /// calcul de fraicheur du cache (revalidation).
+  Future<DateTime> updatedAtOf(int anilistId) async {
+    final row = await (_db.select(_db.mediaTable)
+          ..where((t) => t.anilistId.equals(anilistId)))
+        .getSingleOrNull();
+    return row?.updatedAt ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
   /// Supprime le média [anilistId] de la base (n'affecte ni l'entrée de liste ni
   /// la progression : à nettoyer séparément par l'appelant). Sert au nettoyage
   /// manuel d'une entrée mal résolue.
