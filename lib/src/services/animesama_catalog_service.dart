@@ -51,17 +51,28 @@ class AnimeSamaCatalogService {
       genres: detail.genres.isNotEmpty
           ? detail.genres
           : (existing?.genres ?? const []),
-      coverUrl: detail.cover ?? existing?.coverUrl,
-      bannerUrl: detail.banner ?? existing?.bannerUrl,
+      // Image : detail scrappe > existant > URL CDN derivee du slug (dernier
+      // recours). Garantit une coverUrl NON nulle -> pas de boucle de
+      // revalidation (cf. `_maybeRevalidate`, qui considere coverUrl null comme
+      // perime).
+      coverUrl: detail.cover ?? existing?.coverUrl ?? animeSamaCoverUrl(slug),
+      bannerUrl:
+          detail.banner ?? existing?.bannerUrl ?? animeSamaBannerUrl(slug),
     );
     await mediaRepo.upsertMedia(media);
   }
 
-  /// Revalide si le cache est absent ou plus vieux que [ttl] (fire-and-forget).
+  /// Revalide si le cache est absent, incomplet (image/synopsis manquants) ou
+  /// plus vieux que [ttl] (fire-and-forget).
   Future<void> _maybeRevalidate(String slug, int id) async {
     final existing = await mediaRepo.getMedia(id);
+    // Incomplet = pas de cover OU pas de description. Force la revalidation meme
+    // si updatedAt recent (ex. apres un nettoyage qui a mis coverUrl a null).
+    final incomplete = existing == null ||
+        (existing.coverUrl == null || existing.coverUrl!.isEmpty) ||
+        (existing.description == null || existing.description!.isEmpty);
     final bool stale;
-    if (existing == null || ttl == Duration.zero) {
+    if (incomplete || ttl == Duration.zero) {
       stale = true;
     } else {
       final updatedAt = await mediaRepo.updatedAtOf(id);

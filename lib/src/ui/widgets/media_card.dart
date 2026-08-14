@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/anime_format.dart';
 import '../../domain/models/media.dart';
+import 'anime_sama_image.dart';
 
 /// Carte compacte affichant la couverture, le titre préféré et un badge
 /// format/épisodes. Utilisée dans la grille du Catalogue et du Planning.
@@ -37,17 +38,26 @@ class MediaCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  media.coverUrl != null
-                      ? Image.network(
-                          media.coverUrl!,
+                  // Image dérivée du slug anime-sama (cascade d'extensions) dès
+                  // qu'un slug est connu ; sinon fallback sur coverUrl legacy.
+                  (media.animeSamaSlug != null &&
+                          media.animeSamaSlug!.isNotEmpty)
+                      ? AnimeSamaImage(
+                          slug: media.animeSamaSlug!,
+                          fallbackUrl: media.coverUrl,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _CoverPlaceholder(
-                            color: colorScheme.surfaceContainerHighest,
-                          ),
                         )
-                      : _CoverPlaceholder(
-                          color: colorScheme.surfaceContainerHighest,
-                        ),
+                      : media.coverUrl != null
+                          ? Image.network(
+                              media.coverUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _CoverPlaceholder(
+                                color: colorScheme.surfaceContainerHighest,
+                              ),
+                            )
+                          : _CoverPlaceholder(
+                              color: colorScheme.surfaceContainerHighest,
+                            ),
                   if (onResume != null)
                     Positioned(
                       right: 4,

@@ -16,6 +16,7 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
+import '../widgets/anime_sama_image.dart';
 import 'media_detail_page.dart';
 
 /// Provider de recherche anime-sama (liste jouable).
@@ -224,7 +225,8 @@ class _CatalogTile extends ConsumerWidget {
     final coverUrl = mediaAsync.asData?.value.coverUrl;
 
     return ListTile(
-      leading: _Thumbnail(coverUrl: coverUrl, loading: mediaAsync.isLoading),
+      leading: _Thumbnail(
+          slug: slug, coverUrl: coverUrl, loading: mediaAsync.isLoading),
       title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => _openDetail(context, slug),
@@ -235,9 +237,11 @@ class _CatalogTile extends ConsumerWidget {
 /// Vignette poster (ratio 2/3) : image en cache/AniList si disponible, spinner
 /// pendant la résolution, icône neutre sinon (anime sans image trouvée).
 class _Thumbnail extends StatelessWidget {
+  final String slug;
   final String? coverUrl;
   final bool loading;
-  const _Thumbnail({required this.coverUrl, required this.loading});
+  const _Thumbnail(
+      {required this.slug, required this.coverUrl, required this.loading});
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +255,10 @@ class _Thumbnail extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             Container(color: theme.colorScheme.surfaceContainerHighest),
-            if (coverUrl != null)
+            if (slug.isNotEmpty)
+              // Image dérivée du slug (cascade d'extensions), coverUrl en fallback.
+              AnimeSamaImage(slug: slug, fallbackUrl: coverUrl, fit: BoxFit.cover)
+            else if (coverUrl != null)
               Image.network(
                 coverUrl!,
                 fit: BoxFit.cover,

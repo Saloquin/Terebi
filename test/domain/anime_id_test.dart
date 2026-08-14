@@ -151,4 +151,32 @@ void main() {
       expect(ids.length, 5);
     });
   });
+
+  group('URLs image CDN derivees du slug', () {
+    test('animeSamaCoverUrl : chemin thumb + extension', () {
+      expect(
+        animeSamaCoverUrl('link-click'),
+        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/link-click.jpg',
+      );
+      expect(
+        animeSamaCoverUrl('one-piece', ext: 'webp'),
+        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/one-piece.webp',
+      );
+    });
+
+    test('animeSamaBannerUrl : chemin sans thumb + extension', () {
+      expect(
+        animeSamaBannerUrl('one-piece'),
+        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/one-piece.jpg',
+      );
+      expect(
+        animeSamaBannerUrl('naruto', ext: 'png'),
+        'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/naruto.png',
+      );
+    });
+
+    test('ordre des extensions testees : jpg, webp, png', () {
+      expect(animeSamaImageExtensions, ['jpg', 'webp', 'png']);
+    });
+  });
 }

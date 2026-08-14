@@ -15,6 +15,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_resolver.dart';
+import '../widgets/anime_sama_image.dart';
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
 
@@ -1062,6 +1063,7 @@ class _EntryTile extends ConsumerWidget {
         final media = snap.data;
         final title = media?.title.preferred ?? 'ID ${entry.mediaId}';
         final coverUrl = media?.coverUrl;
+        final slug = media?.animeSamaSlug ?? '';
 
         // Label de progression. Un anime « Terminé » l'affiche toujours comme
         // tel, MÊME si entry.progress est resté à 0 (le passage en « Terminé »
@@ -1076,19 +1078,33 @@ class _EntryTile extends ConsumerWidget {
                     : 'Progression : ép. ${entry.progress}';
 
         return ListTile(
-          leading: coverUrl != null
+          leading: slug.isNotEmpty
               ? ClipRRect(
                   borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    coverUrl,
+                  child: SizedBox(
                     width: 40,
                     height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const SizedBox(width: 40, height: 56),
+                    // Image dérivée du slug (cascade d'extensions), coverUrl en fallback.
+                    child: AnimeSamaImage(
+                      slug: slug,
+                      fallbackUrl: coverUrl,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 )
-              : const SizedBox(width: 40, height: 56),
+              : coverUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        coverUrl,
+                        width: 40,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) =>
+                            const SizedBox(width: 40, height: 56),
+                      ),
+                    )
+                  : const SizedBox(width: 40, height: 56),
           title: Row(
             children: [
               Flexible(

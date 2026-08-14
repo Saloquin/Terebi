@@ -19,6 +19,7 @@ import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
+import '../widgets/anime_sama_image.dart';
 import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -447,7 +448,11 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
                 fit: StackFit.expand,
                 children: [
                   Container(color: theme.colorScheme.surfaceContainerHighest),
-                  if (coverUrl != null)
+                  if (slug.isNotEmpty)
+                    // Image dérivée du slug (cascade d'extensions), coverUrl en fallback.
+                    AnimeSamaImage(
+                        slug: slug, fallbackUrl: coverUrl, fit: BoxFit.cover)
+                  else if (coverUrl != null)
                     Image.network(
                       coverUrl,
                       fit: BoxFit.cover,

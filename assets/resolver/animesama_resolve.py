@@ -418,6 +418,38 @@ def _slug_from_url(url):
     return m.group(1).strip() if m else ''
 
 
+# Extensions testees dans l'ordre pour trouver l'image CDN d'un slug.
+_CDN_IMAGE_EXTS = ("jpg", "webp", "png")
+
+
+def _cdn_image_url(slug, banner=False, probe=True):
+    """URL de l'image CDN Anime-Sama derivee du [slug].
+
+    - cover/thumbnail : .../IMG@img/contenu/thumb/<slug>.<ext>
+    - banniere         : .../IMG@img/contenu/<slug>.<ext>
+
+    Si [probe] (defaut), teste _CDN_IMAGE_EXTS (jpg, webp, png) via HEAD et
+    retient la premiere qui repond 200. Sinon (listes de cartes : on evite N
+    requetes reseau), renvoie directement la 1re extension : cote Dart, le
+    widget re-teste les extensions a l'affichage.
+    """
+    sub = "thumb/" if not banner else ""
+    base = "https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/" + sub
+    default = "{}{}.{}".format(base, slug, _CDN_IMAGE_EXTS[0])
+    if not probe:
+        return default
+    import requests
+    for ext in _CDN_IMAGE_EXTS:
+        url = "{}{}.{}".format(base, slug, ext)
+        try:
+            r = requests.head(url, timeout=8, allow_redirects=True)
+            if r.status_code == 200:
+                return url
+        except requests.RequestException:
+            break  # reseau KO : inutile d'insister, on renvoie le defaut
+    return default
+
+
 def _norm(text):
     """Normalise un titre pour le matching (minuscule, alphanumérique)."""
     return re.sub(r'[^a-z0-9]', '', text.lower())
@@ -532,11 +564,13 @@ def action_catalogue_detail(mod, dl, args):
         if mg:
             detail["genres"] = [g.strip() for g in re.split(r'[,\n]', mg.group(1))
                                 if g.strip() and '<' not in g]
-        detail["cover_url"] = (
-            f"https://cdn.jsdelivr.net/gh/Anime-Sama/IMG/img/contenu/{slug}.jpg")
+        # Cover (thumbnail) et banniere derivees du slug sur le CDN Anime-Sama
+        # (extension testee dans l'ordre jpg/webp/png). La cover est la
+        # vignette utilisee par les cartes.
+        detail["cover_url"] = _cdn_image_url(slug)
+        # Banniere : priorite a l'image de la page si presente, sinon CDN slug.
         mb = re.search(r'<img[^>]+id="coverOeuvre"[^>]+src="([^"]+)"', html)
-        if mb:
-            detail["banner_url"] = mb.group(1)
+        detail["banner_url"] = mb.group(1) if mb else _cdn_image_url(slug, banner=True)
     except requests.RequestException:
         pass
     print(f"DETAIL_JSON: {json.dumps(detail, ensure_ascii=False)}")
@@ -557,8 +591,7 @@ def _cards_from_html(mod, html):
             "title": title.strip(),
             "url": url.strip(),
             "slug": slug,
-            "cover_url": cover or
-            f"https://cdn.jsdelivr.net/gh/Anime-Sama/IMG/img/contenu/{slug}.jpg",
+            "cover_url": cover or _cdn_image_url(slug, probe=False),
             "genres": [],
         })
     return items

@@ -56,4 +56,45 @@ void main() {
     expect(emissions.last?.description, 'frais');
     expect(emissions.first?.anilistId, id);
   });
+
+  test('revalidate sans cover scrappee -> URL CDN derivee du slug (anti-boucle)',
+      () async {
+    final service = AnimeSamaCatalogService(
+      mediaRepo: mediaRepo,
+      // detail SANS cover ni banner.
+      fetchDetail: (slug) async =>
+          const AnimeSamaDetail(slug: 'naruto', title: 'Naruto'),
+    );
+    await service.revalidate('naruto');
+    final m = await mediaRepo.getMedia(animeSamaIdForSlug('naruto'));
+    expect(m, isNotNull);
+    // coverUrl garantie non nulle : derivee du slug -> plus jamais 'incomplete'.
+    expect(m!.coverUrl, animeSamaCoverUrl('naruto'));
+    expect(m.bannerUrl, animeSamaBannerUrl('naruto'));
+  });
+
+  test('watchDetail revalide meme si updatedAt recent quand coverUrl est null',
+      () async {
+    // Simule l'etat post-nettoyage : media en cache, updatedAt tout frais, mais
+    // coverUrl null. Le TTL par defaut (12h) ne doit PAS empecher la revalidation.
+    await mediaRepo.upsertMedia(
+        Media.fromAnimeSama(slug: 'bleach', title: 'Bleach')); // coverUrl null
+    var fetchCount = 0;
+    final service = AnimeSamaCatalogService(
+      mediaRepo: mediaRepo,
+      fetchDetail: (slug) async {
+        fetchCount++;
+        return const AnimeSamaDetail(
+            slug: 'bleach', title: 'Bleach', synopsis: 'desc',
+            cover: 'https://cdn/b.jpg');
+      },
+      // TTL long : seule l'incompletude (coverUrl null) doit declencher.
+    );
+    final sub = service.watchDetail('bleach').listen((_) {});
+    await Future<void>.delayed(const Duration(milliseconds: 80));
+    await sub.cancel();
+    expect(fetchCount, greaterThanOrEqualTo(1));
+    final m = await mediaRepo.getMedia(animeSamaIdForSlug('bleach'));
+    expect(m!.coverUrl, 'https://cdn/b.jpg');
+  });
 }
