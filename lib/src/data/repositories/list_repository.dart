@@ -64,6 +64,38 @@ class ListRepository {
     return row == null ? null : _fromRow(row);
   }
 
+  /// Stream de l'entree [mediaId] (emet a chaque ecriture la concernant).
+  Stream<ListEntry?> watchEntry(int mediaId) {
+    return (_db.select(_db.listEntries)
+          ..where((t) => t.mediaId.equals(mediaId)))
+        .watchSingleOrNull()
+        .map((row) => row == null ? null : _fromRow(row));
+  }
+
+  /// Stream des entrees d'un [status] donne.
+  Stream<List<ListEntry>> watchEntriesByStatus(ListStatus status) {
+    return (_db.select(_db.listEntries)
+          ..where((t) => t.status.equals(status.name)))
+        .watch()
+        .map((rows) => rows.map(_fromRow).toList());
+  }
+
+  /// Stream de toutes les entrees de la bibliotheque.
+  Stream<List<ListEntry>> watchAllEntries() {
+    return _db.select(_db.listEntries).watch().map(
+          (rows) => rows.map(_fromRow).toList(),
+        );
+  }
+
+  /// Deplace l'entree de liste de [oldId] vers [newId] (migration slug).
+  /// Conserve toutes les colonnes ; ne fait rien si aucune entree pour oldId.
+  Future<void> reindexMediaId(int oldId, int newId) async {
+    final existing = await getEntry(oldId);
+    if (existing == null) return;
+    await upsertEntry(existing.copyWith(mediaId: newId));
+    await deleteEntry(oldId);
+  }
+
   /// Retire l'entrée de liste pour [mediaId] (retrait de la bibliothèque).
   /// N'efface PAS la progression d'épisodes (table séparée).
   Future<void> deleteEntry(int mediaId) async {

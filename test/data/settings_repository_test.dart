@@ -56,5 +56,23 @@ void main() {
       expect(await repo.get(SettingsKeys.playbackLanguage), equals('vf'));
       expect(await repo.get(SettingsKeys.pythonPath), equals('python'));
     });
+
+    test('watchWithPrefix emet a chaque ecriture de cle prefixee', () async {
+      final emissions = <Map<String, String>>[];
+      final sub = repo.watchWithPrefix('anime_sama_watched:5:').listen(emissions.add);
+      await repo.set('anime_sama_watched:5:1', '3');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await sub.cancel();
+      expect(emissions.last['anime_sama_watched:5:1'], '3');
+    });
+
+    test('renameKeyPrefix renomme les cles old->new en conservant la valeur', () async {
+      await repo.set('anime_sama_watched:-9:1', '4');
+      await repo.set('anime_sama_watched:-9:2', '7');
+      await repo.renameKeyPrefix('anime_sama_watched:-9:', 'anime_sama_watched:123:');
+      expect(await repo.get('anime_sama_watched:-9:1'), isNull);
+      expect(await repo.get('anime_sama_watched:123:1'), '4');
+      expect(await repo.get('anime_sama_watched:123:2'), '7');
+    });
   });
 }

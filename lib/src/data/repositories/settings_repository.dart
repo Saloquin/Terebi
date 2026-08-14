@@ -98,6 +98,30 @@ class SettingsRepository {
     };
   }
 
+  /// Stream des paires (cle, valeur) dont la cle commence par [prefix]. Emet a
+  /// chaque ecriture dans AppSettings (filtrage cote Dart). Sert a la reactivite
+  /// temps reel de la progression par saison (`anime_sama_watched:<id>:*`).
+  Stream<Map<String, String>> watchWithPrefix(String prefix) {
+    return _db.select(_db.appSettings).watch().map((rows) => {
+          for (final r in rows)
+            if (r.key.startsWith(prefix)) r.key: r.value,
+        });
+  }
+
+  /// Renomme toutes les cles commencant par [oldPrefix] en remplacant ce prefixe
+  /// par [newPrefix], en conservant la valeur. Sert a la migration slug
+  /// (`anime_sama_watched:<old>:*` -> `:<new>:*`). Idempotent.
+  Future<void> renameKeyPrefix(String oldPrefix, String newPrefix) async {
+    final rows = await _db.select(_db.appSettings).get();
+    for (final r in rows) {
+      if (r.key.startsWith(oldPrefix)) {
+        final newKey = newPrefix + r.key.substring(oldPrefix.length);
+        await set(newKey, r.value);
+        await delete(r.key);
+      }
+    }
+  }
+
   /// Supprime toutes les clés commençant par [prefix]. Sert au nettoyage manuel
   /// de la progression par saison d'un média (`anime_sama_watched:<id>:*`).
   Future<void> deleteWithPrefix(String prefix) async {

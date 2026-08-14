@@ -150,5 +150,28 @@ void main() {
       await repo.upsertEntry(_entry(mediaId: 1));
       expect(await repo.allHidden(), isEmpty);
     });
+
+    test('watchEntry emet a chaque ecriture', () async {
+      final emissions = <ListEntry?>[];
+      final sub = repo.watchEntry(42).listen(emissions.add);
+      await repo.upsertEntry(ListEntry(
+          mediaId: 42, status: ListStatus.current, updatedAt: DateTime.utc(2026)));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await sub.cancel();
+      expect(emissions.last?.mediaId, 42);
+      expect(emissions.last?.status, ListStatus.current);
+    });
+
+    test('reindexMediaId deplace l entree de old vers new', () async {
+      await repo.upsertEntry(ListEntry(
+          mediaId: -111, status: ListStatus.completed, progress: 5,
+          updatedAt: DateTime.utc(2026)));
+      await repo.reindexMediaId(-111, 777);
+      expect(await repo.getEntry(-111), isNull);
+      final moved = await repo.getEntry(777);
+      expect(moved, isNotNull);
+      expect(moved!.progress, 5);
+      expect(moved.status, ListStatus.completed);
+    });
   });
 }
