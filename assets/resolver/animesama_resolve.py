@@ -559,15 +559,29 @@ def action_catalogue_detail(mod, dl, args):
         mt = re.search(r'<h1[^>]*>([^<]+)</h1>', html)
         if mt:
             detail["title"] = mt.group(1).strip()
+        # Synopsis : <p id="synopsisText" ...>...</p> (structure reelle fiche).
         ms = re.search(
-            r'Synopsis\s*</[^>]+>\s*<p[^>]*>(.*?)</p>', html, re.DOTALL | re.I)
+            r'<p[^>]+id="synopsisText"[^>]*>(.*?)</p>', html, re.DOTALL | re.I)
         if ms:
             detail["synopsis"] = re.sub(r'<[^>]+>', '', ms.group(1)).strip()
-        mg = re.search(r'Genres?\s*</[^>]+>\s*<[^>]*>(.*?)</', html,
-                       re.DOTALL | re.I)
-        if mg:
-            detail["genres"] = [g.strip() for g in re.split(r'[,\n]', mg.group(1))
-                                if g.strip() and '<' not in g]
+        # Genres : bloc <div class="genres-wrap"> contenant des
+        # <span class="genre-pill">Nom</span>. On lit le contenu du wrap puis
+        # tous les pills. Repli : anciens formats (liste separee par virgule).
+        mw = re.search(
+            r'<div[^>]+class="[^"]*genres-wrap[^"]*"[^>]*>(.*?)</div>',
+            html, re.DOTALL | re.I)
+        if mw:
+            pills = re.findall(
+                r'<span[^>]+class="[^"]*genre-pill[^"]*"[^>]*>([^<]+)</span>',
+                mw.group(1), re.I)
+            detail["genres"] = [g.strip() for g in pills if g.strip()]
+        if not detail["genres"]:
+            mg = re.search(r'Genres?\s*</[^>]+>\s*<[^>]*>(.*?)</', html,
+                           re.DOTALL | re.I)
+            if mg:
+                detail["genres"] = [
+                    g.strip() for g in re.split(r'[,\n]', mg.group(1))
+                    if g.strip() and '<' not in g]
         # Cover (thumbnail) et banniere derivees du slug sur le CDN Anime-Sama
         # (extension testee dans l'ordre jpg/webp/png). La cover est la
         # vignette utilisee par les cartes.
