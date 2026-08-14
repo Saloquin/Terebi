@@ -34,7 +34,8 @@ final _mediaDetailProvider =
       return await ref.read(titleMatcherProvider).resolve(arg.title!);
     } catch (_) {
       final local = await ref.read(mediaRepositoryProvider).getMedia(arg.id);
-      return local ?? Media.fromAnimeSama(title: arg.title!);
+      return local ?? Media.fromAnimeSama(
+          slug: normalizeAnimeTitle(arg.title!), title: arg.title!);
     }
   }
 
@@ -153,7 +154,8 @@ class MediaDetailPage extends ConsumerWidget {
 
   /// Média minimal quand AniList ne fournit rien (id négatif ou hors-ligne).
   Media _fallbackMedia() => displayTitle != null
-      ? Media.fromAnimeSama(title: displayTitle!)
+      ? Media.fromAnimeSama(
+          slug: normalizeAnimeTitle(displayTitle!), title: displayTitle!)
       : Media(anilistId: anilistId, title: const MediaTitle(romaji: 'Anime'));
 }
 

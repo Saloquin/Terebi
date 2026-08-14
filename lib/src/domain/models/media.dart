@@ -121,6 +121,30 @@ class Media {
   /// `true` si c'est un film (média unique, pas d'« épisode suivant »).
   bool get isMovie => format == AnimeFormat.movie;
 
+  /// Copie enrichie avec les métadonnées AniList d'un autre [Media] (image,
+  /// description, genres, score, saison…). Préserve l'identité anime-sama
+  /// (anilistId, animeSamaTitle, animeSamaSlug du récepteur).
+  Media enrichedWith(Media anilist) => Media(
+        anilistId: anilistId,
+        malId: anilist.malId ?? malId,
+        title: anilist.title,
+        format: anilist.format != AnimeFormat.unknown ? anilist.format : format,
+        status: anilist.status != ReleaseStatus.unknown ? anilist.status : status,
+        episodes: anilist.episodes ?? episodes,
+        durationMinutes: anilist.durationMinutes ?? durationMinutes,
+        season: anilist.season ?? season,
+        seasonYear: anilist.seasonYear ?? seasonYear,
+        coverUrl: anilist.coverUrl ?? coverUrl,
+        bannerUrl: anilist.bannerUrl ?? bannerUrl,
+        description: anilist.description ?? description,
+        genres: anilist.genres.isNotEmpty ? anilist.genres : genres,
+        averageScore: anilist.averageScore ?? averageScore,
+        nextAiringAt: anilist.nextAiringAt ?? nextAiringAt,
+        nextAiringEpisode: anilist.nextAiringEpisode ?? nextAiringEpisode,
+        animeSamaTitle: animeSamaTitle,
+        animeSamaSlug: animeSamaSlug,
+      );
+
   /// Retourne une copie du média avec le [animeSamaTitle] renseigné.
   Media withAnimeSamaTitle(String samaTitle) =>
       _copy(animeSamaTitle: samaTitle);

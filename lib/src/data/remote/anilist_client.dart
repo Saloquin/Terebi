@@ -7,9 +7,38 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../domain/models/airing_schedule.dart';
+import '../../domain/models/anime_format.dart';
 import '../../domain/models/enums.dart';
 import '../../domain/models/media.dart';
 import '../../domain/models/media_relation.dart';
+
+/// Construit un [Media] depuis un objet JSON AniList (fragment `_kMediaFragment`).
+Media _mediaFromAniListJson(Map<String, dynamic> e) {
+  final nae = e['nextAiringEpisode'] as Map<String, dynamic>?;
+  return Media(
+    anilistId: e['id'] as int,
+    malId: e['idMal'] as int?,
+    title: MediaTitle.fromJson(e['title'] as Map<String, dynamic>?),
+    format: animeFormatFromAniList(e['format'] as String?),
+    status: ReleaseStatus.fromAniList(e['status'] as String?),
+    episodes: e['episodes'] as int?,
+    durationMinutes: e['duration'] as int?,
+    season: AnimeSeason.fromAniList(e['season'] as String?),
+    seasonYear: e['seasonYear'] as int?,
+    coverUrl: (e['coverImage'] as Map<String, dynamic>?)?['large'] as String?,
+    bannerUrl: e['bannerImage'] as String?,
+    description: e['description'] as String?,
+    genres: (e['genres'] as List<dynamic>?)?.cast<String>() ?? const [],
+    averageScore: e['averageScore'] as int?,
+    nextAiringAt: nae != null
+        ? DateTime.fromMillisecondsSinceEpoch(
+            (nae['airingAt'] as int) * 1000,
+            isUtc: true,
+          )
+        : null,
+    nextAiringEpisode: nae?['episode'] as int?,
+  );
+}
 
 /// Endpoint GraphQL AniList.
 const _kEndpoint = 'https://graphql.anilist.co';
@@ -129,7 +158,7 @@ class AniListClient implements AniListApi {
     final data = await _query(gql, {'q': query, 'page': page, 'perPage': perPage});
     final mediaList = (data['Page']['media'] as List<dynamic>);
     return mediaList
-        .map((e) => Media.fromAniList(e as Map<String, dynamic>))
+        .map((e) => _mediaFromAniListJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -159,7 +188,7 @@ class AniListClient implements AniListApi {
     });
     final mediaList = data['Page']['media'] as List<dynamic>;
     return mediaList
-        .map((e) => Media.fromAniList(e as Map<String, dynamic>))
+        .map((e) => _mediaFromAniListJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -178,7 +207,7 @@ class AniListClient implements AniListApi {
     final data = await _query(gql, {'page': page, 'perPage': perPage});
     final mediaList = data['Page']['media'] as List<dynamic>;
     return mediaList
-        .map((e) => Media.fromAniList(e as Map<String, dynamic>))
+        .map((e) => _mediaFromAniListJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -208,7 +237,7 @@ class AniListClient implements AniListApi {
         await _query(gql, {'genre': genre, 'page': page, 'perPage': perPage});
     final mediaList = data['Page']['media'] as List<dynamic>;
     return mediaList
-        .map((e) => Media.fromAniList(e as Map<String, dynamic>))
+        .map((e) => _mediaFromAniListJson(e as Map<String, dynamic>))
         .toList();
   }
 
@@ -223,7 +252,7 @@ class AniListClient implements AniListApi {
       }
     ''';
     final data = await _query(gql, {'id': anilistId});
-    return Media.fromAniList(data['Media'] as Map<String, dynamic>);
+    return _mediaFromAniListJson(data['Media'] as Map<String, dynamic>);
   }
 
   /// Récupère les relations d'un média (suites, préquelles, spin-offs…).

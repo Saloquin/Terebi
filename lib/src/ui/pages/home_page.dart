@@ -1,48 +1,34 @@
 /// Page d'accueil façon Netflix : plusieurs rangées horizontales thématiques.
 ///
-/// Ordre des rangées (retour utilisateur) :
-///  1. Continuer à regarder (local — en cours)
-///  2. Sortis récemment (planning anime-sama de la semaine)
-///  3. Tendances du moment (AniList Trending — communauté)
-///  4. Recommandé pour toi (AniList par tes genres favoris, 2-3 rangées)
-///  5. Populaires (AniList Popular — masqué si redondant avec Tendances)
-///  6. Tu regardes beaucoup (ton historique de lancements agrégé)
-///
-/// Fallback : si peu/pas d'animes terminés, « Continuer à regarder » (en cours)
-/// reste la vitrine principale — c'est déjà la 1re rangée.
+/// Ordre des rangées :
+///  1. En ce moment (historique de lancements agrégé)
+///  2. Continuer à regarder (statut en cours)
+///  3. Sortis du moment (planning anime-sama de la semaine)
+///  4. Les classiques (home anime-sama)
+///  5. Derniers episodes ajoutes (home anime-sama)
+///  6. Recommande - <genre> (catalogue anime-sama, par genre favori)
 library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
-import '../../domain/models/enums.dart';
+import '../../domain/logic/anime_id.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
+import '../../services/stream_resolver.dart'
+    show AnimeSamaCatalogueItem, AnimeSamaHome;
 import '../widgets/media_card.dart';
 import 'library_page.dart' show entriesByStatusProvider;
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
 
 // ---------------------------------------------------------------------------
-// Helper saison courante (DateTime.now() toléré en UI)
-// ---------------------------------------------------------------------------
-
-AnimeSeason _currentSeason(DateTime now) {
-  final m = now.month;
-  if (m <= 3) return AnimeSeason.winter;
-  if (m <= 6) return AnimeSeason.spring;
-  if (m <= 9) return AnimeSeason.summer;
-  return AnimeSeason.fall;
-}
-
-// ---------------------------------------------------------------------------
 // Providers de rangées
 // ---------------------------------------------------------------------------
 
 /// « Continuer à regarder » : médias en cours, triés du plus récemment mis à
-/// jour au plus ancien, résolus en [Media] (cache local). Ignore les entrées
-/// sans média résoluble.
+/// jour au plus ancien, résolus en [Media] (cache local).
 final _continueWatchingProvider = FutureProvider<List<Media>>((ref) async {
   final entries =
       await ref.watch(entriesByStatusProvider(ListStatus.current).future);
@@ -57,21 +43,20 @@ final _continueWatchingProvider = FutureProvider<List<Media>>((ref) async {
   return result;
 });
 
-/// « Sortis récemment » : le planning anime-sama de la semaine, résolu en
-/// [Media] (via le rematch titre → AniList pour l'image). Best-effort, borné.
-/// NB : anime-sama ne donne pas le numéro d'épisode, c'est « ce qui sort cette
-/// semaine » (approximation de « derniers épisodes sortis »).
+/// « Sortis du moment » : planning anime-sama de la semaine, résolu en Media via
+/// le slug (cache DB si dispo, sinon carte minimale). Best-effort, borné.
 final _recentlyReleasedProvider = FutureProvider<List<Media>>((ref) async {
   try {
     final items = await ref.watch(animeSamaPlanningProvider.future);
-    final matcher = ref.watch(titleMatcherProvider);
     final result = <Media>[];
     final seen = <int>{};
     for (final it in items.take(15)) {
-      try {
-        final media = await matcher.resolve(it.title);
-        if (seen.add(media.anilistId)) result.add(media);
-      } catch (_) {/* titre non résolu : on saute */}
+      final slug = it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
+      if (slug.isEmpty) continue;
+      final id = animeSamaIdForSlug(slug);
+      if (!seen.add(id)) continue;
+      final cached = await ref.watch(mediaRepositoryProvider).getMedia(id);
+      result.add(cached ?? Media.fromAnimeSama(slug: slug, title: it.title));
       if (result.length >= 12) break;
     }
     return result;
@@ -80,36 +65,57 @@ final _recentlyReleasedProvider = FutureProvider<List<Media>>((ref) async {
   }
 });
 
-/// Tendances du moment (communauté AniList).
-final _trendingProvider = FutureProvider<List<Media>>((ref) async {
-  try {
-    return await ref.watch(aniListClientProvider).trending(perPage: 20);
-  } catch (_) {
-    return const [];
+/// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
+Future<List<Media>> _itemsToMedia(
+    Ref ref, List<AnimeSamaCatalogueItem> items) async {
+  final repo = ref.watch(mediaRepositoryProvider);
+  final result = <Media>[];
+  final seen = <int>{};
+  for (final it in items) {
+    final slug = it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
+    if (slug.isEmpty) continue;
+    final id = animeSamaIdForSlug(slug);
+    if (!seen.add(id)) continue;
+    final cached = await repo.getMedia(id);
+    result.add(cached ??
+        Media.fromAnimeSama(
+            slug: slug,
+            title: it.title,
+            coverUrl: it.cover,
+            genres: it.genres));
   }
+  return result;
+}
+
+/// « Les classiques » (home anime-sama).
+final _classicsProvider = FutureProvider<List<Media>>((ref) async {
+  final home = await ref.watch(animeSamaHomeProvider.future);
+  return _itemsToMedia(ref, home.classics);
 });
 
-/// Animes les plus populaires (communauté AniList).
-final _popularProvider = FutureProvider<List<Media>>((ref) async {
-  try {
-    return await ref.watch(aniListClientProvider).popular(perPage: 20);
-  } catch (_) {
-    return const [];
-  }
+/// « Derniers episodes ajoutes » (home anime-sama).
+final _latestProvider = FutureProvider<List<Media>>((ref) async {
+  final home = await ref.watch(animeSamaHomeProvider.future);
+  return _itemsToMedia(ref, home.latestEpisodes);
+});
+
+/// Recommandations par genre (catalogue anime-sama).
+final _byGenreProvider =
+    FutureProvider.family<List<Media>, String>((ref, genre) async {
+  final items = await ref.watch(animeSamaByGenreProvider(genre).future);
+  return _itemsToMedia(ref, items);
 });
 
 /// Genres favoris de l'utilisateur (les plus présents dans sa bibliothèque),
-/// classés par occurrence décroissante. Sert aux rangées de recommandation.
-/// Local et rapide (getAllMedia). Retourne au plus [max] genres.
+/// classés par occurrence décroissante. Retourne au plus [max] genres.
 final _favoriteGenresProvider =
     FutureProvider.family<List<String>, int>((ref, max) async {
   final all = await ref.watch(mediaRepositoryProvider).getAllMedia();
-  final entries =
-      await ref.watch(listRepositoryProvider).getAllEntries();
+  final entries = await ref.watch(listRepositoryProvider).getAllEntries();
   final followed = entries.map((e) => e.mediaId).toSet();
   final counts = <String, int>{};
   for (final m in all) {
-    if (!followed.contains(m.anilistId)) continue; // que les animes suivis
+    if (!followed.contains(m.anilistId)) continue;
     for (final g in m.genres) {
       counts[g] = (counts[g] ?? 0) + 1;
     }
@@ -119,22 +125,8 @@ final _favoriteGenresProvider =
   return sorted.take(max).toList();
 });
 
-/// Recommandations AniList pour un genre donné (découverte).
-final _byGenreProvider =
-    FutureProvider.family<List<Media>, String>((ref, genre) async {
-  try {
-    return await ref.watch(aniListClientProvider).byGenre(genre, perPage: 20);
-  } catch (_) {
-    return const [];
-  }
-});
-
 /// Ensemble des ids déjà présents dans la bibliothèque (toute entrée de liste).
-/// Sert à EXCLURE ces animes des rangées de découverte (Tendances, Populaires,
-/// genre…) pour ne montrer que du nouveau. Les ids anime-sama étant négatifs et
-/// les ids AniList positifs, une exclusion par id ne couvre pas un anime suivi
-/// via anime-sama mais affiché ici via AniList — on complète donc par le titre
-/// normalisé (best-effort).
+/// Sert à EXCLURE ces animes des rangées de découverte.
 final _libraryFilterProvider =
     FutureProvider<({Set<int> ids, Set<String> titles})>((ref) async {
   final entries = await ref.watch(listRepositoryProvider).getAllEntries();
@@ -185,8 +177,6 @@ class HomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final now = DateTime.now();
-    final season = _currentSeason(now);
     final genresAsync = ref.watch(_favoriteGenresProvider(3));
 
     return ListView(
@@ -204,33 +194,25 @@ class HomePage extends ConsumerWidget {
           provider: _continueWatchingProvider,
           withResume: true,
         ),
-        // --- Rangées de DÉCOUVERTE (excluent les animes déjà en biblio) ---
         // 3. Sortis du moment (planning de la semaine).
         _MediaRow(
           title: 'Sortis du moment',
           provider: _recentlyReleasedProvider,
           excludeLibrary: true,
         ),
-        // 4. Saison courante.
+        // 4. Les classiques (home anime-sama).
         _MediaRow(
-          title: 'Saison courante',
-          provider: _seasonPreviewProvider((season: season, year: now.year)),
+          title: 'Les classiques',
+          provider: _classicsProvider,
           excludeLibrary: true,
         ),
-        // 5. Tendances du moment (AniList).
+        // 5. Derniers épisodes ajoutés (home anime-sama).
         _MediaRow(
-          title: 'Tendances du moment',
-          provider: _trendingProvider,
+          title: 'Derniers episodes ajoutes',
+          provider: _latestProvider,
           excludeLibrary: true,
         ),
-        // 6. Populaires (all-time). Masqué s'il fait doublon avec Tendances.
-        _MediaRow(
-          title: 'Populaires',
-          provider: _popularProvider,
-          excludeLibrary: true,
-          hideIfSameAs: _trendingProvider,
-        ),
-        // 7. Par genre favori : une rangée par genre.
+        // 6. Par genre favori : une rangée par genre.
         ...genresAsync.maybeWhen(
           data: (genres) => genres.map((g) => _GenreRow(genre: g)).toList(),
           orElse: () => const <Widget>[],
@@ -240,19 +222,6 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-/// Provider saison courante (mis en cache, keyé sur (saison, année)).
-final _seasonPreviewProvider =
-    FutureProvider.family<List<Media>, ({AnimeSeason season, int year})>(
-        (ref, arg) async {
-  try {
-    return await ref
-        .watch(aniListClientProvider)
-        .season(arg.season, arg.year, perPage: 12);
-  } catch (_) {
-    return const [];
-  }
-});
-
 // ---------------------------------------------------------------------------
 // Rangée horizontale réutilisable
 // ---------------------------------------------------------------------------
@@ -260,11 +229,6 @@ final _seasonPreviewProvider =
 /// Rangée horizontale de [MediaCard], grande taille façon Netflix, à
 /// défilement EN BOUCLE (on revient au début après le dernier). Masquée si
 /// vide/chargement/erreur.
-/// - [withResume] : bouton reprise sur les cartes.
-/// - [excludeLibrary] : retire les animes déjà dans la bibliothèque (rangées
-///   de découverte : on ne montre que du nouveau).
-/// - [hideIfSameAs] : masque la rangée si son début recoupe un autre provider
-///   (évite Populaires ≈ Tendances).
 class _MediaRow extends ConsumerWidget {
   final String title;
   final ProviderListenable<AsyncValue<List<Media>>> provider;
@@ -275,9 +239,7 @@ class _MediaRow extends ConsumerWidget {
   /// Nombre max de cartes par rangée (borne le carrousel).
   static const int _maxCards = 20;
 
-  /// Nombre MIN de cartes pour activer la boucle infinie. En dessous, il n'y a
-  /// pas assez d'items pour remplir une page large sans qu'un même item
-  /// réapparaisse en double à l'écran → on désactive la boucle (liste finie).
+  /// Nombre MIN de cartes pour activer la boucle infinie.
   static const int _minCardsForLoop = 13;
 
   /// Largeur/hauteur des grandes cartes.
@@ -299,9 +261,7 @@ class _MediaRow extends ConsumerWidget {
       data: (raw) {
         var items = raw;
 
-        // Exclusion des animes déjà en bibliothèque (par id ET par titre
-        // normalisé, pour couvrir un anime suivi via anime-sama mais affiché
-        // ici via AniList).
+        // Exclusion des animes déjà en bibliothèque.
         if (excludeLibrary) {
           final lib = ref.watch(_libraryFilterProvider).maybeWhen(
                 data: (f) => f,
@@ -343,11 +303,6 @@ class _MediaRow extends ConsumerWidget {
               height: _rowHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                // Défilement en BOUCLE seulement s'il y a assez d'items pour
-                // remplir une page large sans qu'un même item réapparaisse en
-                // double à l'écran (>= _minCardsForLoop). Sinon liste finie :
-                // on présente un très grand nombre d'items virtuels et on ramène
-                // l'index dans [0, items.length[ par modulo.
                 itemCount: items.length < _minCardsForLoop
                     ? items.length
                     : 100000,
@@ -395,7 +350,7 @@ class _MediaRow extends ConsumerWidget {
   }
 }
 
-/// Rangée « Recommandé · <genre> » (découverte AniList par genre).
+/// Rangée « Recommande · <genre> » (découverte anime-sama par genre).
 class _GenreRow extends StatelessWidget {
   final String genre;
   const _GenreRow({required this.genre});
@@ -403,7 +358,7 @@ class _GenreRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _MediaRow(
-      title: 'Recommandé · $genre',
+      title: 'Recommande - $genre',
       provider: _byGenreProvider(genre),
       excludeLibrary: true,
     );

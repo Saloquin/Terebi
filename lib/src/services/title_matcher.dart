@@ -44,7 +44,8 @@ class TitleMatcher {
     if (reconciled != null) return reconciled;
 
     // Base : le média anime-sama fait foi (identité stable).
-    var media = Media.fromAnimeSama(title: animeSamaTitle);
+    var media = Media.fromAnimeSama(
+        slug: normalizeAnimeTitle(animeSamaTitle), title: animeSamaTitle);
 
     // Cache local : si ce média a déjà été résolu AVEC image, on le réutilise.
     // Sans image, on ne réessaie que si l'échec précédent était RÉSEAU (pour

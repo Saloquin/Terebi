@@ -23,8 +23,11 @@ import 'package:terebi/src/domain/models/media.dart';
 import 'package:terebi/src/domain/models/media_relation.dart';
 import 'package:terebi/src/services/animesama_resolver.dart';
 import 'package:terebi/src/services/process_runner.dart';
+import 'package:terebi/src/services/stream_resolver.dart'
+    show AnimeSamaHome, AnimeSamaCatalogueItem;
 import 'package:terebi/src/ui/pages/calendar_page.dart';
 import 'package:terebi/src/ui/pages/catalog_page.dart';
+import 'package:terebi/src/ui/pages/home_page.dart';
 import 'package:terebi/src/ui/pages/library_page.dart';
 import 'package:terebi/src/ui/pages/settings_page.dart';
 import 'package:terebi/src/ui/pages/stats_page.dart';
@@ -480,6 +483,39 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.text('Chemin Python (optionnel)'), findsOneWidget);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tests : HomePage — rangees anime-sama
+  // ---------------------------------------------------------------------------
+
+  group('HomePage', () {
+    testWidgets('HomePage affiche les rangees anime-sama', (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          animeSamaHomeProvider.overrideWith((ref) async => const AnimeSamaHome(
+                classics: [
+                  AnimeSamaCatalogueItem(
+                      title: 'Naruto', url: '/catalogue/naruto/', slug: 'naruto'),
+                ],
+                latestEpisodes: [
+                  AnimeSamaCatalogueItem(
+                      title: 'One Piece',
+                      url: '/catalogue/one-piece/',
+                      slug: 'one-piece'),
+                ],
+              )),
+          animeSamaPlanningProvider.overrideWith((ref) async => const []),
+        ],
+        child: const MaterialApp(home: Scaffold(body: HomePage())),
+      ));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Les classiques'), findsOneWidget);
+      expect(find.text('Derniers episodes ajoutes'), findsOneWidget);
+      await db.close();
     });
   });
 }
