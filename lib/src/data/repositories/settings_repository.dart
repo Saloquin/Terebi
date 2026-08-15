@@ -39,6 +39,10 @@ abstract final class SettingsKeys {
   /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
   static const String pythonPath = 'python_path';
 
+  /// Masquer les animes déjà en bibliothèque dans le catalogue ('1' = masquer,
+  /// autre/absent = afficher). Désactivé par défaut.
+  static const String catalogHideLibrary = 'catalog_hide_library';
+
   /// Clé de la saison anime-sama choisie pour un média AniList donné
   /// (index 1-based). Ex. `anime_sama_season:105333`.
   static String animeSamaSeasonFor(int anilistId) =>

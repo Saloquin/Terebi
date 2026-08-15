@@ -163,6 +163,73 @@ void main() {
     });
   });
 
+  group('catalogueFilter', () {
+    test('passe --genre seulement quand fourni', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(
+            exitCode: 0,
+            stdout: 'CATALOGUE_JSON: [{"title":"One Piece",'
+                '"url":"/catalogue/one-piece/","slug":"one-piece"}]');
+      });
+      final items = await r.catalogueFilter(genre: 'Action');
+      expect(items, hasLength(1));
+      expect(captured, containsAllInOrder(['--action', 'catalogue-filter']));
+      expect(captured, containsAllInOrder(['--genre', 'Action']));
+      expect(captured, isNot(contains('--annee-min')));
+    });
+
+    test('passe annee-min/max et episodes-min/max quand fournis', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(exitCode: 0, stdout: 'CATALOGUE_JSON: []');
+      });
+      await r.catalogueFilter(
+          anneeMin: '2020',
+          anneeMax: '2023',
+          episodesMin: '12',
+          episodesMax: '24');
+      expect(captured, containsAllInOrder(['--annee-min', '2020']));
+      expect(captured, containsAllInOrder(['--annee-max', '2023']));
+      expect(captured, containsAllInOrder(['--episodes-min', '12']));
+      expect(captured, containsAllInOrder(['--episodes-max', '24']));
+      // genre absent car non fourni.
+      expect(captured, isNot(contains('--genre')));
+    });
+
+    test('mode parcourir : aucun arg optionnel si tous vides', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(exitCode: 0, stdout: 'CATALOGUE_JSON: []');
+      });
+      await r.catalogueFilter();
+      expect(captured, containsAllInOrder(['--action', 'catalogue-filter']));
+      for (final opt in [
+        '--genre',
+        '--annee-min',
+        '--annee-max',
+        '--episodes-min',
+        '--episodes-max'
+      ]) {
+        expect(captured, isNot(contains(opt)));
+      }
+    });
+
+    test('catalogueByGenre existant : --genre toujours passe', () async {
+      List<String>? captured;
+      final r = _resolver((exe, args, {Map<String, String>? environment}) async {
+        captured = args;
+        return const ProcessResult(exitCode: 0, stdout: 'CATALOGUE_JSON: []');
+      });
+      await r.catalogueByGenre(genre: 'Thriller');
+      expect(captured, containsAllInOrder(['--action', 'catalogue-filter']));
+      expect(captured, containsAllInOrder(['--genre', 'Thriller']));
+    });
+  });
+
   group('AnimeSamaCatalogueItem enrichi', () {
     test('porte slug, cover et genres', () {
       const it = AnimeSamaCatalogueItem(

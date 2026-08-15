@@ -393,6 +393,33 @@ class AnimeSamaResolver implements StreamResolver {
     return parseCatalogue(combined);
   }
 
+  /// Catalogue filtre par criteres OPTIONNELS (genre, annee, nb episodes).
+  ///
+  /// Mode « parcourir » = tous les criteres vides -> premiere page du catalogue
+  /// (animes only). Chaque critere n'est passe au wrapper que s'il est non vide,
+  /// pour rester equivalent a un catalogue sans filtre quand rien n'est fourni.
+  /// Ne remplace pas [catalogueByGenre] (conserve pour les rangees d'accueil).
+  Future<List<AnimeSamaCatalogueItem>> catalogueFilter({
+    String genre = '',
+    String anneeMin = '',
+    String anneeMax = '',
+    String episodesMin = '',
+    String episodesMax = '',
+  }) async {
+    final args = [
+      wrapperScriptPath,
+      '--script', animeSamaScriptPath,
+      '--action', 'catalogue-filter',
+      if (genre.isNotEmpty) ...['--genre', genre],
+      if (anneeMin.isNotEmpty) ...['--annee-min', anneeMin],
+      if (anneeMax.isNotEmpty) ...['--annee-max', anneeMax],
+      if (episodesMin.isNotEmpty) ...['--episodes-min', episodesMin],
+      if (episodesMax.isNotEmpty) ...['--episodes-max', episodesMax],
+    ];
+    final combined = await _run(args);
+    return parseCatalogue(combined);
+  }
+
   /// Lance le wrapper Python et retourne stdout+stderr combinés.
   Future<String> _run(List<String> args) async {
     final ProcessResult result;

@@ -751,12 +751,13 @@ _CLASSIC_SLUGS = [
 ]
 
 
-def _catalogue_url(domain, genre="", page=1):
+def _catalogue_url(domain, genre="", page=1,
+                   annee_min="", annee_max="",
+                   episodes_min="", episodes_max=""):
     """Construit une URL de catalogue avec les filtres dans l'URL (filtrage cote
     SERVEUR anime-sama). `type[]=Anime` est TOUJOURS present -> jamais de scan
-    dans le resultat. `genre[]` optionnel. Les autres criteres (annee, episodes,
-    chapitres, search) sont vides mais listes comme sur le site. `page` >1 ajoute
-    la pagination.
+    dans le resultat. `genre[]`, `annee_min/max`, `episodes_min/max` sont
+    optionnels (vides = non filtres). `page` >1 ajoute la pagination.
 
     Exemple complet :
       /catalogue/?type[]=Anime&annee_min=&annee_max=&episodes_min=&episodes_max=
@@ -765,9 +766,12 @@ def _catalogue_url(domain, genre="", page=1):
     from urllib.parse import quote
     qs = (
         "type%5B%5D=Anime"
-        "&annee_min=&annee_max=&episodes_min=&episodes_max="
+        "&annee_min={}&annee_max={}&episodes_min={}&episodes_max={}"
         "&chapitres_min=&chapitres_max="
-        "&genre%5B%5D={}&search=".format(quote(genre))
+        "&genre%5B%5D={}&search=".format(
+            quote(str(annee_min)), quote(str(annee_max)),
+            quote(str(episodes_min)), quote(str(episodes_max)),
+            quote(genre))
     )
     if page > 1:
         qs += "&page={}".format(page)
@@ -816,23 +820,25 @@ def _catalogue_last_page(html):
 
 
 def action_catalogue_filter(mod, dl, args):
-    """Catalogue filtre par genre, via le FILTRE SERVEUR d'anime-sama.
+    """Catalogue filtre par criteres OPTIONNELS, via le FILTRE SERVEUR anime-sama.
 
-    Contrairement a une hypothese initiale, le filtre serveur fonctionne :
-      /catalogue/?type[]=Anime&...&genre[]=<Genre>[&page=N]   (cf. _catalogue_url)
-    renvoie exactement les oeuvres du genre (ex. Thriller = 46, Ghibli = 20),
-    scans exclus grace a type[]=Anime. C'est bien plus exact et rapide que de
-    scanner tout le catalogue et filtrer cote client.
+    Le filtre serveur fonctionne :
+      /catalogue/?type[]=Anime&annee_min=..&episodes_min=..&genre[]=<Genre>[&page=N]
+    renvoie exactement les oeuvres correspondantes (ex. Thriller = 46, Ghibli =
+    20), scans exclus grace a type[]=Anime.
 
-    On pagine ce resultat filtre (bornee par la derniere page reelle) et on
-    s'arrete des qu'on a de quoi remplir une rangee (TARGET). Repli : si le
-    serveur ne renvoie rien (genre non reconnu cote serveur), on scanne le
-    catalogue et on filtre cote client comme avant."""
+    Criteres tous optionnels : sans aucun critere, c'est le mode « parcourir »
+    (premiere(s) page(s) du catalogue anime-only). On pagine (bornee) jusqu'a
+    TARGET items. Repli client-side seulement si un GENRE est fourni et que le
+    serveur ne renvoie rien (genre non reconnu mais present dans les tags)."""
     import requests
     domain = mod.DOMAIN
     genre = args.genre.strip()
-    if not genre:
-        _fail("catalogue-filter requiert --genre")
+    annee_min = args.annee_min.strip()
+    annee_max = args.annee_max.strip()
+    episodes_min = args.episodes_min.strip()
+    episodes_max = args.episodes_max.strip()
+    # Aucune garde : genre vide = mode « parcourir » (catalogue anime-only).
 
     target = 40
     hard_max_pages = 60
@@ -842,7 +848,10 @@ def action_catalogue_filter(mod, dl, args):
     last_page = hard_max_pages
     page = 1
     while page <= last_page:
-        url = _catalogue_url(domain, genre=genre, page=page)
+        url = _catalogue_url(
+            domain, genre=genre, page=page,
+            annee_min=annee_min, annee_max=annee_max,
+            episodes_min=episodes_min, episodes_max=episodes_max)
         try:
             html = requests.get(url, headers=mod.HEADERS_BASE, timeout=15).text
         except requests.RequestException:
@@ -863,9 +872,9 @@ def action_catalogue_filter(mod, dl, args):
             break
         page += 1
 
-    # Repli cote client si le filtre serveur n'a rien donne (genre inconnu du
-    # serveur mais present dans les tags des cartes).
-    if not items:
+    # Repli cote client si un GENRE est fourni et que le filtre serveur n'a rien
+    # donne (genre inconnu du serveur mais present dans les tags des cartes).
+    if not items and genre:
         items = _filter_genre_client_side(mod, domain, genre, target,
                                           hard_max_pages)
 
@@ -924,6 +933,15 @@ def main():
     parser.add_argument("--vf", action="store_true", help="Version française (défaut VOSTFR)")
     parser.add_argument("--slug", default="", help="Slug catalogue (catalogue-detail)")
     parser.add_argument("--genre", default="", help="Genre (catalogue-filter)")
+    # Filtres optionnels du catalogue (argparse : --annee-min -> args.annee_min).
+    parser.add_argument("--annee-min", default="",
+                        help="Annee de sortie minimum (catalogue-filter)")
+    parser.add_argument("--annee-max", default="",
+                        help="Annee de sortie maximum (catalogue-filter)")
+    parser.add_argument("--episodes-min", default="",
+                        help="Nombre d'episodes minimum (catalogue-filter)")
+    parser.add_argument("--episodes-max", default="",
+                        help="Nombre d'episodes maximum (catalogue-filter)")
     args = parser.parse_args()
 
     try:

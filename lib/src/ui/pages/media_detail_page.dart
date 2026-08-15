@@ -79,13 +79,6 @@ final _mediaDetailProvider =
 });
 
 
-/// Entrée de liste (statut/progression) d'un média, en flux temps réel.
-/// Public pour que d'autres pages puissent observer les changements de statut.
-final listEntryProvider =
-    StreamProvider.family<ListEntry?, int>((ref, mediaId) {
-  return ref.watch(listRepositoryProvider).watchEntry(mediaId);
-});
-
 /// Compteur de rafraîchissement de la progression des saisons. Les tuiles de
 /// saison le watchent : l'incrémenter (après « Terminé » manuel, marquage à
 /// fond…) force chaque tuile à recharger `lastWatched`/total sans dépendre de

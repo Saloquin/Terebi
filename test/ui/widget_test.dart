@@ -12,6 +12,7 @@ import 'package:terebi/src/app/providers.dart';
 import 'package:terebi/src/data/local/database.dart';
 import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/media_repository.dart';
+import 'package:terebi/src/domain/logic/anime_id.dart';
 import 'package:terebi/src/domain/logic/stats_service.dart';
 import 'package:terebi/src/domain/models/anime_format.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
@@ -145,7 +146,7 @@ void main() {
       await tester.pump();
 
       expect(find.byType(TextField), findsOneWidget);
-      expect(find.text('Entrez un titre pour rechercher'), findsOneWidget);
+      expect(find.textContaining('Recherchez par titre'), findsOneWidget);
       await db.close();
     });
 
@@ -192,6 +193,135 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
 
       expect(find.textContaining('Aucun résultat'), findsOneWidget);
+      await db.close();
+    });
+
+    testWidgets('panneau filtres masqué par défaut, affiché au tap',
+        (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      await tester.pumpWidget(_wrap(
+        const CatalogPage(),
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver('CATALOGUE_JSON: []')),
+        ],
+      ));
+      await tester.pump();
+
+      // Masqué : pas de dropdown "Genre".
+      expect(find.text('Genre'), findsNothing);
+      // Tap sur le bouton filtres.
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.pump();
+      expect(find.text('Genre'), findsOneWidget);
+      expect(find.text('Masquer ma bibliothèque'), findsOneWidget);
+      await db.close();
+    });
+
+    testWidgets('mode parcourir : liste via catalogue-filter si filtre sans titre',
+        (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      const out =
+          'CATALOGUE_JSON: [{"title":"Thriller One","url":"/catalogue/thriller-one/","slug":"thriller-one"}]';
+      await tester.pumpWidget(_wrap(
+        const CatalogPage(),
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver(out)),
+        ],
+      ));
+      await tester.pump();
+
+      // Ouvre les filtres et saisit une année min (filtre actif, sans titre).
+      // Un champ année est un simple TextField, plus fiable a piloter en test
+      // que l'overlay d'un DropdownButton.
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.pump();
+      await tester.enterText(find.widgetWithText(TextField, 'Année min'), '2015');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Titre vide + filtre actif -> mode BROWSE -> resultats catalogue-filter.
+      expect(find.text('Thriller One'), findsOneWidget);
+      await db.close();
+    });
+
+    testWidgets('badge de statut présent pour un anime en bibliothèque',
+        (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      // Insère une entrée de liste "terminé" pour le slug attendu.
+      final listRepo = ListRepository(db);
+      final id = animeSamaIdForSlug('one-piece');
+      await listRepo.upsertEntry(ListEntry(
+          mediaId: id,
+          status: ListStatus.completed,
+          updatedAt: DateTime.utc(2026)));
+
+      const out =
+          'CATALOGUE_JSON: [{"title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"},'
+          '{"title":"Bleach","url":"/catalogue/bleach/","slug":"bleach"}]';
+      await tester.pumpWidget(_wrap(
+        const CatalogPage(),
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver(out)),
+        ],
+      ));
+
+      await tester.enterText(find.byType(TextField), 'one');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      // Laisse le stream libraryStatusMapProvider (asyncMap + hasAnyProgress)
+      // et la recherche se resoudre.
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // One Piece est en biblio (terminé) -> badge ; Bleach non.
+      expect(find.text('Terminé'), findsOneWidget);
+      await db.close();
+    });
+
+    testWidgets('masquer biblio retire la tuile en bibliothèque',
+        (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
+      final listRepo = ListRepository(db);
+      final id = animeSamaIdForSlug('one-piece');
+      await listRepo.upsertEntry(ListEntry(
+          mediaId: id,
+          status: ListStatus.completed,
+          updatedAt: DateTime.utc(2026)));
+
+      const out =
+          'CATALOGUE_JSON: [{"title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"},'
+          '{"title":"Bleach","url":"/catalogue/bleach/","slug":"bleach"}]';
+      await tester.pumpWidget(_wrap(
+        const CatalogPage(),
+        overrides: [
+          databaseProvider.overrideWithValue(db),
+          animeSamaResolverProvider
+              .overrideWith((ref) async => _fakeResolver(out)),
+        ],
+      ));
+
+      await tester.enterText(find.byType(TextField), 'one');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('One Piece'), findsOneWidget);
+
+      // Active "Masquer ma bibliothèque".
+      await tester.tap(find.byIcon(Icons.filter_list));
+      await tester.pump();
+      await tester.tap(find.byType(Switch));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // One Piece (en biblio) masqué ; Bleach reste.
+      expect(find.text('One Piece'), findsNothing);
+      expect(find.text('Bleach'), findsOneWidget);
       await db.close();
     });
   });

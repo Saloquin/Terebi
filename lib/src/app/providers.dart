@@ -16,6 +16,7 @@ import '../data/repositories/progress_repository.dart';
 import '../data/repositories/watch_history_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/anime_id.dart';
+import '../domain/logic/effective_status_service.dart';
 import '../domain/logic/franchise_service.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
@@ -25,6 +26,7 @@ import '../domain/logic/calendar_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../domain/models/list_entry.dart';
+import '../domain/models/list_status.dart';
 import '../domain/models/media.dart';
 import '../services/animesama_catalog_service.dart';
 import '../services/animesama_resolver.dart';
@@ -80,6 +82,39 @@ final hasProgressProvider = StreamProvider.family<bool, int>((ref, mediaId) {
       return watched.values.any((v) => (int.tryParse(v) ?? 0) > 0);
     },
   );
+});
+
+/// Entree de liste (statut/progression) d'un media, en flux temps reel.
+/// Declaree ici (et non dans une page) pour etre observable depuis toute page
+/// ET par [libraryStatusMapProvider] sans import circulaire.
+final listEntryProvider =
+    StreamProvider.family<ListEntry?, int>((ref, mediaId) {
+  return ref.watch(listRepositoryProvider).watchEntry(mediaId);
+});
+
+/// Statut EFFECTIF (affiche) de CHAQUE anime present dans la bibliotheque, en un
+/// seul flux : `mediaId -> ListStatus`. Un anime absent de la map n'est ni suivi
+/// ni progresse (donc « pas en bibliotheque »).
+///
+/// Reproduit la semantique de la bibliotheque (watchAllEntries + effectiveStatus
+/// + hasAnyProgress) : « en cours » (current) n'est jamais stocke, il est derive
+/// de la progression. Un seul watch pour toute la page catalogue (bien plus
+/// efficace que N providers par tuile) ; sert aux badges et au masquage.
+final libraryStatusMapProvider = StreamProvider<Map<int, ListStatus>>((ref) {
+  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
+  return ref
+      .watch(listRepositoryProvider)
+      .watchAllEntries()
+      .asyncMap((all) async {
+    final map = <int, ListStatus>{};
+    for (final e in all) {
+      final hasProgress =
+          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
+      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+      if (eff != null) map[e.mediaId] = eff;
+    }
+    return map;
+  });
 });
 
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
@@ -183,6 +218,35 @@ final animeSamaByGenreProvider =
   final resolver = await ref.watch(animeSamaResolverProvider.future);
   try {
     return await resolver.catalogueByGenre(genre: genre);
+  } catch (_) {
+    return const [];
+  }
+});
+
+/// Criteres de filtrage du catalogue « parcourir ». Record Dart = egalite par
+/// valeur, donc utilisable directement comme cle de family (deux criteres
+/// identiques -> meme resultat en cache).
+typedef CatalogFilterCriteria = ({
+  String genre,
+  String anneeMin,
+  String anneeMax,
+  String episodesMin,
+  String episodesMax,
+});
+
+/// Catalogue anime-sama filtre par criteres optionnels (genre/annee/episodes).
+/// Vide en cas d'erreur (best-effort). Mode « parcourir » = criteres vides.
+final animeSamaCatalogFilterProvider = FutureProvider.family<
+    List<AnimeSamaCatalogueItem>, CatalogFilterCriteria>((ref, c) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  try {
+    return await resolver.catalogueFilter(
+      genre: c.genre,
+      anneeMin: c.anneeMin,
+      anneeMax: c.anneeMax,
+      episodesMin: c.episodesMin,
+      episodesMax: c.episodesMax,
+    );
   } catch (_) {
     return const [];
   }
