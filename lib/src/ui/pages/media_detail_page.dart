@@ -555,11 +555,11 @@ class _StatusDropdown extends ConsumerWidget {
 
   const _StatusDropdown({required this.media, required this.entry});
 
-  /// Libellés des statuts MANUELS uniquement (les seuls choisissables). « En
-  /// cours » / « Terminé » sont automatiques (dérivés de la progression) et ne
-  /// figurent PAS dans le sélecteur.
+  /// Libellés des statuts MANUELS proposés dans le sélecteur. « Planifié »,
+  /// « En cours » et « Terminé » sont AUTOMATIQUES (dérivés de la progression :
+  /// 0 vu = Planifié, tout vu = Terminé, sinon En cours) et ne figurent donc PAS
+  /// dans le sélecteur. Ne restent que les statuts « gelants » choisis à la main.
   static const _manualLabels = {
-    ListStatus.planning: 'Planifié',
     ListStatus.paused: 'En pause',
     ListStatus.dropped: 'Abandonné',
     ListStatus.repeating: 'Revisionnage',
@@ -588,20 +588,13 @@ class _StatusDropdown extends ConsumerWidget {
       entry: entry,
       hasProgress: hasProgress,
     );
-    // Valeur du dropdown = statut MANUEL réellement choisi, ou null (« Auto »).
-    // Subtilité : `planning` sert de statut par défaut/fourre-tout. On ne le
-    // considère comme un choix MANUEL « Planifié » que si l'anime n'a AUCUNE
-    // progression. Dès qu'il y a une progression, un `planning` stocké est
-    // interprété comme « Auto » (l'effectif est « En cours ») — sinon, après
-    // avoir démarqué une saison, l'anime restait bloqué sur « Planifié » sans
-    // pouvoir revenir à « Auto ».
+    // Valeur du dropdown = statut MANUEL « gelant » réellement choisi
+    // (pause/abandonné/revisionnage), ou null (« Auto »). Planifié/En cours/
+    // Terminé sont automatiques et ne sont jamais une valeur du sélecteur.
     final stored = entry?.status;
-    final isManualPlanning = stored == ListStatus.planning && !hasProgress;
-    final isOtherManual = stored != null &&
-        stored != ListStatus.planning &&
-        kManualStatuses.contains(stored);
-    final manualValue =
-        (isManualPlanning || isOtherManual) ? stored : null;
+    final manualValue = (stored != null && isFreezingManualStatus(stored))
+        ? stored
+        : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -622,10 +615,10 @@ class _StatusDropdown extends ConsumerWidget {
               value: null,
               child: Text('— Auto (selon progression)'),
             ),
+            // Seuls les statuts manuels « gelants » (Pause/Abandonné/
+            // Revisionnage) sont proposés ; Planifié est automatique (0 vu).
             for (final s in kManualStatuses)
-              // « Planifié » = « pas encore commencé » : sans intérêt (et
-              // trompeur) sur un anime déjà entamé → on le masque dans ce cas.
-              if (!(s == ListStatus.planning && hasProgress))
+              if (s != ListStatus.planning)
                 DropdownMenuItem<ListStatus?>(
                   value: s,
                   child: Text(_manualLabels[s] ?? s.name),
