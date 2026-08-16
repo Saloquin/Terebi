@@ -519,13 +519,15 @@ def action_planning(mod, dl, args):
     planning = {day.strip(): [] for day in days}
     day_sections = re.split(day_pattern, html_content)
 
-    # Une carte planning complete : la div (avec classes + data-*) jusqu'au <a href>.
+    # Une carte planning : div (classes + data-*) suivie du <a href>. Le
+    # data-release-ts est OPTIONNEL — les diffusions sans horaire annonce
+    # affichent « ? » (on les garde quand meme). On capte la div entiere (pour
+    # lire les classes : langue + type Scans) puis le href.
     card_re = re.compile(
-        r'<div[^>]*\bplanning-card\b[^>]*data-title="([^"]*)"[^>]*'
-        r'data-release-ts="(\d+)"[^>]*>\s*<a href="(/catalogue/[^"]+)"',
+        r'(<div[^>]*\bplanning-card\b[^>]*>)\s*<a href="(/catalogue/[^"]+)"',
         re.DOTALL | re.I)
-    # La langue est une classe de la div : on relit la div entiere pour la classe.
-    div_re = re.compile(r'<div[^>]*\bplanning-card\b[^>]*>', re.I)
+    title_re = re.compile(r'data-title="([^"]*)"')
+    ts_re = re.compile(r'data-release-ts="(\d+)"')
 
     items = []
     seen = set()  # (jour, slug) -> dedup
@@ -535,16 +537,19 @@ def action_planning(mod, dl, args):
         if current_day not in planning:
             continue
         for m in card_re.finditer(day_content):
-            title = _html.unescape(m.group(1)).strip()
-            ts = m.group(2)
-            card_url = m.group(3).strip()
-            # Langue : la classe de la div (VOSTFR / VF), repli sur l'URL.
-            div_tag = day_content[m.start():m.start() + 400]
+            div_tag = m.group(1)
+            card_url = m.group(2).strip()
+            # Ecarte les cartes de type Scans (manga) : on ne garde que la video.
+            if 'scan-card-premium' in div_tag or re.search(r'\bScans\b', div_tag):
+                continue
+            mt = title_re.search(div_tag)
+            title = _html.unescape(mt.group(1)).strip() if mt else ''
+            # Langue : classe de la div (VOSTFR / VF), repli sur l'URL.
             is_vf = bool(re.search(r'\bVF\b', div_tag)) or '/vf/' in card_url.lower()
             is_vo = bool(re.search(r'\bVOSTFR\b', div_tag)) or \
                 '/vostfr/' in card_url.lower()
-            # Filtre langue : on ne garde que la langue demandee. Si la carte
-            # n'indique aucune langue, on la garde en VOSTFR (defaut).
+            # Filtre langue : on ne garde que la langue demandee. Une carte sans
+            # langue explicite est traitee comme VOSTFR (defaut).
             if want_vf and not is_vf:
                 continue
             if not want_vf and is_vf and not is_vo:
@@ -556,10 +561,16 @@ def action_planning(mod, dl, args):
             if not slug or key in seen:
                 continue
             seen.add(key)
-            try:
-                hhmm = time.strftime("%Hh%M", time.localtime(int(ts)))
-            except ValueError:
-                hhmm = ""
+            # Heure via data-release-ts si present, sinon « ? » (horaire non
+            # annonce par anime-sama).
+            mts = ts_re.search(div_tag)
+            if mts:
+                try:
+                    hhmm = time.strftime("%Hh%M", time.localtime(int(mts.group(1))))
+                except ValueError:
+                    hhmm = "?"
+            else:
+                hhmm = "?"
             items.append({
                 "day": current_day,
                 "time": hhmm,
