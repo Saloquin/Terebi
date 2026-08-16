@@ -367,46 +367,38 @@ def action_skip_times(mod, dl, args):
 def _planning_times(mod):
     """Récupère la page /planning/ et extrait un map titre_normalisé -> heure.
 
-    L'heure n'est PAS dans le HTML statique (parsé par afficher_planning) : elle
-    est dans le JS du planning, via des appels du type
-      cartePlanningAnime("Titre", "url", "img", "HHhMM", "VOSTFR")
-    On récupère les scripts (inline + externes) et on parse ces appels.
+    anime-sama encode desormais l'heure de diffusion dans un attribut
+    `data-release-ts` (timestamp Unix) sur chaque carte `.planning-card`, avec le
+    titre dans `data-title`. On lit ces attributs et on formate l'heure locale en
+    « HHhMM ». (L'ancien format JS `cartePlanningAnime(...)` n'existe plus.)
     """
     import requests
+    import time
     domain = mod.DOMAIN
     times = {}
     try:
         base = f"https://{domain}/planning/"
         resp = requests.get(base, headers=mod.HEADERS_BASE, timeout=15)
         html = resp.text
-        # Scripts à inspecter : le HTML lui-même + les .js référencés.
-        blobs = [html]
-        for m in re.finditer(r'<script[^>]+src="([^"]+)"', html):
-            src = m.group(1)
-            if 'planning' not in src.lower() and 'emission' not in src.lower():
+        # data-title="..." et data-release-ts="..." dans le meme <div> de carte
+        # (ordre variable) -> on capte la balise puis on extrait les 2 attributs.
+        card_re = re.compile(r'<div[^>]*\bplanning-card\b[^>]*>', re.I)
+        title_attr = re.compile(r'data-title="([^"]*)"')
+        ts_attr = re.compile(r'data-release-ts="(\d+)"')
+        for m in card_re.finditer(html):
+            tag = m.group(0)
+            mt = title_attr.search(tag)
+            mts = ts_attr.search(tag)
+            if not mt or not mts:
                 continue
-            if src.startswith('//'):
-                src = 'https:' + src
-            elif src.startswith('/'):
-                src = f"https://{domain}{src}"
-            elif not src.startswith('http'):
-                src = f"https://{domain}/planning/{src}"
+            title = mt.group(1).strip()
             try:
-                blobs.append(requests.get(src, headers=mod.HEADERS_BASE,
-                                          timeout=15).text)
-            except requests.RequestException:
-                pass
-        # cartePlanningAnime("Titre","url","img","HHhMM","VERSION")
-        pattern = re.compile(
-            r'cartePlanningAnime\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,'
-            r'\s*"([^"]*)"\s*,\s*"([^"]*)"'
-        )
-        for blob in blobs:
-            for m in pattern.finditer(blob):
-                title = m.group(1).strip()
-                time_str = m.group(4).strip()
-                if title and time_str:
-                    times[_norm(title)] = time_str
+                ts = int(mts.group(1))
+            except ValueError:
+                continue
+            hhmm = time.strftime("%Hh%M", time.localtime(ts))
+            if title:
+                times[_norm(title)] = hhmm
     except requests.RequestException:
         pass
     return times
