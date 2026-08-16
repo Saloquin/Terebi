@@ -630,12 +630,11 @@ class _StatusDropdown extends ConsumerWidget {
     );
   }
 
-  /// Applique un statut MANUEL (ou le retire → retour au calcul auto).
-  /// - `newStatus` null → on retire l'entrée des listes manuelles : si l'anime
-  ///   a une progression, il redeviendra « En cours » (calculé) ; sinon il sort
-  ///   des listes. Concrètement on repasse le statut stocké à `planning` si une
-  ///   progression existe (pour rester « suivi »), sinon on retire l'entrée.
-  /// - sinon → on stocke ce statut manuel.
+  /// Applique un statut MANUEL, ou retourne au calcul automatique.
+  /// - `newStatus` null → « Auto » : repasse le statut stocké à `planning`,
+  ///   l'effectif redevient calculé (Planifié/En cours/Terminé). Ne retire PAS
+  ///   l'anime de la bibliothèque (retrait = bouton dédié).
+  /// - sinon → on stocke ce statut manuel (gelant).
   Future<void> _applyManualStatus(
       BuildContext context, WidgetRef ref, ListStatus? newStatus) async {
     final repo = ref.read(listRepositoryProvider);
@@ -643,24 +642,16 @@ class _StatusDropdown extends ConsumerWidget {
     final existing = await repo.getEntry(media.mediaId);
 
     if (newStatus == null) {
-      // Retour au mode auto : on efface un éventuel statut manuel « gelant ».
-      // Si l'anime a une progression (globale OU par saison) → stocké `planning`
-      // (l'effectif sera « En cours ») ; sinon on retire l'entrée. On teste la
-      // progression PAR SAISON aussi (un anime suivi via le lecteur a souvent
-      // progress=0 mais une progression par saison → ne PAS le supprimer).
+      // Retour au mode AUTO : on efface le statut manuel « gelant » en repassant
+      // le statut stocké à `planning`. L'effectif redevient calculé (Planifié si
+      // 0 vu, En cours si progression, Terminé si tout vu). On ne SUPPRIME PAS
+      // l'entrée : « Auto » garde l'anime en bibliothèque (le retrait se fait
+      // via le bouton dédié « Retirer de la bibliothèque »).
       if (existing == null) return;
-      final hasProgress = existing.progress > 0 ||
-          await ref
-              .read(seasonProgressRepositoryProvider)
-              .hasAnyProgress(media.mediaId);
-      if (hasProgress) {
-        await repo.upsertEntry(existing.copyWith(
-          status: ListStatus.planning,
-          updatedAt: DateTime.now(),
-        ));
-      } else {
-        await repo.deleteEntry(media.mediaId);
-      }
+      await repo.upsertEntry(existing.copyWith(
+        status: ListStatus.planning,
+        updatedAt: DateTime.now(),
+      ));
     } else {
       final updated = existing?.copyWith(
             status: newStatus,
