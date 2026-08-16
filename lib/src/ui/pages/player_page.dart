@@ -124,6 +124,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Duration? _seekTarget;
   Timer? _seekDebounce;
 
+  /// Contexte capturé SOUS le [Video] (dans le builder `controls`) : requis par
+  /// `toggleFullscreen` de media_kit (qui remonte le VideoStateInheritedWidget,
+  /// absent du contexte parent). Sert au raccourci « f » / « Échap ».
+  BuildContext? _videoCtx;
+
   /// Dernière position persistée (pour throttler l'écriture DB ~1×/5 s).
   int _lastPersistedWhole = -1;
 
@@ -1048,6 +1053,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         final v = _player.state.volume - 5.0;
         _player.setVolume(v.clamp(0.0, 100.0));
       },
+      // Plein écran (f) / sortie (Échap) : media_kit fournit ces raccourcis par
+      // défaut, mais fournir notre propre map les écrase -> on les rajoute. Le
+      // contexte capturé sous le Video (_videoCtx) est requis par toggleFullscreen.
+      const SingleActivator(LogicalKeyboardKey.keyF): () {
+        final c = _videoCtx;
+        if (c != null && c.mounted) toggleFullscreen(c);
+      },
+      const SingleActivator(LogicalKeyboardKey.escape): () {
+        final c = _videoCtx;
+        if (c != null && c.mounted && isFullscreen(c)) toggleFullscreen(c);
+      },
     };
 
     // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
@@ -1058,12 +1074,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         // glisser (onPanUpdate de media_kit) se declenchait n'importe ou sur le
         // lecteur et changeait le volume par erreur. Volume via bouton + fleches.
         modifyVolumeOnScroll: false,
+        // Clic simple sur la video -> lecture/pause (desactive par defaut).
+        playAndPauseOnTap: true,
         topButtonBar: topBar(_settingsButtonKey),
         bottomButtonBar: bottomBar('n'),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
         modifyVolumeOnScroll: false,
+        playAndPauseOnTap: true,
         topButtonBar: topBar(_settingsButtonKeyFs),
         bottomButtonBar: bottomBar('fs'),
         keyboardShortcuts: shortcuts,
@@ -1074,15 +1093,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // Material standard + le bouton en Positioned (bas-droite, remonté).
       child: Video(
         controller: _videoController,
-        controls: (state) => Stack(
-          children: [
-            MaterialDesktopVideoControls(state),
-            Positioned(
-              right: 24,
-              bottom: 90,
-              child: _SkipButton(player: _player, skip: _skip),
-            ),
-          ],
+        controls: (state) => Builder(
+          // Ce Builder est monté SOUS le Video : son context permet a
+          // toggleFullscreen (raccourci « f ») de remonter l'etat media_kit.
+          builder: (ctx) {
+            _videoCtx = ctx;
+            return Stack(
+              children: [
+                MaterialDesktopVideoControls(state),
+                Positioned(
+                  right: 24,
+                  bottom: 90,
+                  child: _SkipButton(player: _player, skip: _skip),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
