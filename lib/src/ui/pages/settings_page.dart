@@ -269,12 +269,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         },
         networkOk: () async {
           try {
-            final resp = await httpClient.post(
-              Uri.parse('https://graphql.anilist.co'),
-              headers: {'Content-Type': 'application/json'},
-              body:
-                  '{"query":"{ Page(page:1,perPage:1){ media{ id } } }"}',
-            );
+            // anime-sama est la seule source (AniList a ete retire) : on teste
+            // sa disponibilite reelle.
+            final resp = await httpClient
+                .get(Uri.parse('https://anime-sama.to/'))
+                .timeout(const Duration(seconds: 8));
             return resp.statusCode < 500;
           } catch (_) {
             return false;
@@ -531,9 +530,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 _SectionTitle('Cache des données'),
                 const SizedBox(height: 8),
                 Text(
-                  'Les métadonnées AniList sont mises en cache pour accélérer '
-                  'l\'app et éviter le rate-limit. Videz-le pour forcer un '
-                  'rechargement complet.',
+                  'Les métadonnées anime-sama (fiches, images, genres) sont '
+                  'mises en cache pour accélérer l\'app. Videz-le pour forcer '
+                  'un rechargement complet.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
