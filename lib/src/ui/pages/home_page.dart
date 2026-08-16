@@ -64,7 +64,7 @@ final _continueWatchingProvider = StreamProvider<List<Media>>((ref) {
     }
     current.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     final result = <Media>[];
-    for (final c in current.take(20)) {
+    for (final c in current) {
       final m = await mediaRepo.getMedia(c.mediaId);
       if (m != null) result.add(m);
     }
@@ -73,20 +73,19 @@ final _continueWatchingProvider = StreamProvider<List<Media>>((ref) {
 });
 
 /// « Sortis du moment » : planning anime-sama de la semaine, résolu en Media via
-/// le slug (cache DB si dispo, sinon carte minimale). Best-effort, borné.
+/// le slug (cache DB si dispo, sinon carte minimale). Best-effort.
 final _recentlyReleasedProvider = FutureProvider<List<Media>>((ref) async {
   try {
     final items = await ref.watch(animeSamaPlanningProvider.future);
     final result = <Media>[];
     final seen = <int>{};
-    for (final it in items.take(15)) {
+    for (final it in items) {
       final slug = it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
       if (slug.isEmpty) continue;
       final id = animeSamaIdForSlug(slug);
       if (!seen.add(id)) continue;
       final cached = await ref.watch(mediaRepositoryProvider).getMedia(id);
       result.add(cached ?? Media.fromAnimeSama(slug: slug, title: it.title));
-      if (result.length >= 12) break;
     }
     return result;
   } catch (_) {
@@ -201,7 +200,7 @@ final _recentlyWatchedProvider = StreamProvider<List<Media>>((ref) {
       );
   return ref
       .watch(watchHistoryRepositoryProvider)
-      .watchRecent(limit: 50)
+      .watchRecent(limit: 1000)
       .asyncMap((history) async {
     final seen = <int>{};
     final ids = <int>[];
@@ -210,7 +209,7 @@ final _recentlyWatchedProvider = StreamProvider<List<Media>>((ref) {
       if (seen.add(h.mediaId)) ids.add(h.mediaId);
     }
     final result = <Media>[];
-    for (final id in ids.take(20)) {
+    for (final id in ids) {
       final m = await mediaRepo.getMedia(id);
       if (m != null) result.add(m);
     }
@@ -218,26 +217,40 @@ final _recentlyWatchedProvider = StreamProvider<List<Media>>((ref) {
   });
 });
 
-/// « Ça pourrait vous plaire » : union des animes (catalogue anime-sama) des 3
-/// genres FAVORIS (animes terminés/en cours), dédupliqués. Vide si aucun genre
+/// « Ça pourrait vous plaire » : animes (catalogue anime-sama) qui cumulent les
+/// 3 genres FAVORIS (animes terminés/en cours) — INTERSECTION (ET logique).
+/// Le serveur ne filtrant que sur un genre, on scrape chaque genre puis on ne
+/// garde que les cartes portant TOUS les genres favoris. Vide si aucun genre
 /// favori connu. Exclusion biblio appliquée par la rangée.
 final _recommendedProvider = FutureProvider<List<Media>>((ref) async {
   final genres = await ref.watch(_watchedGenresProvider.future);
   if (genres.isEmpty) return const [];
-  final top = genres.take(3);
+  final top = genres.take(3).toList();
   final results = await Future.wait(
     top.map((g) => ref.watch(animeSamaByGenreProvider(g).future)),
   );
-  final seen = <int>{};
-  final all = <AnimeSamaCatalogueItem>[];
+
+  // Genres requis, normalisés pour une comparaison robuste (casse/accents mis
+  // à part : on compare sur minuscule sans espaces).
+  String norm(String g) => g.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+  final required = top.map(norm).toSet();
+
+  // Un anime match s'il porte TOUS les genres favoris. On accumule les items
+  // (par slug) depuis toutes les listes, puis on filtre sur leurs genres.
+  final bySlug = <String, AnimeSamaCatalogueItem>{};
   for (final list in results) {
     for (final it in list) {
       final slug = it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
       if (slug.isEmpty) continue;
-      if (seen.add(animeSamaIdForSlug(slug))) all.add(it);
+      bySlug[slug] = it; // les items d'un même slug portent les mêmes genres
     }
   }
-  return _itemsToMedia(ref, all);
+  final kept = <AnimeSamaCatalogueItem>[];
+  for (final it in bySlug.values) {
+    final have = it.genres.map(norm).toSet();
+    if (required.every(have.contains)) kept.add(it);
+  }
+  return _itemsToMedia(ref, kept);
 });
 
 // ---------------------------------------------------------------------------

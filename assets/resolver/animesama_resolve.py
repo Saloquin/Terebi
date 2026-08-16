@@ -840,7 +840,7 @@ def action_catalogue_filter(mod, dl, args):
     episodes_max = args.episodes_max.strip()
     # Aucune garde : genre vide = mode « parcourir » (catalogue anime-only).
 
-    target = 40
+    target = 100
     hard_max_pages = 60
 
     items = []
