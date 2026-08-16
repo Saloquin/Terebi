@@ -369,9 +369,10 @@ class _MediaRow extends ConsumerWidget {
 }
 
 /// Carrousel horizontal de grandes cartes façon Netflix : défilement par
-/// boutons flèches gauche/droite (overlay), TOUJOURS visibles et circulaire —
-/// la flèche gauche au début renvoie à la fin, la droite à la fin renvoie au
-/// début. La molette verticale défile aussi horizontalement (confort desktop).
+/// boutons flèches gauche/droite (overlay), toujours visibles (si >1 carte). La
+/// liste est FINIE ; les boutons bouclent aux extrémités : au bout à droite, un
+/// clic revient au début ; au début, la flèche gauche va à la fin. La molette
+/// verticale défile aussi horizontalement (confort desktop).
 class _HorizontalCardList extends ConsumerStatefulWidget {
   final List<Media> items;
   final bool withResume;
@@ -391,14 +392,10 @@ class _HorizontalCardList extends ConsumerStatefulWidget {
 }
 
 class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
-  /// Espacement entre cartes (doit correspondre au separatorBuilder).
+  /// Espacement entre cartes (doit correspondre au padding des tuiles).
   static const double _gap = 12;
 
-  /// Nombre virtuel de tuiles pour simuler l'infini (on part du milieu et on
-  /// module par la longueur réelle : on n'atteint jamais un bord en pratique).
-  static const int _kInfinite = 100000;
-
-  late final ScrollController _controller;
+  final ScrollController _controller = ScrollController();
 
   /// Pas d'une carte (largeur + espacement) — sert au défilement par flèche.
   double get _step => widget.cardWidth + _gap;
@@ -408,30 +405,30 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
   bool get _loopable => widget.items.length > 1;
 
   @override
-  void initState() {
-    super.initState();
-    // Départ au milieu de la plage virtuelle pour pouvoir aller à gauche comme
-    // à droite dès le début (effet circulaire).
-    final start = _loopable
-        ? (_kInfinite ~/ 2) * _step
-        : 0.0;
-    _controller = ScrollController(initialScrollOffset: start);
-  }
-
-  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
 
-  /// Défile d'environ une « page » (largeur visible), animé. Jamais de clamp :
-  /// la plage virtuelle est immense, donc le défilement est perçu comme infini.
+  /// Défile d'une « page » (largeur visible), animé. [dir] = -1 gauche, +1 droite.
+  /// BOUCLE aux extrémités : au bout à droite, un clic supplémentaire revient au
+  /// début ; au début, la flèche gauche va à la fin (façon carrousel).
   void _scrollBy(int dir) {
     if (!_controller.hasClients) return;
     final pos = _controller.position;
+    final max = pos.maxScrollExtent;
     // Nombre entier de cartes tenant dans la fenêtre (au moins 1).
     final perPage = (pos.viewportDimension / _step).floor().clamp(1, 999);
-    final target = _controller.offset + dir * perPage * _step;
+    final page = perPage * _step;
+
+    double target;
+    if (dir > 0) {
+      // Vers la droite : si on est deja (quasi) au bout, on reboucle au debut.
+      target = pos.pixels >= max - 1 ? 0.0 : (pos.pixels + page).clamp(0.0, max);
+    } else {
+      // Vers la gauche : si on est deja (quasi) au debut, on va a la fin.
+      target = pos.pixels <= 1 ? max : (pos.pixels - page).clamp(0.0, max);
+    }
     _controller.animateTo(
       target,
       duration: const Duration(milliseconds: 320),
@@ -443,7 +440,9 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
       if (!_controller.hasClients) return;
-      _controller.jumpTo(_controller.offset + event.scrollDelta.dy);
+      final target = (_controller.offset + event.scrollDelta.dy)
+          .clamp(0.0, _controller.position.maxScrollExtent);
+      _controller.jumpTo(target);
     }
   }
 
@@ -467,16 +466,18 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
                 },
                 scrollbars: false,
               ),
-              child: ListView.separated(
+              child: ListView.builder(
                 controller: _controller,
                 scrollDirection: Axis.horizontal,
-                // Liste finie si 1 seule carte, sinon « infinie » (module).
-                itemCount: _loopable ? _kInfinite : n,
-                separatorBuilder: (_, __) => const SizedBox(width: _gap),
+                // itemExtent FIXE = positionnement O(1) (layout rapide) et pas
+                // aligne pour le defilement par fleche. Le gap est un padding.
+                itemExtent: _step,
+                itemCount: n,
                 itemBuilder: (context, i) {
-                  final media = widget.items[i % n];
-                  return SizedBox(
-                    width: widget.cardWidth,
+                  final media = widget.items[i];
+                  // Gap gere par un padding a droite (itemExtent inclut _gap).
+                  return Padding(
+                    padding: const EdgeInsets.only(right: _gap),
                     child: MediaCard(
                       media: media,
                       onResume: widget.withResume
