@@ -1106,6 +1106,35 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                   bottom: 90,
                   child: _SkipButton(player: _player, skip: _skip),
                 ),
+                // Overlay auto-play « Épisode suivant dans N… » : ici (dans le
+                // builder controls) pour rester visible AUSSI en plein écran.
+                if (_autoPlayCountdown != null)
+                  Positioned.fill(
+                    child: ColoredBox(
+                      color: Colors.black54,
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Épisode suivant dans $_autoPlayCountdown…',
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 18),
+                            ),
+                            const SizedBox(height: 12),
+                            OutlinedButton(
+                              onPressed: _cancelAutoPlay,
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.white,
+                                side: const BorderSide(color: Colors.white70),
+                              ),
+                              child: const Text('Annuler'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -1284,35 +1313,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                 label: const Text('Lancer'),
                               ),
                             ),
-                          // Overlay auto-play : « Épisode suivant dans N… ».
-                          if (_autoPlayCountdown != null)
-                            Positioned.fill(
-                              child: ColoredBox(
-                                color: Colors.black54,
-                                child: Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      'Épisode suivant dans $_autoPlayCountdown…',
-                                      style: const TextStyle(
-                                          color: Colors.white, fontSize: 18),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    OutlinedButton(
-                                      onPressed: _cancelAutoPlay,
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        side: const BorderSide(
-                                            color: Colors.white70),
-                                      ),
-                                      child: const Text('Annuler'),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
+                          // (L'overlay auto-play « Épisode suivant dans N… »
+                          //  est rendu DANS le builder `controls` de _buildVideo
+                          //  pour rester visible aussi en plein écran.)
                       ],
                       ),
                     ),
