@@ -368,11 +368,9 @@ class _MediaRow extends ConsumerWidget {
   }
 }
 
-/// Liste horizontale de grandes cartes, adaptée au desktop : molette verticale
-/// redirigée en défilement horizontal, barre de défilement visible, et glisser
-/// à la souris/au trackpad activé (Flutter desktop ne l'active pas par défaut).
-/// Plus de « boucle infinie » (source d'un scroll erratique / trop rapide) :
-/// liste finie, scrollable dans les deux sens.
+/// Carrousel horizontal de grandes cartes façon Netflix : défilement par
+/// boutons flèches gauche/droite (overlay), masqués aux extrémités. La molette
+/// verticale défile aussi horizontalement (confort desktop). Liste finie.
 class _HorizontalCardList extends ConsumerStatefulWidget {
   final List<Media> items;
   final bool withResume;
@@ -394,21 +392,67 @@ class _HorizontalCardList extends ConsumerStatefulWidget {
 class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
   final _controller = ScrollController();
 
+  /// Espacement entre cartes (doit correspondre au separatorBuilder).
+  static const double _gap = 12;
+
+  bool _canLeft = false;
+  bool _canRight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_updateArrows);
+    // Première évaluation après le premier layout (extents connus).
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
+  @override
+  void didUpdateWidget(_HorizontalCardList old) {
+    super.didUpdateWidget(old);
+    // La liste a pu changer (stream) -> réévaluer les flèches.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_updateArrows);
     _controller.dispose();
     super.dispose();
   }
 
-  /// Convertit un cran de molette VERTICALE en défilement HORIZONTAL (la molette
-  /// souris n'émet que du delta vertical ; sans ça la rangée ne défile qu'au
-  /// clavier). Le trackpad (delta horizontal) est laissé au ListView.
+  void _updateArrows() {
+    if (!_controller.hasClients) return;
+    final pos = _controller.position;
+    final canLeft = pos.pixels > 0.5;
+    final canRight = pos.pixels < pos.maxScrollExtent - 0.5;
+    if (canLeft != _canLeft || canRight != _canRight) {
+      setState(() {
+        _canLeft = canLeft;
+        _canRight = canRight;
+      });
+    }
+  }
+
+  /// Défile d'une « page » (la largeur visible), animé. [dir] = -1 gauche, +1 droite.
+  void _scrollBy(int dir) {
+    if (!_controller.hasClients) return;
+    final pos = _controller.position;
+    final page = pos.viewportDimension - widget.cardWidth * 0.5;
+    final target = (pos.pixels + dir * page)
+        .clamp(0.0, pos.maxScrollExtent);
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  /// Molette verticale -> défilement horizontal (confort desktop).
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
-      final target = (_controller.offset + event.scrollDelta.dy).clamp(
-        0.0,
-        _controller.position.maxScrollExtent,
-      );
+      if (!_controller.hasClients) return;
+      final target = (_controller.offset + event.scrollDelta.dy)
+          .clamp(0.0, _controller.position.maxScrollExtent);
       _controller.jumpTo(target);
     }
   }
@@ -417,50 +461,97 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
   Widget build(BuildContext context) {
     return SizedBox(
       height: widget.height,
-      child: Listener(
-        onPointerSignal: _onPointerSignal,
-        child: ScrollConfiguration(
-          // Autorise le glisser souris/trackpad (desktop) en plus du tactile.
-          behavior: ScrollConfiguration.of(context).copyWith(
-            dragDevices: {
-              PointerDeviceKind.touch,
-              PointerDeviceKind.mouse,
-              PointerDeviceKind.trackpad,
-              PointerDeviceKind.stylus,
-            },
-            scrollbars: false,
-          ),
-          child: Scrollbar(
-            controller: _controller,
-            thumbVisibility: true,
-            child: ListView.separated(
-              controller: _controller,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(bottom: 8),
-              itemCount: widget.items.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, i) {
-                final media = widget.items[i];
-                return SizedBox(
-                  width: widget.cardWidth,
-                  child: MediaCard(
-                    media: media,
-                    onResume: widget.withResume
-                        ? () => resumePlayback(context, ref, media)
-                        : null,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => MediaDetailPage(
-                          anilistId: media.anilistId,
-                          displayTitle: media.animeSamaTitle,
+      child: Stack(
+        children: [
+          Listener(
+            onPointerSignal: _onPointerSignal,
+            child: ScrollConfiguration(
+              // Glisser souris/trackpad autorisé ; pas de barre (on a les flèches).
+              behavior: ScrollConfiguration.of(context).copyWith(
+                dragDevices: {
+                  PointerDeviceKind.touch,
+                  PointerDeviceKind.mouse,
+                  PointerDeviceKind.trackpad,
+                  PointerDeviceKind.stylus,
+                },
+                scrollbars: false,
+              ),
+              child: ListView.separated(
+                controller: _controller,
+                scrollDirection: Axis.horizontal,
+                itemCount: widget.items.length,
+                separatorBuilder: (_, __) => const SizedBox(width: _gap),
+                itemBuilder: (context, i) {
+                  final media = widget.items[i];
+                  return SizedBox(
+                    width: widget.cardWidth,
+                    child: MediaCard(
+                      media: media,
+                      onResume: widget.withResume
+                          ? () => resumePlayback(context, ref, media)
+                          : null,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => MediaDetailPage(
+                            anilistId: media.anilistId,
+                            displayTitle: media.animeSamaTitle,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
+          ),
+          // Flèche gauche (visible seulement si on peut aller à gauche).
+          if (_canLeft)
+            _CarouselArrow(
+              alignment: Alignment.centerLeft,
+              icon: Icons.chevron_left,
+              onPressed: () => _scrollBy(-1),
+            ),
+          // Flèche droite.
+          if (_canRight)
+            _CarouselArrow(
+              alignment: Alignment.centerRight,
+              icon: Icons.chevron_right,
+              onPressed: () => _scrollBy(1),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bouton flèche d'un carrousel, ancré à gauche ou à droite, centré verticalement.
+class _CarouselArrow extends StatelessWidget {
+  final Alignment alignment;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  const _CarouselArrow({
+    required this.alignment,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: alignment,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Material(
+          color: Colors.black.withValues(alpha: 0.55),
+          shape: const CircleBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: IconButton(
+            icon: Icon(icon, color: Colors.white),
+            iconSize: 28,
+            tooltip: icon == Icons.chevron_left ? 'Précédent' : 'Suivant',
+            onPressed: onPressed,
           ),
         ),
       ),
