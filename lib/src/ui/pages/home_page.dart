@@ -287,9 +287,12 @@ class HomePage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // 0. HERO « Sortis du moment » : carrousel plein-largeur (banniere +
+        // 0. HERO « Nouvelles sorties » : carrousel plein-largeur (banniere +
         //    titre + genres + description), defilement auto toutes les 10 s.
-        _HeroCarousel(provider: _recentlyReleasedProvider),
+        _HeroCarousel(
+          title: 'Nouvelles sorties',
+          provider: _recentlyReleasedProvider,
+        ),
         const SizedBox(height: 24),
         // 1. Regardé récemment (historique récent) — bouton reprise. Pas
         //    d'exclusion biblio : c'est l'historique personnel.
@@ -337,8 +340,9 @@ class HomePage extends ConsumerWidget {
 /// (mis en pause ~10 s après une action manuelle). Flèches + points cliquables.
 /// Clic sur la bannière -> fiche. Masqué tant qu'aucun média.
 class _HeroCarousel extends ConsumerStatefulWidget {
+  final String title;
   final ProviderListenable<AsyncValue<List<Media>>> provider;
-  const _HeroCarousel({required this.provider});
+  const _HeroCarousel({required this.title, required this.provider});
 
   @override
   ConsumerState<_HeroCarousel> createState() => _HeroCarouselState();
@@ -388,12 +392,18 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
           _count = items.length;
           WidgetsBinding.instance.addPostFrameCallback((_) => _restartTimer());
         }
-        return SizedBox(
-          height: _height,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              children: [
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(widget.title,
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: _height,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: [
                 PageView.builder(
                   controller: _pageController,
                   itemCount: items.length,
@@ -444,6 +454,8 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
               ],
             ),
           ),
+            ),
+          ],
         );
       },
       orElse: () => const SizedBox.shrink(),
