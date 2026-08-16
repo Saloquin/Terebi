@@ -26,11 +26,6 @@ import 'player_page.dart';
 // Providers
 // ---------------------------------------------------------------------------
 
-/// Planning hebdomadaire anime-sama : alias vers le provider **global**
-/// (`animeSamaPlanningProvider`) pour partager le résultat (et le cache) avec la
-/// fiche de détail — évite un second scraping du planning.
-final _planningProvider = animeSamaPlanningProvider;
-
 /// Résout (lazy, caché) un item planning anime-sama en [Media] pour la vignette.
 /// Cherche d'abord le cache local (par id slug anime-sama), puis retourne null
 /// si absent (couverture absente = dégradé gracieux).
@@ -114,6 +109,25 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   // À l'ouverture, on choisit l'onglet par défaut UNE fois : Perso si non vide.
   bool _defaultChosen = false;
 
+  /// Langue du planning affichée (switch local). `null` tant qu'on n'a pas lu le
+  /// réglage global (utilisé comme valeur initiale) — on retombe sur VOSTFR.
+  PlaybackLanguage? _lang;
+
+  @override
+  void initState() {
+    super.initState();
+    // Langue initiale = réglage global de lecture (VF/VOSTFR).
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final settings = ref.read(settingsRepositoryProvider);
+      final langStr = await settings.get(SettingsKeys.playbackLanguage,
+          defaultValue: 'vostfr');
+      if (mounted) {
+        setState(() => _lang =
+            langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr);
+      }
+    });
+  }
+
   /// `true` si au moins un anime du planning est dans le calendrier perso
   /// (présent en biblio, hors Abandonné).
   bool _persoHasContent(
@@ -128,7 +142,8 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
   @override
   Widget build(BuildContext context) {
-    final planningAsync = ref.watch(_planningProvider);
+    final lang = _lang ?? PlaybackLanguage.vostfr;
+    final planningAsync = ref.watch(animeSamaPlanningByLangProvider(lang));
     final persoIds = ref.watch(_persoIdsProvider).asData?.value;
 
     // Choix de l'onglet par défaut, une seule fois, quand les deux données
@@ -155,10 +170,25 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Rafraîchir',
                 onPressed: () {
-                  ref.invalidate(_planningProvider);
+                  ref.invalidate(animeSamaPlanningByLangProvider(lang));
                   ref.invalidate(_persoIdsProvider);
                   ref.invalidate(_libraryIdsProvider);
                 },
+              ),
+              const SizedBox(width: 4),
+              // Switch VOSTFR / VF (local à la page, n'affecte pas le réglage
+              // global de lecture).
+              SegmentedButton<PlaybackLanguage>(
+                segments: const [
+                  ButtonSegment(
+                      value: PlaybackLanguage.vostfr, label: Text('VOSTFR')),
+                  ButtonSegment(value: PlaybackLanguage.vf, label: Text('VF')),
+                ],
+                selected: {lang},
+                onSelectionChanged: (s) => setState(() => _lang = s.first),
+                style: const ButtonStyle(
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
               ),
               const SizedBox(width: 4),
               SegmentedButton<bool>(

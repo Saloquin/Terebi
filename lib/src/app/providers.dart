@@ -350,6 +350,15 @@ final animeSamaPlanningProvider =
   return resolver.planning(language: language);
 });
 
+/// Planning hebdomadaire pour une langue EXPLICITE (VOSTFR/VF), indépendamment
+/// du réglage global. Sert au switch de langue de la page Planning.
+final animeSamaPlanningByLangProvider =
+    FutureProvider.family<List<AnimeSamaPlanningItem>, PlaybackLanguage>(
+        (ref, language) async {
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  return resolver.planning(language: language);
+});
+
 /// Langues (VOSTFR/VF) réellement disponibles pour un ÉPISODE précis d'une
 /// saison anime-sama. La dispo est par épisode (certains épisodes récents ne
 /// sont pas encore doublés). On teste chaque langue en résolvant l'URL du flux :
