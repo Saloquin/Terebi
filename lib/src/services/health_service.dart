@@ -11,7 +11,7 @@ enum HealthState { ok, missing, error }
 
 /// Résultat d'une sonde de santé.
 class HealthCheck {
-  /// Identifiant du composant (ex. `ani-cli`, `mpv`, `anilist-token`).
+  /// Identifiant du composant (ex. `python`, `anime-sama`, `aniskip`).
   final String component;
   final HealthState state;
 
@@ -50,14 +50,19 @@ class HealthService {
   /// Renvoie `true` si la base de données est ouvrable (injecté).
   final Future<bool> Function() databaseOk;
 
-  /// Renvoie `true` si le réseau/AniList est joignable (injecté).
+  /// Renvoie `true` si anime-sama (source de contenu) est joignable (injecté).
   final Future<bool> Function() networkOk;
+
+  /// Renvoie `true` si AniSkip (timestamps intro/outro) répond (injecté).
+  /// Optionnel : AniSkip n'est pas indispensable au fonctionnement.
+  final Future<bool> Function()? aniSkipOk;
 
   const HealthService({
     required this.runner,
     this.pythonPath = 'python',
     required this.databaseOk,
     required this.networkOk,
+    this.aniSkipOk,
   });
 
   /// Vérifie qu'un exécutable répond à `--version`. [prefixArgs] est inséré
@@ -117,8 +122,11 @@ class HealthService {
   Future<HealthReport> run() async {
     final checks = await Future.wait([
       _checkBinary('python', pythonPath),
-      _checkBool('database', databaseOk, 'Base de données inaccessible.'),
-      _checkBool('network', networkOk, 'AniList/réseau injoignable.'),
+      _checkBool('base de donnees', databaseOk, 'Base de données inaccessible.'),
+      _checkBool('anime-sama', networkOk, 'anime-sama injoignable (réseau ?).'),
+      if (aniSkipOk != null)
+        _checkBool('aniskip', aniSkipOk!,
+            'AniSkip injoignable (skip intro/outro indisponible).'),
     ]);
     return HealthReport(checks);
   }

@@ -15,11 +15,13 @@ void main() {
     Map<String, ProcessResult> binaries = const {},
     bool db = true,
     bool net = true,
+    bool? aniSkip,
   }) =>
       HealthService(
         runner: runnerWith(binaries),
         databaseOk: () async => db,
         networkOk: () async => net,
+        aniSkipOk: aniSkip == null ? null : () async => aniSkip,
       );
 
   test('tout OK → allOk, aucun problème', () async {
@@ -62,6 +64,23 @@ void main() {
       net: false,
     ).run();
     final comps = report.problems.map((c) => c.component).toSet();
-    expect(comps, containsAll(['database', 'network']));
+    expect(comps, containsAll(['base de donnees', 'anime-sama']));
+  });
+
+  test('sonde aniskip absente par defaut (non listee)', () async {
+    final report = await service(
+      binaries: {'python': const ProcessResult(exitCode: 0)},
+    ).run();
+    final comps = report.checks.map((c) => c.component).toSet();
+    expect(comps.contains('aniskip'), isFalse);
+  });
+
+  test('aniskip KO remonte dans problems quand la sonde est fournie', () async {
+    final report = await service(
+      binaries: {'python': const ProcessResult(exitCode: 0)},
+      aniSkip: false,
+    ).run();
+    final comps = report.problems.map((c) => c.component).toSet();
+    expect(comps, contains('aniskip'));
   });
 }

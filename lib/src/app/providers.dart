@@ -409,6 +409,16 @@ final healthServiceProvider = Provider<HealthService>((ref) {
         return false;
       }
     },
+    aniSkipOk: () async {
+      try {
+        final resp = await httpClient
+            .get(Uri.parse('https://api.aniskip.com/'))
+            .timeout(const Duration(seconds: 8));
+        return resp.statusCode < 500;
+      } catch (_) {
+        return false;
+      }
+    },
   );
 });
 
