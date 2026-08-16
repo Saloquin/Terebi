@@ -369,8 +369,9 @@ class _MediaRow extends ConsumerWidget {
 }
 
 /// Carrousel horizontal de grandes cartes façon Netflix : défilement par
-/// boutons flèches gauche/droite (overlay), masqués aux extrémités. La molette
-/// verticale défile aussi horizontalement (confort desktop). Liste finie.
+/// boutons flèches gauche/droite (overlay), TOUJOURS visibles et circulaire —
+/// la flèche gauche au début renvoie à la fin, la droite à la fin renvoie au
+/// début. La molette verticale défile aussi horizontalement (confort desktop).
 class _HorizontalCardList extends ConsumerStatefulWidget {
   final List<Media> items;
   final bool withResume;
@@ -390,56 +391,47 @@ class _HorizontalCardList extends ConsumerStatefulWidget {
 }
 
 class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
-  final _controller = ScrollController();
-
   /// Espacement entre cartes (doit correspondre au separatorBuilder).
   static const double _gap = 12;
 
-  bool _canLeft = false;
-  bool _canRight = false;
+  /// Nombre virtuel de tuiles pour simuler l'infini (on part du milieu et on
+  /// module par la longueur réelle : on n'atteint jamais un bord en pratique).
+  static const int _kInfinite = 100000;
+
+  late final ScrollController _controller;
+
+  /// Pas d'une carte (largeur + espacement) — sert au défilement par flèche.
+  double get _step => widget.cardWidth + _gap;
+
+  /// Vrai si la liste est « bouclable » (au moins 2 cartes) : sinon rien à faire
+  /// défiler, pas de flèches.
+  bool get _loopable => widget.items.length > 1;
 
   @override
   void initState() {
     super.initState();
-    _controller.addListener(_updateArrows);
-    // Première évaluation après le premier layout (extents connus).
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
-  }
-
-  @override
-  void didUpdateWidget(_HorizontalCardList old) {
-    super.didUpdateWidget(old);
-    // La liste a pu changer (stream) -> réévaluer les flèches.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _updateArrows());
+    // Départ au milieu de la plage virtuelle pour pouvoir aller à gauche comme
+    // à droite dès le début (effet circulaire).
+    final start = _loopable
+        ? (_kInfinite ~/ 2) * _step
+        : 0.0;
+    _controller = ScrollController(initialScrollOffset: start);
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_updateArrows);
     _controller.dispose();
     super.dispose();
   }
 
-  void _updateArrows() {
-    if (!_controller.hasClients) return;
-    final pos = _controller.position;
-    final canLeft = pos.pixels > 0.5;
-    final canRight = pos.pixels < pos.maxScrollExtent - 0.5;
-    if (canLeft != _canLeft || canRight != _canRight) {
-      setState(() {
-        _canLeft = canLeft;
-        _canRight = canRight;
-      });
-    }
-  }
-
-  /// Défile d'une « page » (la largeur visible), animé. [dir] = -1 gauche, +1 droite.
+  /// Défile d'environ une « page » (largeur visible), animé. Jamais de clamp :
+  /// la plage virtuelle est immense, donc le défilement est perçu comme infini.
   void _scrollBy(int dir) {
     if (!_controller.hasClients) return;
     final pos = _controller.position;
-    final page = pos.viewportDimension - widget.cardWidth * 0.5;
-    final target = (pos.pixels + dir * page)
-        .clamp(0.0, pos.maxScrollExtent);
+    // Nombre entier de cartes tenant dans la fenêtre (au moins 1).
+    final perPage = (pos.viewportDimension / _step).floor().clamp(1, 999);
+    final target = _controller.offset + dir * perPage * _step;
     _controller.animateTo(
       target,
       duration: const Duration(milliseconds: 320),
@@ -451,14 +443,13 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
   void _onPointerSignal(PointerSignalEvent event) {
     if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
       if (!_controller.hasClients) return;
-      final target = (_controller.offset + event.scrollDelta.dy)
-          .clamp(0.0, _controller.position.maxScrollExtent);
-      _controller.jumpTo(target);
+      _controller.jumpTo(_controller.offset + event.scrollDelta.dy);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final n = widget.items.length;
     return SizedBox(
       height: widget.height,
       child: Stack(
@@ -479,10 +470,11 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
               child: ListView.separated(
                 controller: _controller,
                 scrollDirection: Axis.horizontal,
-                itemCount: widget.items.length,
+                // Liste finie si 1 seule carte, sinon « infinie » (module).
+                itemCount: _loopable ? _kInfinite : n,
                 separatorBuilder: (_, __) => const SizedBox(width: _gap),
                 itemBuilder: (context, i) {
-                  final media = widget.items[i];
+                  final media = widget.items[i % n];
                   return SizedBox(
                     width: widget.cardWidth,
                     child: MediaCard(
@@ -505,20 +497,19 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
               ),
             ),
           ),
-          // Flèche gauche (visible seulement si on peut aller à gauche).
-          if (_canLeft)
+          // Flèches toujours présentes tant que la liste est bouclable.
+          if (_loopable) ...[
             _CarouselArrow(
               alignment: Alignment.centerLeft,
               icon: Icons.chevron_left,
               onPressed: () => _scrollBy(-1),
             ),
-          // Flèche droite.
-          if (_canRight)
             _CarouselArrow(
               alignment: Alignment.centerRight,
               icon: Icons.chevron_right,
               onPressed: () => _scrollBy(1),
             ),
+          ],
         ],
       ),
     );
