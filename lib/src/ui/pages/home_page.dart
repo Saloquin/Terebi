@@ -1,13 +1,15 @@
-/// Page d'accueil façon Netflix : plusieurs rangées horizontales thématiques.
+/// Page d'accueil façon Netflix : un hero en haut puis des rangées horizontales.
 ///
-/// Ordre des rangées :
+/// Ordre :
+///  0. Hero « Sortis du moment » (carrousel plein-largeur, défilement auto 10 s)
 ///  1. Regardé récemment (historique de lancements récent)
 ///  2. Continuer à regarder (statut en cours)
-///  3. Sortis du moment (planning anime-sama de la semaine)
-///  4. Les classiques (liste anime-sama)
-///  5. Ça pourrait vous plaire (union des 3 genres favoris : animes finis/en cours)
-///  6. Par genre (une rangée par genre favori, du plus au moins présent)
+///  3. Les classiques (liste anime-sama)
+///  4. Ça pourrait vous plaire (intersection des 3 genres favoris)
+///  5. Par genre (une rangée par genre favori, du plus au moins présent)
 library;
+
+import 'dart:async';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +22,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart'
     show AnimeSamaCatalogueItem;
+import '../widgets/anime_sama_image.dart';
 import '../widgets/media_card.dart';
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
@@ -284,6 +287,10 @@ class HomePage extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // 0. HERO « Sortis du moment » : carrousel plein-largeur (banniere +
+        //    titre + genres + description), defilement auto toutes les 10 s.
+        _HeroCarousel(provider: _recentlyReleasedProvider),
+        const SizedBox(height: 24),
         // 1. Regardé récemment (historique récent) — bouton reprise. Pas
         //    d'exclusion biblio : c'est l'historique personnel.
         _MediaRow(
@@ -298,32 +305,273 @@ class HomePage extends ConsumerWidget {
           provider: _continueWatchingProvider,
           withResume: true,
         ),
-        // 3. Sortis du moment (planning de la semaine).
-        _MediaRow(
-          title: 'Sortis du moment',
-          provider: _recentlyReleasedProvider,
-          excludeLibrary: true,
-        ),
-        // 4. Les classiques (liste anime-sama).
+        // 3. Les classiques (liste anime-sama).
         _MediaRow(
           title: 'Les classiques',
           provider: _classicsProvider,
           excludeLibrary: true,
         ),
-        // 5. Ça pourrait vous plaire (union des 3 genres favoris : animes
-        //    terminés/en cours).
+        // 4. Ça pourrait vous plaire (intersection des 3 genres favoris).
         _MediaRow(
           title: 'Ca pourrait vous plaire',
           provider: _recommendedProvider,
           excludeLibrary: true,
         ),
-        // 6. Par genre : une rangée par genre regardé, par nb de visualisations
+        // 5. Par genre : une rangée par genre regardé, par nb de visualisations
         //    décroissant (l'ordre du provider est déjà celui-là).
         ...genresAsync.maybeWhen(
           data: (genres) => genres.map((g) => _GenreRow(genre: g)).toList(),
           orElse: () => const <Widget>[],
         ),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hero carrousel (plein-largeur, une image à la fois)
+// ---------------------------------------------------------------------------
+
+/// Carrousel « hero » plein-largeur : une bannière à la fois, titre + genres +
+/// description tronquée en surimpression. Défile automatiquement toutes les 10 s
+/// (mis en pause ~10 s après une action manuelle). Flèches + points cliquables.
+/// Clic sur la bannière -> fiche. Masqué tant qu'aucun média.
+class _HeroCarousel extends ConsumerStatefulWidget {
+  final ProviderListenable<AsyncValue<List<Media>>> provider;
+  const _HeroCarousel({required this.provider});
+
+  @override
+  ConsumerState<_HeroCarousel> createState() => _HeroCarouselState();
+}
+
+class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
+  static const _rotation = Duration(seconds: 10);
+  static const double _height = 340;
+
+  final _pageController = PageController();
+  Timer? _timer;
+  int _index = 0;
+  int _count = 0;
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _restartTimer() {
+    _timer?.cancel();
+    if (_count <= 1) return;
+    _timer = Timer.periodic(_rotation, (_) => _goTo(_index + 1, auto: true));
+  }
+
+  void _goTo(int i, {bool auto = false}) {
+    if (_count == 0 || !_pageController.hasClients) return;
+    final next = ((i % _count) + _count) % _count; // wrap circulaire
+    _pageController.animateToPage(
+      next,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeInOut,
+    );
+    if (!auto) _restartTimer(); // action manuelle -> repart pour 10 s
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(widget.provider);
+    return async.maybeWhen(
+      data: (items) {
+        if (items.isEmpty) return const SizedBox.shrink();
+        // (Re)démarre le timer si le nombre d'items a changé.
+        if (items.length != _count) {
+          _count = items.length;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _restartTimer());
+        }
+        return SizedBox(
+          height: _height,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              children: [
+                PageView.builder(
+                  controller: _pageController,
+                  itemCount: items.length,
+                  onPageChanged: (i) => setState(() => _index = i),
+                  itemBuilder: (context, i) => _HeroSlide(media: items[i]),
+                ),
+                // Flèche gauche.
+                if (items.length > 1)
+                  _CarouselArrow(
+                    alignment: Alignment.centerLeft,
+                    icon: Icons.chevron_left,
+                    onPressed: () => _goTo(_index - 1),
+                  ),
+                // Flèche droite.
+                if (items.length > 1)
+                  _CarouselArrow(
+                    alignment: Alignment.centerRight,
+                    icon: Icons.chevron_right,
+                    onPressed: () => _goTo(_index + 1),
+                  ),
+                // Points indicateurs.
+                if (items.length > 1)
+                  Positioned(
+                    bottom: 12,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        for (var i = 0; i < items.length; i++)
+                          GestureDetector(
+                            onTap: () => _goTo(i),
+                            child: Container(
+                              width: 8,
+                              height: 8,
+                              margin: const EdgeInsets.symmetric(horizontal: 3),
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: i == _index
+                                    ? Colors.white
+                                    : Colors.white38,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Une slide du hero : bannière plein cadre + dégradé + titre/genres/description.
+/// Enrichit le média (bannière/description/genres) via le cache anime-sama quand
+/// le média du planning est minimal. Clic -> fiche.
+class _HeroSlide extends ConsumerWidget {
+  final Media media;
+  const _HeroSlide({required this.media});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final slug = media.animeSamaSlug;
+    // Média enrichi (cache-first) si un slug est connu, sinon le média tel quel.
+    final enriched = (slug != null && slug.isNotEmpty)
+        ? ref.watch(animeSamaDetailProvider(slug)).maybeWhen(
+              data: (m) => m ?? media,
+              orElse: () => media,
+            )
+        : media;
+
+    final title = enriched.animeSamaTitle ?? enriched.title.preferred;
+    final genres = enriched.genres.take(4).toList();
+    final desc = enriched.description;
+
+    return GestureDetector(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => MediaDetailPage(
+            anilistId: enriched.anilistId,
+            displayTitle: enriched.animeSamaTitle,
+          ),
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Bannière dérivée du slug (cascade d'extensions), repli bannerUrl.
+          if (slug != null && slug.isNotEmpty)
+            AnimeSamaImage(
+              slug: slug,
+              banner: true,
+              fallbackUrl: enriched.bannerUrl,
+              fit: BoxFit.cover,
+            )
+          else
+            Container(color: Theme.of(context).colorScheme.surfaceContainerHighest),
+          // Dégradé pour lisibilité du texte.
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [Colors.black87, Colors.black26, Colors.transparent],
+              ),
+            ),
+          ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.bottomCenter,
+                end: Alignment.center,
+                colors: [Colors.black87, Colors.transparent],
+              ),
+            ),
+          ),
+          // Texte : titre + genres + description (tronquée).
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: 32,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                ),
+                if (genres.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [
+                      for (final g in genres)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(g,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 12)),
+                        ),
+                    ],
+                  ),
+                ],
+                if (desc != null && desc.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: 640,
+                    child: Text(
+                      desc,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white70, fontSize: 13, height: 1.3),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
