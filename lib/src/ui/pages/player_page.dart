@@ -1054,11 +1054,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // Utiliser la mauvaise variante rend les boutons custom invisibles.
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
+        // Coupe le reglage du volume par glisser/molette sur la video : le
+        // glisser (onPanUpdate de media_kit) se declenchait n'importe ou sur le
+        // lecteur et changeait le volume par erreur. Volume via bouton + fleches.
+        modifyVolumeOnScroll: false,
         topButtonBar: topBar(_settingsButtonKey),
         bottomButtonBar: bottomBar('n'),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
+        modifyVolumeOnScroll: false,
         topButtonBar: topBar(_settingsButtonKeyFs),
         bottomButtonBar: bottomBar('fs'),
         keyboardShortcuts: shortcuts,
