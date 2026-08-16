@@ -9,7 +9,6 @@ import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
 import '../../domain/logic/filter_sort_service.dart';
-import '../../domain/models/anime_format.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -99,29 +98,6 @@ const _sortFieldLabels = {
   EntrySortField.progress: 'Progression',
   EntrySortField.updated: 'Mis à jour',
 };
-
-/// Libellés affichés pour les formats d'anime.
-const _formatLabels = {
-  AnimeFormat.tv: 'TV',
-  AnimeFormat.tvShort: 'TV court',
-  AnimeFormat.movie: 'Film',
-  AnimeFormat.special: 'Spécial',
-  AnimeFormat.ova: 'OVA',
-  AnimeFormat.ona: 'ONA',
-  AnimeFormat.music: 'Musique',
-  AnimeFormat.unknown: 'Inconnu',
-};
-
-/// Formats proposés dans la barre de filtres (on exclut `music` et `unknown`
-/// qui sont rarement présents dans une bibliothèque anime standard).
-const _filterableFormats = [
-  AnimeFormat.tv,
-  AnimeFormat.tvShort,
-  AnimeFormat.movie,
-  AnimeFormat.special,
-  AnimeFormat.ova,
-  AnimeFormat.ona,
-];
 
 /// Page de bibliothèque avec onglets par statut de liste.
 class LibraryPage extends ConsumerStatefulWidget {
@@ -563,85 +539,7 @@ class _FilterBar extends StatelessWidget {
     return list;
   }
 
-  /// Années (seasonYear) présentes dans la bibliothèque, triées décroissant.
-  List<int> _availableYears() {
-    final set = <int>{};
-    for (final m in mediaMap.values) {
-      if (m.seasonYear != null) set.add(m.seasonYear!);
-    }
-    final list = set.toList()..sort((a, b) => b.compareTo(a));
-    return list;
-  }
-
   // --- Handlers ---
-
-  void _selectFormat(BuildContext context, AnimeFormat? current) async {
-    final result = await showMenu<AnimeFormat?>(
-      context: context,
-      position: _buttonPosition(context),
-      items: [
-        const PopupMenuItem(value: null, child: Text('Tous les formats')),
-        for (final f in _filterableFormats)
-          PopupMenuItem(
-            value: f,
-            child: Row(
-              children: [
-                if (current == f)
-                  const Icon(Icons.check, size: 16)
-                else
-                  const SizedBox(width: 16),
-                const SizedBox(width: 8),
-                Text(_formatLabels[f] ?? f.name),
-              ],
-            ),
-          ),
-      ],
-    );
-    // `result` est null si l'utilisateur a fermé le menu sans choisir ;
-    // on distingue le choix « Tous » (value: null dans PopupMenuItem) en
-    // vérifiant si un item a été sélectionné (showMenu retourne null sur
-    // dismiss, mais aussi sur choix « null » — on ne peut pas différencier).
-    // Solution : on traite toute valeur retournée comme un choix explicite.
-    // Si l'utilisateur clique ailleurs, le menu se ferme et retourne null,
-    // ce qui correspond à « Tous » — comportement acceptable.
-    onChanged(MediaFilter(
-      genres: filter.genres,
-      year: filter.year,
-      status: filter.status,
-      format: result,
-    ));
-  }
-
-  void _selectYear(BuildContext context, int? current) async {
-    final years = _availableYears();
-    final result = await showMenu<int?>(
-      context: context,
-      position: _buttonPosition(context),
-      items: [
-        const PopupMenuItem(value: null, child: Text('Toutes les années')),
-        for (final y in years)
-          PopupMenuItem(
-            value: y,
-            child: Row(
-              children: [
-                if (current == y)
-                  const Icon(Icons.check, size: 16)
-                else
-                  const SizedBox(width: 16),
-                const SizedBox(width: 8),
-                Text('$y'),
-              ],
-            ),
-          ),
-      ],
-    );
-    onChanged(MediaFilter(
-      genres: filter.genres,
-      year: result,
-      status: filter.status,
-      format: filter.format,
-    ));
-  }
 
   /// Affiche un popup de sélection multiple de genres via des FilterChip.
   void _showGenrePopup(BuildContext context) async {
@@ -710,25 +608,9 @@ class _FilterBar extends StatelessWidget {
     ));
   }
 
-  /// Calcule la position approximative du bouton pour ancrer le showMenu.
-  RelativeRect _buttonPosition(BuildContext context) {
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return RelativeRect.fill;
-    final offset = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    return RelativeRect.fromLTRB(
-      offset.dx,
-      offset.dy + size.height,
-      offset.dx + size.width,
-      offset.dy + size.height + 8,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final hasFormat = filter.format != null;
     final hasGenres = filter.genres.isNotEmpty;
-    final hasYear = filter.year != null;
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -738,22 +620,8 @@ class _FilterBar extends StatelessWidget {
           Text('Filtrer :', style: Theme.of(context).textTheme.bodySmall),
           const SizedBox(width: 8),
 
-          // -- Bouton FORMAT --
-          Builder(builder: (ctx) {
-            return FilterChip(
-              label: Text(
-                hasFormat
-                    ? (_formatLabels[filter.format!] ?? filter.format!.name)
-                    : 'Format',
-              ),
-              selected: hasFormat,
-              visualDensity: VisualDensity.compact,
-              onSelected: (_) => _selectFormat(ctx, filter.format),
-            );
-          }),
-          const SizedBox(width: 6),
-
-          // -- Bouton GENRES --
+          // -- Bouton GENRES -- (Format et Annee retires : plus de donnees
+          //    depuis le passage 100% anime-sama.)
           FilterChip(
             label: Text(
               hasGenres
@@ -764,19 +632,6 @@ class _FilterBar extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             onSelected: (_) => _showGenrePopup(context),
           ),
-          const SizedBox(width: 6),
-
-          // -- Bouton ANNÉE --
-          Builder(builder: (ctx) {
-            return FilterChip(
-              label: Text(
-                hasYear ? '${filter.year}' : 'Année',
-              ),
-              selected: hasYear,
-              visualDensity: VisualDensity.compact,
-              onSelected: (_) => _selectYear(ctx, filter.year),
-            );
-          }),
 
           // -- Bouton RÉINITIALISER (visible si filtre non vide) --
           if (!filter.isEmpty) ...[

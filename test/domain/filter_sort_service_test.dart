@@ -37,9 +37,17 @@ void main() {
       expect(svc.filterMedia(list, const MediaFilter()).length, 3);
     });
 
-    test('par genre (tous requis)', () {
-      final r = svc.filterMedia(list, const MediaFilter(genres: {'Action', 'Comedy'}));
-      expect(r.map((e) => e.anilistId), [1]);
+    test('par genre (au moins un requis - OU)', () {
+      // {Action, Comedy} : Alpha (Action+Comedy) ET Beta (Action) matchent ;
+      // Gamma (Romance) non.
+      final r = svc.filterMedia(
+          list, const MediaFilter(genres: {'Action', 'Comedy'}));
+      expect(r.map((e) => e.anilistId), [1, 2]);
+    });
+
+    test('par genre unique', () {
+      final r = svc.filterMedia(list, const MediaFilter(genres: {'Romance'}));
+      expect(r.map((e) => e.anilistId), [3]);
     });
 
     test('par année', () {

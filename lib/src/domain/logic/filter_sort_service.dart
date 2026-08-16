@@ -11,7 +11,7 @@ import '../models/media.dart';
 
 /// Critères de filtrage d'un catalogue de médias. Un critère `null`/vide est ignoré.
 class MediaFilter {
-  /// Genres requis (le média doit contenir TOUS ces genres).
+  /// Genres requis (le média doit contenir AU MOINS UN de ces genres — OU).
   final Set<String> genres;
 
   /// Année de saison exacte, ou `null`.
@@ -34,7 +34,9 @@ class MediaFilter {
       genres.isEmpty && year == null && status == null && format == null;
 
   bool matches(Media m) {
-    if (genres.isNotEmpty && !genres.every(m.genres.contains)) return false;
+    // Genre en OU : le media match s'il possede AU MOINS UN des genres requis
+    // (plus intuitif pour explorer qu'un ET, qui donnait souvent 0 resultat).
+    if (genres.isNotEmpty && !genres.any(m.genres.contains)) return false;
     if (year != null && m.seasonYear != year) return false;
     if (status != null && m.status != status) return false;
     if (format != null && m.format != format) return false;
