@@ -96,7 +96,6 @@ final _recentlyReleasedProvider = FutureProvider<List<Media>>((ref) async {
 });
 
 /// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
-/// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
 ///
 /// L'ordre est MÉLANGÉ (aléatoire) : les rangées de découverte (classiques, par
 /// genre, « Ça pourrait vous plaire ») évitent ainsi d'afficher toujours les
@@ -189,16 +188,12 @@ final _libraryFilterProvider =
     ids.add(e.mediaId);
     final m = await mediaRepo.getMedia(e.mediaId);
     if (m != null) {
-      titles.add(_normTitle(m.title.preferred));
-      if (m.animeSamaTitle != null) titles.add(_normTitle(m.animeSamaTitle!));
+      titles.add(normalizeAnimeTitle(m.title.preferred));
+      if (m.animeSamaTitle != null) titles.add(normalizeAnimeTitle(m.animeSamaTitle!));
     }
   }
   return (ids: ids, titles: titles);
 });
-
-/// Normalise un titre pour comparaison (minuscule, alphanumérique).
-String _normTitle(String t) =>
-    t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 /// « Regarde recemment » : les derniers animes LANCES (historique recent, ordre
 /// chronologique inverse), dedupliques par mediaId, en EXCLUANT les animes
@@ -637,7 +632,7 @@ class _MediaRow extends ConsumerWidget {
           if (lib.ids.isNotEmpty || lib.titles.isNotEmpty) {
             items = items.where((m) {
               if (lib.ids.contains(m.mediaId)) return false;
-              if (lib.titles.contains(_normTitle(m.title.preferred))) {
+              if (lib.titles.contains(normalizeAnimeTitle(m.title.preferred))) {
                 return false;
               }
               return true;

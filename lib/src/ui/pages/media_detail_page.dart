@@ -94,15 +94,11 @@ final seasonProgressRefreshProvider = StateProvider<int>((ref) => 0);
 final _planningTitlesProvider = FutureProvider<Set<String>>((ref) async {
   try {
     final items = await ref.watch(animeSamaPlanningProvider.future);
-    return items.map((e) => _normTitle(e.title)).toSet();
+    return items.map((e) => normalizeAnimeTitle(e.title)).toSet();
   } catch (_) {
     return <String>{};
   }
 });
-
-/// Normalise un titre pour comparaison (minuscule, alphanumérique).
-String _normTitle(String t) =>
-    t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 // ---------------------------------------------------------------------------
 // Page
@@ -988,7 +984,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
           data: (s) => s,
           orElse: () => const <String>{},
         );
-    final atPlanning = planningTitles.contains(_normTitle(widget.searchTitle));
+    final atPlanning = planningTitles.contains(normalizeAnimeTitle(widget.searchTitle));
     final doneLabel =
         (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
 
