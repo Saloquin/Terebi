@@ -472,6 +472,32 @@ class _ActionBar extends ConsumerWidget {
 
   String _titleShown() => media.animeSamaTitle ?? media.title.preferred;
 
+  /// Ajoute l'anime à la bibliothèque. Le statut est AUTO à l'ajout : « Terminé »
+  /// si tout est vu, « En cours » s'il y a de la progression, « Planifié » sinon.
+  /// (Les statuts manuels — pause/abandonné/revisionnage — ne sont proposés
+  /// qu'ensuite, via le sélecteur, sur un anime déjà en bibliothèque.)
+  Future<void> _addToLibrary(BuildContext context, WidgetRef ref) async {
+    await ref.read(mediaRepositoryProvider).upsertMedia(media);
+    final hasProgress = await ref
+        .read(seasonProgressRepositoryProvider)
+        .hasAnyProgress(media.mediaId);
+    // Statut initial = celui dérivé de la progression (jamais un statut manuel).
+    final status = effectiveStatus(entry: null, hasProgress: hasProgress) ??
+        ListStatus.planning;
+    await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
+          mediaId: media.mediaId,
+          status: status,
+          updatedAt: DateTime.now(),
+        ));
+    ref.invalidate(entriesByStatusProvider);
+    ref.invalidate(countByStatusProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ajouté à la bibliothèque')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // La lecture se lance depuis la section « Saisons (anime-sama) » ci-dessous.
@@ -487,7 +513,16 @@ class _ActionBar extends ConsumerWidget {
           icon: const Icon(Icons.play_arrow, size: 18),
           label: const Text('Reprendre'),
         ),
-        _StatusDropdown(media: media, entry: entry),
+        // Sélecteur de statut UNIQUEMENT si l'anime est en bibliothèque ; sinon
+        // un bouton « Ajouter à la bibliothèque » (statut auto à l'ajout).
+        if (entry != null)
+          _StatusDropdown(media: media, entry: entry)
+        else
+          FilledButton.tonalIcon(
+            onPressed: () => _addToLibrary(context, ref),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Ajouter à la bibliothèque'),
+          ),
         if (entry != null)
           OutlinedButton.icon(
             onPressed: () => _remove(context, ref),
