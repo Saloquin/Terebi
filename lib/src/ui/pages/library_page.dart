@@ -178,28 +178,44 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       final entries = await listRepo.getAllEntries();
       if (entries.length < 2) return;
 
-      // Titre anime-sama normalisé par mediaId (pour comparer par inclusion).
-      final normTitleById = <int, String>{};
+      // Clé d'IDENTITÉ par mediaId : slug anime-sama en priorité (identité réelle
+      // et unique), repli sur le titre normalisé EXACT. On ne fusionne QUE des
+      // entrées de même identité — surtout pas par inclusion de sous-chaîne, qui
+      // confondrait « Naruto » et « Naruto Shippuden » (deux animes distincts).
+      final keyById = <int, String>{};
       for (final e in entries) {
         final m = await mediaRepo.getMedia(e.mediaId);
-        final t = m?.animeSamaTitle ?? m?.title.preferred;
-        if (t != null) normTitleById[e.mediaId] = normalizeAnimeTitle(t);
+        final slug = m?.animeSamaSlug;
+        if (slug != null && slug.isNotEmpty) {
+          keyById[e.mediaId] = 'slug:$slug';
+        } else {
+          final t = m?.animeSamaTitle ?? m?.title.preferred;
+          if (t != null && t.isNotEmpty) {
+            keyById[e.mediaId] = 'title:${normalizeAnimeTitle(t)}';
+          }
+        }
       }
 
       var changed = false;
-      // Compare chaque paire ; fusionne si un titre est inclus dans l'autre.
-      for (var i = 0; i < entries.length; i++) {
-        for (var j = i + 1; j < entries.length; j++) {
-          final a = entries[i], b = entries[j];
-          final ta = normTitleById[a.mediaId], tb = normTitleById[b.mediaId];
-          if (ta == null || tb == null || ta.isEmpty || tb.isEmpty) continue;
-          if (!(ta.contains(tb) || tb.contains(ta))) continue;
-
-          // Garde l'entrée « la plus avancée » (progress, puis statut terminé).
-          final keep = _preferredEntry(a, b);
-          final drop = identical(keep, a) ? b : a;
-          await listRepo.deleteEntry(drop.mediaId);
-          changed = true;
+      // Regroupe par clé d'identité ; s'il y a >1 entrée pour la même clé, on ne
+      // garde que la plus avancée et on supprime les autres.
+      final byKey = <String, List<ListEntry>>{};
+      for (final e in entries) {
+        final k = keyById[e.mediaId];
+        if (k == null) continue;
+        (byKey[k] ??= []).add(e);
+      }
+      for (final group in byKey.values) {
+        if (group.length < 2) continue;
+        var keep = group.first;
+        for (final e in group.skip(1)) {
+          keep = _preferredEntry(keep, e);
+        }
+        for (final e in group) {
+          if (!identical(e, keep)) {
+            await listRepo.deleteEntry(e.mediaId);
+            changed = true;
+          }
         }
       }
       if (changed && mounted) {
