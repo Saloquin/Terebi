@@ -12,25 +12,15 @@ ListEntry _entry({
   int mediaId = 1,
   ListStatus status = ListStatus.current,
   int progress = 5,
-  double? score = 8.0,
-  bool favorite = false,
-  String? notes,
   bool hiddenFromPlanning = false,
-  int? anilistEntryId,
   DateTime? updatedAt,
-  DateTime? syncedAt,
 }) =>
     ListEntry(
       mediaId: mediaId,
       status: status,
       progress: progress,
-      score: score,
-      favorite: favorite,
-      notes: notes,
       hiddenFromPlanning: hiddenFromPlanning,
-      anilistEntryId: anilistEntryId,
       updatedAt: updatedAt ?? DateTime.utc(2024, 6, 1),
-      syncedAt: syncedAt,
     );
 
 void main() {
@@ -56,12 +46,8 @@ void main() {
         mediaId: 42,
         status: ListStatus.completed,
         progress: 13,
-        score: 9.5,
-        favorite: true,
-        notes: 'chef-d\'œuvre',
-        anilistEntryId: 100,
+        hiddenFromPlanning: false,
         updatedAt: DateTime.utc(2024, 3, 15),
-        syncedAt: DateTime.utc(2024, 3, 16),
       );
       await repo.upsertEntry(entry);
 
@@ -70,13 +56,8 @@ void main() {
       expect(result!.mediaId, 42);
       expect(result.status, ListStatus.completed);
       expect(result.progress, 13);
-      expect(result.score, 9.5);
-      expect(result.favorite, isTrue);
-      expect(result.notes, 'chef-d\'œuvre');
       expect(result.hiddenFromPlanning, isFalse);
-      expect(result.anilistEntryId, 100);
       expect(result.updatedAt.toUtc(), DateTime.utc(2024, 3, 15));
-      expect(result.syncedAt?.toUtc(), DateTime.utc(2024, 3, 16));
     });
 
     test('upsertEntry remplace une entrée existante', () async {

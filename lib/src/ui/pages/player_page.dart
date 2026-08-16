@@ -204,7 +204,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _initialEpisodeResolved = true;
       final seasonProgress = ref.read(seasonProgressRepositoryProvider);
       final lastWatched =
-          await seasonProgress.lastWatched(widget.media.anilistId, _seasonIndex);
+          await seasonProgress.lastWatched(widget.media.mediaId, _seasonIndex);
       // La saison peut avoir été marquée « entièrement vue » via la sentinelle
       // (« Terminé » manuel) : lastWatched est alors artificiellement énorme.
       // On ne fait JAMAIS sentinelle+1 (numéro d'épisode absurde qui polluerait
@@ -300,7 +300,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         pos >= 5 &&
         !(dur != null && dur > 0 && pos / dur > 0.95)) {
       repo.upsertProgress(EpisodeProgress(
-        mediaId: widget.media.anilistId,
+        mediaId: widget.media.mediaId,
         episodeNumber: _currentEpisode.toDouble(),
         watched: false,
         positionSeconds: pos,
@@ -330,7 +330,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<PlaybackLanguage> _preferredLanguage() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
     final perAnime =
-        await settingsRepo.get(SettingsKeys.animeSamaLangFor(widget.media.anilistId));
+        await settingsRepo.get(SettingsKeys.animeSamaLangFor(widget.media.mediaId));
     if (perAnime == 'vf') return PlaybackLanguage.vf;
     if (perAnime == 'vostfr') return PlaybackLanguage.vostfr;
     final langStr = await settingsRepo.get(SettingsKeys.playbackLanguage,
@@ -341,7 +341,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Mémorise la langue choisie POUR CET anime (prime sur le réglage global).
   Future<void> _persistLanguage(PlaybackLanguage lang) async {
     await ref.read(settingsRepositoryProvider).set(
-          SettingsKeys.animeSamaLangFor(widget.media.anilistId),
+          SettingsKeys.animeSamaLangFor(widget.media.mediaId),
           lang == PlaybackLanguage.vf ? 'vf' : 'vostfr',
         );
   }
@@ -397,7 +397,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Le CHOIX de saison se fait sur la fiche (pas ici).
   Future<int> _storedSeasonIndex() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
-    final key = SettingsKeys.animeSamaSeasonFor(widget.media.anilistId);
+    final key = SettingsKeys.animeSamaSeasonFor(widget.media.mediaId);
     final stored = await settingsRepo.get(key);
     return (stored != null ? int.tryParse(stored) : null) ?? 1;
   }
@@ -442,7 +442,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         return;
       }
 
-      final resolver = await ref.read(activeResolverProvider.future);
+      final resolver = await ref.read(animeSamaResolverProvider.future);
       // Tente la langue courante ; si l'épisode n'existe pas dans cette langue
       // (pas encore doublé…), fallback automatique sur l'autre langue.
       String url;
@@ -506,7 +506,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // Best-effort — ne bloque jamais la lecture.
       try {
         await ref.read(watchHistoryRepositoryProvider).record(
-              mediaId: widget.media.anilistId,
+              mediaId: widget.media.mediaId,
               episodeNumber: _currentEpisode.toDouble(),
               startedAt: DateTime.now(),
             );
@@ -593,7 +593,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<void> _markCurrentWatched() async {
     // Progression par saison anime-sama (pour la barre N/total sur la fiche).
     await ref.read(seasonProgressRepositoryProvider).markWatched(
-          widget.media.anilistId,
+          widget.media.mediaId,
           _seasonIndex,
           _currentEpisode,
         );
@@ -611,7 +611,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     );
     await listRepo.upsertEntry(outcome.updatedEntry);
     await progressRepo.upsertProgress(EpisodeProgress(
-      mediaId: widget.media.anilistId,
+      mediaId: widget.media.mediaId,
       episodeNumber: _currentEpisode.toDouble(),
       watched: true,
       positionSeconds: 0,
@@ -642,14 +642,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<void> _ensureWatchingStatus() async {
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       // Entrée déjà présente → on ne touche à rien (le statut effectif suivra la
       // progression ; un statut manuel gelant est respecté).
       if (existing != null) return;
       // Aucune entrée → on en crée une minimale (statut `planning` : l'effectif
       // deviendra « En cours » dès qu'il y aura de la progression).
       await listRepo.upsertEntry(ListEntry(
-        mediaId: widget.media.anilistId,
+        mediaId: widget.media.mediaId,
         status: ListStatus.planning,
         updatedAt: DateTime.now(),
       ));
@@ -668,7 +668,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           title: title,
           seasonIndex: _seasonIndex,
           episode: _currentEpisode,
-          malId: widget.media.malId,
+          // AniSkip par titre + saison : le MAL id n'est plus stocké côté média
+          // (aucune source anime-sama ne l'alimentait). L'infra AniSkip reste
+          // prête à recevoir un malId si une source externe le fournit un jour.
+          malId: null,
         ),
       ).future);
       if (mounted) setState(() => _skip = skip);
@@ -691,7 +694,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     try {
       prog = await ref
           .read(progressRepositoryProvider)
-          .getProgress(widget.media.anilistId, _currentEpisode.toDouble());
+          .getProgress(widget.media.mediaId, _currentEpisode.toDouble());
     } catch (_) {
       return null;
     }
@@ -754,7 +757,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (dur != null && dur > 0 && _positionSeconds / dur > 0.95) return;
     try {
       await ref.read(progressRepositoryProvider).upsertProgress(EpisodeProgress(
-            mediaId: widget.media.anilistId,
+            mediaId: widget.media.mediaId,
             episodeNumber: _currentEpisode.toDouble(),
             watched: false,
             positionSeconds: _positionSeconds,
@@ -792,7 +795,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<void> _maybeMarkSeriesCompleted() async {
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null && existing.status == ListStatus.completed) return;
 
       final title = widget.animeSamaTitle ?? widget.media.title.preferred;
@@ -808,7 +811,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         if (eps.isEmpty) return; // saison sans épisodes listés → on n'affirme rien.
         totalEpisodes += eps.length;
         final watched =
-            await seasonProgress.lastWatched(widget.media.anilistId, s.index);
+            await seasonProgress.lastWatched(widget.media.mediaId, s.index);
         final done = watched >= SeasonProgressRepository.fullyWatchedSentinel ||
             watched >= eps.last;
         if (!done) return; // au moins une saison non finie → pas « Terminé ».
@@ -817,7 +820,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // Toutes les saisons sont vues → Terminé + progress = total réel.
       final base = existing ??
           ListEntry(
-            mediaId: widget.media.anilistId,
+            mediaId: widget.media.mediaId,
             status: ListStatus.completed,
             updatedAt: DateTime.now(),
           );
@@ -921,12 +924,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // et écrit la valeur telle quelle, même plus basse que l'actuelle).
     await ref
         .read(seasonProgressRepositoryProvider)
-        .setLastWatched(widget.media.anilistId, _seasonIndex, target);
+        .setLastWatched(widget.media.mediaId, _seasonIndex, target);
 
     // Entrée de liste : rétrograde progress + retire le drapeau « Terminé ».
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null) {
         final newProgress =
             existing.progress > target ? target : existing.progress;
@@ -1246,7 +1249,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         context,
         MaterialPageRoute(
           builder: (_) => MediaDetailPage(
-            anilistId: widget.media.anilistId,
+            mediaId: widget.media.mediaId,
             displayTitle: widget.animeSamaTitle,
           ),
         ),

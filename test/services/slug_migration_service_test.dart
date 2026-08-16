@@ -30,7 +30,7 @@ void main() {
   test('reindexe media + entree + progression de old vers slug', () async {
     const oldId = -555;
     await mediaRepo.upsertMedia(Media(
-      anilistId: oldId,
+      mediaId: oldId,
       title: const MediaTitle(english: 'One Piece'),
       animeSamaTitle: 'One Piece',
     ));
@@ -82,7 +82,7 @@ void main() {
   test('media non resolu -> logue dans le rapport, jamais supprime', () async {
     const oldId = -9;
     await mediaRepo.upsertMedia(Media(
-      anilistId: oldId, title: const MediaTitle(english: 'Introuvable'),
+      mediaId: oldId, title: const MediaTitle(english: 'Introuvable'),
       animeSamaTitle: 'Introuvable'));
     final service = SlugMigrationService(
       mediaRepo: mediaRepo, listRepo: listRepo, settings: settings,

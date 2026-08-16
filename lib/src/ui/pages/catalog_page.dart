@@ -608,7 +608,7 @@ class _CatalogTile extends ConsumerWidget {
       context,
       MaterialPageRoute(
         builder: (_) => MediaDetailPage(
-          anilistId: animeSamaIdForSlug(slug),
+          mediaId: animeSamaIdForSlug(slug),
           displayTitle: item.title,
         ),
       ),

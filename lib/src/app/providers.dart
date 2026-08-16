@@ -18,12 +18,10 @@ import '../data/repositories/watch_history_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/anime_id.dart';
 import '../domain/logic/effective_status_service.dart';
-import '../domain/logic/franchise_service.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
-import '../domain/logic/calendar_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../domain/models/list_entry.dart';
@@ -118,29 +116,51 @@ final newEpisodeIdsProvider = StreamProvider<Set<int>>((ref) {
   });
 });
 
-/// Statut EFFECTIF (affiche) de CHAQUE anime present dans la bibliotheque, en un
-/// seul flux : `mediaId -> ListStatus`. Un anime absent de la map n'est ni suivi
-/// ni progresse (donc « pas en bibliotheque »).
+/// Entrées de bibliothèque avec leur statut EFFECTIF, en un flux RÉACTIF aux
+/// DEUX sources qui déterminent ce statut :
+///  - la table `list_entries` (statut stocké, progress) ;
+///  - les clés de progression par saison `anime_sama_watched:<id>:<s>`.
 ///
-/// Reproduit la semantique de la bibliotheque (watchAllEntries + effectiveStatus
-/// + hasAnyProgress) : « en cours » (current) n'est jamais stocke, il est derive
-/// de la progression. Un seul watch pour toute la page catalogue (bien plus
-/// efficace que N providers par tuile) ; sert aux badges et au masquage.
-final libraryStatusMapProvider = StreamProvider<Map<int, ListStatus>>((ref) {
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return ref
-      .watch(listRepositoryProvider)
-      .watchAllEntries()
-      .asyncMap((all) async {
-    final map = <int, ListStatus>{};
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff != null) map[e.mediaId] = eff;
-    }
-    return map;
-  });
+/// C'est le point de vérité unique de la réactivité du statut : marquer un
+/// épisode (progress) OU une saison (clé watched) déclenche une réémission, donc
+/// l'UI (bibliothèque, badges, accueil) se met à jour partout. Sans combiner ces
+/// deux streams, marquer une saison (qui n'écrit QUE dans app_settings) ne
+/// rafraîchissait pas les vues basées sur `watchAllEntries` seul.
+final effectiveEntriesProvider =
+    StreamProvider<List<({ListEntry entry, ListStatus status})>>((ref) {
+  final listRepo = ref.watch(listRepositoryProvider);
+  final settings = ref.watch(settingsRepositoryProvider);
+  return Rx.combineLatest2(
+    listRepo.watchAllEntries(),
+    settings.watchWithPrefix('anime_sama_watched:'),
+    (List<ListEntry> all, Map<String, String> watched) {
+      // Ids ayant une progression par saison > 0 (clé anime_sama_watched:<id>:<s>).
+      final progressedIds = <int>{};
+      for (final kv in watched.entries) {
+        if ((int.tryParse(kv.value) ?? 0) <= 0) continue;
+        final parts = kv.key.split(':'); // anime_sama_watched:<id>:<s>
+        if (parts.length >= 3) {
+          final id = int.tryParse(parts[1]);
+          if (id != null) progressedIds.add(id);
+        }
+      }
+      final result = <({ListEntry entry, ListStatus status})>[];
+      for (final e in all) {
+        final hasProgress = e.progress > 0 || progressedIds.contains(e.mediaId);
+        final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+        if (eff != null) result.add((entry: e, status: eff));
+      }
+      return result;
+    },
+  );
+});
+
+/// Statut EFFECTIF (affiche) de CHAQUE anime present dans la bibliotheque :
+/// `mediaId -> ListStatus`. Dérivé de [effectiveEntriesProvider] (réactif aux
+/// entrées ET à la progression par saison).
+final libraryStatusMapProvider = Provider<AsyncValue<Map<int, ListStatus>>>((ref) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) =>
+      {for (final e in entries) e.entry.mediaId: e.status});
 });
 
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
@@ -166,17 +186,11 @@ final heroRotationSecondsProvider = StreamProvider<int>((ref) {
 final progressServiceProvider =
     Provider<ProgressService>((ref) => const ProgressService());
 
-final franchiseServiceProvider =
-    Provider<FranchiseService>((ref) => const FranchiseService());
-
 final statsServiceProvider =
     Provider<StatsService>((ref) => const StatsService());
 
 final filterSortServiceProvider =
     Provider<FilterSortService>((ref) => const FilterSortService());
-
-final calendarServiceProvider =
-    Provider<CalendarService>((ref) => const CalendarService());
 
 // --- Services système / lecteur -------------------------------------------
 
@@ -425,11 +439,6 @@ final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
     seasonIndex: arg.seasonIndex,
     malId: arg.malId,
   );
-});
-
-/// Résolveur de flux actif : anime-sama (unique source, VOSTFR/VF).
-final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {
-  return ref.watch(animeSamaResolverProvider.future);
 });
 
 /// Service health-check câblé sur toutes les sondes réelles.

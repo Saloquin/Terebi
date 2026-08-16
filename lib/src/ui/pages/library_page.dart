@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
-import '../../domain/logic/effective_status_service.dart';
 import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -22,36 +21,27 @@ import 'resume_helper.dart';
 // Providers (visibles pour les tests via import)
 // ---------------------------------------------------------------------------
 
-final countByStatusProvider = StreamProvider<Map<ListStatus, int>>((ref) {
-  final listRepo = ref.watch(listRepositoryProvider);
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return listRepo.watchAllEntries().asyncMap((all) async {
+/// Nombre d'entrées par statut EFFECTIF. Dérivé de [effectiveEntriesProvider]
+/// (réactif aux entrées ET à la progression par saison → se met à jour quand on
+/// marque un épisode OU une saison).
+final countByStatusProvider = Provider<AsyncValue<Map<ListStatus, int>>>((ref) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) {
     final counts = <ListStatus, int>{};
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff == null) continue;
-      counts[eff] = (counts[eff] ?? 0) + 1;
+    for (final e in entries) {
+      counts[e.status] = (counts[e.status] ?? 0) + 1;
     }
     return counts;
   });
 });
 
+/// Entrées de bibliothèque dont le statut EFFECTIF vaut [status]. Dérivé de
+/// [effectiveEntriesProvider] (même réactivité).
 final entriesByStatusProvider =
-    StreamProvider.family<List<ListEntry>, ListStatus>((ref, status) {
-  final listRepo = ref.watch(listRepositoryProvider);
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return listRepo.watchAllEntries().asyncMap((all) async {
-    final result = <ListEntry>[];
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff == status) result.add(e);
-    }
-    return result;
-  });
+    Provider.family<AsyncValue<List<ListEntry>>, ListStatus>((ref, status) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) => [
+        for (final e in entries)
+          if (e.status == status) e.entry,
+      ]);
 });
 
 /// Vrai si un anime a un « nouvel épisode disponible » (drapeau posé par le
@@ -69,7 +59,7 @@ final newEpisodeFlagProvider =
 /// (application du filtre). Un seul appel getAllMedia() pour toute la page.
 final _allMediaMapProvider = FutureProvider<Map<int, Media>>((ref) async {
   final all = await ref.watch(mediaRepositoryProvider).getAllMedia();
-  return {for (final m in all) m.anilistId: m};
+  return {for (final m in all) m.mediaId: m};
 });
 
 // ---------------------------------------------------------------------------
@@ -80,6 +70,7 @@ const _statusOrder = [
   ListStatus.current,
   ListStatus.planning,
   ListStatus.completed,
+  ListStatus.repeating,
   ListStatus.paused,
   ListStatus.dropped,
 ];
@@ -88,13 +79,13 @@ const _statusLabels = {
   ListStatus.current: 'En cours',
   ListStatus.planning: 'Planifié',
   ListStatus.completed: 'Terminé',
+  ListStatus.repeating: 'Revisionnage',
   ListStatus.paused: 'En pause',
   ListStatus.dropped: 'Abandonné',
 };
 
 const _sortFieldLabels = {
   EntrySortField.title: 'Titre',
-  EntrySortField.score: 'Score',
   EntrySortField.progress: 'Progression',
   EntrySortField.updated: 'Mis à jour',
 };
@@ -654,12 +645,7 @@ class _FilterBar extends StatelessWidget {
     );
 
     // Applique la sélection finale après fermeture de la dialog.
-    onChanged(MediaFilter(
-      genres: selected,
-      year: filter.year,
-      status: filter.status,
-      format: filter.format,
-    ));
+    onChanged(MediaFilter(genres: selected));
   }
 
   @override
@@ -1006,7 +992,7 @@ class _EntryCard extends ConsumerWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => MediaDetailPage(
-                    anilistId: entry.mediaId,
+                    mediaId: entry.mediaId,
                     displayTitle: media?.animeSamaTitle,
                   ),
                 ),
@@ -1066,34 +1052,6 @@ class _EntryCard extends ConsumerWidget {
                                 fontWeight: FontWeight.bold,
                                 color: colorScheme.onTertiary,
                               ),
-                            ),
-                          ),
-                        ),
-
-                      // Note (haut-droit).
-                      if (entry.score != null)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.star,
-                                    size: 14, color: Colors.amber),
-                                const SizedBox(width: 2),
-                                Text(
-                                  entry.score!.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                      fontSize: 11, color: Colors.white),
-                                ),
-                              ],
                             ),
                           ),
                         ),

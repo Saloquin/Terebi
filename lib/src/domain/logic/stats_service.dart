@@ -1,17 +1,16 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
 /// Statistiques de visionnage et estimations de temps (US-90, US-91).
-/// Heuristique du besoin utilisateur : un épisode ≈ 24 min, un film ≈ 2 h,
-/// sauf durée réelle connue via [Media.durationMinutes].
+/// Heuristique du besoin utilisateur : un épisode ≈ 24 min, un film (média à un
+/// seul épisode) ≈ 2 h. (La source anime-sama ne fournit pas de durée réelle.)
 library;
 
-import '../models/anime_format.dart';
 import '../models/list_entry.dart';
 import '../models/list_status.dart';
 import '../models/media.dart';
 import 'effective_status_service.dart';
 
-/// Durées heuristiques par défaut (minutes), utilisées si la durée réelle est inconnue.
+/// Durées heuristiques par défaut (minutes).
 const int kDefaultEpisodeMinutes = 24;
 const int kDefaultMovieMinutes = 120;
 
@@ -19,13 +18,10 @@ const int kDefaultMovieMinutes = 120;
 class StatsService {
   const StatsService();
 
-  /// Durée d'un épisode pour [media] : sa durée réelle si connue, sinon
-  /// [kDefaultMovieMinutes] pour un film, [kDefaultEpisodeMinutes] sinon.
+  /// Durée d'un épisode pour [media] : [kDefaultMovieMinutes] si c'est un média
+  /// à un seul épisode (film/OAV), [kDefaultEpisodeMinutes] sinon.
   int episodeMinutes(Media media) {
-    if (media.durationMinutes != null && media.durationMinutes! > 0) {
-      return media.durationMinutes!;
-    }
-    return media.format == AnimeFormat.movie
+    return media.episodes == 1
         ? kDefaultMovieMinutes
         : kDefaultEpisodeMinutes;
   }
@@ -39,7 +35,7 @@ class StatsService {
   /// comme filet : si anime-sama était indispo (progress non corrigé), on retombe
   /// sur le total Jikan plutôt que sur 0.
   int watchedMinutes({required Media media, required ListEntry entry}) {
-    if (media.isMovie) {
+    if ((media.episodes == 1)) {
       return entry.status == ListStatus.completed ? episodeMinutes(media) : 0;
     }
     final completed = entry.status == ListStatus.completed;
@@ -53,7 +49,7 @@ class StatsService {
   /// Temps total estimé pour finir [media] à partir de l'entrée courante.
   /// `null` si le nombre d'épisodes est inconnu (impossible d'estimer le reste).
   int? remainingMinutes({required Media media, required ListEntry entry}) {
-    if (media.isMovie) {
+    if ((media.episodes == 1)) {
       return entry.status == ListStatus.completed ? 0 : episodeMinutes(media);
     }
     final total = media.episodes;

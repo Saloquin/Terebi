@@ -48,30 +48,22 @@ final _completedIdsProvider = StreamProvider<Set<int>>((ref) {
 /// (cf. [effectiveStatus]). On reproduit donc la sémantique de la bibliothèque
 /// (watchAllEntries + effectiveStatus + hasAnyProgress) au lieu de filtrer sur
 /// la colonne `status`, qui ne contient jamais `current`.
-final _continueWatchingProvider = StreamProvider<List<Media>>((ref) {
+final _continueWatchingProvider = FutureProvider<List<Media>>((ref) async {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return ref
-      .watch(listRepositoryProvider)
-      .watchAllEntries()
-      .asyncMap((all) async {
-    final current = <({DateTime updatedAt, int mediaId})>[];
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff == ListStatus.current) {
-        current.add((updatedAt: e.updatedAt, mediaId: e.mediaId));
-      }
-    }
-    current.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    final result = <Media>[];
-    for (final c in current) {
-      final m = await mediaRepo.getMedia(c.mediaId);
-      if (m != null) result.add(m);
-    }
-    return result;
-  });
+  // Dérive de effectiveEntriesProvider (réactif aux entrées ET à la progression
+  // par saison) : marquer un épisode OU une saison rafraîchit la rangée.
+  final entries = await ref.watch(effectiveEntriesProvider.future);
+  final current = [
+    for (final e in entries)
+      if (e.status == ListStatus.current)
+        (updatedAt: e.entry.updatedAt, mediaId: e.entry.mediaId),
+  ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  final result = <Media>[];
+  for (final c in current) {
+    final m = await mediaRepo.getMedia(c.mediaId);
+    if (m != null) result.add(m);
+  }
+  return result;
 });
 
 /// « Sortis du moment » : planning anime-sama de la semaine, résolu en Media via
@@ -95,7 +87,6 @@ final _recentlyReleasedProvider = FutureProvider<List<Media>>((ref) async {
   }
 });
 
-/// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
 /// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
 ///
 /// L'ordre est MÉLANGÉ (aléatoire) : les rangées de découverte (classiques, par
@@ -189,16 +180,12 @@ final _libraryFilterProvider =
     ids.add(e.mediaId);
     final m = await mediaRepo.getMedia(e.mediaId);
     if (m != null) {
-      titles.add(_normTitle(m.title.preferred));
-      if (m.animeSamaTitle != null) titles.add(_normTitle(m.animeSamaTitle!));
+      titles.add(normalizeAnimeTitle(m.title.preferred));
+      if (m.animeSamaTitle != null) titles.add(normalizeAnimeTitle(m.animeSamaTitle!));
     }
   }
   return (ids: ids, titles: titles);
 });
-
-/// Normalise un titre pour comparaison (minuscule, alphanumérique).
-String _normTitle(String t) =>
-    t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
 /// « Regarde recemment » : les derniers animes LANCES (historique recent, ordre
 /// chronologique inverse), dedupliques par mediaId, en EXCLUANT les animes
@@ -500,7 +487,7 @@ class _HeroSlide extends ConsumerWidget {
         context,
         MaterialPageRoute(
           builder: (_) => MediaDetailPage(
-            anilistId: enriched.anilistId,
+            mediaId: enriched.mediaId,
             displayTitle: enriched.animeSamaTitle,
           ),
         ),
@@ -636,8 +623,8 @@ class _MediaRow extends ConsumerWidget {
               );
           if (lib.ids.isNotEmpty || lib.titles.isNotEmpty) {
             items = items.where((m) {
-              if (lib.ids.contains(m.anilistId)) return false;
-              if (lib.titles.contains(_normTitle(m.title.preferred))) {
+              if (lib.ids.contains(m.mediaId)) return false;
+              if (lib.titles.contains(normalizeAnimeTitle(m.title.preferred))) {
                 return false;
               }
               return true;
@@ -766,7 +753,7 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => MediaDetailPage(
-                        anilistId: media.anilistId,
+                        mediaId: media.mediaId,
                         displayTitle: media.animeSamaTitle,
                       ),
                     ),

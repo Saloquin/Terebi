@@ -1,6 +1,7 @@
 /// Page de détail d'un média : cover, synopsis, genres, relations, actions.
 library;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,8 +9,6 @@ import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
-import '../../domain/models/anime_format.dart';
-import '../../domain/models/enums.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -88,7 +87,6 @@ final seasonProgressRefreshProvider = StateProvider<int>((ref) => 0);
 /// Saisons anime-sama d'un titre : alias vers le provider **global**
 /// (`animeSamaSeasonsProvider`) pour partager le résultat (et le cache) avec le
 /// lecteur et le recheck de la bibliothèque — évite de relancer le wrapper.
-final _animeSamaSeasonsProvider = animeSamaSeasonsProvider;
 
 /// Titres normalisés présents au planning anime-sama (diffusion en cours).
 /// Sert à décider « À jour » (au planning) vs « Terminée » (hors planning).
@@ -96,40 +94,36 @@ final _animeSamaSeasonsProvider = animeSamaSeasonsProvider;
 final _planningTitlesProvider = FutureProvider<Set<String>>((ref) async {
   try {
     final items = await ref.watch(animeSamaPlanningProvider.future);
-    return items.map((e) => _normTitle(e.title)).toSet();
+    return items.map((e) => normalizeAnimeTitle(e.title)).toSet();
   } catch (_) {
     return <String>{};
   }
 });
 
-/// Normalise un titre pour comparaison (minuscule, alphanumérique).
-String _normTitle(String t) =>
-    t.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
-
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 
-/// Page de détail d'un anime identifié par son [anilistId] AniList.
+/// Page de détail d'un anime identifié par son [mediaId] (dérivé du slug
+/// anime-sama).
 ///
-/// [displayTitle] (optionnel) : titre à afficher à la place du titre AniList.
+/// [displayTitle] (optionnel) : titre à afficher à la place du titre du média.
 /// Fourni depuis le catalogue/planning anime-sama pour montrer le titre propre
-/// (« Dr Stone » plutôt que « Dr Stone Saison 2 ») tout en gardant les infos
-/// AniList (synopsis, note, image). `null` ailleurs → titre AniList.
+/// (« Dr Stone » plutôt que « Dr Stone Saison 2 »).
 class MediaDetailPage extends ConsumerWidget {
-  final int anilistId;
+  final int mediaId;
   final String? displayTitle;
 
   const MediaDetailPage({
     super.key,
-    required this.anilistId,
+    required this.mediaId,
     this.displayTitle,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaAsync =
-        ref.watch(_mediaDetailProvider((id: anilistId, title: displayTitle)));
+        ref.watch(_mediaDetailProvider((id: mediaId, title: displayTitle)));
 
     return Scaffold(
       appBar: AppBar(
@@ -153,11 +147,11 @@ class MediaDetailPage extends ConsumerWidget {
   String _titleFor(Media? m) =>
       displayTitle ?? m?.animeSamaTitle ?? m?.title.preferred ?? 'Détail';
 
-  /// Média minimal quand AniList ne fournit rien (id négatif ou hors-ligne).
+  /// Média minimal quand rien n'est en cache (id dérivé du titre, hors-ligne).
   Media _fallbackMedia() => displayTitle != null
       ? Media.fromAnimeSama(
           slug: normalizeAnimeTitle(displayTitle!), title: displayTitle!)
-      : Media(anilistId: anilistId, title: const MediaTitle(romaji: 'Anime'));
+      : Media(mediaId: mediaId, title: const MediaTitle(romaji: 'Anime'));
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +166,7 @@ class _DetailBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entryAsync = ref.watch(listEntryProvider(media.anilistId));
+    final entryAsync = ref.watch(listEntryProvider(media.mediaId));
 
     return SingleChildScrollView(
       child: Column(
@@ -339,22 +333,6 @@ class _Header extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (media.averageScore != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.star,
-                                  size: 16, color: Colors.amber),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${media.averageScore}%',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -377,107 +355,17 @@ class _MetaChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <String>[
-      // Format et statut ne sont ajoutes que s'ils sont CONNUS : un anime
-      // resolu uniquement via anime-sama n'a pas ces metadonnees AniList/Jikan,
-      // et une chip « ? » / « Inconnu » n'apporte rien (bruit visuel).
-      if (media.format != AnimeFormat.unknown) _formatLabel(media),
-      if (media.episodes != null) '${media.episodes} épisodes',
-      if (media.durationMinutes != null) '${media.durationMinutes} min/ep',
-      if (media.seasonYear != null)
-        '${_seasonLabel(media.season?.name)} ${media.seasonYear}',
-      if (media.status != ReleaseStatus.unknown) _statusLabel(media.status.name),
-    ];
-
-    final nextAt = media.nextAiringAt;
-    final nextEp = media.nextAiringEpisode;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            for (final item in items)
-              Chip(
-                label: Text(item),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-          ],
-        ),
-        if (nextAt != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.schedule,
-                  size: 16, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 6),
-              Text(
-                nextEp != null
-                    ? 'Prochain épisode (ép. $nextEp) ${_formatAiring(nextAt.toLocal())}'
-                    : 'Prochain épisode ${_formatAiring(nextAt.toLocal())}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ],
-      ],
+    // Source anime-sama : la seule métadonnée fiable est le nombre d'épisodes.
+    if (media.episodes == null) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Chip(
+        label: Text('${media.episodes} épisodes'),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ),
     );
   }
-
-  /// Formate une date de diffusion de façon lisible et relative (« demain à
-  /// 18h30 », « le 14/08 à 18h30 »).
-  static String _formatAiring(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(dt.year, dt.month, dt.day);
-    final diffDays = day.difference(today).inDays;
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mm = dt.minute.toString().padLeft(2, '0');
-    final heure = 'à ${hh}h$mm';
-    if (diffDays == 0) return "aujourd'hui $heure";
-    if (diffDays == 1) return 'demain $heure';
-    if (diffDays > 1 && diffDays < 7) {
-      const jours = [
-        'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
-      ];
-      return '${jours[dt.weekday - 1]} $heure';
-    }
-    final d = dt.day.toString().padLeft(2, '0');
-    final mo = dt.month.toString().padLeft(2, '0');
-    return 'le $d/$mo $heure';
-  }
-
-  static String _formatLabel(Media m) => switch (m.format.name) {
-        'tv' => 'TV',
-        'tvShort' => 'TV Court',
-        'movie' => 'Film',
-        'special' => 'Spécial',
-        'ova' => 'OVA',
-        'ona' => 'ONA',
-        'music' => 'Musique',
-        _ => '?',
-      };
-
-  static String _seasonLabel(String? s) => switch (s) {
-        'winter' => 'Hiver',
-        'spring' => 'Printemps',
-        'summer' => 'Été',
-        'fall' => 'Automne',
-        _ => '',
-      };
-
-  static String _statusLabel(String s) => switch (s) {
-        'finished' => 'Terminé',
-        'releasing' => 'En cours',
-        'notYetReleased' => 'À venir',
-        'cancelled' => 'Annulé',
-        'hiatus' => 'En pause',
-        _ => 'Inconnu',
-      };
 }
 
 // ---------------------------------------------------------------------------
@@ -513,7 +401,7 @@ class _ActionBar extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    await ref.read(listRepositoryProvider).deleteEntry(media.anilistId);
+    await ref.read(listRepositoryProvider).deleteEntry(media.mediaId);
     // Rafraîchit la bibliothèque (onglets + compteurs).
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
@@ -556,7 +444,7 @@ class _ActionBar extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    final id = media.anilistId;
+    final id = media.mediaId;
     final t = media.animeSamaTitle;
     final settings = ref.read(settingsRepositoryProvider);
     // Écritures DB : les StreamProviders (media/entrée/progression) ré-émettent
@@ -584,6 +472,32 @@ class _ActionBar extends ConsumerWidget {
 
   String _titleShown() => media.animeSamaTitle ?? media.title.preferred;
 
+  /// Ajoute l'anime à la bibliothèque. Le statut est AUTO à l'ajout : « Terminé »
+  /// si tout est vu, « En cours » s'il y a de la progression, « Planifié » sinon.
+  /// (Les statuts manuels — pause/abandonné/revisionnage — ne sont proposés
+  /// qu'ensuite, via le sélecteur, sur un anime déjà en bibliothèque.)
+  Future<void> _addToLibrary(BuildContext context, WidgetRef ref) async {
+    await ref.read(mediaRepositoryProvider).upsertMedia(media);
+    final hasProgress = await ref
+        .read(seasonProgressRepositoryProvider)
+        .hasAnyProgress(media.mediaId);
+    // Statut initial = celui dérivé de la progression (jamais un statut manuel).
+    final status = effectiveStatus(entry: null, hasProgress: hasProgress) ??
+        ListStatus.planning;
+    await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
+          mediaId: media.mediaId,
+          status: status,
+          updatedAt: DateTime.now(),
+        ));
+    ref.invalidate(entriesByStatusProvider);
+    ref.invalidate(countByStatusProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ajouté à la bibliothèque')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // La lecture se lance depuis la section « Saisons (anime-sama) » ci-dessous.
@@ -599,7 +513,16 @@ class _ActionBar extends ConsumerWidget {
           icon: const Icon(Icons.play_arrow, size: 18),
           label: const Text('Reprendre'),
         ),
-        _StatusDropdown(media: media, entry: entry),
+        // Sélecteur de statut UNIQUEMENT si l'anime est en bibliothèque ; sinon
+        // un bouton « Ajouter à la bibliothèque » (statut auto à l'ajout).
+        if (entry != null)
+          _StatusDropdown(media: media, entry: entry)
+        else
+          FilledButton.tonalIcon(
+            onPressed: () => _addToLibrary(context, ref),
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Ajouter à la bibliothèque'),
+          ),
         if (entry != null)
           OutlinedButton.icon(
             onPressed: () => _remove(context, ref),
@@ -609,16 +532,18 @@ class _ActionBar extends ConsumerWidget {
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
           ),
-        // Bouton temporaire (debug) : purge complète pour corriger une mauvaise
-        // résolution de titre. Toujours visible, même sans entrée de liste.
-        OutlinedButton.icon(
-          onPressed: () => _purge(context, ref),
-          icon: const Icon(Icons.cleaning_services_outlined, size: 18),
-          label: const Text('Purger de la base'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
+        // Outil de diagnostic (mode debug uniquement) : purge complète pour
+        // corriger une mauvaise résolution de titre. Masqué en production
+        // (destructif : efface média + progression + réglages de l'anime).
+        if (kDebugMode)
+          OutlinedButton.icon(
+            onPressed: () => _purge(context, ref),
+            icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+            label: const Text('Purger de la base'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -630,14 +555,14 @@ class _StatusDropdown extends ConsumerWidget {
 
   const _StatusDropdown({required this.media, required this.entry});
 
-  /// Libellés des statuts MANUELS uniquement (les seuls choisissables). « En
-  /// cours » / « Terminé » sont automatiques (dérivés de la progression) et ne
-  /// figurent PAS dans le sélecteur.
+  /// Libellés des statuts MANUELS proposés dans le sélecteur. « Planifié »,
+  /// « En cours » et « Terminé » sont AUTOMATIQUES (dérivés de la progression :
+  /// 0 vu = Planifié, tout vu = Terminé, sinon En cours) et ne figurent donc PAS
+  /// dans le sélecteur. Ne restent que les statuts « gelants » choisis à la main.
   static const _manualLabels = {
-    ListStatus.planning: 'Planifié',
     ListStatus.paused: 'En pause',
     ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Re-vision',
+    ListStatus.repeating: 'Revisionnage',
   };
 
   /// Libellé du statut EFFECTIF (affiché en info, incluant les auto).
@@ -647,14 +572,14 @@ class _StatusDropdown extends ConsumerWidget {
     ListStatus.completed: 'Terminé',
     ListStatus.paused: 'En pause',
     ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Re-vision',
+    ListStatus.repeating: 'Revisionnage',
   };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // « A une progression » : progress global OU une saison anime-sama entamée
     // (sinon un anime suivi via le lecteur, progress=0, resterait « Planifié »).
-    final hasProgress = ref.watch(hasProgressProvider(media.anilistId)).maybeWhen(
+    final hasProgress = ref.watch(hasProgressProvider(media.mediaId)).maybeWhen(
           data: (v) => v,
           orElse: () => (entry?.progress ?? 0) > 0,
         );
@@ -663,20 +588,13 @@ class _StatusDropdown extends ConsumerWidget {
       entry: entry,
       hasProgress: hasProgress,
     );
-    // Valeur du dropdown = statut MANUEL réellement choisi, ou null (« Auto »).
-    // Subtilité : `planning` sert de statut par défaut/fourre-tout. On ne le
-    // considère comme un choix MANUEL « Planifié » que si l'anime n'a AUCUNE
-    // progression. Dès qu'il y a une progression, un `planning` stocké est
-    // interprété comme « Auto » (l'effectif est « En cours ») — sinon, après
-    // avoir démarqué une saison, l'anime restait bloqué sur « Planifié » sans
-    // pouvoir revenir à « Auto ».
+    // Valeur du dropdown = statut MANUEL « gelant » réellement choisi
+    // (pause/abandonné/revisionnage), ou null (« Auto »). Planifié/En cours/
+    // Terminé sont automatiques et ne sont jamais une valeur du sélecteur.
     final stored = entry?.status;
-    final isManualPlanning = stored == ListStatus.planning && !hasProgress;
-    final isOtherManual = stored != null &&
-        stored != ListStatus.planning &&
-        kManualStatuses.contains(stored);
-    final manualValue =
-        (isManualPlanning || isOtherManual) ? stored : null;
+    final manualValue = (stored != null && isFreezingManualStatus(stored))
+        ? stored
+        : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -697,10 +615,10 @@ class _StatusDropdown extends ConsumerWidget {
               value: null,
               child: Text('— Auto (selon progression)'),
             ),
+            // Seuls les statuts manuels « gelants » (Pause/Abandonné/
+            // Revisionnage) sont proposés ; Planifié est automatique (0 vu).
             for (final s in kManualStatuses)
-              // « Planifié » = « pas encore commencé » : sans intérêt (et
-              // trompeur) sur un anime déjà entamé → on le masque dans ce cas.
-              if (!(s == ListStatus.planning && hasProgress))
+              if (s != ListStatus.planning)
                 DropdownMenuItem<ListStatus?>(
                   value: s,
                   child: Text(_manualLabels[s] ?? s.name),
@@ -712,44 +630,35 @@ class _StatusDropdown extends ConsumerWidget {
     );
   }
 
-  /// Applique un statut MANUEL (ou le retire → retour au calcul auto).
-  /// - `newStatus` null → on retire l'entrée des listes manuelles : si l'anime
-  ///   a une progression, il redeviendra « En cours » (calculé) ; sinon il sort
-  ///   des listes. Concrètement on repasse le statut stocké à `planning` si une
-  ///   progression existe (pour rester « suivi »), sinon on retire l'entrée.
-  /// - sinon → on stocke ce statut manuel.
+  /// Applique un statut MANUEL, ou retourne au calcul automatique.
+  /// - `newStatus` null → « Auto » : repasse le statut stocké à `planning`,
+  ///   l'effectif redevient calculé (Planifié/En cours/Terminé). Ne retire PAS
+  ///   l'anime de la bibliothèque (retrait = bouton dédié).
+  /// - sinon → on stocke ce statut manuel (gelant).
   Future<void> _applyManualStatus(
       BuildContext context, WidgetRef ref, ListStatus? newStatus) async {
     final repo = ref.read(listRepositoryProvider);
     await ref.read(mediaRepositoryProvider).upsertMedia(media);
-    final existing = await repo.getEntry(media.anilistId);
+    final existing = await repo.getEntry(media.mediaId);
 
     if (newStatus == null) {
-      // Retour au mode auto : on efface un éventuel statut manuel « gelant ».
-      // Si l'anime a une progression (globale OU par saison) → stocké `planning`
-      // (l'effectif sera « En cours ») ; sinon on retire l'entrée. On teste la
-      // progression PAR SAISON aussi (un anime suivi via le lecteur a souvent
-      // progress=0 mais une progression par saison → ne PAS le supprimer).
+      // Retour au mode AUTO : on efface le statut manuel « gelant » en repassant
+      // le statut stocké à `planning`. L'effectif redevient calculé (Planifié si
+      // 0 vu, En cours si progression, Terminé si tout vu). On ne SUPPRIME PAS
+      // l'entrée : « Auto » garde l'anime en bibliothèque (le retrait se fait
+      // via le bouton dédié « Retirer de la bibliothèque »).
       if (existing == null) return;
-      final hasProgress = existing.progress > 0 ||
-          await ref
-              .read(seasonProgressRepositoryProvider)
-              .hasAnyProgress(media.anilistId);
-      if (hasProgress) {
-        await repo.upsertEntry(existing.copyWith(
-          status: ListStatus.planning,
-          updatedAt: DateTime.now(),
-        ));
-      } else {
-        await repo.deleteEntry(media.anilistId);
-      }
+      await repo.upsertEntry(existing.copyWith(
+        status: ListStatus.planning,
+        updatedAt: DateTime.now(),
+      ));
     } else {
       final updated = existing?.copyWith(
             status: newStatus,
             updatedAt: DateTime.now(),
           ) ??
           ListEntry(
-            mediaId: media.anilistId,
+            mediaId: media.mediaId,
             status: newStatus,
             updatedAt: DateTime.now(),
           );
@@ -818,7 +727,7 @@ class _SeasonsFor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final seasonsAsync = ref.watch(_animeSamaSeasonsProvider(searchTitle));
+    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
 
     return seasonsAsync.when(
       loading: () => const Padding(
@@ -894,7 +803,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _loadProgress() async {
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final last = await seasonProgress.lastWatched(
-        widget.media.anilistId, widget.season.index);
+        widget.media.mediaId, widget.season.index);
 
     int? total;
     try {
@@ -921,7 +830,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _reloadWatchedOnly() async {
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final last = await seasonProgress.lastWatched(
-        widget.media.anilistId, widget.season.index);
+        widget.media.mediaId, widget.season.index);
     if (mounted && last != _lastWatched) {
       setState(() => _lastWatched = last);
     }
@@ -931,15 +840,15 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     final settingsRepo = ref.read(settingsRepositoryProvider);
     // Mémorise la saison choisie (le lecteur lira dernier vu + 1 tout seul).
     await settingsRepo.set(
-      SettingsKeys.animeSamaSeasonFor(widget.media.anilistId),
+      SettingsKeys.animeSamaSeasonFor(widget.media.mediaId),
       '${widget.season.index}',
     );
 
     final listRepo = ref.read(listRepositoryProvider);
-    final existingEntry = await listRepo.getEntry(widget.media.anilistId);
+    final existingEntry = await listRepo.getEntry(widget.media.mediaId);
     final entry = existingEntry ??
         ListEntry(
-          mediaId: widget.media.anilistId,
+          mediaId: widget.media.mediaId,
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         );
@@ -976,7 +885,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _markThisSeasonWatched() async {
     await ref
         .read(seasonProgressRepositoryProvider)
-        .markSeasonFullyWatched(widget.media.anilistId, widget.season.index);
+        .markSeasonFullyWatched(widget.media.mediaId, widget.season.index);
     await _reloadWatchedOnly();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -992,7 +901,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _unmarkThisSeason() async {
     await ref
         .read(seasonProgressRepositoryProvider)
-        .setLastWatched(widget.media.anilistId, widget.season.index, 0);
+        .setLastWatched(widget.media.mediaId, widget.season.index, 0);
     await _reloadWatchedOnly();
 
     // L'anime n'est plus entièrement vu → retire le drapeau « Terminé »
@@ -1000,7 +909,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     // progression restante).
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null && existing.status == ListStatus.completed) {
         await listRepo.upsertEntry(existing.copyWith(
           status: ListStatus.planning,
@@ -1023,7 +932,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _maybeMarkSeriesCompleted() async {
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null && existing.status == ListStatus.completed) return;
 
       final seasons =
@@ -1038,14 +947,14 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         if (eps.isEmpty) return;
         totalEpisodes += eps.length;
         final watched =
-            await seasonProgress.lastWatched(widget.media.anilistId, s.index);
+            await seasonProgress.lastWatched(widget.media.mediaId, s.index);
         final done = watched >= SeasonProgressRepository.fullyWatchedSentinel ||
             watched >= eps.last;
         if (!done) return;
       }
       final base = existing ??
           ListEntry(
-            mediaId: widget.media.anilistId,
+            mediaId: widget.media.mediaId,
             status: ListStatus.completed,
             updatedAt: DateTime.now(),
           );
@@ -1094,7 +1003,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
           data: (s) => s,
           orElse: () => const <String>{},
         );
-    final atPlanning = planningTitles.contains(_normTitle(widget.searchTitle));
+    final atPlanning = planningTitles.contains(normalizeAnimeTitle(widget.searchTitle));
     final doneLabel =
         (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
 

@@ -4,50 +4,6 @@ import 'package:terebi/src/domain/models/list_status.dart';
 
 void main() {
   final dateFixe = DateTime.utc(2024, 1, 15, 10, 0, 0);
-  final dateSynchro = DateTime.utc(2024, 1, 16, 8, 0, 0);
-
-  group('ListEntry.fromAniList', () {
-    final json = <String, dynamic>{
-      'id': 999,
-      'mediaId': 21,
-      'status': 'CURRENT',
-      'progress': 42,
-      'score': 8.5,
-      'updatedAt': 1705312800, // 2024-01-15T10:00:00Z en epoch secondes
-    };
-
-    test('mappe les champs principaux', () {
-      final entry = ListEntry.fromAniList(json);
-      expect(entry.anilistEntryId, 999);
-      expect(entry.mediaId, 21);
-      expect(entry.status, ListStatus.current);
-      expect(entry.progress, 42);
-      expect(entry.score, 8.5);
-      expect(entry.updatedAt.isUtc, isTrue);
-    });
-
-    test('valeurs par défaut : progress=0, score null, favorite false', () {
-      final entry = ListEntry.fromAniList({
-        'mediaId': 5,
-        'status': 'PLANNING',
-        'updatedAt': 0,
-      });
-      expect(entry.progress, 0);
-      expect(entry.score, isNull);
-      expect(entry.favorite, isFalse);
-      expect(entry.hiddenFromPlanning, isFalse);
-      expect(entry.anilistEntryId, isNull);
-    });
-
-    test('status par défaut PLANNING si valeur inconnue', () {
-      final entry = ListEntry.fromAniList({
-        'mediaId': 5,
-        'status': 'UNKNOWN_VALUE',
-        'updatedAt': 0,
-      });
-      expect(entry.status, ListStatus.planning);
-    });
-  });
 
   group('ListEntry round-trip JSON', () {
     test('toJson → fromJson préserve tous les champs', () {
@@ -55,13 +11,8 @@ void main() {
         mediaId: 21,
         status: ListStatus.current,
         progress: 42,
-        score: 8.5,
-        favorite: true,
-        notes: 'Super série',
         hiddenFromPlanning: true,
-        anilistEntryId: 999,
         updatedAt: dateFixe,
-        syncedAt: dateSynchro,
       );
 
       final restored = ListEntry.fromJson(original.toJson());
@@ -69,16 +20,11 @@ void main() {
       expect(restored.mediaId, original.mediaId);
       expect(restored.status, original.status);
       expect(restored.progress, original.progress);
-      expect(restored.score, original.score);
-      expect(restored.favorite, original.favorite);
-      expect(restored.notes, original.notes);
       expect(restored.hiddenFromPlanning, original.hiddenFromPlanning);
-      expect(restored.anilistEntryId, original.anilistEntryId);
       expect(restored.updatedAt, original.updatedAt);
-      expect(restored.syncedAt, original.syncedAt);
     });
 
-    test('round-trip avec champs optionnels absents', () {
+    test('round-trip avec champs optionnels à leurs valeurs par défaut', () {
       final original = ListEntry(
         mediaId: 5,
         status: ListStatus.planning,
@@ -87,12 +33,70 @@ void main() {
 
       final restored = ListEntry.fromJson(original.toJson());
 
-      expect(restored.score, isNull);
-      expect(restored.notes, isNull);
-      expect(restored.syncedAt, isNull);
-      expect(restored.anilistEntryId, isNull);
-      expect(restored.favorite, isFalse);
+      expect(restored.progress, 0);
       expect(restored.hiddenFromPlanning, isFalse);
+    });
+  });
+
+  group('ListEntry.copyWith', () {
+    test('copyWith remplace les champs fournis', () {
+      final base = ListEntry(
+        mediaId: 1,
+        status: ListStatus.planning,
+        progress: 0,
+        updatedAt: dateFixe,
+      );
+
+      final updated = base.copyWith(
+        status: ListStatus.current,
+        progress: 5,
+        updatedAt: DateTime.utc(2024, 6, 1),
+      );
+
+      expect(updated.mediaId, 1); // conservé
+      expect(updated.status, ListStatus.current);
+      expect(updated.progress, 5);
+      expect(updated.updatedAt, DateTime.utc(2024, 6, 1));
+    });
+
+    test('copyWith sans argument retourne une copie identique', () {
+      final base = ListEntry(
+        mediaId: 7,
+        status: ListStatus.completed,
+        progress: 12,
+        hiddenFromPlanning: true,
+        updatedAt: dateFixe,
+      );
+
+      final copy = base.copyWith();
+
+      expect(copy.mediaId, base.mediaId);
+      expect(copy.status, base.status);
+      expect(copy.progress, base.progress);
+      expect(copy.hiddenFromPlanning, base.hiddenFromPlanning);
+      expect(copy.updatedAt, base.updatedAt);
+    });
+
+    test('copyWith hiddenFromPlanning', () {
+      final base = ListEntry(
+        mediaId: 3,
+        status: ListStatus.planning,
+        updatedAt: dateFixe,
+      );
+      expect(base.copyWith(hiddenFromPlanning: true).hiddenFromPlanning, isTrue);
+      expect(base.copyWith(hiddenFromPlanning: false).hiddenFromPlanning, isFalse);
+    });
+  });
+
+  group('ListEntry valeurs par défaut', () {
+    test('progress=0, hiddenFromPlanning=false par défaut', () {
+      final entry = ListEntry(
+        mediaId: 10,
+        status: ListStatus.planning,
+        updatedAt: dateFixe,
+      );
+      expect(entry.progress, 0);
+      expect(entry.hiddenFromPlanning, isFalse);
     });
   });
 }
