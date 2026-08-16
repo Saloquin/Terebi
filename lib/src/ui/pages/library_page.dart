@@ -549,48 +549,94 @@ class _FilterBar extends StatelessWidget {
     // On travaille sur une copie locale pour éviter de déclencher des rebuilds
     // à chaque clic sur un chip ; on confirme une fois la popup fermée.
     var selected = Set<String>.from(filter.genres);
+    var query = '';
 
     await showDialog<void>(
       context: context,
       builder: (ctx) {
+        // Dialog responsive : largeur/hauteur bornees a la taille de la fenetre
+        // (evite le debordement sur petit ecran). Zone de chips scrollable.
+        final media = MediaQuery.of(ctx);
+        final dialogWidth = media.size.width.clamp(0.0, 520.0) - 48;
+        final maxListHeight = media.size.height * 0.5;
+
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final q = query.trim().toLowerCase();
+            final visible = q.isEmpty
+                ? genres
+                : genres.where((g) => g.toLowerCase().contains(q)).toList();
             return AlertDialog(
-              title: const Text('Filtrer par genre'),
+              title: Text(selected.isEmpty
+                  ? 'Filtrer par genre'
+                  : 'Filtrer par genre (${selected.length})'),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               content: SizedBox(
-                width: 400,
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 4,
+                width: dialogWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final g in genres)
-                      FilterChip(
-                        label: Text(g),
-                        selected: selected.contains(g),
-                        visualDensity: VisualDensity.compact,
-                        onSelected: (v) {
-                          setDialogState(() {
-                            if (v) {
-                              selected = {...selected, g};
-                            } else {
-                              selected = selected.difference({g});
-                            }
-                          });
-                        },
+                    // Recherche de genre.
+                    TextField(
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        hintText: 'Rechercher un genre…',
+                        prefixIcon: Icon(Icons.search),
+                        isDense: true,
+                        border: OutlineInputBorder(),
                       ),
+                      onChanged: (v) => setDialogState(() => query = v),
+                    ),
+                    const SizedBox(height: 12),
+                    // Chips scrollables, hauteur bornee.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: maxListHeight),
+                      child: SingleChildScrollView(
+                        child: Align(
+                          alignment: Alignment.topLeft,
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              if (visible.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Text('Aucun genre correspondant'),
+                                ),
+                              for (final g in visible)
+                                FilterChip(
+                                  label: Text(g),
+                                  selected: selected.contains(g),
+                                  visualDensity: VisualDensity.compact,
+                                  onSelected: (v) {
+                                    setDialogState(() {
+                                      if (v) {
+                                        selected = {...selected, g};
+                                      } else {
+                                        selected = selected.difference({g});
+                                      }
+                                    });
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
-                    setDialogState(() => selected = {});
-                  },
+                  onPressed: selected.isEmpty
+                      ? null
+                      : () => setDialogState(() => selected = {}),
                   child: const Text('Tout décocher'),
                 ),
-                TextButton(
+                FilledButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('Fermer'),
+                  child: const Text('Appliquer'),
                 ),
               ],
             );
