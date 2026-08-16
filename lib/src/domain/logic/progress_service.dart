@@ -55,7 +55,7 @@ class ProgressService {
 
     // Un film (ou média à 1 épisode) : pas d'épisode suivant, complété.
     final bool hasNext;
-    if (media.isMovie) {
+    if ((media.episodes == 1)) {
       hasNext = false;
     } else if (totalEpisodes == null) {
       // Nombre d'épisodes inconnu : on suppose qu'il peut y avoir une suite.
@@ -65,7 +65,7 @@ class ProgressService {
     }
 
     final completed = !hasNext &&
-        (media.isMovie ||
+        ((media.episodes == 1) ||
             (totalEpisodes != null && newProgress >= totalEpisodes));
 
     // Statut : « En cours » n'est PLUS écrit (dérivé de la progression, cf.
@@ -91,7 +91,7 @@ class ProgressService {
   /// non vu, c.-à-d. `progress + 1`, borné au nombre d'épisodes connu.
   /// Retourne `null` si le média est déjà entièrement vu (rien à reprendre).
   int? resumeEpisode({required ListEntry entry, required Media media}) {
-    if (media.isMovie) {
+    if ((media.episodes == 1)) {
       // Film : à reprendre seulement s'il n'est pas déjà complété.
       return entry.status == ListStatus.completed ? null : 1;
     }

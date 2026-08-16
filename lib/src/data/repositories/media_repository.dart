@@ -1,14 +1,13 @@
 /// Repository média — AUCUN import de package:flutter.
 ///
-/// Convertit entre [MediaTableData] (rows drift) et [Media] (domaine).
+/// Convertit entre [MediaTableData] (rows drift) et [Media] (domaine). La
+/// colonne DB reste nommée `anilistId` (héritage) ; le modèle utilise `mediaId`.
 library;
 
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
-import '../../domain/models/anime_format.dart';
-import '../../domain/models/enums.dart';
 import '../../domain/models/media.dart';
 import '../local/database.dart';
 
@@ -22,50 +21,34 @@ class MediaRepository {
   // ---------------------------------------------------------------------------
 
   MediaTableCompanion _toCompanion(Media m) => MediaTableCompanion.insert(
-        anilistId: Value(m.anilistId),
-        malId: Value(m.malId),
+        anilistId: Value(m.mediaId),
         titleRomaji: Value(m.title.romaji),
         titleEnglish: Value(m.title.english),
         titleNative: Value(m.title.native),
-        format: Value(m.format.name),
-        status: Value(m.status.name),
         episodes: Value(m.episodes),
-        durationMinutes: Value(m.durationMinutes),
-        season: Value(m.season?.name),
-        seasonYear: Value(m.seasonYear),
         coverUrl: Value(m.coverUrl),
         bannerUrl: Value(m.bannerUrl),
         description: Value(m.description),
         genresJson: Value(jsonEncode(m.genres)),
-        averageScore: Value(m.averageScore),
         animeSamaTitle: Value(m.animeSamaTitle),
         animeSamaSlug: Value(m.animeSamaSlug),
         updatedAt: Value(DateTime.now().toUtc()),
       );
 
   Media _fromRow(MediaTableData row) => Media(
-        anilistId: row.anilistId,
-        malId: row.malId,
+        mediaId: row.anilistId,
         title: MediaTitle(
           romaji: row.titleRomaji,
           english: row.titleEnglish,
           native: row.titleNative,
         ),
-        format: AnimeFormat.values.byName(row.format),
-        status: ReleaseStatus.values.byName(row.status),
         episodes: row.episodes,
-        durationMinutes: row.durationMinutes,
-        season: row.season == null
-            ? null
-            : AnimeSeason.values.byName(row.season!),
-        seasonYear: row.seasonYear,
         coverUrl: row.coverUrl,
         bannerUrl: row.bannerUrl,
         description: row.description,
         genres: (jsonDecode(row.genresJson) as List<dynamic>)
             .map((e) => e as String)
             .toList(),
-        averageScore: row.averageScore,
         animeSamaTitle: row.animeSamaTitle,
         animeSamaSlug: row.animeSamaSlug,
       );
@@ -79,10 +62,10 @@ class MediaRepository {
     await _db.into(_db.mediaTable).insertOnConflictUpdate(_toCompanion(media));
   }
 
-  /// Retourne un [Media] par son [anilistId], ou `null` s'il n'existe pas.
-  Future<Media?> getMedia(int anilistId) async {
+  /// Retourne un [Media] par son [mediaId], ou `null` s'il n'existe pas.
+  Future<Media?> getMedia(int mediaId) async {
     final row = await (_db.select(_db.mediaTable)
-          ..where((t) => t.anilistId.equals(anilistId)))
+          ..where((t) => t.anilistId.equals(mediaId)))
         .getSingleOrNull();
     return row == null ? null : _fromRow(row);
   }
@@ -94,10 +77,10 @@ class MediaRepository {
         );
   }
 
-  /// Stream du media [anilistId] (emet a chaque ecriture le concernant).
-  Stream<Media?> watchMedia(int anilistId) {
+  /// Stream du media [mediaId] (emet a chaque ecriture le concernant).
+  Stream<Media?> watchMedia(int mediaId) {
     return (_db.select(_db.mediaTable)
-          ..where((t) => t.anilistId.equals(anilistId)))
+          ..where((t) => t.anilistId.equals(mediaId)))
         .watchSingleOrNull()
         .map((row) => row == null ? null : _fromRow(row));
   }
@@ -109,22 +92,22 @@ class MediaRepository {
     return rows.map(_fromRow).toList();
   }
 
-  /// Date de derniere ecriture du media [anilistId] (epoch 0 si absent). Sert au
+  /// Date de derniere ecriture du media [mediaId] (epoch 0 si absent). Sert au
   /// calcul de fraicheur du cache (revalidation).
-  Future<DateTime> updatedAtOf(int anilistId) async {
+  Future<DateTime> updatedAtOf(int mediaId) async {
     final row = await (_db.select(_db.mediaTable)
-          ..where((t) => t.anilistId.equals(anilistId)))
+          ..where((t) => t.anilistId.equals(mediaId)))
         .getSingleOrNull();
     return row?.updatedAt ??
         DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
   }
 
-  /// Supprime le média [anilistId] de la base (n'affecte ni l'entrée de liste ni
+  /// Supprime le média [mediaId] de la base (n'affecte ni l'entrée de liste ni
   /// la progression : à nettoyer séparément par l'appelant). Sert au nettoyage
   /// manuel d'une entrée mal résolue.
-  Future<void> deleteMedia(int anilistId) async {
+  Future<void> deleteMedia(int mediaId) async {
     await (_db.delete(_db.mediaTable)
-          ..where((t) => t.anilistId.equals(anilistId)))
+          ..where((t) => t.anilistId.equals(mediaId)))
         .go();
   }
 }

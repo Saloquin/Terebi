@@ -69,7 +69,7 @@ class SlugMigrationService {
 
   /// Deplace un media et sa progression de son ancien id vers l'id derive du slug.
   Future<void> _reindexOne(Media media, String slug) async {
-    final oldId = media.anilistId;
+    final oldId = media.mediaId;
     final newId = animeSamaIdForSlug(slug);
     if (oldId == newId) {
       await mediaRepo.upsertMedia(media.withSlug(slug));

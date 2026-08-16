@@ -23,26 +23,16 @@ class ListRepository {
         mediaId: Value(e.mediaId),
         status: Value(e.status.name),
         progress: Value(e.progress),
-        score: Value(e.score),
-        favorite: Value(e.favorite),
-        notes: Value(e.notes),
         hiddenFromPlanning: Value(e.hiddenFromPlanning),
-        anilistEntryId: Value(e.anilistEntryId),
         updatedAt: e.updatedAt,
-        syncedAt: Value(e.syncedAt),
       );
 
   ListEntry _fromRow(ListEntryRow row) => ListEntry(
         mediaId: row.mediaId,
         status: ListStatus.values.byName(row.status),
         progress: row.progress,
-        score: row.score,
-        favorite: row.favorite,
-        notes: row.notes,
         hiddenFromPlanning: row.hiddenFromPlanning,
-        anilistEntryId: row.anilistEntryId,
         updatedAt: row.updatedAt,
-        syncedAt: row.syncedAt,
       );
 
   // ---------------------------------------------------------------------------

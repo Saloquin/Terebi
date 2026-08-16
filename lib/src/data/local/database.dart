@@ -13,30 +13,16 @@ part 'database.g.dart';
 
 /// Métadonnées d'un média anime (source anime-sama).
 class MediaTable extends Table {
-  /// Identifiant technique principal — clé primaire.
-  /// Pour les animes anime-sama, derive du slug via animeSamaIdForSlug.
+  /// Identifiant technique principal — clé primaire. Dérivé du slug anime-sama
+  /// via animeSamaIdForSlug. (Colonne nommée `anilistId` par héritage ; le
+  /// modèle Dart l'expose sous `mediaId`.)
   IntColumn get anilistId => integer()();
-
-  /// ID MyAnimeList (optionnel, conserve pour compatibilite donnees legacy).
-  IntColumn get malId => integer().nullable()();
 
   TextColumn get titleRomaji => text().nullable()();
   TextColumn get titleEnglish => text().nullable()();
   TextColumn get titleNative => text().nullable()();
 
-  /// Format stocké en TEXT (.name).
-  TextColumn get format => text().withDefault(const Constant('unknown'))();
-
-  /// Statut de diffusion stocké en TEXT (.name).
-  TextColumn get status => text().withDefault(const Constant('unknown'))();
-
   IntColumn get episodes => integer().nullable()();
-  IntColumn get durationMinutes => integer().nullable()();
-
-  /// Saison stockée en TEXT (.name), ou NULL.
-  TextColumn get season => text().nullable()();
-
-  IntColumn get seasonYear => integer().nullable()();
   TextColumn get coverUrl => text().nullable()();
   TextColumn get bannerUrl => text().nullable()();
   TextColumn get description => text().nullable()();
@@ -44,7 +30,6 @@ class MediaTable extends Table {
   /// Genres sérialisés en JSON string (`List&lt;String&gt;`).
   TextColumn get genresJson => text().withDefault(const Constant('[]'))();
 
-  IntColumn get averageScore => integer().nullable()();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   /// Titre anime-sama de référence (source de vérité pour saisons/épisodes).
@@ -69,17 +54,10 @@ class ListEntries extends Table {
   TextColumn get status => text().withDefault(const Constant('planning'))();
 
   IntColumn get progress => integer().withDefault(const Constant(0))();
-  RealColumn get score => real().nullable()();
-  BoolColumn get favorite => boolean().withDefault(const Constant(false))();
-  TextColumn get notes => text().nullable()();
   BoolColumn get hiddenFromPlanning =>
       boolean().withDefault(const Constant(false))();
 
-  /// ID entrée AniList (optionnel).
-  IntColumn get anilistEntryId => integer().nullable()();
-
   DateTimeColumn get updatedAt => dateTime()();
-  DateTimeColumn get syncedAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {mediaId};
@@ -116,29 +94,6 @@ class WatchHistories extends Table {
   RealColumn get watchedSeconds => real().withDefault(const Constant(0.0))();
 }
 
-/// Relations entre deux médias (suite, préquelle…).
-@DataClassName('MediaRelationRow')
-class MediaRelations extends Table {
-  IntColumn get mediaId => integer()();
-  IntColumn get relatedMediaId => integer()();
-
-  /// Type de relation stocké en TEXT (.name).
-  TextColumn get relationType => text()();
-
-  @override
-  Set<Column> get primaryKey => {mediaId, relatedMediaId};
-}
-
-/// Planification de diffusion d'un épisode.
-@DataClassName('AiringScheduleRow')
-class AiringSchedules extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get mediaId => integer()();
-  IntColumn get episode => integer()();
-  DateTimeColumn get airsAt => dateTime()();
-  BoolColumn get notified => boolean().withDefault(const Constant(false))();
-}
-
 /// Paramètres applicatifs clé/valeur.
 class AppSettings extends Table {
   TextColumn get key => text()();
@@ -167,8 +122,6 @@ class MetaCache extends Table {
   ListEntries,
   EpisodeProgresses,
   WatchHistories,
-  MediaRelations,
-  AiringSchedules,
   AppSettings,
   MetaCache,
 ])
@@ -176,7 +129,7 @@ class TerebiDatabase extends _$TerebiDatabase {
   TerebiDatabase(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -191,6 +144,20 @@ class TerebiDatabase extends _$TerebiDatabase {
           // 1er boot, cf. tache ulterieure).
           if (from < 3) {
             await m.addColumn(mediaTable, mediaTable.animeSamaSlug);
+          }
+          // v3 -> v4 : purge des vestiges AniList. On recree media_table et
+          // list_entries SANS les colonnes mortes (mal_id, average_score,
+          // format, status, season, season_year, duration_minutes / score,
+          // favorite, notes, anilist_entry_id, synced_at) via TableMigration
+          // (Drift recopie les colonnes conservees), et on supprime les tables
+          // orphelines jamais alimentees.
+          if (from < 4) {
+            await m.alterTable(TableMigration(mediaTable));
+            await m.alterTable(TableMigration(listEntries));
+            await m.database.customStatement(
+                'DROP TABLE IF EXISTS airing_schedules;');
+            await m.database.customStatement(
+                'DROP TABLE IF EXISTS media_relations;');
           }
         },
       );

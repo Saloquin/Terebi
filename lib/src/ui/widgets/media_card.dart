@@ -3,7 +3,6 @@ library;
 
 import 'package:flutter/material.dart';
 
-import '../../domain/models/anime_format.dart';
 import '../../domain/models/media.dart';
 import 'anime_sama_image.dart';
 
@@ -92,13 +91,11 @@ class MediaCard extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  // Badge format/episodes : masque s'il n'apporte aucune info
-                  // (anime-sama ne fournit ni format ni nb d'episodes global ->
-                  // eviter un badge « ? » inutile sur toutes les cartes).
-                  if (media.format != AnimeFormat.unknown ||
-                      media.episodes != null) ...[
+                  // Badge nombre d'épisodes : masqué si inconnu (anime-sama ne
+                  // fournit pas de compte global fiable pour toutes les fiches).
+                  if (media.episodes != null) ...[
                     const SizedBox(height: 4),
-                    _FormatBadge(media: media),
+                    _EpisodesBadge(episodes: media.episodes!),
                   ],
                 ],
               ),
@@ -110,29 +107,11 @@ class MediaCard extends StatelessWidget {
   }
 }
 
-/// Badge compact montrant le format et le nombre d'épisodes.
-class _FormatBadge extends StatelessWidget {
-  final Media media;
+/// Badge compact montrant le nombre d'épisodes.
+class _EpisodesBadge extends StatelessWidget {
+  final int episodes;
 
-  const _FormatBadge({required this.media});
-
-  String get _label {
-    final fmt = _formatLabel(media.format);
-    final eps = media.episodes;
-    if (eps != null) return '$fmt · $eps ep';
-    return fmt;
-  }
-
-  static String _formatLabel(AnimeFormat f) => switch (f) {
-        AnimeFormat.tv => 'TV',
-        AnimeFormat.tvShort => 'TV Court',
-        AnimeFormat.movie => 'Film',
-        AnimeFormat.special => 'Spécial',
-        AnimeFormat.ova => 'OVA',
-        AnimeFormat.ona => 'ONA',
-        AnimeFormat.music => 'Musique',
-        AnimeFormat.unknown => '?',
-      };
+  const _EpisodesBadge({required this.episodes});
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +123,7 @@ class _FormatBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        _label,
+        '$episodes ep',
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: colorScheme.onPrimaryContainer,
             ),

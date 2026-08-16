@@ -18,12 +18,10 @@ import '../data/repositories/watch_history_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/anime_id.dart';
 import '../domain/logic/effective_status_service.dart';
-import '../domain/logic/franchise_service.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../domain/logic/filter_sort_service.dart';
-import '../domain/logic/calendar_service.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../domain/models/list_entry.dart';
@@ -166,17 +164,11 @@ final heroRotationSecondsProvider = StreamProvider<int>((ref) {
 final progressServiceProvider =
     Provider<ProgressService>((ref) => const ProgressService());
 
-final franchiseServiceProvider =
-    Provider<FranchiseService>((ref) => const FranchiseService());
-
 final statsServiceProvider =
     Provider<StatsService>((ref) => const StatsService());
 
 final filterSortServiceProvider =
     Provider<FilterSortService>((ref) => const FilterSortService());
-
-final calendarServiceProvider =
-    Provider<CalendarService>((ref) => const CalendarService());
 
 // --- Services système / lecteur -------------------------------------------
 
@@ -425,11 +417,6 @@ final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
     seasonIndex: arg.seasonIndex,
     malId: arg.malId,
   );
-});
-
-/// Résolveur de flux actif : anime-sama (unique source, VOSTFR/VF).
-final activeResolverProvider = FutureProvider<StreamResolver>((ref) async {
-  return ref.watch(animeSamaResolverProvider.future);
 });
 
 /// Service health-check câblé sur toutes les sondes réelles.

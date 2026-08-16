@@ -367,18 +367,18 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final media = await _resolveMedia();
-      await _memorizeCurrentSeason(media.anilistId);
+      await _memorizeCurrentSeason(media.mediaId);
 
       final listRepo = ref.read(listRepositoryProvider);
       final progressRepo = ref.read(progressRepositoryProvider);
-      final existing = await listRepo.getEntry(media.anilistId);
+      final existing = await listRepo.getEntry(media.mediaId);
       final entry = existing ??
           ListEntry(
-            mediaId: media.anilistId,
+            mediaId: media.mediaId,
             status: ListStatus.planning,
             updatedAt: DateTime.now(),
           );
-      final lastWatched = await progressRepo.lastWatched(media.anilistId);
+      final lastWatched = await progressRepo.lastWatched(media.mediaId);
       final episode = lastWatched?.episodeNumber.toInt() ?? 1;
 
       if (!mounted) return;
@@ -401,14 +401,14 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
   }
 
   /// Mémorise la saison la plus récente d'anime-sama (best-effort).
-  Future<void> _memorizeCurrentSeason(int anilistId) async {
+  Future<void> _memorizeCurrentSeason(int mediaId) async {
     try {
       // Provider global (cache partagé avec la fiche) plutôt qu'un appel direct.
       final seasons =
           await ref.read(animeSamaSeasonsProvider(widget.item.title).future);
       if (seasons.isNotEmpty) {
         await ref.read(settingsRepositoryProvider).set(
-              SettingsKeys.animeSamaSeasonFor(anilistId),
+              SettingsKeys.animeSamaSeasonFor(mediaId),
               '${seasons.last.index}',
             );
       }
@@ -423,13 +423,13 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
       final media = await _resolveMedia();
       final listRepo = ref.read(listRepositoryProvider);
       await ref.read(mediaRepositoryProvider).upsertMedia(media);
-      final existing = await listRepo.getEntry(media.anilistId);
+      final existing = await listRepo.getEntry(media.mediaId);
       final entry = existing?.copyWith(
             status: ListStatus.planning,
             updatedAt: DateTime.now(),
           ) ??
           ListEntry(
-            mediaId: media.anilistId,
+            mediaId: media.mediaId,
             status: ListStatus.planning,
             updatedAt: DateTime.now(),
           );

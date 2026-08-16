@@ -214,7 +214,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
     // Invalide les resolvers pour qu'ils rechargent chemins/langue.
     ref.invalidate(animeSamaResolverProvider);
-    ref.invalidate(activeResolverProvider);
     // Invalide le cache de chargement pour que la page relise les valeurs
     // sauvegardées à la prochaine ouverture (sinon champs re-remplis à vide).
     ref.invalidate(_settingsLoadProvider);

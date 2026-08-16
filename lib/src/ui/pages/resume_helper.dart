@@ -31,19 +31,19 @@ Future<void> resumePlayback(
   final seasonProgress = ref.read(seasonProgressRepositoryProvider);
 
   final storedSeason =
-      await settings.get(SettingsKeys.animeSamaSeasonFor(media.anilistId));
+      await settings.get(SettingsKeys.animeSamaSeasonFor(media.mediaId));
   final seasonIndex =
       (storedSeason != null ? int.tryParse(storedSeason) : null) ?? 1;
   final lastWatched =
-      await seasonProgress.lastWatched(media.anilistId, seasonIndex);
+      await seasonProgress.lastWatched(media.mediaId, seasonIndex);
   final startEpisode =
       lastWatched >= SeasonProgressRepository.fullyWatchedSentinel
           ? 1
           : lastWatched + 1;
 
-  final entry = await ref.read(listRepositoryProvider).getEntry(media.anilistId) ??
+  final entry = await ref.read(listRepositoryProvider).getEntry(media.mediaId) ??
       ListEntry(
-        mediaId: media.anilistId,
+        mediaId: media.mediaId,
         status: ListStatus.planning,
         updatedAt: DateTime.now(),
       );

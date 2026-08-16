@@ -54,7 +54,7 @@ void main() {
     await sub.cancel();
     expect(fetchCount, greaterThanOrEqualTo(1));
     expect(emissions.last?.description, 'frais');
-    expect(emissions.first?.anilistId, id);
+    expect(emissions.first?.mediaId, id);
   });
 
   test('revalidate sans cover scrappee -> URL CDN derivee du slug (anti-boucle)',

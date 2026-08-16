@@ -8,8 +8,6 @@ import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
-import '../../domain/models/anime_format.dart';
-import '../../domain/models/enums.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
@@ -88,7 +86,6 @@ final seasonProgressRefreshProvider = StateProvider<int>((ref) => 0);
 /// Saisons anime-sama d'un titre : alias vers le provider **global**
 /// (`animeSamaSeasonsProvider`) pour partager le résultat (et le cache) avec le
 /// lecteur et le recheck de la bibliothèque — évite de relancer le wrapper.
-final _animeSamaSeasonsProvider = animeSamaSeasonsProvider;
 
 /// Titres normalisés présents au planning anime-sama (diffusion en cours).
 /// Sert à décider « À jour » (au planning) vs « Terminée » (hors planning).
@@ -110,26 +107,26 @@ String _normTitle(String t) =>
 // Page
 // ---------------------------------------------------------------------------
 
-/// Page de détail d'un anime identifié par son [anilistId] AniList.
+/// Page de détail d'un anime identifié par son [mediaId] (dérivé du slug
+/// anime-sama).
 ///
-/// [displayTitle] (optionnel) : titre à afficher à la place du titre AniList.
+/// [displayTitle] (optionnel) : titre à afficher à la place du titre du média.
 /// Fourni depuis le catalogue/planning anime-sama pour montrer le titre propre
-/// (« Dr Stone » plutôt que « Dr Stone Saison 2 ») tout en gardant les infos
-/// AniList (synopsis, note, image). `null` ailleurs → titre AniList.
+/// (« Dr Stone » plutôt que « Dr Stone Saison 2 »).
 class MediaDetailPage extends ConsumerWidget {
-  final int anilistId;
+  final int mediaId;
   final String? displayTitle;
 
   const MediaDetailPage({
     super.key,
-    required this.anilistId,
+    required this.mediaId,
     this.displayTitle,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaAsync =
-        ref.watch(_mediaDetailProvider((id: anilistId, title: displayTitle)));
+        ref.watch(_mediaDetailProvider((id: mediaId, title: displayTitle)));
 
     return Scaffold(
       appBar: AppBar(
@@ -153,11 +150,11 @@ class MediaDetailPage extends ConsumerWidget {
   String _titleFor(Media? m) =>
       displayTitle ?? m?.animeSamaTitle ?? m?.title.preferred ?? 'Détail';
 
-  /// Média minimal quand AniList ne fournit rien (id négatif ou hors-ligne).
+  /// Média minimal quand rien n'est en cache (id dérivé du titre, hors-ligne).
   Media _fallbackMedia() => displayTitle != null
       ? Media.fromAnimeSama(
           slug: normalizeAnimeTitle(displayTitle!), title: displayTitle!)
-      : Media(anilistId: anilistId, title: const MediaTitle(romaji: 'Anime'));
+      : Media(mediaId: mediaId, title: const MediaTitle(romaji: 'Anime'));
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +169,7 @@ class _DetailBody extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final entryAsync = ref.watch(listEntryProvider(media.anilistId));
+    final entryAsync = ref.watch(listEntryProvider(media.mediaId));
 
     return SingleChildScrollView(
       child: Column(
@@ -339,22 +336,6 @@ class _Header extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      if (media.averageScore != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.star,
-                                  size: 16, color: Colors.amber),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${media.averageScore}%',
-                                style: const TextStyle(
-                                    color: Colors.white, fontSize: 13),
-                              ),
-                            ],
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -377,107 +358,17 @@ class _MetaChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <String>[
-      // Format et statut ne sont ajoutes que s'ils sont CONNUS : un anime
-      // resolu uniquement via anime-sama n'a pas ces metadonnees AniList/Jikan,
-      // et une chip « ? » / « Inconnu » n'apporte rien (bruit visuel).
-      if (media.format != AnimeFormat.unknown) _formatLabel(media),
-      if (media.episodes != null) '${media.episodes} épisodes',
-      if (media.durationMinutes != null) '${media.durationMinutes} min/ep',
-      if (media.seasonYear != null)
-        '${_seasonLabel(media.season?.name)} ${media.seasonYear}',
-      if (media.status != ReleaseStatus.unknown) _statusLabel(media.status.name),
-    ];
-
-    final nextAt = media.nextAiringAt;
-    final nextEp = media.nextAiringEpisode;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            for (final item in items)
-              Chip(
-                label: Text(item),
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-              ),
-          ],
-        ),
-        if (nextAt != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.schedule,
-                  size: 16, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 6),
-              Text(
-                nextEp != null
-                    ? 'Prochain épisode (ép. $nextEp) ${_formatAiring(nextAt.toLocal())}'
-                    : 'Prochain épisode ${_formatAiring(nextAt.toLocal())}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ],
-      ],
+    // Source anime-sama : la seule métadonnée fiable est le nombre d'épisodes.
+    if (media.episodes == null) return const SizedBox.shrink();
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Chip(
+        label: Text('${media.episodes} épisodes'),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ),
     );
   }
-
-  /// Formate une date de diffusion de façon lisible et relative (« demain à
-  /// 18h30 », « le 14/08 à 18h30 »).
-  static String _formatAiring(DateTime dt) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final day = DateTime(dt.year, dt.month, dt.day);
-    final diffDays = day.difference(today).inDays;
-    final hh = dt.hour.toString().padLeft(2, '0');
-    final mm = dt.minute.toString().padLeft(2, '0');
-    final heure = 'à ${hh}h$mm';
-    if (diffDays == 0) return "aujourd'hui $heure";
-    if (diffDays == 1) return 'demain $heure';
-    if (diffDays > 1 && diffDays < 7) {
-      const jours = [
-        'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'
-      ];
-      return '${jours[dt.weekday - 1]} $heure';
-    }
-    final d = dt.day.toString().padLeft(2, '0');
-    final mo = dt.month.toString().padLeft(2, '0');
-    return 'le $d/$mo $heure';
-  }
-
-  static String _formatLabel(Media m) => switch (m.format.name) {
-        'tv' => 'TV',
-        'tvShort' => 'TV Court',
-        'movie' => 'Film',
-        'special' => 'Spécial',
-        'ova' => 'OVA',
-        'ona' => 'ONA',
-        'music' => 'Musique',
-        _ => '?',
-      };
-
-  static String _seasonLabel(String? s) => switch (s) {
-        'winter' => 'Hiver',
-        'spring' => 'Printemps',
-        'summer' => 'Été',
-        'fall' => 'Automne',
-        _ => '',
-      };
-
-  static String _statusLabel(String s) => switch (s) {
-        'finished' => 'Terminé',
-        'releasing' => 'En cours',
-        'notYetReleased' => 'À venir',
-        'cancelled' => 'Annulé',
-        'hiatus' => 'En pause',
-        _ => 'Inconnu',
-      };
 }
 
 // ---------------------------------------------------------------------------
@@ -513,7 +404,7 @@ class _ActionBar extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    await ref.read(listRepositoryProvider).deleteEntry(media.anilistId);
+    await ref.read(listRepositoryProvider).deleteEntry(media.mediaId);
     // Rafraîchit la bibliothèque (onglets + compteurs).
     ref.invalidate(entriesByStatusProvider);
     ref.invalidate(countByStatusProvider);
@@ -556,7 +447,7 @@ class _ActionBar extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    final id = media.anilistId;
+    final id = media.mediaId;
     final t = media.animeSamaTitle;
     final settings = ref.read(settingsRepositoryProvider);
     // Écritures DB : les StreamProviders (media/entrée/progression) ré-émettent
@@ -654,7 +545,7 @@ class _StatusDropdown extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // « A une progression » : progress global OU une saison anime-sama entamée
     // (sinon un anime suivi via le lecteur, progress=0, resterait « Planifié »).
-    final hasProgress = ref.watch(hasProgressProvider(media.anilistId)).maybeWhen(
+    final hasProgress = ref.watch(hasProgressProvider(media.mediaId)).maybeWhen(
           data: (v) => v,
           orElse: () => (entry?.progress ?? 0) > 0,
         );
@@ -722,7 +613,7 @@ class _StatusDropdown extends ConsumerWidget {
       BuildContext context, WidgetRef ref, ListStatus? newStatus) async {
     final repo = ref.read(listRepositoryProvider);
     await ref.read(mediaRepositoryProvider).upsertMedia(media);
-    final existing = await repo.getEntry(media.anilistId);
+    final existing = await repo.getEntry(media.mediaId);
 
     if (newStatus == null) {
       // Retour au mode auto : on efface un éventuel statut manuel « gelant ».
@@ -734,14 +625,14 @@ class _StatusDropdown extends ConsumerWidget {
       final hasProgress = existing.progress > 0 ||
           await ref
               .read(seasonProgressRepositoryProvider)
-              .hasAnyProgress(media.anilistId);
+              .hasAnyProgress(media.mediaId);
       if (hasProgress) {
         await repo.upsertEntry(existing.copyWith(
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         ));
       } else {
-        await repo.deleteEntry(media.anilistId);
+        await repo.deleteEntry(media.mediaId);
       }
     } else {
       final updated = existing?.copyWith(
@@ -749,7 +640,7 @@ class _StatusDropdown extends ConsumerWidget {
             updatedAt: DateTime.now(),
           ) ??
           ListEntry(
-            mediaId: media.anilistId,
+            mediaId: media.mediaId,
             status: newStatus,
             updatedAt: DateTime.now(),
           );
@@ -818,7 +709,7 @@ class _SeasonsFor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final seasonsAsync = ref.watch(_animeSamaSeasonsProvider(searchTitle));
+    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
 
     return seasonsAsync.when(
       loading: () => const Padding(
@@ -894,7 +785,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _loadProgress() async {
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final last = await seasonProgress.lastWatched(
-        widget.media.anilistId, widget.season.index);
+        widget.media.mediaId, widget.season.index);
 
     int? total;
     try {
@@ -921,7 +812,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _reloadWatchedOnly() async {
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final last = await seasonProgress.lastWatched(
-        widget.media.anilistId, widget.season.index);
+        widget.media.mediaId, widget.season.index);
     if (mounted && last != _lastWatched) {
       setState(() => _lastWatched = last);
     }
@@ -931,15 +822,15 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     final settingsRepo = ref.read(settingsRepositoryProvider);
     // Mémorise la saison choisie (le lecteur lira dernier vu + 1 tout seul).
     await settingsRepo.set(
-      SettingsKeys.animeSamaSeasonFor(widget.media.anilistId),
+      SettingsKeys.animeSamaSeasonFor(widget.media.mediaId),
       '${widget.season.index}',
     );
 
     final listRepo = ref.read(listRepositoryProvider);
-    final existingEntry = await listRepo.getEntry(widget.media.anilistId);
+    final existingEntry = await listRepo.getEntry(widget.media.mediaId);
     final entry = existingEntry ??
         ListEntry(
-          mediaId: widget.media.anilistId,
+          mediaId: widget.media.mediaId,
           status: ListStatus.planning,
           updatedAt: DateTime.now(),
         );
@@ -976,7 +867,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _markThisSeasonWatched() async {
     await ref
         .read(seasonProgressRepositoryProvider)
-        .markSeasonFullyWatched(widget.media.anilistId, widget.season.index);
+        .markSeasonFullyWatched(widget.media.mediaId, widget.season.index);
     await _reloadWatchedOnly();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -992,7 +883,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _unmarkThisSeason() async {
     await ref
         .read(seasonProgressRepositoryProvider)
-        .setLastWatched(widget.media.anilistId, widget.season.index, 0);
+        .setLastWatched(widget.media.mediaId, widget.season.index, 0);
     await _reloadWatchedOnly();
 
     // L'anime n'est plus entièrement vu → retire le drapeau « Terminé »
@@ -1000,7 +891,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     // progression restante).
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null && existing.status == ListStatus.completed) {
         await listRepo.upsertEntry(existing.copyWith(
           status: ListStatus.planning,
@@ -1023,7 +914,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   Future<void> _maybeMarkSeriesCompleted() async {
     try {
       final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.anilistId);
+      final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null && existing.status == ListStatus.completed) return;
 
       final seasons =
@@ -1038,14 +929,14 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         if (eps.isEmpty) return;
         totalEpisodes += eps.length;
         final watched =
-            await seasonProgress.lastWatched(widget.media.anilistId, s.index);
+            await seasonProgress.lastWatched(widget.media.mediaId, s.index);
         final done = watched >= SeasonProgressRepository.fullyWatchedSentinel ||
             watched >= eps.last;
         if (!done) return;
       }
       final base = existing ??
           ListEntry(
-            mediaId: widget.media.anilistId,
+            mediaId: widget.media.mediaId,
             status: ListStatus.completed,
             updatedAt: DateTime.now(),
           );

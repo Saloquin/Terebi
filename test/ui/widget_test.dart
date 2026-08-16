@@ -14,7 +14,6 @@ import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/media_repository.dart';
 import 'package:terebi/src/domain/logic/anime_id.dart';
 import 'package:terebi/src/domain/logic/stats_service.dart';
-import 'package:terebi/src/domain/models/anime_format.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
 import 'package:terebi/src/domain/models/media.dart';
@@ -37,20 +36,16 @@ import 'package:terebi/src/ui/widgets/media_card.dart';
 Media _makeMedia(int id, {
   String? title,
   int? episodes,
-  AnimeFormat? format,
   List<String> genres = const [],
-  int? year,
 }) =>
     Media(
-      anilistId: id,
+      mediaId: id,
       title: MediaTitle(
         english: title ?? 'Anime $id',
         romaji: title ?? 'Anime $id',
       ),
       episodes: episodes ?? 12,
-      format: format ?? AnimeFormat.tv,
       genres: genres,
-      seasonYear: year,
     );
 
 ListEntry _makeEntry(int mediaId, ListStatus status) => ListEntry(
@@ -99,17 +94,16 @@ void main() {
       expect(find.textContaining('220 ep'), findsOneWidget);
     });
 
-    testWidgets('badge affiche le format sans épisodes quand episodes est null',
-        (tester) async {
+    testWidgets('aucun badge si episodes est null', (tester) async {
       final media = Media(
-        anilistId: 99,
+        mediaId: 99,
         title: const MediaTitle(english: 'Film Test'),
-        format: AnimeFormat.movie,
       );
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: MediaCard(media: media))),
       );
-      expect(find.text('Film'), findsOneWidget);
+      // Pas de badge épisodes quand episodes == null.
+      expect(find.textContaining('ep'), findsNothing);
     });
 
     testWidgets('appelle onTap au tap', (tester) async {
@@ -235,8 +229,6 @@ void main() {
       await tester.pump();
 
       // Ouvre les filtres et saisit une année min (filtre actif, sans titre).
-      // Un champ année est un simple TextField, plus fiable a piloter en test
-      // que l'overlay d'un DropdownButton.
       await tester.tap(find.byIcon(Icons.filter_list));
       await tester.pump();
       await tester.enterText(find.widgetWithText(TextField, 'Année min'), '2015');
@@ -658,10 +650,10 @@ class _FakeMediaRepository extends MediaRepository {
   _FakeMediaRepository() : super(_FakeDb());
 
   @override
-  Future<Media?> getMedia(int anilistId) async {
+  Future<Media?> getMedia(int mediaId) async {
     return _makeMedia(
-      anilistId,
-      title: 'Anime $anilistId',
+      mediaId,
+      title: 'Anime $mediaId',
       episodes: 12,
       genres: ['Action'],
     );

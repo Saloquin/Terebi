@@ -500,7 +500,7 @@ class _HeroSlide extends ConsumerWidget {
         context,
         MaterialPageRoute(
           builder: (_) => MediaDetailPage(
-            anilistId: enriched.anilistId,
+            mediaId: enriched.mediaId,
             displayTitle: enriched.animeSamaTitle,
           ),
         ),
@@ -636,7 +636,7 @@ class _MediaRow extends ConsumerWidget {
               );
           if (lib.ids.isNotEmpty || lib.titles.isNotEmpty) {
             items = items.where((m) {
-              if (lib.ids.contains(m.anilistId)) return false;
+              if (lib.ids.contains(m.mediaId)) return false;
               if (lib.titles.contains(_normTitle(m.title.preferred))) {
                 return false;
               }
@@ -766,7 +766,7 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
                     context,
                     MaterialPageRoute(
                       builder: (_) => MediaDetailPage(
-                        anilistId: media.anilistId,
+                        mediaId: media.mediaId,
                         displayTitle: media.animeSamaTitle,
                       ),
                     ),

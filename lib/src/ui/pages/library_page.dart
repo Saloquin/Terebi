@@ -69,7 +69,7 @@ final newEpisodeFlagProvider =
 /// (application du filtre). Un seul appel getAllMedia() pour toute la page.
 final _allMediaMapProvider = FutureProvider<Map<int, Media>>((ref) async {
   final all = await ref.watch(mediaRepositoryProvider).getAllMedia();
-  return {for (final m in all) m.anilistId: m};
+  return {for (final m in all) m.mediaId: m};
 });
 
 // ---------------------------------------------------------------------------
@@ -94,7 +94,6 @@ const _statusLabels = {
 
 const _sortFieldLabels = {
   EntrySortField.title: 'Titre',
-  EntrySortField.score: 'Score',
   EntrySortField.progress: 'Progression',
   EntrySortField.updated: 'Mis à jour',
 };
@@ -654,12 +653,7 @@ class _FilterBar extends StatelessWidget {
     );
 
     // Applique la sélection finale après fermeture de la dialog.
-    onChanged(MediaFilter(
-      genres: selected,
-      year: filter.year,
-      status: filter.status,
-      format: filter.format,
-    ));
+    onChanged(MediaFilter(genres: selected));
   }
 
   @override
@@ -1006,7 +1000,7 @@ class _EntryCard extends ConsumerWidget {
                 context,
                 MaterialPageRoute(
                   builder: (_) => MediaDetailPage(
-                    anilistId: entry.mediaId,
+                    mediaId: entry.mediaId,
                     displayTitle: media?.animeSamaTitle,
                   ),
                 ),
@@ -1066,34 +1060,6 @@ class _EntryCard extends ConsumerWidget {
                                 fontWeight: FontWeight.bold,
                                 color: colorScheme.onTertiary,
                               ),
-                            ),
-                          ),
-                        ),
-
-                      // Note (haut-droit).
-                      if (entry.score != null)
-                        Positioned(
-                          top: 4,
-                          right: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.star,
-                                    size: 14, color: Colors.amber),
-                                const SizedBox(width: 2),
-                                Text(
-                                  entry.score!.toStringAsFixed(1),
-                                  style: const TextStyle(
-                                      fontSize: 11, color: Colors.white),
-                                ),
-                              ],
                             ),
                           ),
                         ),

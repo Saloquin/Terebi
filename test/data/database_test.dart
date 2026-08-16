@@ -27,10 +27,8 @@ void main() {
     test('insert + select MediaTable round-trip basique', () async {
       await db.into(db.mediaTable).insert(
             MediaTableCompanion(
-              anilistId: Value(1),
-              titleRomaji: Value('Shingeki no Kyojin'),
-              format: Value('tv'),
-              status: Value('finished'),
+              anilistId: const Value(1),
+              titleRomaji: const Value('Shingeki no Kyojin'),
             ),
           );
 
@@ -44,7 +42,7 @@ void main() {
       final now = DateTime.utc(2024, 1, 1);
       await db.into(db.listEntries).insert(
             ListEntriesCompanion.insert(
-              mediaId: Value(42),
+              mediaId: const Value(42),
               updatedAt: now,
             ),
           );
