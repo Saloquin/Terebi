@@ -97,6 +97,27 @@ final listEntryProvider =
   return ref.watch(listRepositoryProvider).watchEntry(mediaId);
 });
 
+/// Ensemble REACTIF des mediaId ayant un drapeau « nouvel episode » actif
+/// (cle settings `new_episode:<id>` == '1'). Base des pastilles « ! » (onglet
+/// Bibliotheque, onglet En cours). Se met a jour automatiquement quand un
+/// drapeau est pose (recheck) ou efface (lecture/ouverture) — via le stream
+/// Drift sur AppSettings.
+final newEpisodeIdsProvider = StreamProvider<Set<int>>((ref) {
+  const prefix = 'new_episode:';
+  return ref
+      .watch(settingsRepositoryProvider)
+      .watchWithPrefix(prefix)
+      .map((entries) {
+    final ids = <int>{};
+    for (final kv in entries.entries) {
+      if (kv.value != '1') continue;
+      final id = int.tryParse(kv.key.substring(prefix.length));
+      if (id != null) ids.add(id);
+    }
+    return ids;
+  });
+});
+
 /// Statut EFFECTIF (affiche) de CHAQUE anime present dans la bibliotheque, en un
 /// seul flux : `mediaId -> ListStatus`. Un anime absent de la map n'est ni suivi
 /// ni progresse (donc « pas en bibliotheque »).

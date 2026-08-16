@@ -24,6 +24,9 @@ class _Destination {
 /// Index de l'onglet Paramètres (pour le garde « modifs non sauvegardées »).
 const int _settingsIndex = 5;
 
+/// Index de l'onglet Bibliothèque (pour la pastille « nouvel épisode »).
+const int _libraryIndex = 3;
+
 /// Shell avec `NavigationRail` (adapté desktop).
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key});
@@ -58,6 +61,12 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   Widget build(BuildContext context) {
     ref.watch(slugMigrationProvider); // declenche la migration au 1er boot (non bloquant)
+    // Pastille « nouvel episode » sur l'onglet Bibliotheque si au moins un
+    // anime a le drapeau (reactif via le stream des cles new_episode:*).
+    final hasNewEpisode = ref.watch(newEpisodeIdsProvider).maybeWhen(
+          data: (ids) => ids.isNotEmpty,
+          orElse: () => false,
+        );
     return Scaffold(
       body: Row(
         children: [
@@ -76,10 +85,15 @@ class _AppShellState extends ConsumerState<AppShell> {
               ),
             ),
             destinations: [
-              for (final d in _destinations)
+              for (int i = 0; i < _destinations.length; i++)
                 NavigationRailDestination(
-                  icon: Icon(d.icon),
-                  label: Text(d.label),
+                  icon: i == _libraryIndex
+                      ? Badge(
+                          isLabelVisible: hasNewEpisode,
+                          child: Icon(_destinations[i].icon),
+                        )
+                      : Icon(_destinations[i].icon),
+                  label: Text(_destinations[i].label),
                 ),
             ],
           ),

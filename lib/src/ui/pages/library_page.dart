@@ -192,11 +192,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
 
     final completed = await listRepo.entriesByStatus(ListStatus.completed);
-    if (completed.isEmpty) {
-      await settings.set(
-          SettingsKeys.lastCompletedRecheck, DateTime.now().toIso8601String());
-      return;
-    }
 
     final AnimeSamaResolver resolver;
     try {
@@ -249,6 +244,52 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       await Future.delayed(const Duration(milliseconds: 400));
     }
 
+    // --- Passe 2 : animes EN COURS (stockés `planning` + progression) ---
+    // Contrairement aux « Terminé », on NE change PAS le statut : on pose juste
+    // le drapeau « nouvel épisode » si l'utilisateur n'est pas à jour sur la
+    // dernière saison. Idempotent (skip si drapeau déjà posé).
+    final planning = await listRepo.entriesByStatus(ListStatus.planning);
+    for (final entry in planning) {
+      // Ne garder que les « en cours » effectifs (progression réelle) ; un
+      // `planning` pur (jamais commencé) n'est pas concerné.
+      final hasProgress = entry.progress > 0 ||
+          await seasonProgress.hasAnyProgress(entry.mediaId);
+      if (!hasProgress) continue;
+      // Drapeau déjà posé → rien à faire (évite scrape + écriture inutiles).
+      if (await settings.get(SettingsKeys.newEpisodeFor(entry.mediaId)) ==
+          '1') {
+        continue;
+      }
+      try {
+        final media = await mediaRepo.getMedia(entry.mediaId);
+        final title = media?.animeSamaTitle ?? media?.title.preferred;
+        if (title == null) continue;
+
+        final seasons = await resolver.listSeasons(title: title);
+        if (seasons.isEmpty) continue;
+        final last = seasons.last;
+
+        final eps = await resolver.listEpisodes(
+          title: title,
+          seasonIndex: last.index,
+        );
+        if (eps.isEmpty) continue;
+
+        final watched =
+            await seasonProgress.lastWatched(entry.mediaId, last.index);
+        // Marqué « entièrement vu » manuellement → à jour, ne pas signaler.
+        if (watched >= SeasonProgressRepository.fullyWatchedSentinel) continue;
+        if (watched < eps.last) {
+          // Épisode(s) non vu(s) sur la dernière saison → nouvel épisode.
+          await settings.set(SettingsKeys.newEpisodeFor(entry.mediaId), '1');
+          changed = true;
+        }
+      } catch (_) {
+        // Ignore les erreurs individuelles (réseau, anime introuvable…).
+      }
+      await Future.delayed(const Duration(milliseconds: 400));
+    }
+
     // Mémorise la date du recheck (réussi) pour la garde 1×/jour.
     await settings.set(
         SettingsKeys.lastCompletedRecheck, DateTime.now().toIso8601String());
@@ -274,6 +315,20 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     final countsAsync = ref.watch(countByStatusProvider);
     final mediaMapAsync = ref.watch(_allMediaMapProvider);
 
+    // Nombre d'animes EN COURS ayant un nouvel épisode (intersection des ids
+    // « new_episode » avec l'onglet En cours) → pastille « ! » sur cet onglet.
+    final newIds = ref.watch(newEpisodeIdsProvider).maybeWhen(
+          data: (s) => s,
+          orElse: () => const <int>{},
+        );
+    final currentEntries =
+        ref.watch(entriesByStatusProvider(ListStatus.current)).maybeWhen(
+              data: (e) => e,
+              orElse: () => const <ListEntry>[],
+            );
+    final newCurrentCount =
+        currentEntries.where((e) => newIds.contains(e.mediaId)).length;
+
     return Column(
       children: [
         // --- Tab bar avec badges ---
@@ -286,6 +341,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
               orElse: () => null,
             );
             final label = _statusLabels[status] ?? status.name;
+            // Pastille « ! » : uniquement l'onglet En cours, si nouvel épisode.
+            final showNewDot =
+                status == ListStatus.current && newCurrentCount > 0;
             return Tab(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -294,6 +352,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                   if (count != null && count > 0) ...[
                     const SizedBox(width: 6),
                     _Badge(count: count),
+                  ],
+                  if (showNewDot) ...[
+                    const SizedBox(width: 4),
+                    const _NewEpisodeDot(),
                   ],
                 ],
               ),
@@ -1114,6 +1176,35 @@ class _Badge extends StatelessWidget {
           color: colorScheme.onPrimary,
           fontSize: 11,
           fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+/// Pastille « ! » signalant de nouveaux épisodes (onglet En cours). Même couleur
+/// que le badge « Nouv. » des cartes (colorScheme.tertiary) pour la cohérence.
+class _NewEpisodeDot extends StatelessWidget {
+  const _NewEpisodeDot();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 16,
+      height: 16,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: colorScheme.tertiary,
+        shape: BoxShape.circle,
+      ),
+      child: Text(
+        '!',
+        style: TextStyle(
+          color: colorScheme.onTertiary,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          height: 1,
         ),
       ),
     );
