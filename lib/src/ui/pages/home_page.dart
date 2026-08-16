@@ -217,11 +217,15 @@ final _recentlyWatchedProvider = StreamProvider<List<Media>>((ref) {
   });
 });
 
-/// « Ça pourrait vous plaire » : animes (catalogue anime-sama) qui cumulent les
-/// 3 genres FAVORIS (animes terminés/en cours) — INTERSECTION (ET logique).
-/// Le serveur ne filtrant que sur un genre, on scrape chaque genre puis on ne
-/// garde que les cartes portant TOUS les genres favoris. Vide si aucun genre
-/// favori connu. Exclusion biblio appliquée par la rangée.
+/// « Ça pourrait vous plaire » : animes qui cumulent les 3 genres FAVORIS
+/// (animes terminés/en cours) — INTERSECTION (ET logique).
+///
+/// Le serveur anime-sama ne filtre que sur un genre à la fois : on scrape donc
+/// chaque genre favori séparément, et on garde les slugs présents dans TOUTES
+/// les listes. On s'appuie sur la PRÉSENCE dans la liste serveur (fiable), pas
+/// sur les tags de genre de la carte : ceux-ci sont tronqués (~5 visibles) et
+/// rateraient des animes pourtant classés dans le genre par anime-sama.
+/// Vide si aucun genre favori. Exclusion biblio appliquée par la rangée.
 final _recommendedProvider = FutureProvider<List<Media>>((ref) async {
   final genres = await ref.watch(_watchedGenresProvider.future);
   if (genres.isEmpty) return const [];
@@ -229,27 +233,30 @@ final _recommendedProvider = FutureProvider<List<Media>>((ref) async {
   final results = await Future.wait(
     top.map((g) => ref.watch(animeSamaByGenreProvider(g).future)),
   );
+  if (results.any((l) => l.isEmpty)) {
+    // Un genre sans résultat -> intersection forcément vide.
+    return const [];
+  }
 
-  // Genres requis, normalisés pour une comparaison robuste (casse/accents mis
-  // à part : on compare sur minuscule sans espaces).
-  String norm(String g) => g.toLowerCase().replaceAll(RegExp(r'\s+'), '');
-  final required = top.map(norm).toSet();
+  String slugOf(AnimeSamaCatalogueItem it) =>
+      it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
 
-  // Un anime match s'il porte TOUS les genres favoris. On accumule les items
-  // (par slug) depuis toutes les listes, puis on filtre sur leurs genres.
+  // Slugs présents dans CHAQUE liste (= animes ayant TOUS les genres favoris).
+  Set<String> common = results.first
+      .map(slugOf)
+      .where((s) => s.isNotEmpty)
+      .toSet();
   final bySlug = <String, AnimeSamaCatalogueItem>{};
-  for (final list in results) {
-    for (final it in list) {
-      final slug = it.slug.isNotEmpty ? it.slug : slugFromCatalogueUrl(it.url);
-      if (slug.isEmpty) continue;
-      bySlug[slug] = it; // les items d'un même slug portent les mêmes genres
-    }
+  for (final it in results.first) {
+    final s = slugOf(it);
+    if (s.isNotEmpty) bySlug[s] = it;
   }
-  final kept = <AnimeSamaCatalogueItem>[];
-  for (final it in bySlug.values) {
-    final have = it.genres.map(norm).toSet();
-    if (required.every(have.contains)) kept.add(it);
+  for (final list in results.skip(1)) {
+    final slugs = list.map(slugOf).where((s) => s.isNotEmpty).toSet();
+    common = common.intersection(slugs);
   }
+
+  final kept = [for (final s in common) if (bySlug[s] != null) bySlug[s]!];
   return _itemsToMedia(ref, kept);
 });
 
