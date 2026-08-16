@@ -80,6 +80,7 @@ const _statusOrder = [
   ListStatus.current,
   ListStatus.planning,
   ListStatus.completed,
+  ListStatus.repeating,
   ListStatus.paused,
   ListStatus.dropped,
 ];
@@ -88,6 +89,7 @@ const _statusLabels = {
   ListStatus.current: 'En cours',
   ListStatus.planning: 'Planifié',
   ListStatus.completed: 'Terminé',
+  ListStatus.repeating: 'Revisionnage',
   ListStatus.paused: 'En pause',
   ListStatus.dropped: 'Abandonné',
 };

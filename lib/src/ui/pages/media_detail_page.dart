@@ -1,6 +1,7 @@
 /// Page de détail d'un média : cover, synopsis, genres, relations, actions.
 library;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -500,16 +501,18 @@ class _ActionBar extends ConsumerWidget {
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
           ),
-        // Bouton temporaire (debug) : purge complète pour corriger une mauvaise
-        // résolution de titre. Toujours visible, même sans entrée de liste.
-        OutlinedButton.icon(
-          onPressed: () => _purge(context, ref),
-          icon: const Icon(Icons.cleaning_services_outlined, size: 18),
-          label: const Text('Purger de la base'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
+        // Outil de diagnostic (mode debug uniquement) : purge complète pour
+        // corriger une mauvaise résolution de titre. Masqué en production
+        // (destructif : efface média + progression + réglages de l'anime).
+        if (kDebugMode)
+          OutlinedButton.icon(
+            onPressed: () => _purge(context, ref),
+            icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+            label: const Text('Purger de la base'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
           ),
-        ),
       ],
     );
   }
@@ -528,7 +531,7 @@ class _StatusDropdown extends ConsumerWidget {
     ListStatus.planning: 'Planifié',
     ListStatus.paused: 'En pause',
     ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Re-vision',
+    ListStatus.repeating: 'Revisionnage',
   };
 
   /// Libellé du statut EFFECTIF (affiché en info, incluant les auto).
@@ -538,7 +541,7 @@ class _StatusDropdown extends ConsumerWidget {
     ListStatus.completed: 'Terminé',
     ListStatus.paused: 'En pause',
     ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Re-vision',
+    ListStatus.repeating: 'Revisionnage',
   };
 
   @override
