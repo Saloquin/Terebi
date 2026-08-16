@@ -349,13 +349,15 @@ class _HeroCarousel extends ConsumerStatefulWidget {
 }
 
 class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
-  static const _rotation = Duration(seconds: 10);
   static const double _height = 340;
 
   final _pageController = PageController();
   Timer? _timer;
   int _index = 0;
   int _count = 0;
+
+  /// Durée entre deux slides (secondes), réglable dans les Paramètres.
+  int _rotationSeconds = 10;
 
   @override
   void dispose() {
@@ -367,7 +369,10 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   void _restartTimer() {
     _timer?.cancel();
     if (_count <= 1) return;
-    _timer = Timer.periodic(_rotation, (_) => _goTo(_index + 1, auto: true));
+    _timer = Timer.periodic(
+      Duration(seconds: _rotationSeconds),
+      (_) => _goTo(_index + 1, auto: true),
+    );
   }
 
   void _goTo(int i, {bool auto = false}) {
@@ -384,12 +389,18 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(widget.provider);
+    // Durée de rotation réglable : redémarre le timer si elle change.
+    final rotation = ref.watch(heroRotationSecondsProvider).maybeWhen(
+          data: (s) => s,
+          orElse: () => _rotationSeconds,
+        );
     return async.maybeWhen(
       data: (items) {
         if (items.isEmpty) return const SizedBox.shrink();
-        // (Re)démarre le timer si le nombre d'items a changé.
-        if (items.length != _count) {
+        // (Re)démarre le timer si le nombre d'items OU la durée a changé.
+        if (items.length != _count || rotation != _rotationSeconds) {
           _count = items.length;
+          _rotationSeconds = rotation;
           WidgetsBinding.instance.addPostFrameCallback((_) => _restartTimer());
         }
         return Column(

@@ -18,3 +18,10 @@ Future<TerebiDatabase> openProductionDatabase() async {
   final dbFile = File(p.join(dir.path, 'terebi.sqlite'));
   return TerebiDatabase(NativeDatabase(dbFile));
 }
+
+/// Chemin absolu du fichier SQLite de production (pour l'afficher dans les
+/// Paramètres). Même emplacement que [openProductionDatabase].
+Future<String> databaseFilePath() async {
+  final dir = await getApplicationDocumentsDirectory();
+  return p.join(dir.path, 'terebi.sqlite');
+}

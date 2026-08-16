@@ -32,6 +32,8 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
         await repo.get(SettingsKeys.seekForwardSeconds, defaultValue: '10'),
     SettingsKeys.seekBackwardSeconds:
         await repo.get(SettingsKeys.seekBackwardSeconds, defaultValue: '10'),
+    SettingsKeys.heroRotationSeconds:
+        await repo.get(SettingsKeys.heroRotationSeconds, defaultValue: '10'),
     SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
   };
 });
@@ -57,10 +59,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
   int _seekFwd = 10; // saut avant (→), secondes
   int _seekBwd = 10; // saut arrière (←), secondes
+  int _heroSeconds = 10; // rotation du hero « Nouvelles sorties », secondes
   bool _initialized = false;
 
   /// Valeurs proposées pour les sauts avant/arrière (secondes).
   static const _seekChoices = [2, 5, 10, 30];
+
+  /// Valeurs proposées pour la rotation du hero (secondes).
+  static const _heroChoices = [5, 8, 10, 15, 20, 30];
 
   // --- Suivi des modifications non sauvegardées ------------------------------
   /// Snapshot des valeurs au dernier chargement/sauvegarde, pour détecter les
@@ -121,6 +127,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         'singleLang': '$_singleLang',
         'seekFwd': '$_seekFwd',
         'seekBwd': '$_seekBwd',
+        'heroSeconds': '$_heroSeconds',
       };
 
   /// Recalcule l'état « dirty » et le publie pour l'AppShell.
@@ -155,6 +162,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _seekFwd = _normalizeSeek(settings[SettingsKeys.seekForwardSeconds]);
     _seekBwd = _normalizeSeek(settings[SettingsKeys.seekBackwardSeconds]);
+    _heroSeconds = _normalizeHero(settings[SettingsKeys.heroRotationSeconds]);
     _snapshot = _currentValues();
     _snapshotReady = true;
   }
@@ -163,6 +171,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   static int _normalizeSeek(String? raw) {
     final v = int.tryParse(raw ?? '');
     return (v != null && _seekChoices.contains(v)) ? v : 10;
+  }
+
+  /// Idem pour la rotation du hero (défaut 10).
+  static int _normalizeHero(String? raw) {
+    final v = int.tryParse(raw ?? '');
+    return (v != null && _heroChoices.contains(v)) ? v : 10;
   }
 
   /// Réinitialise les champs aux dernières valeurs sauvegardées (bouton Annuler).
@@ -176,6 +190,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       _singleLang = _snapshot['singleLang'] == 'true';
       _seekFwd = _normalizeSeek(_snapshot['seekFwd']);
       _seekBwd = _normalizeSeek(_snapshot['seekBwd']);
+      _heroSeconds = _normalizeHero(_snapshot['heroSeconds']);
     });
     _recomputeDirty();
   }
@@ -194,6 +209,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     await repo.set(SettingsKeys.singleLanguage, _singleLang ? '1' : '0');
     await repo.set(SettingsKeys.seekForwardSeconds, '$_seekFwd');
     await repo.set(SettingsKeys.seekBackwardSeconds, '$_seekBwd');
+    await repo.set(SettingsKeys.heroRotationSeconds, '$_heroSeconds');
     await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
 
     // Invalide les resolvers pour qu'ils rechargent chemins/langue.
@@ -466,6 +482,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                // Durée de rotation du hero « Nouvelles sorties » (accueil).
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Rotation du carrousel « Nouvelles sorties »',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: DropdownButton<int>(
+                    value: _heroSeconds,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      for (final s in _heroChoices)
+                        DropdownMenuItem(value: s, child: Text('$s s')),
+                    ],
+                    onChanged: (v) {
+                      if (v == null) return;
+                      setState(() => _heroSeconds = v);
+                      _recomputeDirty();
+                    },
+                  ),
+                ),
                 const SizedBox(height: 24),
 
                 // --- Source anime-sama ---
@@ -557,6 +595,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   },
                   icon: const Icon(Icons.delete_sweep_outlined),
                   label: const Text('Vider le cache'),
+                ),
+
+                const SizedBox(height: 32),
+
+                // --- Base de données ---
+                _SectionTitle('Base de données'),
+                const SizedBox(height: 8),
+                Text(
+                  'Emplacement du fichier SQLite de l\'application (utile pour '
+                  'les sauvegardes ou les scripts de maintenance).',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final pathAsync = ref.watch(databasePathProvider);
+                    return pathAsync.when(
+                      loading: () => const Text('…'),
+                      error: (e, _) => Text('Indisponible : $e'),
+                      data: (path) => SelectableText(
+                        path,
+                        style: const TextStyle(
+                            fontFamily: 'monospace', fontSize: 12),
+                      ),
+                    );
+                  },
                 ),
 
                 const SizedBox(height: 32),

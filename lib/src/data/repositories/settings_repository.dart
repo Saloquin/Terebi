@@ -26,6 +26,10 @@ abstract final class SettingsKeys {
   /// Durée (secondes) du saut arrière (flèche gauche) dans le lecteur. Défaut 10.
   static const String seekBackwardSeconds = 'seek_backward_seconds';
 
+  /// Durée (secondes) entre deux slides du hero « Nouvelles sorties » de
+  /// l'accueil. Défaut 10.
+  static const String heroRotationSeconds = 'hero_rotation_seconds';
+
   /// Langue de lecture choisie POUR UN anime donné ('vf' | 'vostfr').
   /// Prime sur [playbackLanguage] (global) quand elle existe. Réglée depuis le
   /// sélecteur du lecteur. Ex. `anime_sama_lang:105333`.

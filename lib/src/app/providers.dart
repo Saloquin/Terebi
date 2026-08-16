@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/local/database.dart';
+import '../data/local/connection.dart' show databaseFilePath;
 import '../data/repositories/list_repository.dart';
 import '../data/repositories/media_repository.dart';
 import '../data/repositories/meta_cache_repository.dart';
@@ -43,6 +44,10 @@ import '../services/system_process_runner.dart';
 final databaseProvider = Provider<TerebiDatabase>((ref) {
   throw UnimplementedError('databaseProvider doit être surchargé au démarrage');
 });
+
+/// Chemin absolu du fichier de base de données (affiché dans les Paramètres).
+final databasePathProvider =
+    FutureProvider<String>((ref) => databaseFilePath());
 
 /// Client HTTP partagé (fermé avec le conteneur).
 final httpClientProvider = Provider<http.Client>((ref) {
@@ -120,6 +125,20 @@ final libraryStatusMapProvider = StreamProvider<Map<int, ListStatus>>((ref) {
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
   (ref) => MetaCacheRepository(ref.watch(databaseProvider)),
 );
+
+/// Durée (secondes) de rotation du hero « Nouvelles sorties », réactive : le
+/// hero se réajuste dès que le réglage change dans les Paramètres. Défaut 10,
+/// borné à [5, 60].
+final heroRotationSecondsProvider = StreamProvider<int>((ref) {
+  final settings = ref.watch(settingsRepositoryProvider);
+  return settings
+      .watchWithPrefix(SettingsKeys.heroRotationSeconds)
+      .map((m) {
+    final raw = m[SettingsKeys.heroRotationSeconds];
+    final v = int.tryParse(raw ?? '') ?? 10;
+    return v.clamp(5, 60);
+  });
+});
 
 // --- Services de logique (purs, sans état) --------------------------------
 
