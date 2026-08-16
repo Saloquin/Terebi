@@ -94,6 +94,14 @@ final _recentlyReleasedProvider = FutureProvider<List<Media>>((ref) async {
 });
 
 /// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
+/// Convertit une liste d'items catalogue anime-sama en Media (cache-first).
+///
+/// L'ordre est MÉLANGÉ (aléatoire) : les rangées de découverte (classiques, par
+/// genre, « Ça pourrait vous plaire ») évitent ainsi d'afficher toujours les
+/// mêmes animes en tête (le catalogue anime-sama est trié alphabétiquement).
+/// Re-mélangé à chaque calcul du provider. N'affecte PAS les rangées « Continuer
+/// à regarder » / « Regardé récemment » / « Sortis du moment » (elles n'utilisent
+/// pas cette fonction et gardent leur ordre chronologique).
 Future<List<Media>> _itemsToMedia(
     Ref ref, List<AnimeSamaCatalogueItem> items) async {
   final repo = ref.watch(mediaRepositoryProvider);
@@ -112,6 +120,7 @@ Future<List<Media>> _itemsToMedia(
             coverUrl: it.cover,
             genres: it.genres));
   }
+  result.shuffle();
   return result;
 }
 
