@@ -491,12 +491,19 @@ def _normalize_genres(raw):
 
 
 def action_planning(mod, dl, args):
-    """Planning hebdomadaire : jour + heure + titre + url + index de saison courante.
+    """Planning hebdomadaire : jour + heure + titre + url, filtre par LANGUE.
 
-    Réutilise la logique de scraping de afficher_planning() SANS interaction, et
-    complète avec l'heure extraite du JS.
+    Structure reelle : chaque diffusion est une carte
+      <div class="... Anime VOSTFR|VF ... planning-card"
+           data-title="..." data-release-ts="<ts>">
+        <a href="/catalogue/<slug>/saisonX/<lang>/">
+    Le planning melange VOSTFR et VF ; on ne garde que la langue demandee
+    (args.vf -> VF, sinon VOSTFR). L'heure vient du timestamp data-release-ts.
+    Les cartes sont regroupees par jour via les entetes <h2 class="titreJours">.
     """
     import requests
+    import time
+    import html as _html
     domain = mod.DOMAIN
     url = f"https://{domain}/planning/"
     try:
@@ -505,67 +512,61 @@ def action_planning(mod, dl, args):
         _fail(f"planning inaccessible : {e}")
         return
     html_content = response.text
+    want_vf = bool(args.vf)
 
     day_pattern = r'<h2 class="titreJours[^>]*>([^<]+)</h2>'
     days = re.findall(day_pattern, html_content)
     planning = {day.strip(): [] for day in days}
     day_sections = re.split(day_pattern, html_content)
 
-    times = _planning_times(mod)
+    # Une carte planning complete : la div (avec classes + data-*) jusqu'au <a href>.
+    card_re = re.compile(
+        r'<div[^>]*\bplanning-card\b[^>]*data-title="([^"]*)"[^>]*'
+        r'data-release-ts="(\d+)"[^>]*>\s*<a href="(/catalogue/[^"]+)"',
+        re.DOTALL | re.I)
+    # La langue est une classe de la div : on relit la div entiere pour la classe.
+    div_re = re.compile(r'<div[^>]*\bplanning-card\b[^>]*>', re.I)
 
     items = []
-    seen = {}  # (jour, titre_normalisé) -> index dans items
+    seen = set()  # (jour, slug) -> dedup
     for i in range(1, len(day_sections), 2):
         current_day = day_sections[i].strip()
         day_content = day_sections[i + 1]
         if current_day not in planning:
             continue
-        cards = re.findall(
-            r'<a href="(/catalogue/[^"]+)"[^>]*>.*?<h3[^>]*>([^<]+)</h3>',
-            day_content, re.DOTALL
-        )
-        if not cards:
-            cards = re.findall(
-                r'<a href="(/catalogue/[^"]+)"[^>]*>.*?<img[^>]*alt="([^"]*)"',
-                day_content, re.DOTALL
-            )
-        for card_url, card_title in cards:
-            # Ignore les scans (mangas) — on ne garde que les animes.
+        for m in card_re.finditer(day_content):
+            title = _html.unescape(m.group(1)).strip()
+            ts = m.group(2)
+            card_url = m.group(3).strip()
+            # Langue : la classe de la div (VOSTFR / VF), repli sur l'URL.
+            div_tag = day_content[m.start():m.start() + 400]
+            is_vf = bool(re.search(r'\bVF\b', div_tag)) or '/vf/' in card_url.lower()
+            is_vo = bool(re.search(r'\bVOSTFR\b', div_tag)) or \
+                '/vostfr/' in card_url.lower()
+            # Filtre langue : on ne garde que la langue demandee. Si la carte
+            # n'indique aucune langue, on la garde en VOSTFR (defaut).
+            if want_vf and not is_vf:
+                continue
+            if not want_vf and is_vf and not is_vo:
+                continue
             if hasattr(mod, '_is_scan_url') and mod._is_scan_url(card_url):
                 continue
-            raw_title = card_title.strip()
-            url = card_url.strip()
-            # anime-sama liste souvent le même anime en VF ET en VOSTFR : on
-            # nettoie un éventuel suffixe de version et on déduplique par jour.
-            title = re.sub(r'\s+(VOSTFR|VF)\s*$', '', raw_title, flags=re.I).strip()
-            is_vf = ('/vf' in url.lower()) or bool(re.search(r'\bvf\b', raw_title, re.I))
-            key = (current_day, _norm(title))
-            if key in seen:
-                # Doublon : on privilégie la version VOSTFR (remplace une VF déjà vue).
-                idx = seen[key]
-                if items[idx].get("_vf") and not is_vf:
-                    items[idx] = {
-                        "day": current_day,
-                        "time": times.get(_norm(title), ""),
-                        "title": title,
-                        "url": url,
-                        "slug": _slug_from_url(url),
-                        "_vf": is_vf,
-                    }
+            slug = _slug_from_url(card_url)
+            key = (current_day, slug)
+            if not slug or key in seen:
                 continue
-            seen[key] = len(items)
+            seen.add(key)
+            try:
+                hhmm = time.strftime("%Hh%M", time.localtime(int(ts)))
+            except ValueError:
+                hhmm = ""
             items.append({
                 "day": current_day,
-                "time": times.get(_norm(title), ""),
+                "time": hhmm,
                 "title": title,
-                "url": url,
-                "slug": _slug_from_url(url),
-                "_vf": is_vf,
+                "url": card_url,
+                "slug": slug,
             })
-
-    # Retire le champ interne _vf avant la sortie.
-    for it in items:
-        it.pop("_vf", None)
 
     print(f"PLANNING_JSON: {json.dumps(items, ensure_ascii=False)}")
     sys.exit(0)
