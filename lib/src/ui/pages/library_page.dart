@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
-import '../../domain/logic/effective_status_service.dart';
 import '../../domain/logic/filter_sort_service.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
@@ -22,36 +21,27 @@ import 'resume_helper.dart';
 // Providers (visibles pour les tests via import)
 // ---------------------------------------------------------------------------
 
-final countByStatusProvider = StreamProvider<Map<ListStatus, int>>((ref) {
-  final listRepo = ref.watch(listRepositoryProvider);
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return listRepo.watchAllEntries().asyncMap((all) async {
+/// Nombre d'entrées par statut EFFECTIF. Dérivé de [effectiveEntriesProvider]
+/// (réactif aux entrées ET à la progression par saison → se met à jour quand on
+/// marque un épisode OU une saison).
+final countByStatusProvider = Provider<AsyncValue<Map<ListStatus, int>>>((ref) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) {
     final counts = <ListStatus, int>{};
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff == null) continue;
-      counts[eff] = (counts[eff] ?? 0) + 1;
+    for (final e in entries) {
+      counts[e.status] = (counts[e.status] ?? 0) + 1;
     }
     return counts;
   });
 });
 
+/// Entrées de bibliothèque dont le statut EFFECTIF vaut [status]. Dérivé de
+/// [effectiveEntriesProvider] (même réactivité).
 final entriesByStatusProvider =
-    StreamProvider.family<List<ListEntry>, ListStatus>((ref, status) {
-  final listRepo = ref.watch(listRepositoryProvider);
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return listRepo.watchAllEntries().asyncMap((all) async {
-    final result = <ListEntry>[];
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff == status) result.add(e);
-    }
-    return result;
-  });
+    Provider.family<AsyncValue<List<ListEntry>>, ListStatus>((ref, status) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) => [
+        for (final e in entries)
+          if (e.status == status) e.entry,
+      ]);
 });
 
 /// Vrai si un anime a un « nouvel épisode disponible » (drapeau posé par le

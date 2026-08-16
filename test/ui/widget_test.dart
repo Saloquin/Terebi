@@ -327,14 +327,14 @@ void main() {
         (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          countByStatusProvider.overrideWith(
-            (ref) => Stream.value({
+          countByStatusProvider.overrideWithValue(
+            const AsyncValue.data({
               ListStatus.current: 2,
               ListStatus.completed: 1,
             }),
           ),
           entriesByStatusProvider.overrideWith(
-            (ref, status) => Stream.value(<ListEntry>[]),
+            (ref, status) => const AsyncValue.data(<ListEntry>[]),
           ),
         ],
         child: const MaterialApp(home: Scaffold(body: LibraryPage())),
@@ -350,9 +350,10 @@ void main() {
     testWidgets('affiche "Aucun anime" dans un onglet vide', (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          countByStatusProvider.overrideWith((ref) => Stream.value({})),
+          countByStatusProvider
+              .overrideWithValue(const AsyncValue.data({})),
           entriesByStatusProvider.overrideWith(
-            (ref, status) => Stream.value(<ListEntry>[]),
+            (ref, status) => const AsyncValue.data(<ListEntry>[]),
           ),
         ],
         child: const MaterialApp(home: Scaffold(body: LibraryPage())),

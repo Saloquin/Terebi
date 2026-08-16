@@ -48,30 +48,22 @@ final _completedIdsProvider = StreamProvider<Set<int>>((ref) {
 /// (cf. [effectiveStatus]). On reproduit donc la sémantique de la bibliothèque
 /// (watchAllEntries + effectiveStatus + hasAnyProgress) au lieu de filtrer sur
 /// la colonne `status`, qui ne contient jamais `current`.
-final _continueWatchingProvider = StreamProvider<List<Media>>((ref) {
+final _continueWatchingProvider = FutureProvider<List<Media>>((ref) async {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
-  final seasonProgress = ref.watch(seasonProgressRepositoryProvider);
-  return ref
-      .watch(listRepositoryProvider)
-      .watchAllEntries()
-      .asyncMap((all) async {
-    final current = <({DateTime updatedAt, int mediaId})>[];
-    for (final e in all) {
-      final hasProgress =
-          e.progress > 0 || await seasonProgress.hasAnyProgress(e.mediaId);
-      final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
-      if (eff == ListStatus.current) {
-        current.add((updatedAt: e.updatedAt, mediaId: e.mediaId));
-      }
-    }
-    current.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    final result = <Media>[];
-    for (final c in current) {
-      final m = await mediaRepo.getMedia(c.mediaId);
-      if (m != null) result.add(m);
-    }
-    return result;
-  });
+  // Dérive de effectiveEntriesProvider (réactif aux entrées ET à la progression
+  // par saison) : marquer un épisode OU une saison rafraîchit la rangée.
+  final entries = await ref.watch(effectiveEntriesProvider.future);
+  final current = [
+    for (final e in entries)
+      if (e.status == ListStatus.current)
+        (updatedAt: e.entry.updatedAt, mediaId: e.entry.mediaId),
+  ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  final result = <Media>[];
+  for (final c in current) {
+    final m = await mediaRepo.getMedia(c.mediaId);
+    if (m != null) result.add(m);
+  }
+  return result;
 });
 
 /// « Sortis du moment » : planning anime-sama de la semaine, résolu en Media via
