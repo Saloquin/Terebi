@@ -131,12 +131,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _statusOrder.length, vsync: this);
-    // Au montage : d'abord fusionner d'éventuels doublons (même anime sous 2 ids
-    // à cause d'un titre variable planning/catalogue), PUIS revalider les
-    // « Terminé ».
+    // Au montage : normalise les statuts legacy, puis revalide les « Terminé ».
+    // (Plus de dédup : l'identité étant dérivée du slug, un anime a toujours le
+    // même id -> aucun doublon possible.)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _normalizeLegacyStatuses();
-      await _dedupeDoublons();
       await _recheckCompleted();
     });
   }
@@ -164,75 +163,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         ref.invalidate(countByStatusProvider);
       }
     } catch (_) {/* best-effort */}
-  }
-
-  /// Fusionne les doublons de bibliothèque : deux animes dont le titre
-  /// anime-sama est inclus l'un dans l'autre (ex. « Trapped in a Dating Sim »
-  /// vs « …: The World of Otome Games… ») sont le MÊME anime apparu sous 2 ids.
-  /// On garde l'entrée avec la plus grande progression et on supprime l'autre.
-  /// One-shot best-effort : ne casse jamais la page.
-  Future<void> _dedupeDoublons() async {
-    try {
-      final listRepo = ref.read(listRepositoryProvider);
-      final mediaRepo = ref.read(mediaRepositoryProvider);
-      final entries = await listRepo.getAllEntries();
-      if (entries.length < 2) return;
-
-      // Clé d'IDENTITÉ par mediaId : slug anime-sama en priorité (identité réelle
-      // et unique), repli sur le titre normalisé EXACT. On ne fusionne QUE des
-      // entrées de même identité — surtout pas par inclusion de sous-chaîne, qui
-      // confondrait « Naruto » et « Naruto Shippuden » (deux animes distincts).
-      final keyById = <int, String>{};
-      for (final e in entries) {
-        final m = await mediaRepo.getMedia(e.mediaId);
-        final slug = m?.animeSamaSlug;
-        if (slug != null && slug.isNotEmpty) {
-          keyById[e.mediaId] = 'slug:$slug';
-        } else {
-          final t = m?.animeSamaTitle ?? m?.title.preferred;
-          if (t != null && t.isNotEmpty) {
-            keyById[e.mediaId] = 'title:${normalizeAnimeTitle(t)}';
-          }
-        }
-      }
-
-      var changed = false;
-      // Regroupe par clé d'identité ; s'il y a >1 entrée pour la même clé, on ne
-      // garde que la plus avancée et on supprime les autres.
-      final byKey = <String, List<ListEntry>>{};
-      for (final e in entries) {
-        final k = keyById[e.mediaId];
-        if (k == null) continue;
-        (byKey[k] ??= []).add(e);
-      }
-      for (final group in byKey.values) {
-        if (group.length < 2) continue;
-        var keep = group.first;
-        for (final e in group.skip(1)) {
-          keep = _preferredEntry(keep, e);
-        }
-        for (final e in group) {
-          if (!identical(e, keep)) {
-            await listRepo.deleteEntry(e.mediaId);
-            changed = true;
-          }
-        }
-      }
-      if (changed && mounted) {
-        ref.invalidate(entriesByStatusProvider);
-        ref.invalidate(countByStatusProvider);
-      }
-    } catch (_) {/* best-effort : la dédup ne doit jamais casser la biblio */}
-  }
-
-  /// Entrée à conserver entre deux doublons : la plus avancée (progress le plus
-  /// haut ; à égalité, un « Terminé » prime).
-  ListEntry _preferredEntry(ListEntry a, ListEntry b) {
-    if (a.progress != b.progress) return a.progress > b.progress ? a : b;
-    final aDone = a.status == ListStatus.completed;
-    final bDone = b.status == ListStatus.completed;
-    if (aDone != bDone) return aDone ? a : b;
-    return a; // égalité complète : peu importe.
   }
 
   Future<void> _recheckCompleted() async {
