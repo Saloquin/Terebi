@@ -9,6 +9,7 @@
 ///  6. Par genre (une rangée par genre favori, du plus au moins présent)
 library;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -302,18 +303,13 @@ class HomePage extends ConsumerWidget {
 // Rangée horizontale réutilisable
 // ---------------------------------------------------------------------------
 
-/// Rangée horizontale de [MediaCard], grande taille façon Netflix, à
-/// défilement EN BOUCLE (on revient au début après le dernier). Masquée si
+/// Rangée horizontale de [MediaCard], grande taille façon Netflix. Masquée si
 /// vide/chargement/erreur.
 class _MediaRow extends ConsumerWidget {
   final String title;
   final ProviderListenable<AsyncValue<List<Media>>> provider;
   final bool withResume;
   final bool excludeLibrary;
-
-  /// Nombre MIN de cartes pour activer la boucle infinie (en dessous, on
-  /// affiche la liste telle quelle sans reboucler).
-  static const int _minCardsForLoop = 6;
 
   /// Largeur/hauteur des grandes cartes.
   static const double _cardWidth = 200;
@@ -357,42 +353,117 @@ class _MediaRow extends ConsumerWidget {
           children: [
             Text(title, style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
-            SizedBox(
+            _HorizontalCardList(
+              items: items,
+              withResume: withResume,
+              cardWidth: _cardWidth,
               height: _rowHeight,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: items.length < _minCardsForLoop
-                    ? items.length
-                    : 100000,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, i) {
-                  final media = items[i % items.length];
-                  return SizedBox(
-                    width: _cardWidth,
-                    child: MediaCard(
-                      media: media,
-                      onResume: withResume
-                          ? () => resumePlayback(context, ref, media)
-                          : null,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MediaDetailPage(
-                            anilistId: media.anilistId,
-                            displayTitle: media.animeSamaTitle,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
             ),
             const SizedBox(height: 24),
           ],
         );
       },
       orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+/// Liste horizontale de grandes cartes, adaptée au desktop : molette verticale
+/// redirigée en défilement horizontal, barre de défilement visible, et glisser
+/// à la souris/au trackpad activé (Flutter desktop ne l'active pas par défaut).
+/// Plus de « boucle infinie » (source d'un scroll erratique / trop rapide) :
+/// liste finie, scrollable dans les deux sens.
+class _HorizontalCardList extends ConsumerStatefulWidget {
+  final List<Media> items;
+  final bool withResume;
+  final double cardWidth;
+  final double height;
+
+  const _HorizontalCardList({
+    required this.items,
+    required this.withResume,
+    required this.cardWidth,
+    required this.height,
+  });
+
+  @override
+  ConsumerState<_HorizontalCardList> createState() =>
+      _HorizontalCardListState();
+}
+
+class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Convertit un cran de molette VERTICALE en défilement HORIZONTAL (la molette
+  /// souris n'émet que du delta vertical ; sans ça la rangée ne défile qu'au
+  /// clavier). Le trackpad (delta horizontal) est laissé au ListView.
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
+      final target = (_controller.offset + event.scrollDelta.dy).clamp(
+        0.0,
+        _controller.position.maxScrollExtent,
+      );
+      _controller.jumpTo(target);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: widget.height,
+      child: Listener(
+        onPointerSignal: _onPointerSignal,
+        child: ScrollConfiguration(
+          // Autorise le glisser souris/trackpad (desktop) en plus du tactile.
+          behavior: ScrollConfiguration.of(context).copyWith(
+            dragDevices: {
+              PointerDeviceKind.touch,
+              PointerDeviceKind.mouse,
+              PointerDeviceKind.trackpad,
+              PointerDeviceKind.stylus,
+            },
+            scrollbars: false,
+          ),
+          child: Scrollbar(
+            controller: _controller,
+            thumbVisibility: true,
+            child: ListView.separated(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.only(bottom: 8),
+              itemCount: widget.items.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, i) {
+                final media = widget.items[i];
+                return SizedBox(
+                  width: widget.cardWidth,
+                  child: MediaCard(
+                    media: media,
+                    onResume: widget.withResume
+                        ? () => resumePlayback(context, ref, media)
+                        : null,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MediaDetailPage(
+                          anilistId: media.anilistId,
+                          displayTitle: media.animeSamaTitle,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
