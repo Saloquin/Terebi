@@ -11,7 +11,6 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -736,16 +735,6 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
     );
   }
 
-  /// Molette verticale -> défilement horizontal (confort desktop).
-  void _onPointerSignal(PointerSignalEvent event) {
-    if (event is PointerScrollEvent && event.scrollDelta.dy != 0) {
-      if (!_controller.hasClients) return;
-      final target = (_controller.offset + event.scrollDelta.dy)
-          .clamp(0.0, _controller.position.maxScrollExtent);
-      _controller.jumpTo(target);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final n = widget.items.length;
@@ -753,50 +742,38 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
       height: widget.height,
       child: Stack(
         children: [
-          Listener(
-            onPointerSignal: _onPointerSignal,
-            child: ScrollConfiguration(
-              // Glisser souris/trackpad autorisé ; pas de barre (on a les flèches).
-              behavior: ScrollConfiguration.of(context).copyWith(
-                dragDevices: {
-                  PointerDeviceKind.touch,
-                  PointerDeviceKind.mouse,
-                  PointerDeviceKind.trackpad,
-                  PointerDeviceKind.stylus,
-                },
-                scrollbars: false,
-              ),
-              child: ListView.builder(
-                controller: _controller,
-                scrollDirection: Axis.horizontal,
-                // itemExtent FIXE = positionnement O(1) (layout rapide) et pas
-                // aligne pour le defilement par fleche. Le gap est un padding.
-                itemExtent: _step,
-                itemCount: n,
-                itemBuilder: (context, i) {
-                  final media = widget.items[i];
-                  // Gap gere par un padding a droite (itemExtent inclut _gap).
-                  return Padding(
-                    padding: const EdgeInsets.only(right: _gap),
-                    child: MediaCard(
-                      media: media,
-                      onResume: widget.withResume
-                          ? () => resumePlayback(context, ref, media)
-                          : null,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => MediaDetailPage(
-                            anilistId: media.anilistId,
-                            displayTitle: media.animeSamaTitle,
-                          ),
-                        ),
+          // Aucun scroll souris/molette/glisser : le carrousel se pilote
+          // UNIQUEMENT via les boutons flèches (NeverScrollableScrollPhysics).
+          ListView.builder(
+            controller: _controller,
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            // itemExtent FIXE = positionnement O(1) (layout rapide) et pas
+            // aligne pour le defilement par fleche. Le gap est un padding.
+            itemExtent: _step,
+            itemCount: n,
+            itemBuilder: (context, i) {
+              final media = widget.items[i];
+              // Gap gere par un padding a droite (itemExtent inclut _gap).
+              return Padding(
+                padding: const EdgeInsets.only(right: _gap),
+                child: MediaCard(
+                  media: media,
+                  onResume: widget.withResume
+                      ? () => resumePlayback(context, ref, media)
+                      : null,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MediaDetailPage(
+                        anilistId: media.anilistId,
+                        displayTitle: media.animeSamaTitle,
                       ),
                     ),
-                  );
-                },
-              ),
-            ),
+                  ),
+                ),
+              );
+            },
           ),
           // Flèches toujours présentes tant que la liste est bouclable.
           if (_loopable) ...[
