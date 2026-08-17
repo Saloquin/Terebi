@@ -7,6 +7,18 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Signature Terebi : cle UNIQUE (debug + release) lue depuis key.properties
+// (gitignore, keystore hors repo). Ainsi les builds locaux et distribues
+// partagent la meme signature -> reinstall toujours par-dessus (aucune perte de
+// donnees). Absente en CI sans le fichier -> repli signature debug par defaut.
+val keystorePropsFile = rootProject.file("key.properties")
+val keystoreProps = java.util.Properties().apply {
+    if (keystorePropsFile.exists()) {
+        keystorePropsFile.inputStream().use { load(it) }
+    }
+}
+val hasKeystore = keystoreProps.getProperty("storeFile") != null
+
 android {
     namespace = "com.terebi.terebi"
     compileSdk = flutter.compileSdkVersion
@@ -18,21 +30,36 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.terebi.terebi"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasKeystore) {
+            create("terebi") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
+        // Cle Terebi si dispo, sinon signature debug (repli CI/sans keystore).
+        val terebiOrDebug = if (hasKeystore) {
+            signingConfigs.getByName("terebi")
+        } else {
+            signingConfigs.getByName("debug")
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = terebiOrDebug
+        }
+        debug {
+            signingConfig = terebiOrDebug
         }
     }
 }
