@@ -28,9 +28,12 @@ dependencies:
   media_kit_video: ^1.2.5
   media_kit_libs_video: ^1.0.5
 
-  # Réseau (AniList GraphQL + Jikan REST)
+  # Réseau (scraping anime-sama en Dart pur)
   http: ^1.2.2
   rxdart: ^0.28.0
+
+  # Parsing HTML (port Dart du scraping anime-sama, remplace BeautifulSoup)
+  html: ^0.15.4
 
 dev_dependencies:
   flutter_test:
