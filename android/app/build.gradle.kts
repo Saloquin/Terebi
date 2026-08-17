@@ -1,5 +1,8 @@
 plugins {
     id("com.android.application")
+    // Le plugin Kotlin DOIT etre applique, sinon MainActivity.kt n'est pas
+    // compile dans le DEX -> ClassNotFoundException au lancement (crash).
+    id("org.jetbrains.kotlin.android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
@@ -36,4 +39,13 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// Aligne la cible JVM de Kotlin sur Java 17 (sinon Kotlin vise 21 par defaut ->
+// "Inconsistent JVM-target compatibility"). Le plugin Kotlin est applique en
+// tete, donc le bloc kotlin { } est disponible.
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
 }
