@@ -28,6 +28,8 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
         await repo.get(SettingsKeys.autoPlayNext, defaultValue: '0'),
     SettingsKeys.singleLanguage:
         await repo.get(SettingsKeys.singleLanguage, defaultValue: '0'),
+    SettingsKeys.useDartResolver:
+        await repo.get(SettingsKeys.useDartResolver, defaultValue: '0'),
     SettingsKeys.seekForwardSeconds:
         await repo.get(SettingsKeys.seekForwardSeconds, defaultValue: '10'),
     SettingsKeys.seekBackwardSeconds:
@@ -57,6 +59,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   bool _splash = true; // écran de démarrage animé
   bool _autoPlay = false; // enchaînement auto de l'épisode suivant
   bool _singleLang = false; // masque le sélecteur VF/VOSTFR du lecteur
+  bool _useDartResolver = false; // résolveur Dart natif (vs wrapper Python)
   int _seekFwd = 10; // saut avant (→), secondes
   int _seekBwd = 10; // saut arrière (←), secondes
   int _heroSeconds = 10; // rotation du hero « Nouvelles sorties », secondes
@@ -125,6 +128,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         'isVf': '$_isVf',
         'autoPlay': '$_autoPlay',
         'singleLang': '$_singleLang',
+        'useDartResolver': '$_useDartResolver',
         'seekFwd': '$_seekFwd',
         'seekBwd': '$_seekBwd',
         'heroSeconds': '$_heroSeconds',
@@ -159,6 +163,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
+    _useDartResolver = (settings[SettingsKeys.useDartResolver] ?? '0') == '1';
     _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _seekFwd = _normalizeSeek(settings[SettingsKeys.seekForwardSeconds]);
     _seekBwd = _normalizeSeek(settings[SettingsKeys.seekBackwardSeconds]);
@@ -188,6 +193,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       _isVf = _snapshot['isVf'] == 'true';
       _autoPlay = _snapshot['autoPlay'] == 'true';
       _singleLang = _snapshot['singleLang'] == 'true';
+      _useDartResolver = _snapshot['useDartResolver'] == 'true';
       _seekFwd = _normalizeSeek(_snapshot['seekFwd']);
       _seekBwd = _normalizeSeek(_snapshot['seekBwd']);
       _heroSeconds = _normalizeHero(_snapshot['heroSeconds']);
@@ -207,6 +213,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     );
     await repo.set(SettingsKeys.autoPlayNext, _autoPlay ? '1' : '0');
     await repo.set(SettingsKeys.singleLanguage, _singleLang ? '1' : '0');
+    await repo.set(SettingsKeys.useDartResolver, _useDartResolver ? '1' : '0');
     await repo.set(SettingsKeys.seekForwardSeconds, '$_seekFwd');
     await repo.set(SettingsKeys.seekBackwardSeconds, '$_seekBwd');
     await repo.set(SettingsKeys.heroRotationSeconds, '$_heroSeconds');
@@ -427,6 +434,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                   value: _autoPlay,
                   onChanged: (v) {
                     setState(() => _autoPlay = v);
+                    _recomputeDirty();
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Résolveur Dart (beta)'),
+                  subtitle: const Text(
+                      'Scraping 100% natif, sans Python. Requis sur Android '
+                      '(activé d\'office). Sur PC : à tester, remplacera Python.'),
+                  value: _useDartResolver,
+                  onChanged: (v) {
+                    setState(() => _useDartResolver = v);
                     _recomputeDirty();
                   },
                 ),

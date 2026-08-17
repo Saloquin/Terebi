@@ -4,6 +4,7 @@
 /// reste dans domain/ (Dart pur) ; ici on ne fait qu'assembler.
 library;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -214,13 +215,16 @@ final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
 /// Résolveur anime-sama (VOSTFR/VF).
 /// Selon le flag `use_dart_resolver` : soit le résolveur 100% Dart (scraping
 /// natif, indispensable Android), soit le wrapper Python (legacy, transition).
+/// Sur Android, Python est IMPOSSIBLE (pas de Process.run) : on force Dart.
 final animeSamaResolverProvider =
     FutureProvider<AnimeSamaResolver>((ref) async {
   final settings = ref.watch(settingsRepositoryProvider);
 
-  // Flag A/B : Dart natif si '1'. Défaut = Python (comportement historique).
-  final useDart = (await settings.get(SettingsKeys.useDartResolver)) == '1';
-  if (useDart) {
+  // Dart forcé sur Android (Process.run indisponible) ; ailleurs, flag A/B
+  // (défaut = Python, comportement historique desktop).
+  final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+  final flagDart = (await settings.get(SettingsKeys.useDartResolver)) == '1';
+  if (isAndroid || flagDart) {
     final client = ref.watch(httpClientProvider);
     return DartAnimeSamaResolver(fetch: httpFetcherFromClient(client));
   }
