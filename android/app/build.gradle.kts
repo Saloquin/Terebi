@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     // Le plugin Kotlin DOIT etre applique, sinon MainActivity.kt n'est pas
@@ -12,7 +14,7 @@ plugins {
 // partagent la meme signature -> reinstall toujours par-dessus (aucune perte de
 // donnees). Absente en CI sans le fichier -> repli signature debug par defaut.
 val keystorePropsFile = rootProject.file("key.properties")
-val keystoreProps = java.util.Properties().apply {
+val keystoreProps = Properties().apply {
     if (keystorePropsFile.exists()) {
         keystorePropsFile.inputStream().use { load(it) }
     }
