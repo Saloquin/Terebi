@@ -40,9 +40,6 @@ abstract final class SettingsKeys {
   /// la même langue). Désactivé par défaut.
   static const String singleLanguage = 'single_language';
 
-  /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
-  static const String pythonPath = 'python_path';
-
   /// Masquer les animes déjà en bibliothèque dans le catalogue ('1' = masquer,
   /// autre/absent = afficher). Désactivé par défaut.
   static const String catalogHideLibrary = 'catalog_hide_library';

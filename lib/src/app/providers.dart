@@ -28,13 +28,11 @@ import '../domain/models/list_entry.dart';
 import '../domain/models/list_status.dart';
 import '../domain/models/media.dart';
 import '../services/animesama_catalog_service.dart';
-import '../services/animesama_resolver.dart';
+import '../services/animesama_dart_resolver.dart';
 import '../services/health_service.dart';
-import '../services/process_runner.dart';
-import '../services/resolver_assets.dart';
 import '../services/slug_migration_service.dart';
 import '../services/stream_resolver.dart';
-import '../services/system_process_runner.dart';
+import '../services/system_http_fetcher.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
 /// `ProviderScope(overrides: [databaseProvider.overrideWithValue(db)])`
@@ -194,12 +192,7 @@ final filterSortServiceProvider =
 
 // --- Services système / lecteur -------------------------------------------
 
-/// ProcessRunner réel basé sur dart:io (injecté en prod, mocké en test).
-final processRunnerProvider = Provider<ProcessRunner>(
-  (ref) => systemProcessRunner,
-);
-
-/// Repository paramètres applicatifs (chemins python/mpv, langue…).
+/// Repository paramètres applicatifs (chemins mpv, langue…).
 final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );
@@ -209,28 +202,11 @@ final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
   (ref) => SeasonProgressRepository(ref.watch(settingsRepositoryProvider)),
 );
 
-/// Résolveur anime-sama (VOSTFR/VF) via le wrapper Python.
-/// Chemins Python/anime_sama.py depuis les Paramètres, sinon détection auto.
+/// Résolveur anime-sama (VOSTFR/VF) — 100% Dart, Android et desktop.
 final animeSamaResolverProvider =
-    FutureProvider<AnimeSamaResolver>((ref) async {
-  final settings = ref.watch(settingsRepositoryProvider);
-  final defaults = AnimeSamaDefaults.detect();
-
-  final manualPython = await settings.get(SettingsKeys.pythonPath);
-  final python = (manualPython != null && manualPython.isNotEmpty)
-      ? manualPython
-      : defaults.pythonPath;
-
-  // Scripts Python extraits des assets vers le disque (aucune install requise).
-  final wrapper = await ensureWrapperScript();
-  final animeSamaScript = await ensureAnimeSamaScript();
-
-  return AnimeSamaResolver(
-    pythonPath: python,
-    wrapperScriptPath: wrapper,
-    animeSamaScriptPath: animeSamaScript,
-    runner: ref.watch(processRunnerProvider),
-  );
+    FutureProvider<DartAnimeSamaResolver>((ref) async {
+  final client = ref.watch(httpClientProvider);
+  return DartAnimeSamaResolver(fetch: httpFetcherFromClient(client));
 });
 
 /// --- Providers anime-sama partagés (dédup + cache Riverpod) ----------------
@@ -443,16 +419,13 @@ final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
 
 /// Service health-check câblé sur toutes les sondes réelles.
 ///
-/// Le chemin mpv est une valeur par défaut synchrone ; la [SettingsPage] recrée
-/// le service à chaque health-check avec les chemins lus depuis
-/// [settingsRepositoryProvider].
+/// La [SettingsPage] recrée le service à chaque health-check avec les sondes
+/// réseau instanciées depuis [httpClientProvider].
 final healthServiceProvider = Provider<HealthService>((ref) {
   final db = ref.watch(databaseProvider);
   final httpClient = ref.watch(httpClientProvider);
 
   return HealthService(
-    runner: ref.watch(processRunnerProvider),
-    pythonPath: 'python',
     databaseOk: () async {
       await db.select(db.appSettings).get();
       return true;

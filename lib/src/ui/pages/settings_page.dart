@@ -34,7 +34,6 @@ final _settingsLoadProvider = FutureProvider<Map<String, String?>>((ref) async {
         await repo.get(SettingsKeys.seekBackwardSeconds, defaultValue: '10'),
     SettingsKeys.heroRotationSeconds:
         await repo.get(SettingsKeys.heroRotationSeconds, defaultValue: '10'),
-    SettingsKeys.pythonPath: await repo.get(SettingsKeys.pythonPath),
   };
 });
 
@@ -51,7 +50,6 @@ class SettingsPage extends ConsumerStatefulWidget {
 
 class _SettingsPageState extends ConsumerState<SettingsPage>
     with SingleTickerProviderStateMixin {
-  final _pythonCtrl = TextEditingController();
   bool _isVf = false;
   ThemeMode _themeMode = ThemeMode.dark;
   bool _splash = true; // écran de démarrage animé
@@ -91,10 +89,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   HealthReport? _report;
   String? _checkError;
 
-  // Installation des dépendances Python
-  bool _installing = false;
-  String? _installResult;
-
   @override
   void initState() {
     super.initState();
@@ -102,24 +96,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
-    // Toute frappe dans un champ peut changer l'état « dirty ».
-    for (final c in [
-      _pythonCtrl,
-    ]) {
-      c.addListener(_recomputeDirty);
-    }
   }
 
   @override
   void dispose() {
     _flashController.dispose();
-    _pythonCtrl.dispose();
     super.dispose();
   }
 
   /// Valeurs courantes des champs (pour comparaison au snapshot).
   Map<String, String> _currentValues() => {
-        'python': _pythonCtrl.text.trim(),
         'themeMode': themeModeToString(_themeMode),
         'splash': '$_splash',
         'isVf': '$_isVf',
@@ -159,7 +145,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     _isVf = (settings[SettingsKeys.playbackLanguage] ?? 'vostfr') == 'vf';
     _autoPlay = (settings[SettingsKeys.autoPlayNext] ?? '0') == '1';
     _singleLang = (settings[SettingsKeys.singleLanguage] ?? '0') == '1';
-    _pythonCtrl.text = settings[SettingsKeys.pythonPath] ?? '';
     _seekFwd = _normalizeSeek(settings[SettingsKeys.seekForwardSeconds]);
     _seekBwd = _normalizeSeek(settings[SettingsKeys.seekBackwardSeconds]);
     _heroSeconds = _normalizeHero(settings[SettingsKeys.heroRotationSeconds]);
@@ -181,7 +166,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
 
   /// Réinitialise les champs aux dernières valeurs sauvegardées (bouton Annuler).
   void _resetToSnapshot() {
-    _pythonCtrl.text = _snapshot['python'] ?? '';
     setState(() {
       _themeMode = themeModeFromString(_snapshot['themeMode']);
       _splash = _snapshot['splash'] == 'true';
@@ -210,7 +194,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     await repo.set(SettingsKeys.seekForwardSeconds, '$_seekFwd');
     await repo.set(SettingsKeys.seekBackwardSeconds, '$_seekBwd');
     await repo.set(SettingsKeys.heroRotationSeconds, '$_heroSeconds');
-    await repo.set(SettingsKeys.pythonPath, _pythonCtrl.text.trim());
 
     // Invalide les resolvers pour qu'ils rechargent chemins/langue.
     ref.invalidate(animeSamaResolverProvider);
@@ -229,41 +212,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     }
   }
 
-  /// Installe les dépendances Python du résolveur anime-sama via
-  /// `python -m pip install --user requests beautifulsoup4`. Nécessite Python.
-  Future<void> _installPythonDeps() async {
-    final python = _pythonCtrl.text.trim().isEmpty
-        ? 'python'
-        : _pythonCtrl.text.trim();
-    setState(() {
-      _installing = true;
-      _installResult = null;
-    });
-    try {
-      final runner = ref.read(processRunnerProvider);
-      final r = await runner(python, [
-        '-m', 'pip', 'install', '--user', 'requests', 'beautifulsoup4',
-      ]);
-      if (mounted) {
-        setState(() {
-          _installResult = r.ok
-              ? '✓ Dépendances installées (requests, beautifulsoup4).'
-              : '✗ Échec (code ${r.exitCode}). '
-                  '${r.stderr.trim().split('\n').last}';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _installResult = '✗ Impossible de lancer Python ($python) : $e');
-      }
-    } finally {
-      if (mounted) setState(() => _installing = false);
-    }
-  }
-
   Future<void> _runHealthCheck() async {
-    final python = _pythonCtrl.text.trim();
-
     setState(() {
       _checking = true;
       _report = null;
@@ -273,19 +222,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
     try {
       final db = ref.read(databaseProvider);
       final httpClient = ref.read(httpClientProvider);
-      final runner = ref.read(processRunnerProvider);
 
       final service = HealthService(
-        runner: runner,
-        pythonPath: python.isEmpty ? 'python' : python,
         databaseOk: () async {
           await db.select(db.appSettings).get();
           return true;
         },
         networkOk: () async {
           try {
-            // anime-sama est la seule source (AniList a ete retire) : on teste
-            // sa disponibilite reelle.
             final resp = await httpClient
                 .get(Uri.parse('https://anime-sama.to/'))
                 .timeout(const Duration(seconds: 8));
@@ -505,42 +449,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 ),
                 const SizedBox(height: 24),
 
-                // --- Source anime-sama ---
-                _SectionTitle('Source (anime-sama)'),
-                const SizedBox(height: 8),
-                Text(
-                  'La lecture provient d\'anime-sama (VOSTFR/VF), via Python. Le '
-                  'script de résolution est intégré à l\'app : il suffit d\'avoir '
-                  'Python et ses deux dépendances (requests, beautifulsoup4).',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _installing ? null : _installPythonDeps,
-                  icon: _installing
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.download_outlined),
-                  label: const Text('Installer les dépendances Python'),
-                ),
-                if (_installResult != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _installResult!,
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
-                const SizedBox(height: 12),
-                _PathField(
-                  label: 'Chemin Python (optionnel)',
-                  hint: 'python',
-                  controller: _pythonCtrl,
-                ),
-                const SizedBox(height: 32),
-
                 // --- Health-check ---
                 _SectionTitle('Vérification système'),
                 const SizedBox(height: 12),
@@ -687,30 +595,6 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(text, style: Theme.of(context).textTheme.titleMedium);
-  }
-}
-
-class _PathField extends StatelessWidget {
-  final String label;
-  final String hint;
-  final TextEditingController controller;
-
-  const _PathField({
-    required this.label,
-    required this.hint,
-    required this.controller,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        border: const OutlineInputBorder(),
-      ),
-    );
   }
 }
 

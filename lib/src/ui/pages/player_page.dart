@@ -15,6 +15,8 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1002,6 +1004,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* ignore */}
   }
 
+  /// Vrai sur mobile tactile (Android/iOS) : on utilise alors les contrôles
+  /// `Material*` de media_kit (tap pour afficher/masquer les commandes) au lieu
+  /// des `MaterialDesktop*` (souris/hover, invisibles au toucher).
+  bool get _isMobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   /// Vidéo + contrôles media_kit personnalisés : un bouton « réglages » est
   /// ajouté à la barre haute du player (présente aussi EN PLEIN ÉCRAN). Il
   /// ouvre le menu langue + vitesse. On utilise MaterialDesktopCustomButton
@@ -1042,6 +1051,28 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           const MaterialDesktopFullscreenButton(),
         ];
 
+    // Variantes MOBILES (widgets Material*, contrôles tactiles). Le volume se
+    // règle par geste vertical natif sur mobile → pas de bouton volume (donc
+    // pas de risque de clés dupliquées). Bouton réglages = MaterialCustomButton
+    // portant la MÊME GlobalKey → `_showSettingsMenuFromButton` marche tel quel.
+    List<Widget> topBarMobile(GlobalKey key) => <Widget>[
+          const Spacer(),
+          MaterialCustomButton(
+            key: key,
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showSettingsMenuFromButton(key),
+          ),
+        ];
+
+    List<Widget> bottomBarMobile() => const <Widget>[
+          MaterialPositionIndicator(),
+          Spacer(),
+          MaterialSkipPreviousButton(),
+          MaterialPlayOrPauseButton(),
+          MaterialSkipNextButton(),
+          MaterialFullscreenButton(),
+        ];
+
     // Raccourcis clavier : reprend les défauts media_kit mais avec les durées
     // de saut avant/arrière configurées dans les Paramètres.
     final shortcuts = <ShortcutActivator, VoidCallback>{
@@ -1069,48 +1100,22 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       },
     };
 
-    // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
-    // Utiliser la mauvaise variante rend les boutons custom invisibles.
-    return MaterialDesktopVideoControlsTheme(
-      normal: MaterialDesktopVideoControlsThemeData(
-        // Coupe le reglage du volume par glisser/molette sur la video : le
-        // glisser (onPanUpdate de media_kit) se declenchait n'importe ou sur le
-        // lecteur et changeait le volume par erreur. Volume via bouton + fleches.
-        modifyVolumeOnScroll: false,
-        // Clic simple sur la video -> lecture/pause (desactive par defaut).
-        playAndPauseOnTap: true,
-        topButtonBar: topBar(_settingsButtonKey),
-        bottomButtonBar: bottomBar('n'),
-        keyboardShortcuts: shortcuts,
-      ),
-      fullscreen: MaterialDesktopVideoControlsThemeData(
-        modifyVolumeOnScroll: false,
-        playAndPauseOnTap: true,
-        topButtonBar: topBar(_settingsButtonKeyFs),
-        bottomButtonBar: bottomBar('fs'),
-        keyboardShortcuts: shortcuts,
-      ),
-      // Bouton « Passer l'intro/outro » en overlay via le builder `controls`.
-      // media_kit RÉUTILISE ce builder en plein écran → le bouton est visible
-      // DANS LES DEUX MODES, même contrôles masqués. On empile les contrôles
-      // Material standard + le bouton en Positioned (bas-droite, remonté).
-      child: Video(
-        controller: _videoController,
-        controls: (state) => Builder(
-          // Ce Builder est monté SOUS le Video : son context permet a
-          // toggleFullscreen (raccourci « f ») de remonter l'etat media_kit.
+    // Empile les contrôles de base (Material ou MaterialDesktop selon la
+    // plateforme) + le bouton « Passer l'intro/outro » + l'overlay auto-play.
+    // Ce builder est RÉUTILISÉ par media_kit en plein écran → le bouton skip et
+    // l'overlay restent visibles dans les deux modes. Le context (_videoCtx)
+    // capté ici permet à toggleFullscreen (raccourci « f ») de remonter l'état.
+    Widget controls(dynamic state, Widget baseControls) => Builder(
           builder: (ctx) {
             _videoCtx = ctx;
             return Stack(
               children: [
-                MaterialDesktopVideoControls(state),
+                baseControls,
                 Positioned(
                   right: 24,
                   bottom: 90,
                   child: _SkipButton(player: _player, skip: _skip),
                 ),
-                // Overlay auto-play « Épisode suivant dans N… » : ici (dans le
-                // builder controls) pour rester visible AUSSI en plein écran.
                 if (_autoPlayCountdown != null)
                   Positioned.fill(
                     child: ColoredBox(
@@ -1141,7 +1146,54 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               ],
             );
           },
+        );
+
+    // MOBILE : contrôles tactiles Material* (tap affiche/masque les commandes,
+    // actions via boutons ; volume/luminosité par geste vertical natif).
+    if (_isMobile) {
+      return MaterialVideoControlsTheme(
+        normal: MaterialVideoControlsThemeData(
+          seekOnDoubleTap: true,
+          topButtonBar: topBarMobile(_settingsButtonKey),
+          bottomButtonBar: bottomBarMobile(),
         ),
+        fullscreen: MaterialVideoControlsThemeData(
+          seekOnDoubleTap: true,
+          topButtonBar: topBarMobile(_settingsButtonKeyFs),
+          bottomButtonBar: bottomBarMobile(),
+        ),
+        child: Video(
+          controller: _videoController,
+          controls: (state) => controls(state, MaterialVideoControls(state)),
+        ),
+      );
+    }
+
+    // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
+    // Utiliser la mauvaise variante rend les boutons custom invisibles.
+    return MaterialDesktopVideoControlsTheme(
+      normal: MaterialDesktopVideoControlsThemeData(
+        // Coupe le reglage du volume par glisser/molette sur la video : le
+        // glisser (onPanUpdate de media_kit) se declenchait n'importe ou sur le
+        // lecteur et changeait le volume par erreur. Volume via bouton + fleches.
+        modifyVolumeOnScroll: false,
+        // Clic simple sur la video -> lecture/pause (desactive par defaut).
+        playAndPauseOnTap: true,
+        topButtonBar: topBar(_settingsButtonKey),
+        bottomButtonBar: bottomBar('n'),
+        keyboardShortcuts: shortcuts,
+      ),
+      fullscreen: MaterialDesktopVideoControlsThemeData(
+        modifyVolumeOnScroll: false,
+        playAndPauseOnTap: true,
+        topButtonBar: topBar(_settingsButtonKeyFs),
+        bottomButtonBar: bottomBar('fs'),
+        keyboardShortcuts: shortcuts,
+      ),
+      child: Video(
+        controller: _videoController,
+        controls: (state) =>
+            controls(state, MaterialDesktopVideoControls(state)),
       ),
     );
   }

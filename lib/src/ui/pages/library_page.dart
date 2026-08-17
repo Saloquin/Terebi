@@ -12,7 +12,7 @@ import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
-import '../../services/animesama_resolver.dart';
+import '../../services/animesama_dart_resolver.dart';
 import '../widgets/anime_sama_image.dart';
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
@@ -184,7 +184,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
     final completed = await listRepo.entriesByStatus(ListStatus.completed);
 
-    final AnimeSamaResolver resolver;
+    final DartAnimeSamaResolver resolver;
     try {
       resolver = await ref.read(animeSamaResolverProvider.future);
     } catch (_) {

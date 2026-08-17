@@ -1,21 +1,20 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Health-check des dépendances externes : Python (résolveur anime-sama),
-/// base de données, réseau. Chaque sonde est injectable pour être testable.
+/// Health-check des dépendances externes : base de données, réseau, AniSkip.
+/// Le check Python a été retiré : le résolveur est 100% Dart depuis la phase 7.
+/// Chaque sonde est injectable pour être testable.
 library;
-
-import 'process_runner.dart';
 
 /// État d'un composant vérifié.
 enum HealthState { ok, missing, error }
 
 /// Résultat d'une sonde de santé.
 class HealthCheck {
-  /// Identifiant du composant (ex. `python`, `anime-sama`, `aniskip`).
+  /// Identifiant du composant (ex. `base de donnees`, `anime-sama`, `aniskip`).
   final String component;
   final HealthState state;
 
-  /// Détail lisible (version détectée, message d'erreur, conseil d'installation).
+  /// Détail lisible (message d'erreur, conseil, etc.).
   final String? detail;
 
   const HealthCheck({
@@ -42,11 +41,6 @@ class HealthReport {
 
 /// Effectue les sondes de santé. Toutes les dépendances externes sont injectées.
 class HealthService {
-  final ProcessRunner runner;
-
-  /// Exécutable Python utilisé par le résolveur anime-sama.
-  final String pythonPath;
-
   /// Renvoie `true` si la base de données est ouvrable (injecté).
   final Future<bool> Function() databaseOk;
 
@@ -58,44 +52,10 @@ class HealthService {
   final Future<bool> Function()? aniSkipOk;
 
   const HealthService({
-    required this.runner,
-    this.pythonPath = 'python',
     required this.databaseOk,
     required this.networkOk,
     this.aniSkipOk,
   });
-
-  /// Vérifie qu'un exécutable répond à `--version`. [prefixArgs] est inséré
-  /// avant `--version` (ex. le chemin du script quand on passe par un shell).
-  /// `missing` si introuvable (exception), `error` si code non nul.
-  Future<HealthCheck> _checkBinary(
-    String component,
-    String path, {
-    List<String> prefixArgs = const [],
-  }) async {
-    try {
-      final r = await runner(path, [...prefixArgs, '--version']);
-      if (r.ok) {
-        final version = r.stdout.trim().split('\n').first;
-        return HealthCheck(
-          component: component,
-          state: HealthState.ok,
-          detail: version.isEmpty ? null : version,
-        );
-      }
-      return HealthCheck(
-        component: component,
-        state: HealthState.error,
-        detail: 'Code ${r.exitCode}',
-      );
-    } catch (e) {
-      return HealthCheck(
-        component: component,
-        state: HealthState.missing,
-        detail: '$component introuvable ($path). Installation requise.',
-      );
-    }
-  }
 
   Future<HealthCheck> _checkBool(
     String component,
@@ -121,7 +81,6 @@ class HealthService {
   /// Lance toutes les sondes et agrège le rapport.
   Future<HealthReport> run() async {
     final checks = await Future.wait([
-      _checkBinary('python', pythonPath),
       _checkBool('base de donnees', databaseOk, 'Base de données inaccessible.'),
       _checkBool('anime-sama', networkOk, 'anime-sama injoignable (réseau ?).'),
       if (aniSkipOk != null)
