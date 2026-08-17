@@ -1,16 +1,12 @@
 /// Domaine pur — AUCUN import de package:flutter (testable via `dart test`).
 ///
-/// Résolveur anime-sama 100% DART (remplace le wrapper Python). Hérite de
-/// [AnimeSamaResolver] et surcharge toutes les méthodes publiques pour que la
-/// substitution soit invisible aux ~15 providers appelants (qui manipulent le
-/// type concret `AnimeSamaResolver`).
+/// Résolveur anime-sama 100% Dart, unique résolveur de l'application (Android
+/// et desktop). Implémente [StreamResolver] directement — plus aucune dépendance
+/// vers le wrapper Python.
 ///
 /// Orchestre les modules purs : `animesama_domain`, `animesama_title_matcher`,
 /// `animesama_seasons`, `animesama_embed_resolver`, `animesama_aniskip`,
 /// `animesama_catalog_parser`. Le réseau passe par un [HttpFetcher] injectable.
-///
-/// Objectif : reproduire EXACTEMENT le comportement du Python (mêmes filtres,
-/// même ordre, mêmes fallbacks). Débloque Android (plus de `Process.run`).
 library;
 
 import 'animesama_aniskip.dart';
@@ -18,19 +14,9 @@ import 'animesama_catalog_parser.dart';
 import 'animesama_domain.dart';
 import 'animesama_embed_resolver.dart';
 import 'animesama_http_client.dart';
-import 'animesama_resolver.dart';
 import 'animesama_seasons.dart';
 import 'animesama_title_matcher.dart';
-import 'process_runner.dart';
 import 'stream_resolver.dart';
-
-/// Runner Python factice : la version Dart ne lance aucun process.
-Future<ProcessResult> _noopRunner(
-  String executable,
-  List<String> args, {
-  Map<String, String>? environment,
-}) async =>
-    const ProcessResult(exitCode: 0);
 
 /// Formate un timestamp Unix (secondes) en « HHhMM » heure locale.
 /// Équivaut à `time.strftime("%Hh%M", localtime(ts))` du Python.
@@ -41,19 +27,15 @@ String _formatReleaseTime(int ts) {
   return '${hh}h$mm';
 }
 
-class DartAnimeSamaResolver extends AnimeSamaResolver {
+/// Résolveur anime-sama 100% Dart, seul résolveur de l'application.
+/// Implémente [StreamResolver] (interface publique attendue par les providers).
+class DartAnimeSamaResolver implements StreamResolver {
   final HttpFetcher fetch;
 
   /// Domaine résolu, mis en cache après la 1re résolution (comme `ensure_domain`).
   String? _domain;
 
-  DartAnimeSamaResolver({required this.fetch})
-      : super(
-          pythonPath: 'unused',
-          wrapperScriptPath: 'unused',
-          animeSamaScriptPath: 'unused',
-          runner: _noopRunner,
-        );
+  DartAnimeSamaResolver({required this.fetch});
 
   /// Résout (une fois) puis renvoie le domaine anime-sama courant.
   Future<String> _ensureDomain() async {
@@ -120,9 +102,8 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     return null;
   }
 
-  // --- Méthodes publiques surchargées ----------------------------------------
+  // --- Méthodes publiques ----------------------------------------------------
 
-  @override
   Future<List<AnimeSamaSeason>> listSeasons({
     required String title,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
@@ -134,7 +115,6 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     ];
   }
 
-  @override
   Future<List<int>> listEpisodes({
     required String title,
     required int seasonIndex,
@@ -187,7 +167,6 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     return url;
   }
 
-  @override
   Future<SkipTimes> skipTimes({
     required String title,
     required int episode,
@@ -209,7 +188,6 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     }
   }
 
-  @override
   Future<List<AnimeSamaCatalogueItem>> search({
     required String query,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
@@ -223,7 +201,6 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     ];
   }
 
-  @override
   Future<List<AnimeSamaPlanningItem>> planning({
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
@@ -247,7 +224,6 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     ];
   }
 
-  @override
   Future<AnimeSamaDetail?> catalogueDetail({required String slug}) async {
     final domain = await _ensureDomain();
     final s = slug.trim();
@@ -269,7 +245,6 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     }
   }
 
-  @override
   Future<AnimeSamaHome> home() async {
     final domain = await _ensureDomain();
     final classics = [
@@ -291,14 +266,12 @@ class DartAnimeSamaResolver extends AnimeSamaResolver {
     return AnimeSamaHome(classics: classics, latestEpisodes: latest);
   }
 
-  @override
   Future<List<AnimeSamaCatalogueItem>> catalogueByGenre({
     required String genre,
   }) async {
     return catalogueFilter(genre: genre);
   }
 
-  @override
   Future<List<AnimeSamaCatalogueItem>> catalogueFilter({
     String genre = '',
     String anneeMin = '',

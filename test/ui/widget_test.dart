@@ -1,6 +1,9 @@
 /// Widget tests pour les pages UI de Terebi.
 ///
 /// Stratégie : ProviderScope(overrides: [...]) pour injecter des faux clients/repos.
+/// Le résolveur étant 100% Dart, on surcharge les providers de haut niveau
+/// (animeSamaCatalogFilterProvider, animeSamaPlanningProvider…) directement,
+/// sans avoir à instancier de faux processus Python.
 library;
 
 import 'package:drift/native.dart';
@@ -17,10 +20,16 @@ import 'package:terebi/src/domain/logic/stats_service.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
 import 'package:terebi/src/domain/models/media.dart';
-import 'package:terebi/src/services/animesama_resolver.dart';
-import 'package:terebi/src/services/process_runner.dart';
+import 'package:terebi/src/services/animesama_dart_resolver.dart';
+import 'package:terebi/src/services/animesama_http_client.dart'
+    show HttpMethod, HttpResponse;
 import 'package:terebi/src/services/stream_resolver.dart'
-    show AnimeSamaHome, AnimeSamaCatalogueItem;
+    show
+        AnimeSamaHome,
+        AnimeSamaCatalogueItem,
+        AnimeSamaPlanningItem,
+        PlaybackLanguage,
+        ResolveException;
 import 'package:terebi/src/ui/pages/calendar_page.dart';
 import 'package:terebi/src/ui/pages/catalog_page.dart';
 import 'package:terebi/src/ui/pages/home_page.dart';
@@ -52,16 +61,6 @@ ListEntry _makeEntry(int mediaId, ListStatus status) => ListEntry(
       mediaId: mediaId,
       status: status,
       updatedAt: DateTime(2024),
-    );
-
-/// Construit un [AnimeSamaResolver] dont le runner renvoie [stdout] figé.
-/// Sert à tester Catalogue/Planning sans réseau ni Python réel.
-AnimeSamaResolver _fakeResolver(String stdout) => AnimeSamaResolver(
-      pythonPath: 'python',
-      wrapperScriptPath: 'w.py',
-      animeSamaScriptPath: 'a.py',
-      runner: (exe, args, {Map<String, String>? environment}) async =>
-          ProcessResult(exitCode: 0, stdout: stdout),
     );
 
 /// Enveloppe un widget dans MaterialApp + ProviderScope avec overrides.
@@ -133,8 +132,9 @@ void main() {
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver('CATALOGUE_JSON: []')),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: const []),
+          ),
         ],
       ));
       await tester.pump();
@@ -147,15 +147,21 @@ void main() {
     testWidgets('affiche les résultats anime-sama après recherche',
         (tester) async {
       final db = TerebiDatabase(NativeDatabase.memory());
-      const out =
-          'CATALOGUE_JSON: [{"title":"One Piece","url":"/catalogue/one-piece/"},'
-          '{"title":"Bleach","url":"/catalogue/bleach/"}]';
+      const items = [
+        AnimeSamaCatalogueItem(
+            title: 'One Piece',
+            url: '/catalogue/one-piece/',
+            slug: 'one-piece'),
+        AnimeSamaCatalogueItem(
+            title: 'Bleach', url: '/catalogue/bleach/', slug: 'bleach'),
+      ];
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver(out)),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: items),
+          ),
         ],
       ));
 
@@ -176,8 +182,9 @@ void main() {
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver('CATALOGUE_JSON: []')),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: const []),
+          ),
         ],
       ));
 
@@ -197,8 +204,9 @@ void main() {
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver('CATALOGUE_JSON: []')),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: const []),
+          ),
         ],
       ));
       await tester.pump();
@@ -216,14 +224,19 @@ void main() {
     testWidgets('mode parcourir : liste via catalogue-filter si filtre sans titre',
         (tester) async {
       final db = TerebiDatabase(NativeDatabase.memory());
-      const out =
-          'CATALOGUE_JSON: [{"title":"Thriller One","url":"/catalogue/thriller-one/","slug":"thriller-one"}]';
+      const items = [
+        AnimeSamaCatalogueItem(
+            title: 'Thriller One',
+            url: '/catalogue/thriller-one/',
+            slug: 'thriller-one'),
+      ];
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver(out)),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: items),
+          ),
         ],
       ));
       await tester.pump();
@@ -235,7 +248,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Titre vide + filtre actif -> mode BROWSE -> resultats catalogue-filter.
+      // Titre vide + filtre actif -> mode BROWSE -> résultats catalogue-filter.
       expect(find.text('Thriller One'), findsOneWidget);
       await db.close();
     });
@@ -251,23 +264,28 @@ void main() {
           status: ListStatus.completed,
           updatedAt: DateTime.utc(2026)));
 
-      const out =
-          'CATALOGUE_JSON: [{"title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"},'
-          '{"title":"Bleach","url":"/catalogue/bleach/","slug":"bleach"}]';
+      const items = [
+        AnimeSamaCatalogueItem(
+            title: 'One Piece',
+            url: '/catalogue/one-piece/',
+            slug: 'one-piece'),
+        AnimeSamaCatalogueItem(
+            title: 'Bleach', url: '/catalogue/bleach/', slug: 'bleach'),
+      ];
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver(out)),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: items),
+          ),
         ],
       ));
 
       await tester.enterText(find.byType(TextField), 'one');
       await tester.testTextInput.receiveAction(TextInputAction.search);
       await tester.pump();
-      // Laisse le stream libraryStatusMapProvider (asyncMap + hasAnyProgress)
-      // et la recherche se resoudre.
+      // Laisse le stream libraryStatusMapProvider et la recherche se résoudre.
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -286,15 +304,21 @@ void main() {
           status: ListStatus.completed,
           updatedAt: DateTime.utc(2026)));
 
-      const out =
-          'CATALOGUE_JSON: [{"title":"One Piece","url":"/catalogue/one-piece/","slug":"one-piece"},'
-          '{"title":"Bleach","url":"/catalogue/bleach/","slug":"bleach"}]';
+      const items = [
+        AnimeSamaCatalogueItem(
+            title: 'One Piece',
+            url: '/catalogue/one-piece/',
+            slug: 'one-piece'),
+        AnimeSamaCatalogueItem(
+            title: 'Bleach', url: '/catalogue/bleach/', slug: 'bleach'),
+      ];
       await tester.pumpWidget(_wrap(
         const CatalogPage(),
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver(out)),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(catalogueItems: items),
+          ),
         ],
       ));
 
@@ -389,11 +413,9 @@ void main() {
 
     testWidgets('affiche les stats quand des entrées sont présentes',
         (tester) async {
-      // Override direct du provider de données stats.
       await tester.pumpWidget(ProviderScope(
         overrides: [
           statsServiceProvider.overrideWithValue(const StatsService()),
-          // On override la DB avec des données mockées via un FutureProvider.
           databaseProvider.overrideWithValue(
             TerebiDatabase(NativeDatabase.memory()),
           ),
@@ -406,7 +428,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      // Doit afficher "Temps total regardé" et "Séries terminées".
       expect(find.text('Temps total regardé'), findsOneWidget);
       expect(find.text('Séries terminées'), findsOneWidget);
       expect(find.text('Répartition par statut'), findsOneWidget);
@@ -421,15 +442,25 @@ void main() {
     testWidgets('affiche les jours et anime du planning anime-sama',
         (tester) async {
       final db = TerebiDatabase(NativeDatabase.memory());
-      const out =
-          'PLANNING_JSON: [{"day":"Lundi","time":"18h00","title":"Dr Stone","url":"/catalogue/dr-stone/"},'
-          '{"day":"Mardi","time":"20h00","title":"One Piece","url":"/catalogue/one-piece/"}]';
+      const items = [
+        AnimeSamaPlanningItem(
+            day: 'Lundi',
+            time: '18h00',
+            title: 'Dr Stone',
+            url: '/catalogue/dr-stone/'),
+        AnimeSamaPlanningItem(
+            day: 'Mardi',
+            time: '20h00',
+            title: 'One Piece',
+            url: '/catalogue/one-piece/'),
+      ];
 
       await tester.pumpWidget(ProviderScope(
         overrides: [
           databaseProvider.overrideWithValue(db),
-          animeSamaResolverProvider
-              .overrideWith((ref) async => _fakeResolver(out)),
+          animeSamaResolverProvider.overrideWith(
+            (ref) async => _FakeDartResolver(planningItems: items),
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: CalendarPage())),
       ));
@@ -452,7 +483,8 @@ void main() {
         overrides: [
           databaseProvider.overrideWithValue(db),
           animeSamaResolverProvider.overrideWith(
-              (ref) async => _fakeResolver('RESOLVE_ERROR: planning vide')),
+            (ref) async => _FakeDartResolver(planningError: true),
+          ),
         ],
         child: const MaterialApp(home: Scaffold(body: CalendarPage())),
       ));
@@ -467,32 +499,18 @@ void main() {
   });
 
   // ---------------------------------------------------------------------------
-  // Tests : SettingsPage (health-check avec HealthService mocké)
+  // Tests : SettingsPage
   // ---------------------------------------------------------------------------
 
   group('SettingsPage', () {
-    ProcessRunner makeRunner(ProcessResult result) =>
-        (_, __, {Map<String, String>? environment}) async => result;
-
-    List<Override> settingsOverrides({
-      required ProcessRunner runner,
-    }) {
-      return [
-        databaseProvider.overrideWithValue(
-          TerebiDatabase(NativeDatabase.memory()),
-        ),
-        processRunnerProvider.overrideWithValue(runner),
-      ];
-    }
-
     testWidgets('affiche le titre Paramètres et le bouton Vérifier',
         (tester) async {
-      final runner = makeRunner(
-        const ProcessResult(exitCode: 0, stdout: 'mpv 0.38'),
-      );
-
       await tester.pumpWidget(ProviderScope(
-        overrides: settingsOverrides(runner: runner),
+        overrides: [
+          databaseProvider.overrideWithValue(
+            TerebiDatabase(NativeDatabase.memory()),
+          ),
+        ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ));
 
@@ -505,81 +523,32 @@ void main() {
       expect(find.text('Sauvegarder'), findsNothing);
     });
 
-    testWidgets(
-        'affiche les résultats health-check après tap sur Vérifier (mock ok)',
+    testWidgets('n\'affiche plus le toggle Résolveur Dart ni le champ Python',
         (tester) async {
-      final runner =
-          makeRunner(const ProcessResult(exitCode: 0, stdout: 'v1.0'));
-
       await tester.pumpWidget(ProviderScope(
-        overrides: settingsOverrides(runner: runner),
+        overrides: [
+          databaseProvider.overrideWithValue(
+            TerebiDatabase(NativeDatabase.memory()),
+          ),
+        ],
         child: const MaterialApp(home: Scaffold(body: SettingsPage())),
       ));
 
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
 
-      await tester.scrollUntilVisible(
-        find.text('Vérifier'),
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('Vérifier'), warnIfMissed: false);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(find.text('python'), findsAtLeastNWidgets(1));
-    });
-
-    testWidgets(
-        'affiche état missing quand le runner lève une exception (binaire absent)',
-        (tester) async {
-      Future<ProcessResult> failRunner(String exe, List<String> args,
-              {Map<String, String>? environment}) =>
-          Future.error(Exception('executable not found'));
-
-      await tester.pumpWidget(ProviderScope(
-        overrides: settingsOverrides(runner: failRunner),
-        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
-      ));
-
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      await tester.scrollUntilVisible(
-        find.text('Vérifier'),
-        100,
-        scrollable: find.byType(Scrollable).first,
-      );
-      await tester.tap(find.text('Vérifier'), warnIfMissed: false);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(find.text('python'), findsAtLeastNWidgets(1));
-    });
-
-    testWidgets('affiche le champ de chemin Python', (tester) async {
-      final runner =
-          makeRunner(const ProcessResult(exitCode: 0, stdout: 'v1'));
-
-      await tester.pumpWidget(ProviderScope(
-        overrides: settingsOverrides(runner: runner),
-        child: const MaterialApp(home: Scaffold(body: SettingsPage())),
-      ));
-
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text('Chemin Python (optionnel)'), findsOneWidget);
+      // Le toggle Python et le champ Python ont été retirés.
+      expect(find.text('Résolveur Dart (beta)'), findsNothing);
+      expect(find.text('Chemin Python (optionnel)'), findsNothing);
     });
   });
 
   // ---------------------------------------------------------------------------
-  // Tests : HomePage — rangees anime-sama
+  // Tests : HomePage — rangées anime-sama
   // ---------------------------------------------------------------------------
 
   group('HomePage', () {
-    testWidgets('HomePage affiche les rangees anime-sama', (tester) async {
+    testWidgets('HomePage affiche les rangées anime-sama', (tester) async {
       final db = TerebiDatabase(NativeDatabase.memory());
       await tester.pumpWidget(ProviderScope(
         overrides: [
@@ -602,12 +571,65 @@ void main() {
       ));
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Les classiques'), findsOneWidget);
-      // « Derniers contenus » a ete retiree ; seule « Les classiques » utilise
-      // la section home ici.
       expect(find.text('Derniers contenus ajoutes'), findsNothing);
       await db.close();
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Faux résolveur Dart (sans réseau)
+// ---------------------------------------------------------------------------
+
+/// Implémentation factice de [DartAnimeSamaResolver] pour les tests UI.
+/// Retourne des listes prédéfinies sans toucher au réseau.
+class _FakeDartResolver extends DartAnimeSamaResolver {
+  final List<AnimeSamaCatalogueItem> _catalogueItems;
+  final List<AnimeSamaPlanningItem> _planningItems;
+  final bool _planningError;
+
+  _FakeDartResolver({
+    List<AnimeSamaCatalogueItem> catalogueItems = const [],
+    List<AnimeSamaPlanningItem> planningItems = const [],
+    bool planningError = false,
+  })  : _catalogueItems = catalogueItems,
+        _planningItems = planningItems,
+        _planningError = planningError,
+        super(fetch: _noop);
+
+  static Future<HttpResponse> _noop(String url,
+          {HttpMethod method = HttpMethod.get,
+          Map<String, String>? headers,
+          Map<String, String>? query,
+          bool followRedirects = true}) async =>
+      throw UnimplementedError('_FakeDartResolver ne fait pas de requêtes');
+
+  @override
+  Future<List<AnimeSamaCatalogueItem>> search({
+    required String query,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async =>
+      _catalogueItems;
+
+  @override
+  Future<List<AnimeSamaCatalogueItem>> catalogueFilter({
+    String genre = '',
+    String anneeMin = '',
+    String anneeMax = '',
+    String episodesMin = '',
+    String episodesMax = '',
+  }) async =>
+      _catalogueItems;
+
+  @override
+  Future<List<AnimeSamaPlanningItem>> planning({
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    if (_planningError) {
+      throw const ResolveException('planning indisponible');
+    }
+    return _planningItems;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -667,8 +689,7 @@ class _FakeMediaRepository extends MediaRepository {
   Stream<List<Media>> watchAllMedia() => const Stream.empty();
 }
 
-// Classe fictive pour satisfaire le super() de ListRepository/MediaRepository
-// (ils prennent une TerebiDatabase mais on override toutes les méthodes).
+// Classe fictive pour satisfaire le super() de ListRepository/MediaRepository.
 class _FakeDb implements TerebiDatabase {
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError(

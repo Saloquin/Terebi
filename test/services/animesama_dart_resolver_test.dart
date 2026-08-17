@@ -65,7 +65,7 @@ void main() {
       expect(items.first.slug, 'dr-stone');
     });
 
-    test('est bien un AnimeSamaResolver (substitution transparente)', () {
+    test('implémente bien StreamResolver', () {
       final resolver = DartAnimeSamaResolver(fetch: FixtureFetcher().call);
       expect(resolver, isA<StreamResolver>());
     });

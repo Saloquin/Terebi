@@ -1,8 +1,8 @@
 /// Implémentation réelle de [HttpFetcher] basée sur `package:http`.
 ///
-/// Ce fichier est le SEUL de la couche services (avec system_process_runner)
-/// à importer `package:http` pour le résolveur Dart — il est exclu de la suite
-/// de tests (dépend du réseau réel).
+/// Ce fichier est le SEUL de la couche services à importer `package:http`
+/// pour le résolveur Dart — il est exclu de la suite de tests (dépend du
+/// réseau réel).
 ///
 /// Gère finement les redirections : `followRedirects: false` permet de lire le
 /// `Location` d'une 302 Sibnet sans la suivre (comme `requests`

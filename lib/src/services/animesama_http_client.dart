@@ -2,7 +2,7 @@
 /// `dart test`).
 ///
 /// Abstraction d'exécution de requêtes HTTP GET/HEAD, injectable pour tester la
-/// logique de scraping sans réseau (comme [ProcessRunner] l'est pour Python).
+/// logique de scraping sans réseau.
 ///
 /// Le résolveur Dart pur (port du wrapper Python anime-sama) construit ses
 /// requêtes puis délègue à un [HttpFetcher]. En prod, une implémentation basée
