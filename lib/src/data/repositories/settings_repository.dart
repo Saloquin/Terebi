@@ -43,6 +43,11 @@ abstract final class SettingsKeys {
   /// Exécutable Python utilisé par AnimeSamaResolver ('python' ou 'python3').
   static const String pythonPath = 'python_path';
 
+  /// Utiliser le resolveur 100% Dart (scraping natif) au lieu du wrapper Python.
+  /// '1' = Dart, autre/absent = Python. Permet l'A/B pendant la transition ;
+  /// indispensable sur Android (pas de Process.run).
+  static const String useDartResolver = 'use_dart_resolver';
+
   /// Masquer les animes déjà en bibliothèque dans le catalogue ('1' = masquer,
   /// autre/absent = afficher). Désactivé par défaut.
   static const String catalogHideLibrary = 'catalog_hide_library';

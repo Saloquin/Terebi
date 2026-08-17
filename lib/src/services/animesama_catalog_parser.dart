@@ -6,9 +6,6 @@
 /// action_planning, action_home, _normalize_genres, _cdn_image_url, _slug_from_url).
 library;
 
-import 'animesama_http_client.dart';
-import 'animesama_domain.dart';
-
 /// Extensions CDN testées dans l'ordre (cover=webp d'abord, bannière=jpg).
 const _cdnCoverExts = ['webp', 'jpg', 'png'];
 const _cdnBannerExts = ['jpg', 'webp', 'png'];

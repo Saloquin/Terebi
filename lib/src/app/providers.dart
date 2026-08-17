@@ -28,12 +28,14 @@ import '../domain/models/list_entry.dart';
 import '../domain/models/list_status.dart';
 import '../domain/models/media.dart';
 import '../services/animesama_catalog_service.dart';
+import '../services/animesama_dart_resolver.dart';
 import '../services/animesama_resolver.dart';
 import '../services/health_service.dart';
 import '../services/process_runner.dart';
 import '../services/resolver_assets.dart';
 import '../services/slug_migration_service.dart';
 import '../services/stream_resolver.dart';
+import '../services/system_http_fetcher.dart';
 import '../services/system_process_runner.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
@@ -209,13 +211,21 @@ final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
   (ref) => SeasonProgressRepository(ref.watch(settingsRepositoryProvider)),
 );
 
-/// Résolveur anime-sama (VOSTFR/VF) via le wrapper Python.
-/// Chemins Python/anime_sama.py depuis les Paramètres, sinon détection auto.
+/// Résolveur anime-sama (VOSTFR/VF).
+/// Selon le flag `use_dart_resolver` : soit le résolveur 100% Dart (scraping
+/// natif, indispensable Android), soit le wrapper Python (legacy, transition).
 final animeSamaResolverProvider =
     FutureProvider<AnimeSamaResolver>((ref) async {
   final settings = ref.watch(settingsRepositoryProvider);
-  final defaults = AnimeSamaDefaults.detect();
 
+  // Flag A/B : Dart natif si '1'. Défaut = Python (comportement historique).
+  final useDart = (await settings.get(SettingsKeys.useDartResolver)) == '1';
+  if (useDart) {
+    final client = ref.watch(httpClientProvider);
+    return DartAnimeSamaResolver(fetch: httpFetcherFromClient(client));
+  }
+
+  final defaults = AnimeSamaDefaults.detect();
   final manualPython = await settings.get(SettingsKeys.pythonPath);
   final python = (manualPython != null && manualPython.isNotEmpty)
       ? manualPython
