@@ -48,10 +48,22 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
 
+  # Génération des icônes de lancement (Android/desktop) depuis le logo.
+  flutter_launcher_icons: ^0.14.1
+
 # wakelock_plus <=1.5.2 (tire par media_kit_video) casse a la compilation Kotlin
 # 2.1+ (import du package racine). 1.7.0 migre vers le KGP et corrige l'import.
 dependency_overrides:
   wakelock_plus: ^1.7.0
+
+# Icône de lancement : logo Terebi clair en premier plan, fond #08080c (thème
+# sombre). Icône adaptative Android (rend bien sur tous les launchers/formes).
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/branding/logo_clair.png"
+  adaptive_icon_background: "#08080c"
+  adaptive_icon_foreground: "assets/branding/logo_clair.png"
 
 flutter:
   uses-material-design: true
