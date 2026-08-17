@@ -1,7 +1,7 @@
 name: terebi
 description: "Terebi — application desktop de suivi, planning et visionnage d'anime."
 publish_to: 'none'
-version: 1.0.0-beta+1
+version: 1.0.0+2
 
 environment:
   # Contrainte volontairement large pour rester compatible entre l'hôte (Dart 3.12)
