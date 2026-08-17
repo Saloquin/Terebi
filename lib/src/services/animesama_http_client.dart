@@ -21,10 +21,16 @@ class HttpResponse {
   final String body;
   final Map<String, String> headers;
 
+  /// URL finale après redirections (l'hôte peut différer de l'URL demandée si
+  /// le domaine a redirigé, ex. anime-sama.si -> anime-sama.to). `null` si non
+  /// fournie par l'implémentation.
+  final String? finalUrl;
+
   const HttpResponse({
     required this.statusCode,
     this.body = '',
     this.headers = const {},
+    this.finalUrl,
   });
 
   bool get ok => statusCode >= 200 && statusCode < 300;

@@ -51,6 +51,8 @@ HttpFetcher httpFetcherFromClient(http.Client client) {
       statusCode: response.statusCode,
       body: response.body,
       headers: lower,
+      // URL finale après redirections (pour resolve_final_domain).
+      finalUrl: response.request?.url.toString(),
     );
   };
 }

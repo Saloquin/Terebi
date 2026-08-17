@@ -55,42 +55,76 @@ String? parseDomainFromEntryHtml(String htmlContent) {
 
 /// Résout le domaine courant d'anime-sama via [fetch].
 ///
-/// 1. GET `anime-sama.pw` → parse un domaine candidat.
-/// 2. Suit une éventuelle redirection finale (HEAD) pour obtenir le vrai hôte.
-/// 3. Fallback `anime-sama.to` si quoi que ce soit échoue.
+/// Stratégie (fiabilité > fraîcheur) : on privilégie [kFallbackDomain]
+/// (`anime-sama.to`), le domaine dont la STRUCTURE HTML est celle que le
+/// scraping sait lire. Les miroirs annoncés par `anime-sama.pw` (`.si`, `.fr`…)
+/// servent souvent un HTML différent (recherche ignorée, URLs relatives) qui
+/// casse le scraping — on ne les utilise donc QUE si `.to` est injoignable.
 ///
-/// Best-effort : n'échoue jamais (renvoie au pire [kFallbackDomain]).
+/// 1. Si `anime-sama.to` répond (HEAD 2xx/3xx) → on le garde.
+/// 2. Sinon, on interroge `anime-sama.pw` pour un domaine de secours, en
+///    suivant sa redirection finale.
+/// 3. Ultime repli : [kFallbackDomain].
+///
+/// Best-effort : n'échoue jamais.
 Future<String> resolveCurrentDomain(HttpFetcher fetch) async {
+  // 1. anime-sama.to d'abord : structure connue, scraping fiable.
+  if (await _isReachable(fetch, kFallbackDomain)) {
+    return kFallbackDomain;
+  }
+
+  // 2. Secours : domaine annoncé par le point d'entrée .pw.
   String? resolved;
   try {
     final resp = await fetch(kEntryPointUrl, headers: kHeadersBase);
-    if (resp.ok) {
-      resolved = parseDomainFromEntryHtml(resp.body);
-    }
+    if (resp.ok) resolved = parseDomainFromEntryHtml(resp.body);
   } catch (_) {
-    // ignoré : on retombe sur le fallback
+    // ignoré
   }
-
   if (resolved != null && resolved.isNotEmpty) {
     final finalDomain = await _resolveFinalDomain(fetch, resolved);
     if (finalDomain.isNotEmpty) resolved = finalDomain;
   }
 
+  // 3. Repli ultime.
   return (resolved != null && resolved.isNotEmpty) ? resolved : kFallbackDomain;
 }
 
+/// Vrai si `https://<domain>/catalogue/` répond avec un statut exploitable.
+Future<bool> _isReachable(HttpFetcher fetch, String domain) async {
+  try {
+    final resp = await fetch(
+      'https://$domain/catalogue/',
+      method: HttpMethod.head,
+      headers: kHeadersBase,
+    );
+    // 2xx (ok) suffit ; certains hôtes répondent 200 direct.
+    return resp.ok;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Suit la redirection finale de `https://<domain>` et renvoie l'hôte final.
-/// Port de `resolve_final_domain` : HEAD avec suivi des redirections, on lit
-/// l'hôte de l'URL finale. Renvoie [domain] inchangé si échec.
+/// Port de `resolve_final_domain` : HEAD en SUIVANT les redirections, on lit
+/// l'hôte de l'URL FINALE (ex. anime-sama.si redirige vers anime-sama.to).
+/// Renvoie [domain] inchangé si échec.
 Future<String> _resolveFinalDomain(HttpFetcher fetch, String domain) async {
   try {
     final resp = await fetch(
       'https://$domain',
       method: HttpMethod.head,
       headers: kHeadersBase,
+      // ignore: avoid_redundant_argument_values
+      followRedirects: true,
     );
-    // `package:http` suit les redirections ; l'en-tête location (si présent en
-    // bout de chaîne) ou l'hôte demandé fait foi. On lit un éventuel Location.
+    // URL finale après redirections (comme urlparse(resp.url).hostname du Python).
+    final finalUrl = resp.finalUrl;
+    if (finalUrl != null && finalUrl.isNotEmpty) {
+      final host = Uri.tryParse(finalUrl)?.host;
+      if (host != null && host.isNotEmpty) return host;
+    }
+    // Repli : un éventuel header Location (redirection non suivie).
     final location = resp.header('location');
     if (location != null && location.isNotEmpty) {
       final host = Uri.tryParse(location)?.host;
