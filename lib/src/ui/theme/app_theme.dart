@@ -28,6 +28,8 @@ ThemeData terebiDarkTheme() => ThemeData(
       brightness: Brightness.dark,
       colorScheme: _scheme(Brightness.dark),
       visualDensity: VisualDensity.comfortable,
+      // Focus visible sur les composants natifs (NavigationRail, boutons…).
+      focusColor: _foxOrange.withValues(alpha: 0.28),
     );
 
 /// Thème clair — utilisé avec les logos clairs.
@@ -36,4 +38,5 @@ ThemeData terebiLightTheme() => ThemeData(
       brightness: Brightness.light,
       colorScheme: _scheme(Brightness.light),
       visualDensity: VisualDensity.comfortable,
+      focusColor: _foxOrange.withValues(alpha: 0.28),
     );

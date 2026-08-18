@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 import 'src/app/providers.dart';
 import 'src/data/local/connection.dart';
 import 'src/data/repositories/settings_repository.dart';
+import 'src/services/tv_detection_service.dart';
 import 'src/ui/app_shell.dart';
 import 'src/ui/splash_page.dart';
 import 'src/ui/theme/app_theme.dart';
@@ -25,11 +26,15 @@ Future<void> main() async {
   final splashEnabled =
       (await settings.get(SettingsKeys.splashEnabled, defaultValue: '1')) == '1';
 
+  // Détecte Android TV une seule fois au boot (false sur desktop/iOS/téléphone).
+  final isTv = await detectIsTelevision();
+
   runApp(
     ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(db),
         themeModeProvider.overrideWith((ref) => themeMode),
+        isTvProvider.overrideWith((ref) => isTv),
       ],
       child: TerebiApp(showSplash: splashEnabled),
     ),

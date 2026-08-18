@@ -14,6 +14,7 @@ import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_dart_resolver.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
 
@@ -983,126 +984,141 @@ class _EntryCard extends ConsumerWidget {
               orElse: () => false,
             );
 
-        return Card(
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () {
-              _clearNewEpisodeFlag(ref, entry.mediaId);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => MediaDetailPage(
-                    mediaId: entry.mediaId,
-                    displayTitle: media?.animeSamaTitle,
-                  ),
+        // Wrapper TV : focus D-pad sur la carte (tap souris/tactile conservé via InkWell interne).
+        return TvFocusable(
+          onPressed: () {
+            _clearNewEpisodeFlag(ref, entry.mediaId);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => MediaDetailPage(
+                  mediaId: entry.mediaId,
+                  displayTitle: media?.animeSamaTitle,
                 ),
-              );
-            },
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // --- Cover + overlays ---
-                Expanded(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Image dérivée du slug (cascade d'extensions), coverUrl en
-                      // fallback ; sinon coverUrl brut ; sinon placeholder.
-                      if (slug.isNotEmpty)
-                        AnimeSamaImage(
-                          slug: slug,
-                          fallbackUrl: coverUrl,
-                          fit: BoxFit.cover,
-                        )
-                      else if (coverUrl != null)
-                        Image.network(
-                          coverUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+              ),
+            );
+          },
+          child: Card(
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: () {
+                _clearNewEpisodeFlag(ref, entry.mediaId);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => MediaDetailPage(
+                      mediaId: entry.mediaId,
+                      displayTitle: media?.animeSamaTitle,
+                    ),
+                  ),
+                );
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // --- Cover + overlays ---
+                  Expanded(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Image dérivée du slug (cascade d'extensions), coverUrl en
+                        // fallback ; sinon coverUrl brut ; sinon placeholder.
+                        if (slug.isNotEmpty)
+                          AnimeSamaImage(
+                            slug: slug,
+                            fallbackUrl: coverUrl,
+                            fit: BoxFit.cover,
+                          )
+                        else if (coverUrl != null)
+                          Image.network(
+                            coverUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: colorScheme.surfaceContainerHighest,
+                              child: const Center(
+                                child: Icon(Icons.image_not_supported_outlined),
+                              ),
+                            ),
+                          )
+                        else
+                          Container(
                             color: colorScheme.surfaceContainerHighest,
                             child: const Center(
                               child: Icon(Icons.image_not_supported_outlined),
                             ),
                           ),
-                        )
-                      else
-                        Container(
-                          color: colorScheme.surfaceContainerHighest,
-                          child: const Center(
-                            child: Icon(Icons.image_not_supported_outlined),
-                          ),
-                        ),
 
-                      // Badge « nouvel épisode » (haut-gauche).
-                      if (showNew)
-                        Positioned(
-                          top: 4,
-                          left: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: colorScheme.tertiary,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              'Nouv.',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onTertiary,
+                        // Badge « nouvel épisode » (haut-gauche).
+                        if (showNew)
+                          Positioned(
+                            top: 4,
+                            left: 4,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: colorScheme.tertiary,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                'Nouv.',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onTertiary,
+                                ),
                               ),
                             ),
                           ),
-                        ),
 
-                      // Bouton reprise (bas-droit), dès que le média est résolu.
-                      if (media != null)
-                        Positioned(
-                          right: 4,
-                          bottom: 4,
-                          child: Material(
-                            color: Colors.black54,
-                            shape: const CircleBorder(),
-                            child: IconButton(
-                              icon: const Icon(Icons.play_arrow,
-                                  color: Colors.white),
-                              iconSize: 20,
-                              tooltip: 'Reprendre',
-                              onPressed: () {
-                                _clearNewEpisodeFlag(ref, entry.mediaId);
-                                _resume(context, ref, media);
-                              },
+                        // Bouton reprise (bas-droit), dès que le média est résolu.
+                        if (media != null)
+                          Positioned(
+                            right: 4,
+                            bottom: 4,
+                            child: Material(
+                              color: Colors.black54,
+                              shape: const CircleBorder(),
+                              child: IconButton(
+                                icon: const Icon(Icons.play_arrow,
+                                    color: Colors.white),
+                                iconSize: 20,
+                                tooltip: 'Reprendre',
+                                onPressed: () {
+                                  _clearNewEpisodeFlag(ref, entry.mediaId);
+                                  _resume(context, ref, media);
+                                },
+                              ),
                             ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                // --- Titre + progression ---
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        progressLabel,
-                        style: Theme.of(context).textTheme.bodySmall,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
+                  // --- Titre + progression ---
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          progressLabel,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

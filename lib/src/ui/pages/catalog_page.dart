@@ -23,6 +23,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
 /// Provider de recherche anime-sama (liste jouable) par titre.
@@ -622,13 +623,17 @@ class _CatalogTile extends ConsumerWidget {
         ref.watch(_mediaForItemProvider((slug: slug, title: item.title)));
     final coverUrl = mediaAsync.asData?.value.coverUrl;
 
-    return ListTile(
-      leading: _Thumbnail(
-          slug: slug, coverUrl: coverUrl, loading: mediaAsync.isLoading),
-      title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: status != null ? _StatusBadge(status: status!) : null,
-      trailing: const Icon(Icons.chevron_right),
-      onTap: () => _openDetail(context, slug),
+    // Wrapper TV : focus D-pad sur la tuile (tap souris/tactile conservé via ListTile.onTap interne).
+    return TvFocusable(
+      onPressed: () => _openDetail(context, slug),
+      child: ListTile(
+        leading: _Thumbnail(
+            slug: slug, coverUrl: coverUrl, loading: mediaAsync.isLoading),
+        title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: status != null ? _StatusBadge(status: status!) : null,
+        trailing: const Icon(Icons.chevron_right),
+        onTap: () => _openDetail(context, slug),
+      ),
     );
   }
 }

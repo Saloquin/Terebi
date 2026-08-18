@@ -483,3 +483,8 @@ String themeModeToString(ThemeMode mode) => switch (mode) {
 /// base dans `main`), puis mis à jour par la page Paramètres.
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
 
+/// `true` si l'app tourne sur une Android TV (D-pad / télécommande).
+/// Initialisé au démarrage via override (comme [themeModeProvider]) depuis
+/// [detectIsTelevision]. Toujours false sur desktop et téléphone Android.
+final isTvProvider = StateProvider<bool>((ref) => false);
+

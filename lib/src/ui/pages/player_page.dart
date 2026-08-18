@@ -1007,9 +1007,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Vrai sur mobile tactile (Android/iOS) : on utilise alors les contrôles
   /// `Material*` de media_kit (tap pour afficher/masquer les commandes) au lieu
   /// des `MaterialDesktop*` (souris/hover, invisibles au toucher).
+  /// Sur Android TV, `_isMobile` est vrai mais on utilise quand même les
+  /// contrôles Desktop (pilotables au D-pad) → exclure explicitement la TV.
   bool get _isMobile =>
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
+
+  bool get _useMobileControls => _isMobile && !ref.read(isTvProvider);
 
   /// Vidéo + contrôles media_kit personnalisés : un bouton « réglages » est
   /// ajouté à la barre haute du player (présente aussi EN PLEIN ÉCRAN). Il
@@ -1077,6 +1081,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // de saut avant/arrière configurées dans les Paramètres.
     final shortcuts = <ShortcutActivator, VoidCallback>{
       const SingleActivator(LogicalKeyboardKey.space): _player.playOrPause,
+      // Touche OK/Centre télécommande Android TV → play/pause.
+      const SingleActivator(LogicalKeyboardKey.select): _player.playOrPause,
+      const SingleActivator(LogicalKeyboardKey.enter): _player.playOrPause,
       const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seekBy(-_seekBackward),
       const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seekBy(_seekForward),
       const SingleActivator(LogicalKeyboardKey.arrowUp): () {
@@ -1150,7 +1157,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     // MOBILE : contrôles tactiles Material* (tap affiche/masque les commandes,
     // actions via boutons ; volume/luminosité par geste vertical natif).
-    if (_isMobile) {
+    // Sur Android TV (_useMobileControls=false) → contrôles Desktop (D-pad).
+    if (_useMobileControls) {
       return MaterialVideoControlsTheme(
         normal: MaterialVideoControlsThemeData(
           seekOnDoubleTap: true,
@@ -1363,6 +1371,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                           else
                             Center(
                               child: FilledButton.icon(
+                                // Sur TV : autofocus pour que OK lance la lecture.
+                                autofocus: ref.read(isTvProvider),
                                 onPressed: _loadAndPlay,
                                 icon: const Icon(Icons.play_arrow),
                                 label: const Text('Lancer'),

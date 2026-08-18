@@ -15,6 +15,7 @@ import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/tv_focusable.dart';
 import 'library_page.dart';
 import 'player_page.dart';
 import 'resume_helper.dart';
@@ -1007,66 +1008,70 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     final doneLabel =
         (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: InkWell(
-        onTap: _play,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  done ? Icons.check_circle : Icons.play_circle_outline,
-                  color: done ? Colors.green : null,
-                  size: 20,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(widget.season.name,
-                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                ),
-                Text(
-                  !_loaded
-                      ? '…'
-                      : done
-                          ? doneLabel
-                          : total != null
-                              ? '$_lastWatched/$total'
-                              : '$_lastWatched vu(s)',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: done
-                        ? Colors.green
-                        : theme.colorScheme.onSurfaceVariant,
-                    fontWeight: done ? FontWeight.bold : null,
+    // Wrapper TV : focus D-pad sur la tuile de saison (tap souris/tactile conservé via InkWell interne).
+    return TvFocusable(
+      onPressed: _play,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: InkWell(
+          onTap: _play,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    done ? Icons.check_circle : Icons.play_circle_outline,
+                    color: done ? Colors.green : null,
+                    size: 20,
                   ),
-                ),
-                // Bascule vu/pas vu : si la saison n'est pas finie → la marquer
-                // vue ; si elle est finie → l'annuler (remettre à 0 épisode vu).
-                if (_loaded)
-                  IconButton(
-                    icon: Icon(done ? Icons.remove_done : Icons.done_all,
-                        size: 18),
-                    tooltip: done
-                        ? 'Annuler : saison non vue'
-                        : 'Marquer la saison comme vue',
-                    visualDensity: VisualDensity.compact,
-                    onPressed:
-                        done ? _unmarkThisSeason : _markThisSeasonWatched,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(widget.season.name,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
                   ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: ratio, // null → barre indéterminée si total inconnu
-                minHeight: 5,
-                backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                color: done ? Colors.green : theme.colorScheme.primary,
+                  Text(
+                    !_loaded
+                        ? '…'
+                        : done
+                            ? doneLabel
+                            : total != null
+                                ? '$_lastWatched/$total'
+                                : '$_lastWatched vu(s)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: done
+                          ? Colors.green
+                          : theme.colorScheme.onSurfaceVariant,
+                      fontWeight: done ? FontWeight.bold : null,
+                    ),
+                  ),
+                  // Bascule vu/pas vu : si la saison n'est pas finie → la marquer
+                  // vue ; si elle est finie → l'annuler (remettre à 0 épisode vu).
+                  if (_loaded)
+                    IconButton(
+                      icon: Icon(done ? Icons.remove_done : Icons.done_all,
+                          size: 18),
+                      tooltip: done
+                          ? 'Annuler : saison non vue'
+                          : 'Marquer la saison comme vue',
+                      visualDensity: VisualDensity.compact,
+                      onPressed:
+                          done ? _unmarkThisSeason : _markThisSeasonWatched,
+                    ),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: ratio, // null → barre indéterminée si total inconnu
+                  minHeight: 5,
+                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                  color: done ? Colors.green : theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

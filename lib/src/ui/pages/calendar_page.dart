@@ -20,6 +20,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/tv_focusable.dart';
 import 'player_page.dart';
 
 // ---------------------------------------------------------------------------
@@ -463,121 +464,127 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     final theme = Theme.of(context);
     final coverUrl = media?.coverUrl;
 
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 10),
-      child: InkWell(
-        onTap: _busy ? null : _launch,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // --- Poster ---
-            AspectRatio(
-              aspectRatio: 2 / 3,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Container(color: theme.colorScheme.surfaceContainerHighest),
-                  if (slug.isNotEmpty)
-                    // Image dérivée du slug (cascade d'extensions), coverUrl en fallback.
-                    AnimeSamaImage(
-                        slug: slug, fallbackUrl: coverUrl, fit: BoxFit.cover)
-                  else if (coverUrl != null)
-                    Image.network(
-                      coverUrl,
-                      fit: BoxFit.cover,
-                      loadingBuilder: (ctx, child, progress) => progress == null
-                          ? child
-                          : const Center(
-                              child: SizedBox(
+    // Wrapper TV : focus D-pad sur la carte (tap souris/tactile conservé via InkWell interne).
+    return TvFocusable(
+      onPressed: _busy ? null : _launch,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        margin: const EdgeInsets.only(bottom: 10),
+        child: InkWell(
+          onTap: _busy ? null : _launch,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // --- Poster ---
+              AspectRatio(
+                aspectRatio: 2 / 3,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(color: theme.colorScheme.surfaceContainerHighest),
+                    if (slug.isNotEmpty)
+                      // Image dérivée du slug (cascade d'extensions), coverUrl en fallback.
+                      AnimeSamaImage(
+                          slug: slug, fallbackUrl: coverUrl, fit: BoxFit.cover)
+                    else if (coverUrl != null)
+                      Image.network(
+                        coverUrl,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (ctx, child, progress) =>
+                            progress == null
+                                ? child
+                                : const Center(
+                                    child: SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    ),
+                                  ),
+                        errorBuilder: (_, __, ___) => const Center(
+                          child: Icon(Icons.broken_image_outlined,
+                              color: Colors.white38),
+                        ),
+                      )
+                    else
+                      Center(
+                        child: mediaAsync.isLoading
+                            ? const SizedBox(
                                 width: 20,
                                 height: 20,
                                 child:
                                     CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            ),
-                      errorBuilder: (_, __, ___) => const Center(
-                        child: Icon(Icons.broken_image_outlined,
-                            color: Colors.white38),
+                              )
+                            : const Icon(Icons.movie_outlined,
+                                color: Colors.white38, size: 32),
                       ),
-                    )
-                  else
-                    Center(
-                      child: mediaAsync.isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.movie_outlined,
-                              color: Colors.white38, size: 32),
-                    ),
 
-                  // Overlay play + busy.
-                  if (_busy)
-                    Container(
-                      color: Colors.black38,
-                      child: const Center(
-                        child: CircularProgressIndicator(),
-                      ),
-                    ),
-
-                  // Bouton ajout planning perso (coin haut-droit).
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: Material(
-                      color: Colors.black45,
-                      shape: const CircleBorder(),
-                      child: IconButton(
-                        iconSize: 18,
-                        visualDensity: VisualDensity.compact,
-                        icon: Icon(
-                          inLibrary
-                              ? Icons.bookmark
-                              : Icons.bookmark_add_outlined,
-                          color: inLibrary ? Colors.orange : Colors.white,
+                    // Overlay play + busy.
+                    if (_busy)
+                      Container(
+                        color: Colors.black38,
+                        child: const Center(
+                          child: CircularProgressIndicator(),
                         ),
-                        tooltip: inLibrary
-                            ? 'Déjà dans ta bibliothèque'
-                            : 'Ajouter en Planifié',
-                        onPressed:
-                            (_busy || inLibrary) ? null : _togglePlanning,
+                      ),
+
+                    // Bouton ajout planning perso (coin haut-droit).
+                    Positioned(
+                      top: 2,
+                      right: 2,
+                      child: Material(
+                        color: Colors.black45,
+                        shape: const CircleBorder(),
+                        child: IconButton(
+                          iconSize: 18,
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                            inLibrary
+                                ? Icons.bookmark
+                                : Icons.bookmark_add_outlined,
+                            color: inLibrary ? Colors.orange : Colors.white,
+                          ),
+                          tooltip: inLibrary
+                              ? 'Déjà dans ta bibliothèque'
+                              : 'Ajouter en Planifié',
+                          onPressed:
+                              (_busy || inLibrary) ? null : _togglePlanning,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            // --- Titre + heure ---
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium
-                        ?.copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  if (item.time.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Row(
-                        children: [
-                          Icon(Icons.schedule,
-                              size: 13, color: theme.colorScheme.primary),
-                          const SizedBox(width: 4),
-                          Text(item.time, style: theme.textTheme.bodySmall),
-                        ],
-                      ),
+              // --- Titre + heure ---
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                ],
+                    if (item.time.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Row(
+                          children: [
+                            Icon(Icons.schedule,
+                                size: 13, color: theme.colorScheme.primary),
+                            const SizedBox(width: 4),
+                            Text(item.time, style: theme.textTheme.bodySmall),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

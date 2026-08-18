@@ -12,6 +12,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -399,7 +400,29 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
               height: _height,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: Stack(
+                // D-pad sur Android TV : flèches gauche/droite changent le slide,
+                // OK/Enter ouvre la fiche du slide courant.
+                child: Focus(
+                  canRequestFocus: ref.read(isTvProvider),
+                  onKeyEvent: ref.read(isTvProvider)
+                      ? (node, event) {
+                          if (event is! KeyDownEvent) {
+                            return KeyEventResult.ignored;
+                          }
+                          if (event.logicalKey ==
+                              LogicalKeyboardKey.arrowLeft) {
+                            _goTo(_index - 1);
+                            return KeyEventResult.handled;
+                          }
+                          if (event.logicalKey ==
+                              LogicalKeyboardKey.arrowRight) {
+                            _goTo(_index + 1);
+                            return KeyEventResult.handled;
+                          }
+                          return KeyEventResult.ignored;
+                        }
+                      : null,
+                  child: Stack(
                   children: [
                 PageView.builder(
                   controller: _pageController,
@@ -448,11 +471,12 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
                       ],
                     ),
                   ),
-              ],
-            ),
-          ),
-            ),
-          ],
+              ],  // fin enfants Stack
+            ), // Stack
+          ), // Focus (D-pad TV)
+          ),  // ClipRRect
+        ),    // SizedBox
+            ],
         );
       },
       orElse: () => const SizedBox.shrink(),
@@ -683,6 +707,9 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
 
   final ScrollController _controller = ScrollController();
 
+  /// Un FocusNode par carte — permet la navigation D-pad entre les cartes.
+  late final List<FocusNode> _focusNodes;
+
   /// Pas d'une carte (largeur + espacement) — sert au défilement par flèche.
   double get _step => widget.cardWidth + _gap;
 
@@ -691,7 +718,18 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
   bool get _loopable => widget.items.length > 1;
 
   @override
+  void initState() {
+    super.initState();
+    // Un nœud de focus par élément : navigation D-pad horizontale.
+    _focusNodes = List.generate(widget.items.length, (_) => FocusNode());
+  }
+
+  @override
   void dispose() {
+    // Libère les nœuds avant le ScrollController.
+    for (final fn in _focusNodes) {
+      fn.dispose();
+    }
     _controller.dispose();
     super.dispose();
   }
@@ -731,36 +769,56 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
         children: [
           // Aucun scroll souris/molette/glisser : le carrousel se pilote
           // UNIQUEMENT via les boutons flèches (NeverScrollableScrollPhysics).
-          ListView.builder(
-            controller: _controller,
-            scrollDirection: Axis.horizontal,
-            physics: const NeverScrollableScrollPhysics(),
-            // itemExtent FIXE = positionnement O(1) (layout rapide) et pas
-            // aligne pour le defilement par fleche. Le gap est un padding.
-            itemExtent: _step,
-            itemCount: n,
-            itemBuilder: (context, i) {
-              final media = widget.items[i];
-              // Gap gere par un padding a droite (itemExtent inclut _gap).
-              return Padding(
-                padding: const EdgeInsets.only(right: _gap),
-                child: MediaCard(
-                  media: media,
-                  onResume: widget.withResume
-                      ? () => resumePlayback(context, ref, media)
-                      : null,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => MediaDetailPage(
-                        mediaId: media.mediaId,
-                        displayTitle: media.animeSamaTitle,
+          // FocusTraversalGroup isole la traversée D-pad dans cette rangée.
+          FocusTraversalGroup(
+            policy: WidgetOrderTraversalPolicy(),
+            child: ListView.builder(
+              controller: _controller,
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              // itemExtent FIXE = positionnement O(1) (layout rapide) et pas
+              // aligne pour le defilement par fleche. Le gap est un padding.
+              itemExtent: _step,
+              itemCount: n,
+              itemBuilder: (context, i) {
+                final media = widget.items[i];
+                // Gap gere par un padding a droite (itemExtent inclut _gap).
+                return Padding(
+                  padding: const EdgeInsets.only(right: _gap),
+                  child: MediaCard(
+                    media: media,
+                    focusNode: _focusNodes[i],
+                    onFocused: () {
+                      // Quand une carte reçoit le focus (D-pad), on la rend
+                      // visible dans le ListView sans toucher aux flèches souris.
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        final fn = _focusNodes[i];
+                        if (fn.context != null) {
+                          Scrollable.ensureVisible(
+                            fn.context!,
+                            alignment: 0.3,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOut,
+                          );
+                        }
+                      });
+                    },
+                    onResume: widget.withResume
+                        ? () => resumePlayback(context, ref, media)
+                        : null,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MediaDetailPage(
+                          mediaId: media.mediaId,
+                          displayTitle: media.animeSamaTitle,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
           ),
           // Flèches toujours présentes tant que la liste est bouclable.
           if (_loopable) ...[

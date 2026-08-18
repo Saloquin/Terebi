@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../domain/models/media.dart';
 import 'anime_sama_image.dart';
+import 'tv_focusable.dart';
 
 /// Carte compacte affichant la couverture, le titre préféré et un badge
 /// format/épisodes. Utilisée dans la grille du Catalogue et du Planning.
@@ -18,14 +19,31 @@ class MediaCard extends StatelessWidget {
   /// surimpression sur la cover (utilisé pour « Continuer à regarder »).
   final VoidCallback? onResume;
 
-  const MediaCard({super.key, required this.media, this.onTap, this.onResume});
+  /// FocusNode externe (carrousel D-pad : un nœud par carte).
+  final FocusNode? focusNode;
+
+  /// Appelé quand la carte reçoit le focus (hook ensureVisible pour carrousels).
+  final VoidCallback? onFocused;
+
+  const MediaCard({
+    super.key,
+    required this.media,
+    this.onTap,
+    this.onResume,
+    this.focusNode,
+    this.onFocused,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Card(
+    return TvFocusable(
+      focusNode: focusNode,
+      onFocused: onFocused,
+      onPressed: onTap,
+      child: Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
@@ -103,7 +121,8 @@ class MediaCard extends StatelessWidget {
           ],
         ),
       ),
-    );
+    ), // Card
+    ); // TvFocusable
   }
 }
 

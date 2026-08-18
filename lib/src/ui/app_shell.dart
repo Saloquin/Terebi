@@ -67,44 +67,57 @@ class _AppShellState extends ConsumerState<AppShell> {
           data: (ids) => ids.isNotEmpty,
           orElse: () => false,
         );
+    // Sur Android TV, le focus doit démarrer dans le contenu et non dans le
+    // NavigationRail — on isole les deux zones via FocusTraversalGroup/FocusScope.
+    final isTv = ref.watch(isTvProvider);
     return Scaffold(
       body: Row(
         children: [
-          NavigationRail(
-            selectedIndex: _index,
-            onDestinationSelected: _onSelect,
-            labelType: NavigationRailLabelType.all,
-            leading: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              child: Image.asset(
-                Theme.of(context).brightness == Brightness.dark
-                    ? 'assets/branding/logo_sombre_texte.png'
-                    : 'assets/branding/logo_clair_texte.png',
-                height: 48,
-                fit: BoxFit.contain,
-              ),
-            ),
-            destinations: [
-              for (int i = 0; i < _destinations.length; i++)
-                NavigationRailDestination(
-                  icon: i == _libraryIndex
-                      ? Badge(
-                          isLabelVisible: hasNewEpisode,
-                          child: Icon(_destinations[i].icon),
-                        )
-                      : Icon(_destinations[i].icon),
-                  label: Text(_destinations[i].label),
+          // Isole la navigation latérale dans son propre groupe de traversée,
+          // afin que la télécommande TV ne s'y retrouve pas piégée au démarrage.
+          FocusTraversalGroup(
+            policy: WidgetOrderTraversalPolicy(),
+            child: NavigationRail(
+              selectedIndex: _index,
+              onDestinationSelected: _onSelect,
+              labelType: NavigationRailLabelType.all,
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Image.asset(
+                  Theme.of(context).brightness == Brightness.dark
+                      ? 'assets/branding/logo_sombre_texte.png'
+                      : 'assets/branding/logo_clair_texte.png',
+                  height: 48,
+                  fit: BoxFit.contain,
                 ),
-            ],
+              ),
+              destinations: [
+                for (int i = 0; i < _destinations.length; i++)
+                  NavigationRailDestination(
+                    icon: i == _libraryIndex
+                        ? Badge(
+                            isLabelVisible: hasNewEpisode,
+                            child: Icon(_destinations[i].icon),
+                          )
+                        : Icon(_destinations[i].icon),
+                    label: Text(_destinations[i].label),
+                  ),
+              ],
+            ),
           ),
           const VerticalDivider(width: 1),
           // IndexedStack : toutes les pages restent montées → l'état (recherche
           // du catalogue, position de scroll, données chargées) est conservé
           // quand on change d'onglet, sans re-scraper à chaque retour.
-          Expanded(
-            child: IndexedStack(
-              index: _index,
-              children: [for (final d in _destinations) d.page],
+          // Sur TV, autofocus=true garantit que le focus initial tombe ici et
+          // non dans le NavigationRail.
+          FocusScope(
+            autofocus: isTv,
+            child: Expanded(
+              child: IndexedStack(
+                index: _index,
+                children: [for (final d in _destinations) d.page],
+              ),
             ),
           ),
         ],
