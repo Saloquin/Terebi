@@ -29,3 +29,6 @@ Thumbs.db
 # OMC
 .omc/
 __pycache__/
+
+# Packaging
+dist/
