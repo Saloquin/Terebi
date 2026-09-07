@@ -34,6 +34,8 @@ import '../services/animesama_dart_resolver.dart';
 import '../services/health_service.dart';
 import '../services/slug_migration_service.dart';
 import '../services/stream_resolver.dart';
+import '../controllers/player/player_controller.dart';
+import '../controllers/player/player_state.dart';
 import '../services/system_http_fetcher.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
@@ -549,4 +551,11 @@ final newEpisodeFlagProvider =
       .get(SettingsKeys.newEpisodeFor(mediaId));
   return v == '1';
 });
+
+// ---------------------------------------------------------------------------
+// Player controller
+// ---------------------------------------------------------------------------
+
+final playerControllerProvider =
+    NotifierProvider<PlayerController, PlayerState>(PlayerController.new);
 
