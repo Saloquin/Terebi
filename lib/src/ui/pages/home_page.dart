@@ -342,6 +342,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   Timer? _timer;
   int _index = 0;
   int _count = 0;
+  List<Media> _items = [];
 
   /// Durée entre deux slides (secondes), réglable dans les Paramètres.
   int _rotationSeconds = 10;
@@ -373,6 +374,20 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
     if (!auto) _restartTimer(); // action manuelle -> repart pour 10 s
   }
 
+  void _openCurrentSlide(BuildContext context) {
+    if (_items.isEmpty) return;
+    final media = _items[_index];
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaDetailPage(
+          mediaId: media.mediaId,
+          displayTitle: media.animeSamaTitle,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(widget.provider);
@@ -390,6 +405,7 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
           _rotationSeconds = rotation;
           WidgetsBinding.instance.addPostFrameCallback((_) => _restartTimer());
         }
+        _items = items;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -403,8 +419,8 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
                 // D-pad sur Android TV : flèches gauche/droite changent le slide,
                 // OK/Enter ouvre la fiche du slide courant.
                 child: Focus(
-                  canRequestFocus: ref.read(isTvProvider),
-                  onKeyEvent: ref.read(isTvProvider)
+                  canRequestFocus: ref.watch(isTvProvider),
+                  onKeyEvent: ref.watch(isTvProvider)
                       ? (node, event) {
                           if (event is! KeyDownEvent) {
                             return KeyEventResult.ignored;
@@ -417,6 +433,11 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
                           if (event.logicalKey ==
                               LogicalKeyboardKey.arrowRight) {
                             _goTo(_index + 1);
+                            return KeyEventResult.handled;
+                          }
+                          if (event.logicalKey == LogicalKeyboardKey.select ||
+                              event.logicalKey == LogicalKeyboardKey.enter) {
+                            _openCurrentSlide(context);
                             return KeyEventResult.handled;
                           }
                           return KeyEventResult.ignored;
@@ -789,18 +810,19 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
                     media: media,
                     focusNode: _focusNodes[i],
                     onFocused: () {
-                      // Quand une carte reçoit le focus (D-pad), on la rend
-                      // visible dans le ListView sans toucher aux flèches souris.
+                      // Scroll direct via le controller (NeverScrollableScrollPhysics
+                      // bloque Scrollable.ensureVisible — animateTo fonctionne toujours).
                       WidgetsBinding.instance.addPostFrameCallback((_) {
-                        final fn = _focusNodes[i];
-                        if (fn.context != null) {
-                          Scrollable.ensureVisible(
-                            fn.context!,
-                            alignment: 0.3,
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeOut,
-                          );
-                        }
+                        if (!_controller.hasClients) return;
+                        final pos = _controller.position;
+                        final target = (i * _step -
+                                (pos.viewportDimension - widget.cardWidth) / 2)
+                            .clamp(0.0, pos.maxScrollExtent);
+                        _controller.animateTo(
+                          target,
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOut,
+                        );
                       });
                     },
                     onResume: widget.withResume

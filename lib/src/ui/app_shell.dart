@@ -75,8 +75,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         children: [
           // Isole la navigation latérale dans son propre groupe de traversée,
           // afin que la télécommande TV ne s'y retrouve pas piégée au démarrage.
+          // descendantsAreFocusable:false sur TV exclut la rail de la traversée
+          // D-pad (reste accessible à la souris via onDestinationSelected).
           FocusTraversalGroup(
             policy: WidgetOrderTraversalPolicy(),
+            descendantsAreFocusable: !isTv,
             child: NavigationRail(
               selectedIndex: _index,
               onDestinationSelected: _onSelect,

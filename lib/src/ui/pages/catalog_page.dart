@@ -81,6 +81,7 @@ class CatalogPage extends ConsumerStatefulWidget {
 
 class _CatalogPageState extends ConsumerState<CatalogPage> {
   final _controller = TextEditingController();
+  final _searchFocusNode = FocusNode();
   String _query = '';
   Timer? _debounce;
 
@@ -114,6 +115,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
   void dispose() {
     _debounce?.cancel();
     _controller.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -167,8 +169,23 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
     });
   }
 
+  Future<void> _openTvSearchDialog() async {
+    // Sur Android TV le clavier leanback freeze Flutter si ouvert directement
+    // dans un TextField du widget tree principal. On délègue la saisie à une
+    // AlertDialog isolée dont le TextField gère le clavier de façon autonome.
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _TvSearchDialog(initialValue: _query),
+    );
+    if (result != null) {
+      _controller.text = result;
+      _onSubmit(result);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isTv = ref.watch(isTvProvider);
     return Column(
       children: [
         // --- Barre de recherche + bouton filtres ---
@@ -179,6 +196,11 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
               Expanded(
                 child: TextField(
                   controller: _controller,
+                  focusNode: _searchFocusNode,
+                  // Sur Android TV : le clavier leanback freeze Flutter si ouvert
+                  // directement. On passe en readOnly et on délègue à une dialog.
+                  readOnly: isTv,
+                  onTap: isTv ? _openTvSearchDialog : null,
                   decoration: InputDecoration(
                     hintText: 'Rechercher un anime (anime-sama)…',
                     prefixIcon: const Icon(Icons.search),
@@ -740,6 +762,64 @@ class _Thumbnail extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dialog de saisie pour Android TV
+// ---------------------------------------------------------------------------
+
+/// Dialog de recherche pour Android TV : le clavier standard s'ouvre dans un
+/// contexte isolé, évitant le freeze du clavier leanback sur le widget tree.
+class _TvSearchDialog extends StatefulWidget {
+  final String initialValue;
+  const _TvSearchDialog({required this.initialValue});
+
+  @override
+  State<_TvSearchDialog> createState() => _TvSearchDialogState();
+}
+
+class _TvSearchDialogState extends State<_TvSearchDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Rechercher'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        decoration: const InputDecoration(
+          hintText: 'Titre de l\'anime…',
+          prefixIcon: Icon(Icons.search),
+          border: OutlineInputBorder(),
+        ),
+        onSubmitted: (v) => Navigator.pop(context, v.trim()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Annuler'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+          child: const Text('Rechercher'),
+        ),
+      ],
     );
   }
 }
