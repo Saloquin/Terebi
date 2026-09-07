@@ -6,8 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../pages/calendar_page.dart';
-import '../pages/catalog_page.dart';
-import '../pages/library_page.dart';
+import 'catalog_page_tv.dart';
+import 'library_page_tv.dart';
 import '../pages/settings_page.dart';
 import '../pages/stats_page.dart';
 import '../widgets/tv_focusable.dart';
@@ -48,9 +48,9 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
 
   static const _destinations = <_Destination>[
     _Destination(Icons.home_outlined, 'Accueil', HomepageTv()),
-    _Destination(Icons.search, 'Catalogue', CatalogPage()),
+    _Destination(Icons.search, 'Catalogue', CatalogPageTv()),
     _Destination(Icons.calendar_month_outlined, 'Calendrier', CalendarPage()),
-    _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPage()),
+    _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPageTv()),
     _Destination(Icons.bar_chart, 'Stats', StatsPage()),
     _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
   ];

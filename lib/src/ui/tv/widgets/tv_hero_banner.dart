@@ -9,7 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/models/media.dart';
 import '../../widgets/anime_sama_image.dart';
 import '../../widgets/tv_focusable.dart';
-import '../../pages/media_detail_page.dart';
+import '../media_detail_page_tv.dart';
 import '../../pages/resume_helper.dart';
 
 /// Hero plein écran style Netflix pour Android TV.
@@ -76,7 +76,7 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
     final media = _displayed;
     if (media == null) return;
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => MediaDetailPage(
+      builder: (_) => MediaDetailPageTv(
         mediaId: media.mediaId,
         displayTitle: media.title.preferred,
       ),

@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/models/media.dart';
 import '../../widgets/anime_sama_image.dart';
 import '../../widgets/tv_focusable.dart';
-import '../../pages/media_detail_page.dart';
+import '../media_detail_page_tv.dart';
 import '../../pages/resume_helper.dart';
 
 // 170px tuile + 30px pour la bordure TvFocusable (3px×2) + AnimatedScale (×1.05) + espacement vertical.
@@ -88,7 +88,7 @@ class _TvTile extends ConsumerWidget {
       resumePlayback(context, ref, media);
     } else {
       Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => MediaDetailPage(
+        builder: (_) => MediaDetailPageTv(
           mediaId: media.mediaId,
           displayTitle: media.title.preferred,
         ),
