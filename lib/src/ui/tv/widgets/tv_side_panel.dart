@@ -66,7 +66,7 @@ class TvSidePanel extends StatelessWidget {
                   return TvFocusable(
                     autofocus: i == 0,
                     onPressed: () => onSelected(item),
-                    child: InkWell(
+                    child: GestureDetector(
                       onTap: () => onSelected(item),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
