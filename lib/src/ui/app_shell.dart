@@ -29,14 +29,14 @@ const int _settingsIndex = 5;
 const int _libraryIndex = 3;
 
 /// Shell avec `NavigationRail` (adapté desktop).
-class AppShell extends ConsumerStatefulWidget {
-  const AppShell({super.key});
+class AppShellDesktop extends ConsumerStatefulWidget {
+  const AppShellDesktop({super.key});
 
   @override
-  ConsumerState<AppShell> createState() => _AppShellState();
+  ConsumerState<AppShellDesktop> createState() => _AppShellDesktopState();
 }
 
-class _AppShellState extends ConsumerState<AppShell> {
+class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
   int _index = 0;
 
   @override
@@ -141,5 +141,32 @@ class _AppShellState extends ConsumerState<AppShell> {
         ],
       ),
     );
+  }
+}
+
+// Stub temporaire — remplacé en Task 3
+class AppShellTv extends StatelessWidget {
+  const AppShellTv({super.key});
+  @override
+  Widget build(BuildContext context) => const Scaffold(
+    backgroundColor: Colors.black,
+    body: Center(
+      child: Text('TV Shell — en construction',
+          style: TextStyle(color: Colors.white, fontSize: 24)),
+    ),
+  );
+}
+
+/// Point d'entrée unique : route vers le bon shell selon la plateforme.
+class AppShell extends ConsumerWidget {
+  const AppShell({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return switch (ref.watch(appPlatformProvider)) {
+      AppPlatform.tv      => const AppShellTv(),
+      AppPlatform.mobile  => const AppShellDesktop(),
+      AppPlatform.desktop => const AppShellDesktop(),
+    };
   }
 }
