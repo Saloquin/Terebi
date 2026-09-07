@@ -928,11 +928,11 @@ class _EntryCard extends ConsumerWidget {
 
   /// Retire le drapeau « nouvel épisode » (l'utilisateur a ouvert/repris
   /// l'anime → il l'a vu). Best-effort ; rafraîchit le badge.
-  void _clearNewEpisodeFlag(WidgetRef ref, int mediaId) {
-    ref
-        .read(settingsRepositoryProvider)
-        .delete(SettingsKeys.newEpisodeFor(mediaId))
-        .then((_) => ref.invalidate(newEpisodeFlagProvider(mediaId)));
+  Future<void> _clearNewEpisodeFlag(WidgetRef ref, int mediaId) async {
+    await ref
+        .read(libraryControllerProvider.notifier)
+        .clearNewEpisodeFlag(mediaId);
+    ref.invalidate(newEpisodeFlagProvider(mediaId));
   }
 
   @override
