@@ -32,9 +32,6 @@ class PlayerController extends Notifier<PlayerState> {
   Timer? _seekDebounce;
   Timer? _autoPlayTimer;
 
-  int _seekForwardSec = 10;
-  int _seekBackwardSec = 10;
-
   domain.Media? _currentMedia;
 
   @override
@@ -76,21 +73,9 @@ class PlayerController extends Notifier<PlayerState> {
 
   Future<void> _loadSettings() async {
     final settings = ref.read(settingsRepositoryProvider);
-    final fwd = int.tryParse(
-            await settings.get(SettingsKeys.seekForwardSeconds,
-                defaultValue: '10') ??
-                '10') ??
-        10;
-    final bwd = int.tryParse(
-            await settings.get(SettingsKeys.seekBackwardSeconds,
-                defaultValue: '10') ??
-                '10') ??
-        10;
     final single =
         await settings.get(SettingsKeys.singleLanguage, defaultValue: '0') ==
             '1';
-    _seekForwardSec = fwd;
-    _seekBackwardSec = bwd;
     state = state.copyWith(singleLanguage: single);
   }
 
