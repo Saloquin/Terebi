@@ -13,6 +13,7 @@ import 'pages/home_page.dart';
 import 'pages/library_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/stats_page.dart';
+import 'tv/app_shell_tv.dart';
 
 /// Une destination de navigation.
 class _Destination {
@@ -142,19 +143,6 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
       ),
     );
   }
-}
-
-// Stub temporaire — remplacé en Task 3
-class AppShellTv extends StatelessWidget {
-  const AppShellTv({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(
-    backgroundColor: Colors.black,
-    body: Center(
-      child: Text('TV Shell — en construction',
-          style: TextStyle(color: Colors.white, fontSize: 24)),
-    ),
-  );
 }
 
 /// Point d'entrée unique : route vers le bon shell selon la plateforme.
