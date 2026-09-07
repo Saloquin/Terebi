@@ -18,43 +18,6 @@ import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
 
-// ---------------------------------------------------------------------------
-// Providers (visibles pour les tests via import)
-// ---------------------------------------------------------------------------
-
-/// Nombre d'entrées par statut EFFECTIF. Dérivé de [effectiveEntriesProvider]
-/// (réactif aux entrées ET à la progression par saison → se met à jour quand on
-/// marque un épisode OU une saison).
-final countByStatusProvider = Provider<AsyncValue<Map<ListStatus, int>>>((ref) {
-  return ref.watch(effectiveEntriesProvider).whenData((entries) {
-    final counts = <ListStatus, int>{};
-    for (final e in entries) {
-      counts[e.status] = (counts[e.status] ?? 0) + 1;
-    }
-    return counts;
-  });
-});
-
-/// Entrées de bibliothèque dont le statut EFFECTIF vaut [status]. Dérivé de
-/// [effectiveEntriesProvider] (même réactivité).
-final entriesByStatusProvider =
-    Provider.family<AsyncValue<List<ListEntry>>, ListStatus>((ref, status) {
-  return ref.watch(effectiveEntriesProvider).whenData((entries) => [
-        for (final e in entries)
-          if (e.status == status) e.entry,
-      ]);
-});
-
-/// Vrai si un anime a un « nouvel épisode disponible » (drapeau posé par le
-/// recheck). Sert à afficher un badge sur sa tuile de bibliothèque.
-final newEpisodeFlagProvider =
-    FutureProvider.family<bool, int>((ref, mediaId) async {
-  final v = await ref
-      .watch(settingsRepositoryProvider)
-      .get(SettingsKeys.newEpisodeFor(mediaId));
-  return v == '1';
-});
-
 /// Map mediaId → Media chargée depuis le dépôt local (pour le filtrage).
 /// Utilisée par _FilterBar (genres/années disponibles) et _SortedEntriesList
 /// (application du filtre). Un seul appel getAllMedia() pour toute la page.

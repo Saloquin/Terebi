@@ -32,7 +32,6 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
-import 'library_page.dart';
 import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.

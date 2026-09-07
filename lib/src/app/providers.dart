@@ -517,3 +517,36 @@ final updateCheckProvider = FutureProvider<UpdateStatus>((ref) async {
 /// Progression du téléchargement en cours (null = pas de téléchargement actif).
 final downloadProgressProvider = StateProvider<double?>((ref) => null);
 
+// ---------------------------------------------------------------------------
+// Library — providers globaux
+// ---------------------------------------------------------------------------
+
+/// Nombre d'entrées par statut EFFECTIF. Dérivé de [effectiveEntriesProvider].
+final countByStatusProvider = Provider<AsyncValue<Map<ListStatus, int>>>((ref) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) {
+    final counts = <ListStatus, int>{};
+    for (final e in entries) {
+      counts[e.status] = (counts[e.status] ?? 0) + 1;
+    }
+    return counts;
+  });
+});
+
+/// Entrées de bibliothèque dont le statut EFFECTIF vaut [status].
+final entriesByStatusProvider =
+    Provider.family<AsyncValue<List<ListEntry>>, ListStatus>((ref, status) {
+  return ref.watch(effectiveEntriesProvider).whenData((entries) => [
+        for (final e in entries)
+          if (e.status == status) e.entry,
+      ]);
+});
+
+/// Vrai si un anime a un « nouvel épisode disponible ».
+final newEpisodeFlagProvider =
+    FutureProvider.family<bool, int>((ref, mediaId) async {
+  final v = await ref
+      .watch(settingsRepositoryProvider)
+      .get(SettingsKeys.newEpisodeFor(mediaId));
+  return v == '1';
+});
+
