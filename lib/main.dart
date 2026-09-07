@@ -30,6 +30,9 @@ Future<void> main() async {
   // Détecte Android TV une seule fois au boot (false sur desktop/iOS/téléphone).
   final isTv = await detectIsTelevision();
 
+  final autoUpdate =
+      (await settings.get(SettingsKeys.autoUpdate, defaultValue: '0')) == '1';
+
   runApp(
     ProviderScope(
       overrides: [
@@ -46,7 +49,7 @@ Future<void> main() async {
           }
         }),
       ],
-      child: TerebiApp(showSplash: splashEnabled),
+      child: TerebiApp(showSplash: splashEnabled, autoUpdate: autoUpdate),
     ),
   );
 }
@@ -56,7 +59,10 @@ class TerebiApp extends ConsumerStatefulWidget {
   /// Joue l'écran de démarrage animé avant l'app si `true`.
   final bool showSplash;
 
-  const TerebiApp({super.key, required this.showSplash});
+  /// Lance la vérification de MAJ en arrière-plan au premier frame si `true`.
+  final bool autoUpdate;
+
+  const TerebiApp({super.key, required this.showSplash, required this.autoUpdate});
 
   @override
   ConsumerState<TerebiApp> createState() => _TerebiAppState();
@@ -64,6 +70,16 @@ class TerebiApp extends ConsumerStatefulWidget {
 
 class _TerebiAppState extends ConsumerState<TerebiApp> {
   late bool _splashDone = !widget.showSplash;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoUpdate) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.invalidate(updateCheckProvider);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
