@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
@@ -35,6 +36,15 @@ Future<void> main() async {
         databaseProvider.overrideWithValue(db),
         themeModeProvider.overrideWith((ref) => themeMode),
         isTvProvider.overrideWith((ref) => isTv),
+        appPlatformProvider.overrideWith((ref) {
+          if (isTv) return AppPlatform.tv;
+          switch (defaultTargetPlatform) {
+            case TargetPlatform.android:
+              return AppPlatform.mobile;
+            default:
+              return AppPlatform.desktop;
+          }
+        }),
       ],
       child: TerebiApp(showSplash: splashEnabled),
     ),
