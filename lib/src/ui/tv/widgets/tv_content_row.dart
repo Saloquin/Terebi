@@ -9,6 +9,10 @@ import '../../widgets/tv_focusable.dart';
 import '../../pages/media_detail_page.dart';
 import '../../pages/resume_helper.dart';
 
+// 170px tuile + 30px pour la bordure TvFocusable (3px×2) + AnimatedScale (×1.05) + espacement vertical.
+const double _tileHeight = 170;
+const double _rowHeight = _tileHeight + 30;
+
 /// Rangée horizontale défilante style Netflix pour Android TV.
 /// Tuiles 16:9 (300×170px). [onFocused] est appelé quand une tuile reçoit
 /// le focus — permet au hero parent de changer son fond.
@@ -47,7 +51,7 @@ class TvContentRow extends ConsumerWidget {
             ),
           ),
           SizedBox(
-            height: 200,
+            height: _rowHeight,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 40),
@@ -56,6 +60,7 @@ class TvContentRow extends ConsumerWidget {
                 media: items[i],
                 withResume: withResume,
                 onFocused: onFocused,
+                autofocus: i == 0,
               ),
             ),
           ),
@@ -69,11 +74,13 @@ class _TvTile extends ConsumerWidget {
   final Media media;
   final bool withResume;
   final void Function(Media)? onFocused;
+  final bool autofocus;
 
   const _TvTile({
     required this.media,
     required this.withResume,
     this.onFocused,
+    this.autofocus = false,
   });
 
   void _open(BuildContext context, WidgetRef ref) {
@@ -94,13 +101,14 @@ class _TvTile extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(right: 12),
       child: TvFocusable(
+        autofocus: autofocus,
         onPressed: () => _open(context, ref),
         onFocused: () => onFocused?.call(media),
         child: GestureDetector(
           onTap: () => _open(context, ref),
           child: SizedBox(
             width: 300,
-            height: 170,
+            height: _tileHeight,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Stack(
