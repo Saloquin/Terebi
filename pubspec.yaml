@@ -38,6 +38,9 @@ dependencies:
   # Parsing HTML (port Dart du scraping anime-sama, remplace BeautifulSoup)
   html: ^0.15.4
 
+  # Utilitaires collection (sortedBy, etc.)
+  collection: ^1.18.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
