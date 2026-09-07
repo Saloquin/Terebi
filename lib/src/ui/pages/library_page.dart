@@ -170,12 +170,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
     // Garde 1×/jour : le recheck fait plusieurs requêtes anime-sama par anime
     // « Terminé » ; inutile de le refaire à chaque ouverture de la biblio.
-    final lastRaw = await settings.get(SettingsKeys.lastCompletedRecheck);
-    if (lastRaw != null) {
-      final last = DateTime.tryParse(lastRaw);
-      if (last != null &&
-          DateTime.now().difference(last) < const Duration(days: 1)) {
-        return; // déjà fait dans les dernières 24 h.
+    // Exception : si la version du recheck est inférieure à '2', on force un
+    // passage complet pour nettoyer les faux positifs de l'ancienne logique.
+    const currentRecheckVersion = '2';
+    final recheckVer =
+        await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
+    final mustUpgrade = recheckVer != currentRecheckVersion;
+
+    if (!mustUpgrade) {
+      final lastRaw = await settings.get(SettingsKeys.lastCompletedRecheck);
+      if (lastRaw != null) {
+        final last = DateTime.tryParse(lastRaw);
+        if (last != null &&
+            DateTime.now().difference(last) < const Duration(days: 1)) {
+          return; // déjà fait dans les dernières 24 h.
+        }
       }
     }
 
@@ -271,6 +280,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
             await seasonProgress.lastWatched(entry.mediaId, last.index);
         // Marqué « entièrement vu » manuellement → à jour, ne pas signaler.
         if (watched >= SeasonProgressRepository.fullyWatchedSentinel) continue;
+        // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
+        // y a un nouvel épisode (progression AniList seule, sans clé watched).
+        // Nettoie aussi un éventuel faux positif posé par une version antérieure.
+        if (watched == 0) {
+          await settings.delete(SettingsKeys.newEpisodeFor(entry.mediaId));
+          continue;
+        }
         if (watched < eps.last) {
           // Épisode(s) non vu(s) sur la dernière saison → nouvel épisode.
           await settings.set(SettingsKeys.newEpisodeFor(entry.mediaId), '1');
@@ -282,7 +298,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       await Future.delayed(const Duration(milliseconds: 400));
     }
 
-    // Mémorise la date du recheck (réussi) pour la garde 1×/jour.
+    // Mémorise la date du recheck (réussi) et la version pour la garde.
+    await settings.set(SettingsKeys.recheckVersion, currentRecheckVersion);
     await settings.set(
         SettingsKeys.lastCompletedRecheck, DateTime.now().toIso8601String());
 

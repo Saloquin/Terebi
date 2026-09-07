@@ -65,6 +65,10 @@ abstract final class SettingsKeys {
   /// Posé par le recheck quand un anime « Terminé » a de nouveaux épisodes ;
   /// retiré quand l'utilisateur ouvre/regarde l'anime. Ex. `new_episode:105333`.
   static String newEpisodeFor(int anilistId) => 'new_episode:$anilistId';
+
+  /// Version interne du recheck. Incrémentée quand la logique change pour
+  /// forcer un recheck complet (nettoyage des faux positifs).
+  static const String recheckVersion = 'recheck_version';
 }
 
 /// Accès typé aux paramètres applicatifs persistés dans [AppSettings].
