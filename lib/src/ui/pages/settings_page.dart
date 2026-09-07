@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/health_service.dart';
+import '../../services/update_service.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -531,6 +532,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                 ),
 
                 const SizedBox(height: 32),
+
+                // --- Mises à jour ---
+                _SectionTitle('Mises à jour'),
+                const SizedBox(height: 8),
+                const _UpdateSection(),
+
+                const SizedBox(height: 32),
               ],
             ),
           ),
@@ -649,6 +657,232 @@ class _HealthCheckTile extends StatelessWidget {
       leading: Icon(icon, color: color, size: 20),
       title: Text(check.component),
       subtitle: check.detail != null ? Text(check.detail!) : null,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section Mises à jour
+// ---------------------------------------------------------------------------
+
+class _UpdateSection extends ConsumerStatefulWidget {
+  const _UpdateSection();
+
+  @override
+  ConsumerState<_UpdateSection> createState() => _UpdateSectionState();
+}
+
+class _UpdateSectionState extends ConsumerState<_UpdateSection> {
+  bool _checking = false;
+  bool _downloading = false;
+  String? _installError;
+  bool _installSuccess = false;
+
+  Future<void> _check() async {
+    setState(() {
+      _checking = true;
+      _installError = null;
+      _installSuccess = false;
+    });
+    ref.invalidate(updateCheckProvider);
+    await ref.read(updateCheckProvider.future);
+    if (mounted) setState(() => _checking = false);
+  }
+
+  Future<void> _downloadAndInstall(String msixUrl) async {
+    setState(() {
+      _downloading = true;
+      _installError = null;
+      _installSuccess = false;
+    });
+    ref.read(downloadProgressProvider.notifier).state = 0.0;
+    try {
+      final service = ref.read(updateServiceProvider);
+      final file = await service.downloadMsix(
+        msixUrl,
+        onProgress: (f) {
+          if (mounted) ref.read(downloadProgressProvider.notifier).state = f;
+        },
+      );
+      await service.installMsix(file);
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _installSuccess = true;
+        });
+        ref.read(downloadProgressProvider.notifier).state = null;
+      }
+    } on UpdateError catch (e) {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _installError = e.message;
+        });
+        ref.read(downloadProgressProvider.notifier).state = null;
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _downloading = false;
+          _installError = e.toString();
+        });
+        ref.read(downloadProgressProvider.notifier).state = null;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentAsync = ref.watch(currentVersionProvider);
+    final updateAsync = ref.watch(updateCheckProvider);
+    final progress = ref.watch(downloadProgressProvider);
+    final settings = ref.watch(settingsRepositoryProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Version courante
+        currentAsync.when(
+          loading: () => const Text('Version : …'),
+          error: (e, _) => const Text('Version : indisponible'),
+          data: (v) => Text(
+            'Version installée : $v',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+        const SizedBox(height: 4),
+
+        // Toggle auto-update
+        FutureBuilder<String?>(
+          future: settings.get(SettingsKeys.autoUpdate, defaultValue: '0'),
+          builder: (context, snap) {
+            final enabled = (snap.data ?? '0') == '1';
+            return SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Mise à jour automatique'),
+              subtitle: const Text(
+                  'Vérifie et propose les mises à jour au démarrage'),
+              value: enabled,
+              onChanged: (v) async {
+                await settings.set(SettingsKeys.autoUpdate, v ? '1' : '0');
+                setState(() {});
+              },
+            );
+          },
+        ),
+
+        // Bouton vérification manuelle
+        OutlinedButton.icon(
+          onPressed: (_checking || _downloading) ? null : _check,
+          icon: _checking
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.system_update_outlined, size: 18),
+          label: const Text('Vérifier maintenant'),
+        ),
+
+        // Résultat de vérification
+        if (!_checking)
+          updateAsync.when(
+            loading: () => const SizedBox.shrink(),
+            error: (e, _) => Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('Erreur : $e',
+                  style:
+                      TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+            data: (status) => switch (status) {
+              UpdateUpToDate() => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(children: [
+                    const Icon(Icons.check_circle_outline,
+                        color: Colors.green, size: 16),
+                    const SizedBox(width: 6),
+                    Text('Application à jour.',
+                        style: Theme.of(context).textTheme.bodySmall),
+                  ]),
+                ),
+              UpdateAvailable(:final latestVersion, :final msixUrl) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.new_releases_outlined,
+                            color: Colors.orange, size: 16),
+                        const SizedBox(width: 6),
+                        Text('Mise à jour disponible : v$latestVersion',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.w600)),
+                      ]),
+                      const SizedBox(height: 8),
+                      if (msixUrl != null)
+                        _downloading && progress != null
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  LinearProgressIndicator(value: progress),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                      'Téléchargement : ${(progress * 100).toStringAsFixed(0)} %',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall),
+                                ],
+                              )
+                            : FilledButton.icon(
+                                onPressed: _downloading
+                                    ? null
+                                    : () => _downloadAndInstall(msixUrl),
+                                icon: const Icon(Icons.download_outlined,
+                                    size: 16),
+                                label: const Text('Télécharger et installer'),
+                              )
+                      else
+                        Text(
+                          'Fichier .msix absent de cette release.',
+                          style: TextStyle(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant),
+                        ),
+                    ],
+                  ),
+                ),
+              UpdateError(:final message) => Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text('Vérification impossible : $message',
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
+                ),
+            },
+          ),
+
+        // Résultat d'installation
+        if (_installSuccess)
+          const Padding(
+            padding: EdgeInsets.only(top: 8),
+            child: Row(children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 16),
+              SizedBox(width: 6),
+              Flexible(
+                  child: Text('Installé. Redémarrez l\'application.',
+                      style: TextStyle(color: Colors.green))),
+            ]),
+          ),
+        if (_installError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text('Erreur d\'installation : $_installError',
+                style:
+                    TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+      ],
     );
   }
 }

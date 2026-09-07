@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../data/local/database.dart';
 import '../data/local/connection.dart' show databaseFilePath;
@@ -21,6 +22,7 @@ import '../domain/logic/effective_status_service.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
 import '../domain/logic/stats_service.dart';
+import '../services/update_service.dart';
 import '../domain/logic/filter_sort_service.dart';
 import 'package:rxdart/rxdart.dart';
 
@@ -487,4 +489,31 @@ final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
 /// Initialisé au démarrage via override (comme [themeModeProvider]) depuis
 /// [detectIsTelevision]. Toujours false sur desktop et téléphone Android.
 final isTvProvider = StateProvider<bool>((ref) => false);
+
+// ---------------------------------------------------------------------------
+// Auto-update (Windows MSIX)
+// ---------------------------------------------------------------------------
+
+const _githubRepo = 'Saloquin/Terebi';
+
+final updateServiceProvider = Provider<UpdateService>((ref) => UpdateService(
+      httpClient: ref.watch(httpClientProvider),
+      githubRepo: _githubRepo,
+    ));
+
+/// Version courante de l'app (lue depuis pubspec via package_info_plus).
+final currentVersionProvider = FutureProvider<String>((ref) async {
+  final info = await PackageInfo.fromPlatform();
+  return info.version;
+});
+
+/// Vérifie si une mise à jour est disponible.
+/// Invalidé manuellement (ref.invalidate) pour forcer un re-check.
+final updateCheckProvider = FutureProvider<UpdateStatus>((ref) async {
+  final version = await ref.watch(currentVersionProvider.future);
+  return ref.watch(updateServiceProvider).checkForUpdate(version);
+});
+
+/// Progression du téléchargement en cours (null = pas de téléchargement actif).
+final downloadProgressProvider = StateProvider<double?>((ref) => null);
 
