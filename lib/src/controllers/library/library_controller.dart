@@ -26,6 +26,10 @@ class LibraryController extends Notifier<LibraryState> {
 
   void clearSearch() => state = state.copyWith(searchQuery: '');
 
+  /// Filtre de genres courant — à appliquer côté page sur la liste de Media
+  /// (ListEntry ne porte pas les genres, seule la page a accès aux Media).
+  MediaFilter get currentFilter => state.filter;
+
   /// Trie et filtre [entries] selon l'état courant.
   List<ListEntry> applyFilterSort(
     List<ListEntry> entries, {
@@ -40,12 +44,6 @@ class LibraryController extends Notifier<LibraryState> {
         final title = titleOf?.call(e.mediaId) ?? e.mediaId.toString();
         return title.toLowerCase().contains(q);
       }).toList();
-    }
-
-    if (!state.filter.isEmpty) {
-      // MediaFilter.genres filtre par genre — pas applicable sur ListEntry seul
-      // (ListEntry n'a pas les genres). Le filtrage de genres reste dans la page
-      // qui a accès aux Media. Ici on applique uniquement le tri.
     }
 
     return service.sortEntries(
