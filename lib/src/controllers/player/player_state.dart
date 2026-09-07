@@ -2,6 +2,7 @@ library;
 
 import '../../domain/models/list_entry.dart';
 import '../../services/stream_resolver.dart';
+import 'episode_resolver.dart';
 
 class PlayerState {
   final bool loading;
@@ -96,17 +97,7 @@ class PlayerState {
   bool get isLastEpisode =>
       episodes.isNotEmpty && currentEpisode >= episodes.last;
 
-  int? get nextEpisode {
-    if (episodes.isEmpty) return null;
-    final idx = episodes.indexOf(currentEpisode);
-    if (idx < 0 || idx >= episodes.length - 1) return null;
-    return episodes[idx + 1];
-  }
+  int? get nextEpisode => EpisodeResolver.nextOf(episodes, currentEpisode);
 
-  int? get prevEpisode {
-    if (episodes.isEmpty) return null;
-    final idx = episodes.indexOf(currentEpisode);
-    if (idx <= 0) return null;
-    return episodes[idx - 1];
-  }
+  int? get prevEpisode => EpisodeResolver.prevOf(episodes, currentEpisode);
 }

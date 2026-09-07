@@ -23,13 +23,19 @@ class EpisodeResolver {
     return episodes.first;
   }
 
-  int? nextEpisode(List<int> episodes, int current) {
+  int? nextEpisode(List<int> episodes, int current) =>
+      EpisodeResolver.nextOf(episodes, current);
+
+  int? prevEpisode(List<int> episodes, int current) =>
+      EpisodeResolver.prevOf(episodes, current);
+
+  static int? nextOf(List<int> episodes, int current) {
     final idx = episodes.indexOf(current);
     if (idx < 0 || idx >= episodes.length - 1) return null;
     return episodes[idx + 1];
   }
 
-  int? prevEpisode(List<int> episodes, int current) {
+  static int? prevOf(List<int> episodes, int current) {
     final idx = episodes.indexOf(current);
     if (idx <= 0) return null;
     return episodes[idx - 1];
