@@ -259,19 +259,24 @@ class PlayerController extends Notifier<PlayerState> {
     state = state.copyWith(navigating: true, clearAutoPlay: true);
     _cancelAutoPlay();
 
-    if (episode > state.currentEpisode) {
-      await _markCurrentWatched(media: media);
-    } else {
-      await _rewindProgressTo(media: media, episode: episode);
-    }
+    try {
+      if (episode > state.currentEpisode) {
+        await _markCurrentWatched(media: media);
+      } else {
+        await _rewindProgressTo(media: media, episode: episode);
+      }
 
-    state = state.copyWith(
-      currentEpisode: episode,
-      positionSeconds: 0,
-      clearDuration: true,
-      navigating: false,
-    );
-    await loadAndPlay(media: media, episode: episode);
+      state = state.copyWith(
+        currentEpisode: episode,
+        positionSeconds: 0,
+        clearDuration: true,
+      );
+      await loadAndPlay(media: media, episode: episode);
+    } finally {
+      if (state.navigating) {
+        state = state.copyWith(navigating: false);
+      }
+    }
   }
 
   Future<void> goToNextEpisode({required domain.Media media}) async {
@@ -485,7 +490,9 @@ class PlayerController extends Notifier<PlayerState> {
     await _positionSub?.cancel();
     await _durationSub?.cancel();
     await _completedSub?.cancel();
-    await _persistPosition();
+    try {
+      await _persistPosition();
+    } catch (_) {}
     await player.dispose();
   }
 }
