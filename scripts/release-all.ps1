@@ -103,28 +103,20 @@ if ($buildWindows) {
 }
 
 # ---------------------------------------------------------------------------
-# Android - APK + AAB
+# Android - APK uniquement (AAB : stripping symboles natifs echoue avec media_kit)
 # ---------------------------------------------------------------------------
 if ($buildAndroid) {
     Write-Host ''
     Write-Host '-- Android --' -ForegroundColor Magenta
 
     $ApkSrc  = Join-Path $ProjectRoot 'build\app\outputs\flutter-apk\app-release.apk'
-    $AabSrc  = Join-Path $ProjectRoot 'build\app\outputs\bundle\release\app-release.aab'
     $ApkDest = Join-Path $DistDir "terebi-$Version-android.apk"
-    $AabDest = Join-Path $DistDir "terebi-$Version-android.aab"
 
     if (-not $SkipBuild) {
         Write-Host '  [build] flutter build apk --release' -ForegroundColor Yellow
         Push-Location $ProjectRoot
         flutter build apk --release
         if ($LASTEXITCODE -ne 0) { throw 'flutter build apk failed' }
-        Pop-Location
-
-        Write-Host '  [build] flutter build appbundle --release' -ForegroundColor Yellow
-        Push-Location $ProjectRoot
-        flutter build appbundle --release
-        if ($LASTEXITCODE -ne 0) { throw 'flutter build appbundle failed' }
         Pop-Location
     }
 
@@ -135,15 +127,6 @@ if ($buildAndroid) {
         $artifacts += $ApkDest
     } else {
         Write-Warning "APK introuvable : $ApkSrc (ignore)"
-    }
-
-    if (Test-Path $AabSrc) {
-        Copy-Item $AabSrc $AabDest -Force
-        $mb = SizeMB $AabDest
-        Write-Host "  [aab]   OK $mb MB" -ForegroundColor Green
-        $artifacts += $AabDest
-    } else {
-        Write-Warning "AAB introuvable : $AabSrc (ignore)"
     }
 }
 
