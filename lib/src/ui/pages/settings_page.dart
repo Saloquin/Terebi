@@ -689,7 +689,7 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
     if (mounted) setState(() => _checking = false);
   }
 
-  Future<void> _downloadAndInstall(String msixUrl) async {
+  Future<void> _downloadAndInstall(String zipUrl) async {
     setState(() {
       _downloading = true;
       _installError = null;
@@ -698,13 +698,13 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
     ref.read(downloadProgressProvider.notifier).state = 0.0;
     try {
       final service = ref.read(updateServiceProvider);
-      final file = await service.downloadMsix(
-        msixUrl,
+      final file = await service.downloadZip(
+        zipUrl,
         onProgress: (f) {
           if (mounted) ref.read(downloadProgressProvider.notifier).state = f;
         },
       );
-      await service.installMsix(file);
+      await service.installZip(file);
       if (mounted) {
         setState(() {
           _downloading = false;
@@ -805,7 +805,7 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
                         style: Theme.of(context).textTheme.bodySmall),
                   ]),
                 ),
-              UpdateAvailable(:final latestVersion, :final msixUrl) => Padding(
+              UpdateAvailable(:final latestVersion, :final zipUrl) => Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,7 +821,7 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
                                 ?.copyWith(fontWeight: FontWeight.w600)),
                       ]),
                       const SizedBox(height: 8),
-                      if (msixUrl != null)
+                      if (zipUrl != null)
                         _downloading && progress != null
                             ? Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -838,14 +838,14 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
                             : FilledButton.icon(
                                 onPressed: _downloading
                                     ? null
-                                    : () => _downloadAndInstall(msixUrl),
+                                    : () => _downloadAndInstall(zipUrl),
                                 icon: const Icon(Icons.download_outlined,
                                     size: 16),
                                 label: const Text('Télécharger et installer'),
                               )
                       else
                         Text(
-                          'Fichier .msix absent de cette release.',
+                          'Fichier .zip absent de cette release.',
                           style: TextStyle(
                               color: Theme.of(context)
                                   .colorScheme

@@ -8,21 +8,21 @@ library;
 
 class ReleaseInfo {
   final String version;
-  final String? msixUrl;
-  const ReleaseInfo({required this.version, required this.msixUrl});
+  final String? zipUrl;
+  const ReleaseInfo({required this.version, required this.zipUrl});
 
   factory ReleaseInfo.fromGitHub(Map<String, dynamic> json) {
     final tag = (json['tag_name'] as String? ?? '').replaceFirst('v', '');
     final assets = json['assets'] as List<dynamic>? ?? const [];
-    String? msixUrl;
+    String? zipUrl;
     for (final asset in assets) {
       final name = asset['name'] as String? ?? '';
-      if (name.endsWith('.msix')) {
-        msixUrl = asset['browser_download_url'] as String?;
+      if (name.endsWith('.zip')) {
+        zipUrl = asset['browser_download_url'] as String?;
         break;
       }
     }
-    return ReleaseInfo(version: tag, msixUrl: msixUrl);
+    return ReleaseInfo(version: tag, zipUrl: zipUrl);
   }
 }
 
@@ -38,11 +38,11 @@ class UpdateUpToDate extends UpdateStatus {
 class UpdateAvailable extends UpdateStatus {
   final String currentVersion;
   final String latestVersion;
-  final String? msixUrl;
+  final String? zipUrl;
   const UpdateAvailable({
     required this.currentVersion,
     required this.latestVersion,
-    required this.msixUrl,
+    required this.zipUrl,
   });
 }
 

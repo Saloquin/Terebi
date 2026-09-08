@@ -16,6 +16,7 @@ $Tag = "v$Version"
 
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
+
 # --- Localise Flutter si absent du PATH ---
 if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
     $candidates = @(
@@ -71,16 +72,14 @@ $buildLinux   = ($Platform -eq 'all') -or ($Platform -eq 'linux')
 $artifacts = @()
 
 # ---------------------------------------------------------------------------
-# Windows - ZIP + MSIX
+# Windows - ZIP
 # ---------------------------------------------------------------------------
 if ($buildWindows) {
     Write-Host '-- Windows --' -ForegroundColor Magenta
 
     $ReleaseDir = Join-Path $ProjectRoot 'build\windows\x64\runner\Release'
     $ZipName    = "terebi-$Version-windows-x64.zip"
-    $MsixName   = "terebi-$Version-windows-x64.msix"
     $ZipPath    = Join-Path $DistDir $ZipName
-    $MsixPath   = Join-Path $DistDir $MsixName
 
     if (-not $SkipBuild) {
         Write-Host '  [build] flutter build windows --release' -ForegroundColor Yellow
@@ -100,18 +99,7 @@ if ($buildWindows) {
     $mb = SizeMB $ZipPath
     Write-Host "          OK $mb MB" -ForegroundColor Green
 
-    $msixArg = "terebi-$Version-windows-x64"
-    Write-Host "  [msix]  $MsixName" -ForegroundColor Yellow
-    Push-Location $ProjectRoot
-    dart run msix:create --output-path $DistDir --output-name $msixArg
-    if ($LASTEXITCODE -ne 0) { throw 'msix:create failed' }
-    Pop-Location
-    if (-not (Test-Path $MsixPath)) { throw "MSIX introuvable apres msix:create" }
-    $mb = SizeMB $MsixPath
-    Write-Host "          OK $mb MB" -ForegroundColor Green
-
     $artifacts += $ZipPath
-    $artifacts += $MsixPath
 }
 
 # ---------------------------------------------------------------------------

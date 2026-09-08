@@ -31,37 +31,37 @@ void main() {
   });
 
   group('ReleaseInfo.fromGitHub', () {
-    test('extrait tag et url MSIX', () {
+    test('extrait tag et url ZIP', () {
       final json = {
         'tag_name': 'v1.2.3',
         'assets': [
           {
-            'name': 'terebi-1.2.3-windows-x64.msix',
-            'browser_download_url': 'https://example.com/terebi.msix',
-          },
-          {
             'name': 'terebi-1.2.3-windows-x64.zip',
             'browser_download_url': 'https://example.com/terebi.zip',
+          },
+          {
+            'name': 'terebi-1.2.3-android.apk',
+            'browser_download_url': 'https://example.com/terebi.apk',
           },
         ],
       };
       final release = ReleaseInfo.fromGitHub(json);
       expect(release.version, equals('1.2.3'));
-      expect(release.msixUrl, equals('https://example.com/terebi.msix'));
+      expect(release.zipUrl, equals('https://example.com/terebi.zip'));
     });
 
-    test('sans asset MSIX : msixUrl est null', () {
+    test('sans asset ZIP : zipUrl est null', () {
       final json = {
         'tag_name': 'v1.2.3',
         'assets': [
           {
-            'name': 'terebi-1.2.3-windows-x64.zip',
-            'browser_download_url': 'https://example.com/terebi.zip',
+            'name': 'terebi-1.2.3-android.apk',
+            'browser_download_url': 'https://example.com/terebi.apk',
           },
         ],
       };
       final release = ReleaseInfo.fromGitHub(json);
-      expect(release.msixUrl, isNull);
+      expect(release.zipUrl, isNull);
     });
 
     test('tag sans prefixe v', () {
@@ -77,7 +77,7 @@ void main() {
       final json = {'tag_name': 'v1.0.0', 'assets': <dynamic>[]};
       final release = ReleaseInfo.fromGitHub(json);
       expect(release.version, equals('1.0.0'));
-      expect(release.msixUrl, isNull);
+      expect(release.zipUrl, isNull);
     });
   });
 }

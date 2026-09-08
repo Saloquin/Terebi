@@ -57,9 +57,6 @@ dev_dependencies:
   # Génération des icônes de lancement (Android/desktop) depuis le logo.
   flutter_launcher_icons: ^0.14.1
 
-  # Packaging MSIX Windows (auto-update)
-  msix: ^3.16.8
-
 # wakelock_plus <=1.5.2 (tire par media_kit_video) casse a la compilation Kotlin
 # 2.1+ (import du package racine). 1.7.0 migre vers le KGP et corrige l'import.
 dependency_overrides:
@@ -80,12 +77,3 @@ flutter:
   assets:
     - assets/branding/
 
-msix_config:
-  display_name: Terebi
-  publisher_display_name: Terebi Dev
-  identity_name: com.terebi.app
-  msix_version: 2.0.0.0
-  logo_path: assets/branding/logo_clair.png
-  capabilities: internetClient
-  sign_msix: false
-  publisher: CN=TerebiDev

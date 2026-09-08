@@ -49,7 +49,7 @@ class UpdateService {
       return UpdateAvailable(
         currentVersion: currentVersion,
         latestVersion: latest.version,
-        msixUrl: latest.msixUrl,
+        zipUrl: latest.zipUrl,
       );
     } on UpdateError catch (e) {
       return e;
@@ -59,13 +59,13 @@ class UpdateService {
   }
 
   /// [tempDir] injectable pour les tests — null = utilise path_provider.
-  Future<File> downloadMsix(
+  Future<File> downloadZip(
     String url, {
     void Function(double fraction)? onProgress,
     Directory? tempDir,
   }) async {
     final dir = tempDir ?? await getTemporaryDirectory();
-    final dest = File('${dir.path}/terebi_update.msix');
+    final dest = File('${dir.path}/terebi_update.zip');
 
     final request = http.Request('GET', Uri.parse(url));
     final response =
@@ -88,14 +88,19 @@ class UpdateService {
     return dest;
   }
 
-  Future<bool> installMsix(File msixFile) async {
+  /// Extrait le ZIP à côté de l'exe courant via PowerShell Expand-Archive.
+  /// Remplace les fichiers en place — l'exe lui-même sera remplacé au prochain
+  /// lancement (Windows ne verrouille pas les exe remplacés, seulement en cours
+  /// d'exécution : l'ancien reste actif, le nouveau est utilisé au redémarrage).
+  Future<bool> installZip(File zipFile) async {
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
     final result = await Process.run(
       'powershell',
       [
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        'Add-AppxPackage -Path "${msixFile.path}" -ForceApplicationShutdown',
+        'Expand-Archive -Path "${zipFile.path}" -DestinationPath "$exeDir" -Force',
       ],
       runInShell: false,
     ).timeout(const Duration(minutes: 3));
@@ -103,7 +108,7 @@ class UpdateService {
     if (result.exitCode != 0) {
       final stderr = result.stderr.toString().trim();
       throw UpdateError(
-          'Installation MSIX echouee (code ${result.exitCode}) : $stderr');
+          'Installation ZIP echouee (code ${result.exitCode}) : $stderr');
     }
     return true;
   }
