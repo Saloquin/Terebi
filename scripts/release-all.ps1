@@ -142,10 +142,17 @@ if ($buildLinux) {
 
     if (-not $SkipBuild) {
         if (Get-Command docker -ErrorAction SilentlyContinue) {
-            Write-Host '  [build] flutter build linux --release (Docker)' -ForegroundColor Yellow
-            $proj = $ProjectRoot -replace '\\', '/'
-            docker run --rm -v "${proj}:/app" -w /app terebi-ci bash -c 'flutter pub get >/dev/null 2>&1 && flutter build linux --release'
-            if ($LASTEXITCODE -ne 0) { throw 'flutter build linux (Docker) failed' }
+            # Verifie que l'image terebi-ci existe localement
+            $imageExists = docker image inspect terebi-ci 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host '  [build] flutter build linux --release (Docker)' -ForegroundColor Yellow
+                $proj = $ProjectRoot -replace '\\', '/'
+                docker run --rm -v "${proj}:/app" -w /app terebi-ci bash -c 'flutter pub get >/dev/null 2>&1 && flutter build linux --release'
+                if ($LASTEXITCODE -ne 0) { throw 'flutter build linux (Docker) failed' }
+            } else {
+                Write-Warning "Image Docker terebi-ci absente — build Linux ignore."
+                Write-Warning "Pour la construire : docker build -f Dockerfile.flutter-ci -t terebi-ci ."
+            }
         } else {
             Write-Host '  [build] flutter build linux --release (natif)' -ForegroundColor Yellow
             Push-Location $ProjectRoot
