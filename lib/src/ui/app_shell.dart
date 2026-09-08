@@ -130,9 +130,9 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
           // quand on change d'onglet, sans re-scraper à chaque retour.
           // Sur TV, autofocus=true garantit que le focus initial tombe ici et
           // non dans le NavigationRail.
-          FocusScope(
-            autofocus: isTv,
-            child: Expanded(
+          Expanded(
+            child: FocusScope(
+              autofocus: isTv,
               child: IndexedStack(
                 index: _index,
                 children: [for (final d in _destinations) d.page],
