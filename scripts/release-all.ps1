@@ -16,6 +16,29 @@ $Tag = "v$Version"
 
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
+# --- Localise Flutter si absent du PATH ---
+if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
+    $candidates = @(
+        "$env:USERPROFILE\flutter\bin",
+        "$env:USERPROFILE\development\flutter\bin",
+        "$env:USERPROFILE\Documents\flutter\bin",
+        'C:\flutter\bin',
+        'C:\development\flutter\bin',
+        'C:\src\flutter\bin',
+        "$env:LOCALAPPDATA\flutter\bin"
+    )
+    foreach ($c in $candidates) {
+        if (Test-Path (Join-Path $c 'flutter.bat')) {
+            $env:PATH = $c + ';' + $env:PATH
+            Write-Host "  Flutter trouve : $c" -ForegroundColor DarkGray
+            break
+        }
+    }
+    if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
+        throw 'Flutter introuvable. Ajoute le dossier bin de Flutter dans ton PATH, ou installe Flutter depuis https://flutter.dev'
+    }
+}
+
 function SizeMB {
     param($path)
     $bytes = (Get-Item $path).Length
@@ -25,10 +48,6 @@ function SizeMB {
 Write-Host ''
 Write-Host "=== Terebi $Version - release multi-plateforme ===" -ForegroundColor Cyan
 Write-Host ''
-
-# --- Prerequis flutter/dart ---
-if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) { throw 'Flutter non trouve dans le PATH.' }
-if (-not (Get-Command dart -ErrorAction SilentlyContinue))    { throw 'Dart non trouve dans le PATH.' }
 
 # --- Installe gh si absent ---
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
