@@ -33,9 +33,22 @@ function Require($cmd, $msg) {
     if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw $msg }
 }
 
-Require "gh"      "GitHub CLI (gh) non trouve. Voir https://cli.github.com/"
 Require "flutter" "Flutter non trouve dans le PATH."
 Require "dart"    "Dart non trouve dans le PATH."
+
+# Installe gh si absent
+if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+    Write-Host "  GitHub CLI absent — installation via winget..." -ForegroundColor Yellow
+    winget install --id GitHub.cli --silent --accept-source-agreements --accept-package-agreements
+    if ($LASTEXITCODE -ne 0) { throw "Installation de gh echouee. Installe-le manuellement : https://cli.github.com/" }
+    # Recharge le PATH pour la session courante
+    $env:PATH = [System.Environment]::GetEnvironmentVariable("PATH","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("PATH","User")
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        throw "gh installe mais introuvable dans le PATH. Redemarre PowerShell et relance le script."
+    }
+    Write-Host "  gh installe. Connexion GitHub requise..." -ForegroundColor Yellow
+    gh auth login
+}
 
 $buildWindows = $Platform -eq 'all' -or $Platform -eq 'windows'
 $buildAndroid = $Platform -eq 'all' -or $Platform -eq 'android'
