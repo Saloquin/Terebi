@@ -233,4 +233,4 @@ foreach ($a in $artifacts) {
     Write-Host "  + $leaf" -ForegroundColor Gray
 }
 Write-Host ''
-gh release view $Tag --web 2>$null
+gh release view $Tag --web 2>$null | Out-Null
