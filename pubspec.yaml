@@ -88,3 +88,4 @@ msix_config:
   logo_path: assets/branding/logo_clair.png
   capabilities: internetClient
   sign_msix: false
+  publisher: CN=TerebiDev
