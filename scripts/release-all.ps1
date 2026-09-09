@@ -16,7 +16,6 @@ $Tag = "v$Version"
 
 New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
 
-
 # --- Localise Flutter si absent du PATH ---
 if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
     $candidates = @(
@@ -36,7 +35,7 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
         }
     }
     if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
-        throw 'Flutter introuvable. Ajoute le dossier bin de Flutter dans ton PATH, ou installe Flutter depuis https://flutter.dev'
+        throw 'Flutter introuvable. Ajoute le dossier bin de Flutter dans ton PATH.'
     }
 }
 
@@ -103,7 +102,7 @@ if ($buildWindows) {
 }
 
 # ---------------------------------------------------------------------------
-# Android - APK uniquement (AAB : stripping symboles natifs echoue avec media_kit)
+# Android - APK (AAB desactive : stripping symboles natifs echoue avec media_kit)
 # ---------------------------------------------------------------------------
 if ($buildAndroid) {
     Write-Host ''
@@ -142,7 +141,6 @@ if ($buildLinux) {
 
     if (-not $SkipBuild) {
         if (Get-Command docker -ErrorAction SilentlyContinue) {
-            # Verifie que l'image terebi-ci existe localement
             $imageExists = docker image inspect terebi-ci 2>$null
             if ($LASTEXITCODE -eq 0) {
                 Write-Host '  [build] flutter build linux --release (Docker)' -ForegroundColor Yellow
@@ -150,7 +148,7 @@ if ($buildLinux) {
                 docker run --rm -v "${proj}:/app" -w /app terebi-ci bash -c 'flutter pub get >/dev/null 2>&1 && flutter build linux --release'
                 if ($LASTEXITCODE -ne 0) { throw 'flutter build linux (Docker) failed' }
             } else {
-                Write-Warning "Image Docker terebi-ci absente — build Linux ignore."
+                Write-Warning "Image Docker terebi-ci absente - build Linux ignore."
                 Write-Warning "Pour la construire : docker build -f Dockerfile.flutter-ci -t terebi-ci ."
             }
         } else {
