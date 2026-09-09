@@ -79,6 +79,7 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
       builder: (_) => MediaDetailPageTv(
         mediaId: media.mediaId,
         displayTitle: media.title.preferred,
+        animeSamaSlug: media.animeSamaSlug,
       ),
     ));
   }

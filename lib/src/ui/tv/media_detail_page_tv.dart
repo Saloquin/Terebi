@@ -70,11 +70,14 @@ final _mediaDetailProvider =
 class MediaDetailPageTv extends ConsumerStatefulWidget {
   final int mediaId;
   final String? displayTitle;
+  /// Slug anime-sama connu à l'avance — évite une résolution réseau supplémentaire.
+  final String? animeSamaSlug;
 
   const MediaDetailPageTv({
     super.key,
     required this.mediaId,
     this.displayTitle,
+    this.animeSamaSlug,
   });
 
   @override
@@ -95,7 +98,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
     final media = mediaAsync.asData?.value ??
         (widget.displayTitle != null
             ? Media.fromAnimeSama(
-                slug: normalizeAnimeTitle(widget.displayTitle!),
+                slug: widget.animeSamaSlug ?? normalizeAnimeTitle(widget.displayTitle!),
                 title: widget.displayTitle!)
             : Media(
                 mediaId: widget.mediaId,
@@ -104,7 +107,10 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
     final title = widget.displayTitle ??
         media.animeSamaTitle ??
         media.title.preferred;
-    final slug = media.animeSamaSlug ?? '';
+    // Priorité : slug du provider, puis slug passé en paramètre, puis slug synthétique
+    final slug = media.animeSamaSlug?.isNotEmpty == true
+        ? media.animeSamaSlug!
+        : (widget.animeSamaSlug ?? '');
 
     return Focus(
       onKeyEvent: (_, event) {

@@ -246,6 +246,7 @@ class _LibraryTileTv extends ConsumerWidget {
             builder: (_) => MediaDetailPageTv(
               mediaId: entry.mediaId,
               displayTitle: title,
+              animeSamaSlug: slug.isNotEmpty ? slug : null,
             ),
           ),
         );
@@ -258,6 +259,7 @@ class _LibraryTileTv extends ConsumerWidget {
               builder: (_) => MediaDetailPageTv(
                 mediaId: entry.mediaId,
                 displayTitle: title,
+                animeSamaSlug: slug.isNotEmpty ? slug : null,
               ),
             ),
           );

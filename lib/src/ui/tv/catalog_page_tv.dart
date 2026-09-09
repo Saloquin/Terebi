@@ -284,6 +284,7 @@ class _CatalogTileTv extends StatelessWidget {
         builder: (_) => MediaDetailPageTv(
           mediaId: animeSamaIdForSlug(slug),
           displayTitle: item.title,
+          animeSamaSlug: slug,
         ),
       ),
     );

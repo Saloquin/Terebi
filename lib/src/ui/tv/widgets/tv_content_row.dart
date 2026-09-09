@@ -113,6 +113,7 @@ class _TvTile extends ConsumerWidget {
         builder: (_) => MediaDetailPageTv(
           mediaId: media.mediaId,
           displayTitle: media.title.preferred,
+          animeSamaSlug: media.animeSamaSlug,
         ),
       ));
     }
