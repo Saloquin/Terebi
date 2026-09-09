@@ -124,24 +124,25 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
           children: [
             // --- Fond : bannière floue ---
             _BlurredBackground(slug: slug, media: media),
-            // --- Gradient sombre ---
+            // --- Gradient sombre gauche→droite (lisibilité colonne infos) ---
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
-                  colors: [Colors.black87, Colors.transparent],
-                  stops: [0.0, 0.7],
+                  colors: [Colors.black, Color(0x99000000), Colors.transparent],
+                  stops: [0.0, 0.55, 0.85],
                 ),
               ),
             ),
+            // --- Gradient sombre bas→haut ---
             Container(
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.bottomCenter,
                   end: Alignment.topCenter,
-                  colors: [Colors.black54, Colors.transparent],
-                  stops: [0.0, 0.5],
+                  colors: [Colors.black87, Colors.transparent],
+                  stops: [0.0, 0.6],
                 ),
               ),
             ),
@@ -258,19 +259,27 @@ class _BlurredBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ImageFiltered(
-      imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-      child: slug.isNotEmpty
-          ? AnimeSamaImage(
-              slug: slug,
-              banner: true,
-              fallbackUrl: media.bannerUrl ?? media.coverUrl,
-              fit: BoxFit.cover,
-            )
-          : media.bannerUrl != null
-              ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      Container(color: Colors.black))
-              : Container(color: Colors.black),
+      // Blur fort pour que l'image devienne un fond d'ambiance, pas un sujet
+      imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+      child: ColorFiltered(
+        // Assombrit l'image pour améliorer la lisibilité du texte
+        colorFilter: ColorFilter.mode(
+          Colors.black.withValues(alpha: 0.45),
+          BlendMode.darken,
+        ),
+        child: slug.isNotEmpty
+            ? AnimeSamaImage(
+                slug: slug,
+                banner: true,
+                fallbackUrl: media.bannerUrl ?? media.coverUrl,
+                fit: BoxFit.cover,
+              )
+            : media.bannerUrl != null
+                ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        Container(color: Colors.black))
+                : Container(color: Colors.black),
+      ),
     );
   }
 }

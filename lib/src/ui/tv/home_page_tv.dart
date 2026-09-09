@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/media.dart';
 import '../pages/home_providers.dart';
+import 'app_shell_tv.dart';
 import 'widgets/tv_content_row.dart';
 import 'widgets/tv_hero_banner.dart';
 
@@ -63,6 +64,8 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
             event.logicalKey == LogicalKeyboardKey.arrowUp &&
             _scrollController.hasClients &&
             _scrollController.offset <= 0) {
+          // Remonte le focus à la navbar TV
+          TvNavFocusRequest.maybeOf(context)?.requestNavFocus();
           _onHeroFocus();
           return KeyEventResult.handled;
         }

@@ -9,13 +9,24 @@ import '../../widgets/tv_focusable.dart';
 import '../media_detail_page_tv.dart';
 import '../../pages/resume_helper.dart';
 
-// 170px tuile + 30px pour la bordure TvFocusable (3px×2) + AnimatedScale (×1.05) + espacement vertical.
-const double _tileHeight = 170;
-const double _rowHeight = _tileHeight + 30;
+// Nombre de tuiles visibles simultanément (référence pour le calcul de largeur)
+const double _tilesVisible = 5.5;
+// Ratio 16:9
+const double _tileAspectRatio = 16 / 9;
+// Padding horizontal de la rangée (2× car gauche + droite)
+const double _rowHPadding = 40 * 2;
+// Espacement entre tuiles
+const double _tileSpacing = 12;
+
+double _tileWidth(BuildContext context) {
+  final screenWidth = MediaQuery.sizeOf(context).width;
+  final available = screenWidth - _rowHPadding - (_tileSpacing * (_tilesVisible - 1));
+  return (available / _tilesVisible).clamp(200.0, 400.0);
+}
 
 /// Rangée horizontale défilante style Netflix pour Android TV.
-/// Tuiles 16:9 (300×170px). [onFocused] est appelé quand une tuile reçoit
-/// le focus — permet au hero parent de changer son fond.
+/// La largeur des tuiles est calculée dynamiquement pour remplir l'écran.
+/// [onFocused] est appelé quand une tuile reçoit le focus.
 class TvContentRow extends ConsumerWidget {
   final String title;
   final List<Media> items;
@@ -34,6 +45,11 @@ class TvContentRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (items.isEmpty) return const SizedBox.shrink();
 
+    final tileW = _tileWidth(context);
+    final tileH = tileW / _tileAspectRatio;
+    // +30px pour bordure TvFocusable + AnimatedScale overflow
+    final rowH = tileH + 30;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 32),
       child: Column(
@@ -51,13 +67,15 @@ class TvContentRow extends ConsumerWidget {
             ),
           ),
           SizedBox(
-            height: _rowHeight,
+            height: rowH,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 40),
               itemCount: items.length,
               itemBuilder: (context, i) => _TvTile(
                 media: items[i],
+                tileWidth: tileW,
+                tileHeight: tileH,
                 withResume: withResume,
                 onFocused: onFocused,
                 autofocus: i == 0,
@@ -72,12 +90,16 @@ class TvContentRow extends ConsumerWidget {
 
 class _TvTile extends ConsumerWidget {
   final Media media;
+  final double tileWidth;
+  final double tileHeight;
   final bool withResume;
   final void Function(Media)? onFocused;
   final bool autofocus;
 
   const _TvTile({
     required this.media,
+    required this.tileWidth,
+    required this.tileHeight,
     required this.withResume,
     this.onFocused,
     this.autofocus = false,
@@ -107,21 +129,19 @@ class _TvTile extends ConsumerWidget {
         child: GestureDetector(
           onTap: () => _open(context, ref),
           child: SizedBox(
-            width: 300,
-            height: _tileHeight,
+            width: tileWidth,
+            height: tileHeight,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Cover
                   AnimeSamaImage(
                     key: ValueKey(media.mediaId),
                     slug: media.animeSamaSlug ?? '',
                     fallbackUrl: media.coverUrl,
                     fit: BoxFit.cover,
                   ),
-                  // Gradient bas
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -132,7 +152,6 @@ class _TvTile extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  // Titre en bas
                   Positioned(
                     left: 8,
                     right: 8,
@@ -149,7 +168,6 @@ class _TvTile extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Icône lecture si withResume
                   if (withResume)
                     const Center(
                       child: Icon(
@@ -167,3 +185,4 @@ class _TvTile extends ConsumerWidget {
     );
   }
 }
+
