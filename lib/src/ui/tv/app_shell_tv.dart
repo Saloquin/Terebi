@@ -175,7 +175,7 @@ class _TvTopBar extends StatelessWidget {
         return KeyEventResult.ignored;
       },
       child: Container(
-        height: 64,
+        height: 72,
         decoration: BoxDecoration(
           color: Colors.black,
           border: Border(
@@ -244,7 +244,7 @@ class _TvTabItem extends StatelessWidget {
       child: GestureDetector(
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -254,7 +254,7 @@ class _TvTabItem extends StatelessWidget {
                 child: Icon(
                   icon,
                   color: selected ? Colors.white : Colors.white38,
-                  size: 22,
+                  size: 20,
                 ),
               ),
               const SizedBox(height: 2),

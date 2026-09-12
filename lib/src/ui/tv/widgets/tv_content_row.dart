@@ -79,15 +79,22 @@ class TvContentRow extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 40),
               itemCount: items.length,
-              itemBuilder: (context, i) => Center(
-                child: _TvTile(
-                  media: items[i],
-                  tileWidth: tileW,
-                  tileHeight: tileH,
-                  withResume: withResume,
-                  onFocused: onFocused,
-                  autofocus: autofocusFirst && i == 0,
-                ),
+              // Centrage vertical de la tuile dans la marge de focus, sans
+              // Center (qui, dans une ListView horizontale, force une largeur
+              // infinie et casse le layout/hit-test). Column mainAxisSize.min
+              // + alignement centre garde la tuile à sa largeur fixe.
+              itemBuilder: (context, i) => Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _TvTile(
+                    media: items[i],
+                    tileWidth: tileW,
+                    tileHeight: tileH,
+                    withResume: withResume,
+                    onFocused: onFocused,
+                    autofocus: autofocusFirst && i == 0,
+                  ),
+                ],
               ),
             ),
           ),

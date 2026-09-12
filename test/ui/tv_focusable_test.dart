@@ -120,5 +120,35 @@ void main() {
       // Pas d'exception levée = test réussi.
       expect(tester.takeException(), isNull);
     });
+
+    testWidgets(
+        'dans une ListView horizontale, une tuile de largeur fixe ne provoque '
+        'aucune exception de layout (régression: Center forçait une largeur '
+        'infinie et cassait le hit-test/focus)', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 200,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 5,
+              // Reproduit la structure de TvContentRow : Column mainAxisSize.min
+              // + tuile de largeur fixe. Un Center à la place forcerait une
+              // largeur infinie sur l'axe de défilement horizontal.
+              itemBuilder: (context, i) => Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TvFocusable(
+                    child: const SizedBox(width: 120, height: 68),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    });
   });
 }
