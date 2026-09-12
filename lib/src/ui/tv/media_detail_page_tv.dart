@@ -411,14 +411,18 @@ class _ButtonColumn extends ConsumerWidget {
       // depuis un bouton à droite ne trouve pas toujours la liste pleine
       // largeur en dessous).
       canRequestFocus: false,
-      onKeyEvent: (node, event) {
+      onKeyEvent: (_, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           return KeyEventResult.handled;
         }
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          final moved = node.focusInDirection(TraversalDirection.down);
+          // Depuis le bouton réellement focalisé (pas le wrapper non-focusable),
+          // descendre vers les saisons.
+          final moved = FocusManager.instance.primaryFocus
+                  ?.focusInDirection(TraversalDirection.down) ??
+              false;
           return moved ? KeyEventResult.handled : KeyEventResult.ignored;
         }
         return KeyEventResult.ignored;

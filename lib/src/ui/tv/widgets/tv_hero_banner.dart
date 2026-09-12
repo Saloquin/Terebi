@@ -124,15 +124,20 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Fond : cover de l'anime avec transition animée
+            // Fond : bannière (image large paysage) de l'anime, transition
+            // animée. La bannière remplit toute la largeur du hero, contrairement
+            // à la cover portrait.
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 600),
               child: KeyedSubtree(
                 key: ValueKey(media.mediaId),
-                child: AnimeSamaImage(
-                  slug: media.animeSamaSlug ?? '',
-                  fallbackUrl: media.coverUrl,
-                  fit: BoxFit.cover,
+                child: SizedBox.expand(
+                  child: AnimeSamaImage(
+                    slug: media.animeSamaSlug ?? '',
+                    banner: true,
+                    fallbackUrl: media.bannerUrl ?? media.coverUrl,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -193,43 +198,6 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
                           const TextStyle(color: Colors.white70, fontSize: 16),
                     ),
                   ],
-                  const SizedBox(height: 24),
-                  // Indice de navigation : OK ouvre les détails, ◄ ► changent
-                  // de slide. Mis en évidence quand le hero a le focus.
-                  AnimatedOpacity(
-                    duration: const Duration(milliseconds: 150),
-                    opacity: _hasFocus ? 1.0 : 0.55,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: _hasFocus ? Colors.white : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.info_outline,
-                              color: Colors.white, size: 20),
-                          const SizedBox(width: 8),
-                          const Text('OK pour les détails',
-                              style:
-                                  TextStyle(color: Colors.white, fontSize: 15)),
-                          if (widget.items.length > 1) ...[
-                            const SizedBox(width: 16),
-                            const Icon(Icons.chevron_left,
-                                color: Colors.white54, size: 20),
-                            const Icon(Icons.chevron_right,
-                                color: Colors.white54, size: 20),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

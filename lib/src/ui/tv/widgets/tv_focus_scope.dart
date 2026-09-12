@@ -86,11 +86,14 @@ class TvFocusScope extends StatelessWidget {
             // remonte à la navbar. Évite que chaque page ait à gérer arrowUp.
             child: Focus(
               canRequestFocus: false,
-              onKeyEvent: (node, event) {
+              onKeyEvent: (_, event) {
                 if (event is KeyDownEvent &&
                     event.logicalKey == LogicalKeyboardKey.arrowUp) {
-                  final movedInsideContent =
-                      node.focusInDirection(TraversalDirection.up);
+                  // Depuis le nœud réellement focalisé (pas ce wrapper
+                  // non-focusable), tenter de monter dans le contenu.
+                  final movedInsideContent = FocusManager.instance.primaryFocus
+                          ?.focusInDirection(TraversalDirection.up) ??
+                      false;
                   if (!movedInsideContent) {
                     controller.focusNavBar();
                   }
