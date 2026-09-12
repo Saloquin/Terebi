@@ -207,83 +207,76 @@ class _StatsBody extends ConsumerWidget {
     final maxGenreMinutes = topGenres.isEmpty ? 1 : topGenres.first.value;
     final historyAsync = ref.watch(_recentHistoryProvider);
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Text(
-          'Statistiques',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 20),
-
-        // --- Temps total ---
-        _StatCard(
-          icon: Icons.access_time,
-          title: 'Temps total regardé',
-          value: _formatMinutes(data.totalMinutes),
-        ),
-        const SizedBox(height: 12),
-
-        // --- Séries terminées ---
-        _StatCard(
-          icon: Icons.check_circle_outline,
-          title: 'Séries terminées',
-          value: '${data.countByStatus[ListStatus.completed] ?? 0}',
-        ),
-        const SizedBox(height: 20),
-
-        // --- Répartition par statut ---
-        Text(
-          'Répartition par statut',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        _StatusBars(countByStatus: data.countByStatus),
-        const SizedBox(height: 20),
-
-        // --- Top genres ---
-        if (topGenres.isNotEmpty) ...[
+    return Focus(
+      autofocus: true,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
           Text(
-            'Top genres (temps regardé)',
+            'Statistiques',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 20),
+          _StatCard(
+            icon: Icons.access_time,
+            title: 'Temps total regardé',
+            value: _formatMinutes(data.totalMinutes),
+          ),
+          const SizedBox(height: 12),
+          _StatCard(
+            icon: Icons.check_circle_outline,
+            title: 'Séries terminées',
+            value: '${data.countByStatus[ListStatus.completed] ?? 0}',
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Répartition par statut',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 12),
-          for (final entry in topGenres)
-            _GenreBar(
-              genre: entry.key,
-              minutes: entry.value,
-              maxMinutes: maxGenreMinutes,
+          _StatusBars(countByStatus: data.countByStatus),
+          const SizedBox(height: 20),
+          if (topGenres.isNotEmpty) ...[
+            Text(
+              'Top genres (temps regardé)',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-        ],
-
-        // --- Activité récente (historique des lancements) ---
-        const SizedBox(height: 20),
-        Text(
-          'Activité récente',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        const SizedBox(height: 12),
-        historyAsync.when(
-          loading: () => const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 12),
+            for (final entry in topGenres)
+              _GenreBar(
+                genre: entry.key,
+                minutes: entry.value,
+                maxMinutes: maxGenreMinutes,
+              ),
+          ],
+          const SizedBox(height: 20),
+          Text(
+            'Activité récente',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (rows) {
-            if (rows.isEmpty) {
-              return Text(
-                'Aucune lecture récente.',
-                style: Theme.of(context).textTheme.bodySmall,
+          const SizedBox(height: 12),
+          historyAsync.when(
+            loading: () => const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+            error: (_, __) => const SizedBox.shrink(),
+            data: (rows) {
+              if (rows.isEmpty) {
+                return Text(
+                  'Aucune lecture récente.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                );
+              }
+              return Column(
+                children: [
+                  for (final r in rows) _HistoryTile(row: r),
+                ],
               );
-            }
-            return Column(
-              children: [
-                for (final r in rows) _HistoryTile(row: r),
-              ],
-            );
-          },
-        ),
-      ],
+            },
+          ),
+        ],
+      ),
     );
   }
 
