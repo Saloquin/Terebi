@@ -9,6 +9,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 /// Contrôleur partagé entre le shell TV et ses pages pour piloter le pont.
 class TvFocusController {
@@ -77,7 +78,29 @@ class TvFocusScope extends StatelessWidget {
       children: [
         FocusScope(node: controller.navScope, child: navBar),
         Expanded(
-          child: FocusScope(node: controller.contentScope, child: content),
+          child: FocusScope(
+            node: controller.contentScope,
+            // Remontée navbar CENTRALISÉE pour toutes les pages : sur flèche
+            // haut, on tente d'abord de monter à l'intérieur du contenu ; si
+            // aucun focusable n'existe au-dessus (on est en haut de page), on
+            // remonte à la navbar. Évite que chaque page ait à gérer arrowUp.
+            child: Focus(
+              canRequestFocus: false,
+              onKeyEvent: (node, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowUp) {
+                  final movedInsideContent =
+                      node.focusInDirection(TraversalDirection.up);
+                  if (!movedInsideContent) {
+                    controller.focusNavBar();
+                  }
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: content,
+            ),
+          ),
         ),
       ],
     );

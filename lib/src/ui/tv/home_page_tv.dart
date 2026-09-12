@@ -1,12 +1,10 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/media.dart';
 import '../pages/home_providers.dart';
-import 'app_shell_tv.dart';
 import 'widgets/tv_content_row.dart';
 import 'widgets/tv_hero_banner.dart';
 
@@ -58,74 +56,60 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
           orElse: () => <String>[],
         );
 
-    return Focus(
-      onKeyEvent: (_, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.arrowUp &&
-            _scrollController.hasClients &&
-            _scrollController.offset <= 0) {
-          // Remonte le focus à la navbar TV
-          TvFocusScopeProvider.maybeOf(context)?.focusNavBar();
-          _onHeroFocus();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: ColoredBox(
-        color: Colors.black,
-        child: ListView(
-          controller: _scrollController,
-          children: [
-            Focus(
-              onFocusChange: (focused) {
-                if (focused) _onHeroFocus();
-              },
-              child: TvHeroBanner(
-                items: heroItems,
-                focusedMedia: _focusedMedia,
-              ),
+    return ColoredBox(
+      color: Colors.black,
+      child: ListView(
+        controller: _scrollController,
+        children: [
+          Focus(
+            onFocusChange: (focused) {
+              if (focused) _onHeroFocus();
+            },
+            child: TvHeroBanner(
+              items: heroItems,
+              focusedMedia: _focusedMedia,
             ),
-            const SizedBox(height: 24),
-            if (continueItems.isNotEmpty)
-              TvContentRow(
-                title: 'Continuer à regarder',
-                items: continueItems,
-                withResume: true,
-                onFocused: _onRowFocus,
-                autofocusFirst: true,
-              ),
-            if (recentItems.isNotEmpty)
-              TvContentRow(
-                title: 'Regardé récemment',
-                items: recentItems,
-                withResume: true,
-                onFocused: _onRowFocus,
-                autofocusFirst: continueItems.isEmpty,
-              ),
-            if (heroItems.isNotEmpty)
-              TvContentRow(
-                title: 'Nouvelles sorties',
-                items: heroItems,
-                onFocused: _onRowFocus,
-                autofocusFirst: continueItems.isEmpty && recentItems.isEmpty,
-              ),
-            if (classicItems.isNotEmpty)
-              TvContentRow(
-                title: 'Les classiques',
-                items: classicItems,
-                onFocused: _onRowFocus,
-                autofocusFirst: continueItems.isEmpty &&
-                    recentItems.isEmpty &&
-                    heroItems.isEmpty,
-              ),
-            for (final genre in genres)
-              _GenreRow(
-                genre: genre,
-                onFocused: _onRowFocus,
-              ),
-            const SizedBox(height: 48),
-          ],
-        ),
+          ),
+          const SizedBox(height: 24),
+          if (continueItems.isNotEmpty)
+            TvContentRow(
+              title: 'Continuer à regarder',
+              items: continueItems,
+              withResume: true,
+              onFocused: _onRowFocus,
+              autofocusFirst: true,
+            ),
+          if (recentItems.isNotEmpty)
+            TvContentRow(
+              title: 'Regardé récemment',
+              items: recentItems,
+              withResume: true,
+              onFocused: _onRowFocus,
+              autofocusFirst: continueItems.isEmpty,
+            ),
+          if (heroItems.isNotEmpty)
+            TvContentRow(
+              title: 'Nouvelles sorties',
+              items: heroItems,
+              onFocused: _onRowFocus,
+              autofocusFirst: continueItems.isEmpty && recentItems.isEmpty,
+            ),
+          if (classicItems.isNotEmpty)
+            TvContentRow(
+              title: 'Les classiques',
+              items: classicItems,
+              onFocused: _onRowFocus,
+              autofocusFirst: continueItems.isEmpty &&
+                  recentItems.isEmpty &&
+                  heroItems.isEmpty,
+            ),
+          for (final genre in genres)
+            _GenreRow(
+              genre: genre,
+              onFocused: _onRowFocus,
+            ),
+          const SizedBox(height: 48),
+        ],
       ),
     );
   }

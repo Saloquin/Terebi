@@ -7,6 +7,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
@@ -101,6 +102,19 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
   int _lastWatched = 0; // dernier épisode vu (0 = rien)
   int? _total; // nombre d'épisodes anime-sama de la saison
   bool _loaded = false;
+
+  // Nœuds explicites : la navigation verticale (haut/bas) circule entre les
+  // tuiles ; le bouton « marquer-vu » n'est atteint que latéralement (droite
+  // depuis la tuile, gauche pour revenir).
+  final FocusNode _tileNode = FocusNode(debugLabel: 'seasonTile');
+  final FocusNode _buttonNode = FocusNode(debugLabel: 'seasonButton');
+
+  @override
+  void dispose() {
+    _tileNode.dispose();
+    _buttonNode.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -299,81 +313,114 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          // Tuile principale : OK = lire la saison.
+          // Tuile principale : OK = lire la saison. Flèche droite → bouton
+          // marquer-vu de la même ligne.
           Expanded(
-            child: TvFocusable(
-              autofocus: widget.autofocus,
-              onPressed: _play,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          done ? Icons.check_circle : Icons.play_circle_outline,
-                          color: done ? Colors.green : Colors.white,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            widget.season.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: Colors.white, fontSize: 15),
+            child: Focus(
+              canRequestFocus: false,
+              onKeyEvent: (_, event) {
+                if (_loaded &&
+                    event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                  _buttonNode.requestFocus();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: TvFocusable(
+                focusNode: _tileNode,
+                autofocus: widget.autofocus,
+                onPressed: _play,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            done
+                                ? Icons.check_circle
+                                : Icons.play_circle_outline,
+                            color: done ? Colors.green : Colors.white,
+                            size: 20,
                           ),
-                        ),
-                        Text(
-                          progressText,
-                          style: TextStyle(
-                            color: done ? Colors.green : Colors.white70,
-                            fontSize: 13,
-                            fontWeight: done ? FontWeight.bold : null,
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              widget.season.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 15),
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: ratio, // null → barre indéterminée
-                        minHeight: 5,
-                        backgroundColor: Colors.white24,
-                        color: done
-                            ? Colors.green
-                            : Theme.of(context).colorScheme.primary,
+                          Text(
+                            progressText,
+                            style: TextStyle(
+                              color: done ? Colors.green : Colors.white70,
+                              fontSize: 13,
+                              fontWeight: done ? FontWeight.bold : null,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: ratio, // null → barre indéterminée
+                          minHeight: 5,
+                          backgroundColor: Colors.white24,
+                          color: done
+                              ? Colors.green
+                              : Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
           const SizedBox(width: 12),
-          // Bouton séparé : marquer vue / annuler (focusable au D-pad).
+          // Bouton séparé : marquer vue / annuler. Exclu de la traversée
+          // verticale (haut/bas ne l'atteignent pas) : accessible seulement par
+          // flèche droite depuis la tuile ; flèche gauche y revient.
           if (_loaded)
-            TvFocusable(
-              onPressed: done ? _unmarkThisSeason : _markThisSeasonWatched,
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white10,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  done ? Icons.remove_done : Icons.done_all,
-                  color: Colors.white,
-                  size: 22,
+            Focus(
+              canRequestFocus: false,
+              onKeyEvent: (_, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                  _tileNode.requestFocus();
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: FocusTraversalGroup(
+                descendantsAreTraversable: false,
+                child: TvFocusable(
+                  focusNode: _buttonNode,
+                  onPressed: done ? _unmarkThisSeason : _markThisSeasonWatched,
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white10,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      done ? Icons.remove_done : Icons.done_all,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                  ),
                 ),
               ),
             ),
