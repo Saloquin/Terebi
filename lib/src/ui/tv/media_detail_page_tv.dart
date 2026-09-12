@@ -45,8 +45,7 @@ final _resolvedSlugProvider =
 });
 
 final _mediaDetailProvider =
-    StreamProvider.family<Media?, ({int id, String? title})>(
-        (ref, arg) async* {
+    StreamProvider.family<Media?, ({int id, String? title})>((ref, arg) async* {
   final repo = ref.watch(mediaRepositoryProvider);
   final cached = await repo.getMedia(arg.id);
   var slug = cached?.animeSamaSlug;
@@ -70,6 +69,7 @@ final _mediaDetailProvider =
 class MediaDetailPageTv extends ConsumerStatefulWidget {
   final int mediaId;
   final String? displayTitle;
+
   /// Slug anime-sama connu à l'avance — évite une résolution réseau supplémentaire.
   final String? animeSamaSlug;
 
@@ -81,8 +81,7 @@ class MediaDetailPageTv extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<MediaDetailPageTv> createState() =>
-      _MediaDetailPageTvState();
+  ConsumerState<MediaDetailPageTv> createState() => _MediaDetailPageTvState();
 }
 
 class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
@@ -98,15 +97,15 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
     final media = mediaAsync.asData?.value ??
         (widget.displayTitle != null
             ? Media.fromAnimeSama(
-                slug: widget.animeSamaSlug ?? normalizeAnimeTitle(widget.displayTitle!),
+                slug: widget.animeSamaSlug ??
+                    normalizeAnimeTitle(widget.displayTitle!),
                 title: widget.displayTitle!)
             : Media(
                 mediaId: widget.mediaId,
                 title: const MediaTitle(romaji: 'Anime')));
 
-    final title = widget.displayTitle ??
-        media.animeSamaTitle ??
-        media.title.preferred;
+    final title =
+        widget.displayTitle ?? media.animeSamaTitle ?? media.title.preferred;
     // Priorité : slug du provider, puis slug passé en paramètre, puis slug synthétique
     final slug = media.animeSamaSlug?.isNotEmpty == true
         ? media.animeSamaSlug!
@@ -159,13 +158,14 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   // Panneau latéral gauche (saisons ou statut)
-                  if (_openPanel != null)
-                    _buildPanel(media, title),
+                  if (_openPanel != null) _buildPanel(media, title),
                   // Infos (gauche)
                   Expanded(
                     flex: 3,
                     child: _InfoColumn(
-                        media: media, title: title, displayTitle: widget.displayTitle),
+                        media: media,
+                        title: title,
+                        displayTitle: widget.displayTitle),
                   ),
                   const SizedBox(width: 48),
                   // Boutons (droite) — largeur fixe : _ButtonColumn utilise
@@ -176,8 +176,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                     child: _ButtonColumn(
                       media: media,
                       title: title,
-                      onOpenStatus: () =>
-                          setState(() => _openPanel = 'status'),
+                      onOpenStatus: () => setState(() => _openPanel = 'status'),
                       onOpenSeasons: () =>
                           setState(() => _openPanel = 'seasons'),
                     ),
@@ -286,7 +285,8 @@ class _BlurredBackground extends StatelessWidget {
                 fit: BoxFit.cover,
               )
             : media.bannerUrl != null
-                ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
+                ? Image.network(media.bannerUrl!,
+                    fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
                         Container(color: Colors.black))
                 : Container(color: Colors.black),
@@ -355,8 +355,8 @@ class _InfoColumn extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(g,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12)),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12)),
                 ),
             ],
           ),
@@ -387,61 +387,73 @@ class _ButtonColumn extends ConsumerWidget {
     final entryAsync = ref.watch(listEntryProvider(media.mediaId));
     final entry = entryAsync.asData?.value;
     final searchTitle = media.animeSamaTitle ?? title;
-    final seasonsAsync =
-        ref.watch(animeSamaSeasonsProvider(searchTitle));
+    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
     final seasons = seasonsAsync.asData?.value ?? [];
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Lire
-        _TvActionButton(
-          autofocus: true,
-          icon: Icons.play_arrow,
-          label: 'Lire',
-          onPressed: () => resumePlayback(context, ref, media),
-        ),
-        const SizedBox(height: 12),
-        // Ajouter / Modifier statut
-        if (entry == null)
+    return Focus(
+      // Empêche la fuite de focus vers la gauche : la colonne d'infos n'a aucun
+      // élément focusable (texte seul), donc une flèche gauche enverrait le
+      // focus dans le vide sans retour possible. On absorbe arrowLeft ici.
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Lire
           _TvActionButton(
-            icon: Icons.add,
-            label: 'Ajouter',
-            onPressed: () async {
-              await ref.read(mediaRepositoryProvider).upsertMedia(media);
-              final hasProgress = await ref
-                  .read(seasonProgressRepositoryProvider)
-                  .hasAnyProgress(media.mediaId);
-              final status =
-                  effectiveStatus(entry: null, hasProgress: hasProgress) ??
-                      ListStatus.planning;
-              await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
-                    mediaId: media.mediaId,
-                    status: status,
-                    updatedAt: DateTime.now(),
-                  ));
-              ref.invalidate(entriesByStatusProvider);
-              ref.invalidate(countByStatusProvider);
-            },
-          )
-        else
-          _TvActionButton(
-            icon: Icons.edit,
-            label: 'Modifier statut',
-            onPressed: onOpenStatus,
+            autofocus: true,
+            icon: Icons.play_arrow,
+            label: 'Lire',
+            onPressed: () => resumePlayback(context, ref, media),
           ),
-        // Saisons (si plusieurs)
-        if (seasons.length > 1) ...[
           const SizedBox(height: 12),
-          _TvActionButton(
-            icon: Icons.layers,
-            label: 'Saisons',
-            onPressed: onOpenSeasons,
-          ),
+          // Ajouter / Modifier statut
+          if (entry == null)
+            _TvActionButton(
+              icon: Icons.add,
+              label: 'Ajouter',
+              onPressed: () async {
+                await ref.read(mediaRepositoryProvider).upsertMedia(media);
+                final hasProgress = await ref
+                    .read(seasonProgressRepositoryProvider)
+                    .hasAnyProgress(media.mediaId);
+                final status =
+                    effectiveStatus(entry: null, hasProgress: hasProgress) ??
+                        ListStatus.planning;
+                await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
+                      mediaId: media.mediaId,
+                      status: status,
+                      updatedAt: DateTime.now(),
+                    ));
+                ref.invalidate(entriesByStatusProvider);
+                ref.invalidate(countByStatusProvider);
+              },
+            )
+          else
+            _TvActionButton(
+              icon: Icons.edit,
+              label: 'Modifier statut',
+              onPressed: onOpenStatus,
+            ),
+          // Saisons (si plusieurs)
+          if (seasons.length > 1) ...[
+            const SizedBox(height: 12),
+            _TvActionButton(
+              icon: Icons.layers,
+              label: 'Saisons',
+              onPressed: onOpenSeasons,
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }
@@ -467,8 +479,7 @@ class _TvActionButton extends StatelessWidget {
       child: GestureDetector(
         onTap: onPressed,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white12,
             borderRadius: BorderRadius.circular(8),
@@ -479,8 +490,7 @@ class _TvActionButton extends StatelessWidget {
               Icon(icon, color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Text(label,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 15)),
+                  style: const TextStyle(color: Colors.white, fontSize: 15)),
             ],
           ),
         ),
@@ -532,8 +542,7 @@ class _SeasonsPanel extends ConsumerWidget {
             final index = item.value as int;
             await ref
                 .read(settingsRepositoryProvider)
-                .set(SettingsKeys.animeSamaSeasonFor(media.mediaId),
-                    '$index');
+                .set(SettingsKeys.animeSamaSeasonFor(media.mediaId), '$index');
             onClose();
           },
           onClose: onClose,

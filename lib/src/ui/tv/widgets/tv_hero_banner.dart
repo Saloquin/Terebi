@@ -3,7 +3,6 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/media.dart';
@@ -102,22 +101,12 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
     final heroHeight = screenHeight - 64;
 
     return Focus(
+      // Ne prend jamais le focus lui-même : les boutons Lire/Détails doivent
+      // le recevoir pour que la navigation horizontale native fonctionne entre
+      // eux. La rotation des slides est automatique (timer) — on n'intercepte
+      // donc plus les flèches, qui servent à naviguer entre les boutons.
+      canRequestFocus: false,
       onFocusChange: (v) => setState(() => _hasFocus = v),
-      onKeyEvent: (_, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-            widget.items.length > 1) {
-          setState(() =>
-              _current = (_current - 1 + widget.items.length) % widget.items.length);
-          return KeyEventResult.handled;
-        }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-            widget.items.length > 1) {
-          setState(() => _current = (_current + 1) % widget.items.length);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
       child: SizedBox(
         width: screenWidth,
         height: heroHeight,
@@ -189,8 +178,8 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
                     const SizedBox(height: 12),
                     Text(
                       media.genres.take(3).join(' • '),
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 16),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 16),
                     ),
                   ],
                   const SizedBox(height: 24),
@@ -218,13 +207,12 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
                           icon: const Icon(Icons.info_outline,
                               size: 20, color: Colors.white),
                           label: const Text('Détails',
-                              style: TextStyle(
-                                  fontSize: 16, color: Colors.white)),
+                              style:
+                                  TextStyle(fontSize: 16, color: Colors.white)),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 28, vertical: 14),
-                            side:
-                                const BorderSide(color: Colors.white54),
+                            side: const BorderSide(color: Colors.white54),
                           ),
                         ),
                       ),
