@@ -36,8 +36,10 @@ class TvSeasonsList extends ConsumerStatefulWidget {
   final bool autofocusFirst;
 
   /// Si fourni, ce FocusNode est donné à la première tuile de saison.
-  /// Permet à un parent (ex. _ButtonColumn) de cibler directement la 1re saison.
   final FocusNode? firstSeasonFocusNode;
+
+  /// Si fourni, arrowUp depuis la première tuile cible ce nœud (ex. bouton Lire).
+  final FocusNode? firstSeasonUpNode;
 
   const TvSeasonsList({
     super.key,
@@ -46,6 +48,7 @@ class TvSeasonsList extends ConsumerStatefulWidget {
     this.shrinkWrap = false,
     this.autofocusFirst = true,
     this.firstSeasonFocusNode,
+    this.firstSeasonUpNode,
   });
 
   @override
@@ -123,6 +126,7 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
               initialLastWatched: progress.lastWatched,
               initialTotal: progress.total,
               externalTileNode: i == 0 ? widget.firstSeasonFocusNode : null,
+              upNode: i == 0 ? widget.firstSeasonUpNode : null,
               onProgressChanged: (lastWatched) {
                 setState(() {
                   _progressBySeasonIndex = {
@@ -150,6 +154,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
   final int? initialTotal;
   final void Function(int lastWatched) onProgressChanged;
   final FocusNode? externalTileNode;
+  final FocusNode? upNode;
 
   const _TvSeasonRow({
     required this.media,
@@ -161,6 +166,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
     required this.initialTotal,
     required this.onProgressChanged,
     this.externalTileNode,
+    this.upNode,
   });
 
   @override
@@ -365,8 +371,13 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
                   _buttonNode.requestFocus();
                   return KeyEventResult.handled;
                 }
-                // Dernière saison : absorber arrowDown pour ne pas perdre le
-                // focus dans le vide sous la liste.
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowUp &&
+                    widget.upNode != null &&
+                    widget.upNode!.canRequestFocus) {
+                  widget.upNode!.requestFocus();
+                  return KeyEventResult.handled;
+                }
                 if (widget.isLastSeason &&
                     event is KeyDownEvent &&
                     event.logicalKey == LogicalKeyboardKey.arrowDown) {

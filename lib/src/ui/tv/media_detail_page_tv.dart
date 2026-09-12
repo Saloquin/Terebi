@@ -86,12 +86,13 @@ class MediaDetailPageTv extends ConsumerStatefulWidget {
 
 class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
   String? _openPanel;
-  final FocusNode _firstSeasonNode =
-      FocusNode(debugLabel: 'firstSeasonTile');
+  final FocusNode _firstSeasonNode = FocusNode(debugLabel: 'firstSeasonTile');
+  final FocusNode _playButtonNode = FocusNode(debugLabel: 'playButton');
 
   @override
   void dispose() {
     _firstSeasonNode.dispose();
+    _playButtonNode.dispose();
     super.dispose();
   }
 
@@ -192,6 +193,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                             onOpenStatus: () =>
                                 setState(() => _openPanel = 'status'),
                             firstSeasonNode: _firstSeasonNode,
+                            playButtonNode: _playButtonNode,
                           ),
                         ),
                       ],
@@ -215,36 +217,23 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                       shrinkWrap: true,
                       autofocusFirst: false,
                       firstSeasonFocusNode: _firstSeasonNode,
+                      firstSeasonUpNode: _playButtonNode,
                     ),
                   ],
                 ),
               ),
             ),
-            // Bouton Retour — absorbe les touches directionnelles pour ne
-            // pas perdre le focus si on appuie sur une mauvaise touche.
+            // Bouton Retour
             Positioned(
               top: 16,
               left: 16,
-              child: Focus(
-                canRequestFocus: false,
-                onKeyEvent: (_, event) {
-                  if (event is! KeyDownEvent) return KeyEventResult.ignored;
-                  final k = event.logicalKey;
-                  if (k == LogicalKeyboardKey.arrowUp ||
-                      k == LogicalKeyboardKey.arrowDown ||
-                      k == LogicalKeyboardKey.arrowRight) {
-                    return KeyEventResult.handled;
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: TvFocusable(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: const Padding(
-                      padding: EdgeInsets.all(12),
-                      child: Icon(Icons.arrow_back, color: Colors.white),
-                    ),
+              child: TvFocusable(
+                onPressed: () => Navigator.of(context).pop(),
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Icon(Icons.arrow_back, color: Colors.white),
                   ),
                 ),
               ),
@@ -415,12 +404,14 @@ class _ButtonColumn extends ConsumerWidget {
   final String title;
   final VoidCallback onOpenStatus;
   final FocusNode firstSeasonNode;
+  final FocusNode playButtonNode;
 
   const _ButtonColumn({
     required this.media,
     required this.title,
     required this.onOpenStatus,
     required this.firstSeasonNode,
+    required this.playButtonNode,
   });
 
   @override
@@ -453,6 +444,7 @@ class _ButtonColumn extends ConsumerWidget {
         children: [
           _TvActionButton(
             autofocus: true,
+            focusNode: playButtonNode,
             icon: Icons.play_arrow,
             label: 'Lire',
             onPressed: () => resumePlayback(context, ref, media),
@@ -496,18 +488,21 @@ class _TvActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final bool autofocus;
+  final FocusNode? focusNode;
 
   const _TvActionButton({
     required this.icon,
     required this.label,
     required this.onPressed,
     this.autofocus = false,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
     return TvFocusable(
       autofocus: autofocus,
+      focusNode: focusNode,
       onPressed: onPressed,
       child: GestureDetector(
         onTap: onPressed,
