@@ -407,11 +407,19 @@ class _ButtonColumn extends ConsumerWidget {
       // Empêche la fuite de focus vers la gauche : la colonne d'infos n'a aucun
       // élément focusable (texte seul), donc une flèche gauche enverrait le
       // focus dans le vide sans retour possible. On absorbe arrowLeft ici.
+      // Flèche bas : force la descente vers les saisons (la traversée native
+      // depuis un bouton à droite ne trouve pas toujours la liste pleine
+      // largeur en dessous).
       canRequestFocus: false,
-      onKeyEvent: (_, event) {
+      onKeyEvent: (node, event) {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           return KeyEventResult.handled;
+        }
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          final moved = node.focusInDirection(TraversalDirection.down);
+          return moved ? KeyEventResult.handled : KeyEventResult.ignored;
         }
         return KeyEventResult.ignored;
       },

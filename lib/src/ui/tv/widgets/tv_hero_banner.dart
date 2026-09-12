@@ -3,13 +3,12 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/media.dart';
 import '../../widgets/anime_sama_image.dart';
-import '../../widgets/tv_focusable.dart';
 import '../media_detail_page_tv.dart';
-import '../../pages/resume_helper.dart';
 import 'tv_slide_indicators.dart';
 
 /// Hero plein écran style Netflix pour Android TV.
@@ -66,12 +65,6 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
     return widget.items[_current % widget.items.length];
   }
 
-  void _play(BuildContext context) {
-    final media = _displayed;
-    if (media == null) return;
-    resumePlayback(context, ref, media);
-  }
-
   void _openDetail(BuildContext context) {
     final media = _displayed;
     if (media == null) return;
@@ -101,12 +94,30 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
     final heroHeight = screenHeight - 64;
 
     return Focus(
-      // Ne prend jamais le focus lui-même : les boutons Lire/Détails doivent
-      // le recevoir pour que la navigation horizontale native fonctionne entre
-      // eux. La rotation des slides est automatique (timer) — on n'intercepte
-      // donc plus les flèches, qui servent à naviguer entre les boutons.
-      canRequestFocus: false,
+      // Le hero est lui-même le focusable : pas de boutons. Flèche gauche/droite
+      // change de slide, OK/Centre ouvre les détails du slide courant. Haut/bas
+      // ne sont pas interceptés → gérés par le parent (navbar / rangées).
+      autofocus: true,
       onFocusChange: (v) => setState(() => _hasFocus = v),
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.arrowLeft && widget.items.length > 1) {
+          setState(() => _current =
+              (_current - 1 + widget.items.length) % widget.items.length);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowRight && widget.items.length > 1) {
+          setState(() => _current = (_current + 1) % widget.items.length);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          _openDetail(context);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
       child: SizedBox(
         width: screenWidth,
         height: heroHeight,
@@ -183,40 +194,41 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
                     ),
                   ],
                   const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      TvFocusable(
-                        autofocus: true,
-                        onPressed: () => _play(context),
-                        child: FilledButton.icon(
-                          onPressed: () => _play(context),
-                          icon: const Icon(Icons.play_arrow, size: 22),
-                          label: const Text('Lire',
-                              style: TextStyle(fontSize: 16)),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 28, vertical: 14),
-                          ),
+                  // Indice de navigation : OK ouvre les détails, ◄ ► changent
+                  // de slide. Mis en évidence quand le hero a le focus.
+                  AnimatedOpacity(
+                    duration: const Duration(milliseconds: 150),
+                    opacity: _hasFocus ? 1.0 : 0.55,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: _hasFocus ? Colors.white : Colors.transparent,
+                          width: 2,
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      TvFocusable(
-                        onPressed: () => _openDetail(context),
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openDetail(context),
-                          icon: const Icon(Icons.info_outline,
-                              size: 20, color: Colors.white),
-                          label: const Text('Détails',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.info_outline,
+                              color: Colors.white, size: 20),
+                          const SizedBox(width: 8),
+                          const Text('OK pour les détails',
                               style:
-                                  TextStyle(fontSize: 16, color: Colors.white)),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 28, vertical: 14),
-                            side: const BorderSide(color: Colors.white54),
-                          ),
-                        ),
+                                  TextStyle(color: Colors.white, fontSize: 15)),
+                          if (widget.items.length > 1) ...[
+                            const SizedBox(width: 16),
+                            const Icon(Icons.chevron_left,
+                                color: Colors.white54, size: 20),
+                            const Icon(Icons.chevron_right,
+                                color: Colors.white54, size: 20),
+                          ],
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
