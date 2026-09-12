@@ -92,6 +92,7 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
                 items: continueItems,
                 withResume: true,
                 onFocused: _onRowFocus,
+                autofocusFirst: true,
               ),
             if (recentItems.isNotEmpty)
               TvContentRow(
@@ -99,18 +100,23 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
                 items: recentItems,
                 withResume: true,
                 onFocused: _onRowFocus,
+                autofocusFirst: continueItems.isEmpty,
               ),
             if (heroItems.isNotEmpty)
               TvContentRow(
                 title: 'Nouvelles sorties',
                 items: heroItems,
                 onFocused: _onRowFocus,
+                autofocusFirst: continueItems.isEmpty && recentItems.isEmpty,
               ),
             if (classicItems.isNotEmpty)
               TvContentRow(
                 title: 'Les classiques',
                 items: classicItems,
                 onFocused: _onRowFocus,
+                autofocusFirst: continueItems.isEmpty &&
+                    recentItems.isEmpty &&
+                    heroItems.isEmpty,
               ),
             for (final genre in genres)
               _GenreRow(
