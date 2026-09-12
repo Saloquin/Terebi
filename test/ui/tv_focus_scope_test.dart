@@ -69,12 +69,45 @@ void main() {
       await tester.pump();
       controller.focusContent();
       await tester.pump();
-      expect(contentNode.hasFocus, isFalse); // contentScope n'a pas d'historique
+      // Sans historique, focusContent focalise le premier focusable du contenu
+      // (garantit un focus visible, jamais coincé sur le scope).
+      expect(contentNode.hasFocus, isTrue);
 
-      // Remonte : doit revenir à nav2, pas nav1 (defaultNavNode).
+      // Remonte : doit revenir à nav2 (dernier onglet focalisé), pas nav1.
       controller.focusNavBar();
       await tester.pump();
       expect(navNode2.hasFocus, isTrue);
+    });
+
+    testWidgets(
+        'focusNavBar sans historique focalise le premier onglet (highlight '
+        'visible, pas coincé sur le scope)', (tester) async {
+      final controller = TvFocusController();
+      final navNode1 = FocusNode(debugLabel: 'nav1');
+      final navNode2 = FocusNode(debugLabel: 'nav2');
+      final contentNode = FocusNode(debugLabel: 'content');
+
+      await tester.pumpWidget(MaterialApp(
+        home: TvFocusScope(
+          controller: controller,
+          navBar: Row(
+            children: [
+              Focus(focusNode: navNode1, child: const SizedBox()),
+              Focus(focusNode: navNode2, child: const SizedBox()),
+            ],
+          ),
+          content: Focus(focusNode: contentNode, child: const SizedBox()),
+        ),
+      ));
+
+      // Le contenu a le focus au départ, la navbar n'a aucun historique.
+      contentNode.requestFocus();
+      await tester.pump();
+
+      // Remonte à la navbar : le premier onglet doit recevoir le focus.
+      controller.focusNavBar();
+      await tester.pump();
+      expect(navNode1.hasFocus, isTrue);
     });
   });
 }

@@ -17,21 +17,35 @@ class TvFocusController {
       FocusScopeNode(debugLabel: 'tvContentScope');
 
   /// Donne le focus à la navbar : restaure le dernier onglet focalisé si connu,
-  /// sinon laisse le scope choisir son premier focalisable.
+  /// sinon focalise explicitement le PREMIER onglet focusable. On ne se contente
+  /// pas de `navScope.requestFocus()` : sans autofocus déclaré sur un enfant, le
+  /// focus resterait sur le scope lui-même (aucun highlight visible, flèches
+  /// gauche/droite sans point de départ).
   void focusNavBar() {
     final last = navScope.focusedChild;
     if (last != null) {
       last.requestFocus();
+      return;
+    }
+    final firstChild = navScope.traversalDescendants.firstOrNull;
+    if (firstChild != null) {
+      firstChild.requestFocus();
     } else {
       navScope.requestFocus();
     }
   }
 
-  /// Rend le focus au contenu, sur son dernier enfant focalisé si connu.
+  /// Rend le focus au contenu, sur son dernier enfant focalisé si connu, sinon
+  /// sur le premier focusable du contenu (même logique que [focusNavBar]).
   void focusContent() {
     final last = contentScope.focusedChild;
     if (last != null) {
       last.requestFocus();
+      return;
+    }
+    final firstChild = contentScope.traversalDescendants.firstOrNull;
+    if (firstChild != null) {
+      firstChild.requestFocus();
     } else {
       contentScope.requestFocus();
     }

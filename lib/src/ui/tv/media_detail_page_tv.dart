@@ -168,14 +168,19 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                         media: media, title: title, displayTitle: widget.displayTitle),
                   ),
                   const SizedBox(width: 48),
-                  // Boutons (droite)
-                  _ButtonColumn(
-                    media: media,
-                    title: title,
-                    onOpenStatus: () =>
-                        setState(() => _openPanel = 'status'),
-                    onOpenSeasons: () =>
-                        setState(() => _openPanel = 'seasons'),
+                  // Boutons (droite) — largeur fixe : _ButtonColumn utilise
+                  // crossAxisAlignment.stretch et doit donc recevoir une
+                  // contrainte de largeur finie (sinon largeur infinie -> crash).
+                  SizedBox(
+                    width: 280,
+                    child: _ButtonColumn(
+                      media: media,
+                      title: title,
+                      onOpenStatus: () =>
+                          setState(() => _openPanel = 'status'),
+                      onOpenSeasons: () =>
+                          setState(() => _openPanel = 'seasons'),
+                    ),
                   ),
                 ],
               ),
