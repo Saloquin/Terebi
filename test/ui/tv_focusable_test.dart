@@ -66,4 +66,59 @@ void main() {
       expect(pressed, isTrue);
     });
   });
+
+  group('TvFocusable — scroll-vers-focus', () {
+    testWidgets('focus sur une tuile hors du viewport la ramène en vue',
+        (tester) async {
+      // Viewport 250px, 5 tuiles de 100px (total 500px). La dernière tuile
+      // (400–500px) est hors du viewport visible mais dans le cacheExtent par
+      // défaut (250px), donc montée — comme lors d'une navigation D-pad de
+      // proche en proche. ensureVisible doit alors défiler jusqu'à elle.
+      final controller = ScrollController();
+      final lastNode = FocusNode();
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            height: 250,
+            child: ListView(
+              controller: controller,
+              children: [
+                for (int i = 0; i < 5; i++)
+                  TvFocusable(
+                    focusNode: i == 4 ? lastNode : null,
+                    child: const SizedBox(height: 100, width: 100),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ));
+
+      // Au départ, la liste est en haut (offset 0).
+      expect(controller.offset, 0);
+
+      lastNode.requestFocus();
+      await tester.pumpAndSettle();
+
+      // ensureVisible a défilé la liste pour rendre la dernière tuile visible.
+      expect(controller.offset, greaterThan(0));
+    });
+
+    testWidgets('sans Scrollable ancêtre, aucun crash au focus',
+        (tester) async {
+      final node = FocusNode();
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: TvFocusable(
+            focusNode: node,
+            child: const SizedBox(width: 100, height: 100),
+          ),
+        ),
+      ));
+      node.requestFocus();
+      await tester.pumpAndSettle();
+      // Pas d'exception levée = test réussi.
+      expect(tester.takeException(), isNull);
+    });
+  });
 }
