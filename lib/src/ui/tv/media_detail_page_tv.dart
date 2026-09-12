@@ -98,6 +98,17 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
 
   void _closePanel() => setState(() => _openPanel = null);
 
+  void _openStatusPanel() {
+    setState(() => _openPanel = 'status');
+    // Le panneau s'insère dans le widget tree au prochain frame : on attend
+    // ce frame pour que le premier item TvFocusable puisse recevoir le focus.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _openPanel == 'status') {
+        FocusScope.of(context).nextFocus();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final mediaAsync = ref.watch(
@@ -190,8 +201,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                           child: _ButtonColumn(
                             media: media,
                             title: title,
-                            onOpenStatus: () =>
-                                setState(() => _openPanel = 'status'),
+                            onOpenStatus: _openStatusPanel,
                             firstSeasonNode: _firstSeasonNode,
                             playButtonNode: _playButtonNode,
                           ),
@@ -227,13 +237,27 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
             Positioned(
               top: 16,
               left: 16,
-              child: TvFocusable(
-                onPressed: () => Navigator.of(context).pop(),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Icon(Icons.arrow_back, color: Colors.white),
+              child: Focus(
+                canRequestFocus: false,
+                onKeyEvent: (_, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                          event.logicalKey == LogicalKeyboardKey.arrowRight)) {
+                    if (_playButtonNode.canRequestFocus) {
+                      _playButtonNode.requestFocus();
+                    }
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: TvFocusable(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Icon(Icons.arrow_back, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -419,6 +443,11 @@ class _ButtonColumn extends ConsumerWidget {
     final entryAsync = ref.watch(listEntryProvider(media.mediaId));
     final entry = entryAsync.asData?.value;
 
+    // Nœud du 2e bouton (Ajouter / Modifier statut) : arrowDown depuis ce
+    // bouton → première saison. arrowDown depuis Lire → traversée native vers
+    // le 2e bouton (ils sont dans la même Column).
+    final secondButtonNode = FocusNode(debugLabel: 'secondButton');
+
     return Focus(
       canRequestFocus: false,
       onKeyEvent: (_, event) {
@@ -426,10 +455,10 @@ class _ButtonColumn extends ConsumerWidget {
             event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           return KeyEventResult.handled;
         }
+        // arrowDown depuis le 2e bouton → première saison directement.
         if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.arrowDown) {
-          // Ciblage direct de la première tuile de saison — fiable même quand
-          // focusInDirection ne traverse pas le ListView shrinkWrap.
+            event.logicalKey == LogicalKeyboardKey.arrowDown &&
+            secondButtonNode.hasFocus) {
           if (firstSeasonNode.canRequestFocus) {
             firstSeasonNode.requestFocus();
             return KeyEventResult.handled;
@@ -452,6 +481,7 @@ class _ButtonColumn extends ConsumerWidget {
           const SizedBox(height: 12),
           if (entry == null)
             _TvActionButton(
+              focusNode: secondButtonNode,
               icon: Icons.add,
               label: 'Ajouter',
               onPressed: () async {
@@ -473,6 +503,7 @@ class _ButtonColumn extends ConsumerWidget {
             )
           else
             _TvActionButton(
+              focusNode: secondButtonNode,
               icon: Icons.edit,
               label: 'Modifier statut',
               onPressed: onOpenStatus,
