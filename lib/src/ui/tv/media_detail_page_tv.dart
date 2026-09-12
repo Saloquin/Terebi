@@ -387,7 +387,7 @@ class _InfoColumn extends StatelessWidget {
 // Colonne de boutons (droite)
 // ---------------------------------------------------------------------------
 
-class _ButtonColumn extends ConsumerStatefulWidget {
+class _ButtonColumn extends ConsumerWidget {
   final Media media;
   final String title;
   final VoidCallback onOpenStatus;
@@ -399,74 +399,63 @@ class _ButtonColumn extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<_ButtonColumn> createState() => _ButtonColumnState();
-}
-
-class _ButtonColumnState extends ConsumerState<_ButtonColumn> {
-  final FocusScopeNode _scopeNode =
-      FocusScopeNode(debugLabel: 'buttonColumnScope');
-
-  @override
-  void dispose() {
-    _scopeNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final entryAsync = ref.watch(listEntryProvider(widget.media.mediaId));
+  Widget build(BuildContext context, WidgetRef ref) {
+    final entryAsync = ref.watch(listEntryProvider(media.mediaId));
     final entry = entryAsync.asData?.value;
 
-    return FocusScope(
-      node: _scopeNode,
-      child: Focus(
-        canRequestFocus: false,
-        onKeyEvent: (_, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-            return KeyEventResult.handled;
-          }
-          // N'intercepter arrowDown que si le focus est dans cette colonne de
-          // boutons — pas quand il est sur les saisons en dessous.
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.arrowDown &&
-              _scopeNode.hasFocus) {
-            final moved = FocusManager.instance.primaryFocus
-                    ?.focusInDirection(TraversalDirection.down) ??
-                false;
-            return moved ? KeyEventResult.handled : KeyEventResult.ignored;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Lire
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _TvActionButton(
+            autofocus: true,
+            icon: Icons.play_arrow,
+            label: 'Lire',
+            onPressed: () => resumePlayback(context, ref, media),
+          ),
+          const SizedBox(height: 12),
+          if (entry == null)
             _TvActionButton(
-              autofocus: true,
-              icon: Icons.play_arrow,
-              label: 'Lire',
-              onPressed: () => resumePlayback(context, ref, widget.media),
+              icon: Icons.add,
+              label: 'Ajouter',
+              onPressed: () async {
+                await ref.read(mediaRepositoryProvider).upsertMedia(media);
+                final hasProgress = await ref
+                    .read(seasonProgressRepositoryProvider)
+                    .hasAnyProgress(media.mediaId);
+                final status =
+                    effectiveStatus(entry: null, hasProgress: hasProgress) ??
+                        ListStatus.planning;
+                await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
+                      mediaId: media.mediaId,
+                      status: status,
+                      updatedAt: DateTime.now(),
+                    ));
+                ref.invalidate(entriesByStatusProvider);
+                ref.invalidate(countByStatusProvider);
+              },
+            )
+          else
+            _TvActionButton(
+              icon: Icons.edit,
+              label: 'Modifier statut',
+              onPressed: onOpenStatus,
             ),
-            const SizedBox(height: 12),
-            // Ajouter / Modifier statut
-            if (entry == null)
-              _TvActionButton(
-                icon: Icons.add,
-                label: 'Ajouter',
-                onPressed: () async {
-                  await ref
-                      .read(mediaRepositoryProvider)
-                      .upsertMedia(widget.media);
-                  final hasProgress = await ref
-                      .read(seasonProgressRepositoryProvider)
-                      .hasAnyProgress(widget.media.mediaId);
-                  final status = effectiveStatus(
-                          entry: null, hasProgress: hasProgress) ??
-                      ListStatus.planning;
-                  await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
+        ],
+      ),
+    );
+  }
+}
                         mediaId: widget.media.mediaId,
                         status: status,
                         updatedAt: DateTime.now(),

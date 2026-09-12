@@ -131,7 +131,7 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
                       icon: Icons.search,
                       label: _query.isNotEmpty ? _query : 'Rechercher…',
                       selected: _query.isNotEmpty,
-                      autofocus: true,
+                      autofocus: false,
                       onPressed: _openSearch,
                     ),
                     // Bouton masquer/afficher bibliothèque
@@ -154,12 +154,14 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
                       child: ListView(
                         padding: const EdgeInsets.only(bottom: 16),
                         children: [
-                          for (final genre in kAnimeSamaGenres)
+                          for (int i = 0; i < kAnimeSamaGenres.length; i++)
                             _SidebarButton(
-                              icon: _genreIcon(genre),
-                              label: genre,
-                              selected: _selectedGenre == genre,
-                              onPressed: () => _onGenreSelected(genre),
+                              icon: _genreIcon(kAnimeSamaGenres[i]),
+                              label: kAnimeSamaGenres[i],
+                              selected: _selectedGenre == kAnimeSamaGenres[i],
+                              autofocus: i == 0,
+                              onPressed: () =>
+                                  _onGenreSelected(kAnimeSamaGenres[i]),
                             ),
                         ],
                       ),
