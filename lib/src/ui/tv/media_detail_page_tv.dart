@@ -423,7 +423,7 @@ class _InfoColumn extends StatelessWidget {
 // Colonne de boutons (droite)
 // ---------------------------------------------------------------------------
 
-class _ButtonColumn extends ConsumerWidget {
+class _ButtonColumn extends ConsumerStatefulWidget {
   final Media media;
   final String title;
   final VoidCallback onOpenStatus;
@@ -439,14 +439,22 @@ class _ButtonColumn extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entryAsync = ref.watch(listEntryProvider(media.mediaId));
-    final entry = entryAsync.asData?.value;
+  ConsumerState<_ButtonColumn> createState() => _ButtonColumnState();
+}
 
-    // Nœud du 2e bouton (Ajouter / Modifier statut) : arrowDown depuis ce
-    // bouton → première saison. arrowDown depuis Lire → traversée native vers
-    // le 2e bouton (ils sont dans la même Column).
-    final secondButtonNode = FocusNode(debugLabel: 'secondButton');
+class _ButtonColumnState extends ConsumerState<_ButtonColumn> {
+  final FocusNode _secondButtonNode = FocusNode(debugLabel: 'secondButton');
+
+  @override
+  void dispose() {
+    _secondButtonNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entryAsync = ref.watch(listEntryProvider(widget.media.mediaId));
+    final entry = entryAsync.asData?.value;
 
     return Focus(
       canRequestFocus: false,
@@ -455,12 +463,11 @@ class _ButtonColumn extends ConsumerWidget {
             event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           return KeyEventResult.handled;
         }
-        // arrowDown depuis le 2e bouton → première saison directement.
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.arrowDown &&
-            secondButtonNode.hasFocus) {
-          if (firstSeasonNode.canRequestFocus) {
-            firstSeasonNode.requestFocus();
+            _secondButtonNode.hasFocus) {
+          if (widget.firstSeasonNode.canRequestFocus) {
+            widget.firstSeasonNode.requestFocus();
             return KeyEventResult.handled;
           }
         }
@@ -473,27 +480,29 @@ class _ButtonColumn extends ConsumerWidget {
         children: [
           _TvActionButton(
             autofocus: true,
-            focusNode: playButtonNode,
+            focusNode: widget.playButtonNode,
             icon: Icons.play_arrow,
             label: 'Lire',
-            onPressed: () => resumePlayback(context, ref, media),
+            onPressed: () => resumePlayback(context, ref, widget.media),
           ),
           const SizedBox(height: 12),
           if (entry == null)
             _TvActionButton(
-              focusNode: secondButtonNode,
+              focusNode: _secondButtonNode,
               icon: Icons.add,
               label: 'Ajouter',
               onPressed: () async {
-                await ref.read(mediaRepositoryProvider).upsertMedia(media);
+                await ref
+                    .read(mediaRepositoryProvider)
+                    .upsertMedia(widget.media);
                 final hasProgress = await ref
                     .read(seasonProgressRepositoryProvider)
-                    .hasAnyProgress(media.mediaId);
+                    .hasAnyProgress(widget.media.mediaId);
                 final status =
                     effectiveStatus(entry: null, hasProgress: hasProgress) ??
                         ListStatus.planning;
                 await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
-                      mediaId: media.mediaId,
+                      mediaId: widget.media.mediaId,
                       status: status,
                       updatedAt: DateTime.now(),
                     ));
@@ -503,10 +512,10 @@ class _ButtonColumn extends ConsumerWidget {
             )
           else
             _TvActionButton(
-              focusNode: secondButtonNode,
+              focusNode: _secondButtonNode,
               icon: Icons.edit,
               label: 'Modifier statut',
-              onPressed: onOpenStatus,
+              onPressed: widget.onOpenStatus,
             ),
         ],
       ),

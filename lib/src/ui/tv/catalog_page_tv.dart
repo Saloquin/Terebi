@@ -276,13 +276,19 @@ class _TvSearchFieldState extends State<_TvSearchField> {
   void initState() {
     super.initState();
     widget.focusNode.addListener(_onTextFocusChange);
+    _wrapperNode.addListener(_onWrapperFocusChange);
   }
 
   @override
   void dispose() {
     widget.focusNode.removeListener(_onTextFocusChange);
+    _wrapperNode.removeListener(_onWrapperFocusChange);
     _wrapperNode.dispose();
     super.dispose();
+  }
+
+  void _onWrapperFocusChange() {
+    setState(() {});
   }
 
   void _onTextFocusChange() {
