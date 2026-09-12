@@ -65,7 +65,7 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
             _scrollController.hasClients &&
             _scrollController.offset <= 0) {
           // Remonte le focus à la navbar TV
-          TvNavFocusRequest.maybeOf(context)?.requestNavFocus();
+          TvFocusScopeProvider.maybeOf(context)?.focusNavBar();
           _onHeroFocus();
           return KeyEventResult.handled;
         }
