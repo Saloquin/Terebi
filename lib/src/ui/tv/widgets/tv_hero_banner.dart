@@ -11,6 +11,7 @@ import '../../widgets/anime_sama_image.dart';
 import '../../widgets/tv_focusable.dart';
 import '../media_detail_page_tv.dart';
 import '../../pages/resume_helper.dart';
+import 'tv_slide_indicators.dart';
 
 /// Hero plein écran style Netflix pour Android TV.
 /// Affiche les [items] en rotation automatique toutes les [rotationSeconds] secondes.
@@ -233,30 +234,16 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
               ),
             ),
 
-            // Indicateurs de slide
+            // Indicateurs de slide — limités pour ne jamais déborder la largeur
+            // (un point par item déborde dès qu'il y a beaucoup de sorties).
             if (widget.items.length > 1)
               Positioned(
                 bottom: 24,
                 left: 0,
                 right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = 0; i < widget.items.length; i++)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin:
-                            const EdgeInsets.symmetric(horizontal: 4),
-                        width: i == _current ? 24.0 : 8.0,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: i == _current
-                              ? Colors.white
-                              : Colors.white38,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                  ],
+                child: TvSlideIndicators(
+                  count: widget.items.length,
+                  current: _current,
                 ),
               ),
           ],
