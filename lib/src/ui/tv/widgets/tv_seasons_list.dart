@@ -25,10 +25,20 @@ class TvSeasonsList extends ConsumerWidget {
   final Media media;
   final String searchTitle;
 
+  /// Si vrai, la liste ne défile pas elle-même (shrinkWrap) : à utiliser quand
+  /// elle est intégrée dans un Scrollable parent (page détail inline).
+  final bool shrinkWrap;
+
+  /// Si vrai, la première saison prend l'autofocus. À laisser faux quand un
+  /// autre élément de la page (ex. bouton « Lire ») doit avoir le focus initial.
+  final bool autofocusFirst;
+
   const TvSeasonsList({
     super.key,
     required this.media,
     required this.searchTitle,
+    this.shrinkWrap = false,
+    this.autofocusFirst = true,
   });
 
   @override
@@ -52,13 +62,15 @@ class TvSeasonsList extends ConsumerWidget {
         }
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
+          shrinkWrap: shrinkWrap,
+          physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
           itemCount: seasons.length,
           itemBuilder: (context, i) => _TvSeasonRow(
             media: media,
             season: seasons[i],
             searchTitle: searchTitle,
             isLastSeason: seasons[i].index == seasons.last.index,
-            autofocus: i == 0,
+            autofocus: autofocusFirst && i == 0,
           ),
         );
       },

@@ -151,37 +151,64 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                 ),
               ),
             ),
-            // --- Contenu : infos + boutons ---
-            Padding(
-              padding: const EdgeInsets.all(48),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Panneau latéral gauche (saisons ou statut)
-                  if (_openPanel != null) _buildPanel(media, title),
-                  // Infos (gauche)
-                  Expanded(
-                    flex: 3,
-                    child: _InfoColumn(
-                        media: media,
-                        title: title,
-                        displayTitle: widget.displayTitle),
-                  ),
-                  const SizedBox(width: 48),
-                  // Boutons (droite) — largeur fixe : _ButtonColumn utilise
-                  // crossAxisAlignment.stretch et doit donc recevoir une
-                  // contrainte de largeur finie (sinon largeur infinie -> crash).
-                  SizedBox(
-                    width: 280,
-                    child: _ButtonColumn(
-                      media: media,
-                      title: title,
-                      onOpenStatus: () => setState(() => _openPanel = 'status'),
-                      onOpenSeasons: () =>
-                          setState(() => _openPanel = 'seasons'),
+            // --- Contenu : infos + boutons en haut, saisons en dessous ---
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(48),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // En-tête : infos (gauche) + boutons (droite)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Panneau latéral gauche (statut uniquement)
+                        if (_openPanel != null) _buildPanel(media, title),
+                        // Infos (gauche)
+                        Expanded(
+                          flex: 3,
+                          child: _InfoColumn(
+                            media: media,
+                            title: title,
+                            displayTitle: widget.displayTitle,
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                        // Boutons (droite) — largeur fixe : _ButtonColumn utilise
+                        // crossAxisAlignment.stretch et doit donc recevoir une
+                        // contrainte de largeur finie (sinon largeur infinie).
+                        SizedBox(
+                          width: 280,
+                          child: _ButtonColumn(
+                            media: media,
+                            title: title,
+                            onOpenStatus: () =>
+                                setState(() => _openPanel = 'status'),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 32),
+                    // Saisons, sous les infos, toujours visibles.
+                    Text(
+                      'Saisons',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TvSeasonsList(
+                      media: media,
+                      searchTitle: media.animeSamaTitle ??
+                          widget.displayTitle ??
+                          media.title.preferred,
+                      shrinkWrap: true,
+                      autofocusFirst: false,
+                    ),
+                  ],
+                ),
               ),
             ),
             // Bouton Retour
@@ -206,55 +233,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
   }
 
   Widget _buildPanel(Media media, String title) {
-    final searchTitle =
-        media.animeSamaTitle ?? widget.displayTitle ?? media.title.preferred;
-    if (_openPanel == 'seasons') {
-      // Liste verticale enrichie (épisodes + progression + marquer-vu),
-      // reproduit le comportement desktop. Focus D-pad piégé dans le panneau ;
-      // flèche droite / retour ferme (géré par le Focus englobant + goBack).
-      return Focus(
-        canRequestFocus: false,
-        onKeyEvent: (_, event) {
-          if (event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.arrowRight) {
-            _closePanel();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: Container(
-          width: 480,
-          color: Colors.black87,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Text(
-                  'Saisons',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const Divider(color: Colors.white24, height: 1),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: TvSeasonsList(
-                    media: media,
-                    searchTitle: searchTitle,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    // Panneau statut
+    // Panneau statut (les saisons sont désormais affichées inline sous les infos).
     final items = [
       const TvSidePanelItem(label: '— Auto (selon progression)', value: null),
       TvSidePanelItem(label: 'En pause', value: ListStatus.paused),
@@ -412,22 +391,17 @@ class _ButtonColumn extends ConsumerWidget {
   final Media media;
   final String title;
   final VoidCallback onOpenStatus;
-  final VoidCallback onOpenSeasons;
 
   const _ButtonColumn({
     required this.media,
     required this.title,
     required this.onOpenStatus,
-    required this.onOpenSeasons,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entryAsync = ref.watch(listEntryProvider(media.mediaId));
     final entry = entryAsync.asData?.value;
-    final searchTitle = media.animeSamaTitle ?? title;
-    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
-    final seasons = seasonsAsync.asData?.value ?? [];
 
     return Focus(
       // Empêche la fuite de focus vers la gauche : la colonne d'infos n'a aucun
@@ -482,15 +456,6 @@ class _ButtonColumn extends ConsumerWidget {
               label: 'Modifier statut',
               onPressed: onOpenStatus,
             ),
-          // Saisons (si plusieurs)
-          if (seasons.length > 1) ...[
-            const SizedBox(height: 12),
-            _TvActionButton(
-              icon: Icons.layers,
-              label: 'Saisons',
-              onPressed: onOpenSeasons,
-            ),
-          ],
         ],
       ),
     );
