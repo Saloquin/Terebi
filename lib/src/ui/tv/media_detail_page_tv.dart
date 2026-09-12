@@ -456,26 +456,6 @@ class _ButtonColumn extends ConsumerWidget {
     );
   }
 }
-                        mediaId: widget.media.mediaId,
-                        status: status,
-                        updatedAt: DateTime.now(),
-                      ));
-                  ref.invalidate(entriesByStatusProvider);
-                  ref.invalidate(countByStatusProvider);
-                },
-              )
-            else
-              _TvActionButton(
-                icon: Icons.edit,
-                label: 'Modifier statut',
-                onPressed: widget.onOpenStatus,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _TvActionButton extends StatelessWidget {
   final IconData icon;
