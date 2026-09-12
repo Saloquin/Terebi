@@ -21,8 +21,15 @@ import '../../../services/stream_resolver.dart';
 import '../../pages/player_page.dart';
 import '../../widgets/tv_focusable.dart';
 
+// Progression préchargée pour une saison (lastWatched + total épisodes).
+class _SeasonProgress {
+  final int lastWatched;
+  final int? total;
+  const _SeasonProgress({required this.lastWatched, this.total});
+}
+
 /// Liste des saisons anime-sama pour un anime, en colonne verticale (TV).
-class TvSeasonsList extends ConsumerWidget {
+class TvSeasonsList extends ConsumerStatefulWidget {
   final Media media;
   final String searchTitle;
 
@@ -43,8 +50,38 @@ class TvSeasonsList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
+  ConsumerState<TvSeasonsList> createState() => _TvSeasonsListState();
+}
+
+class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
+  // null = pas encore chargé, vide = aucune saison avec progression disponible
+  Map<int, _SeasonProgress>? _progressBySeasonIndex;
+
+  Future<void> _loadAllProgress(List<AnimeSamaSeason> seasons) async {
+    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
+    final result = <int, _SeasonProgress>{};
+
+    await Future.wait(seasons.map((season) async {
+      final last = await seasonProgress.lastWatched(
+          widget.media.mediaId, season.index);
+      int? total;
+      try {
+        final eps = await ref.read(animeSamaEpisodesProvider(
+          (title: widget.searchTitle, seasonIndex: season.index),
+        ).future);
+        if (eps.isNotEmpty) total = eps.length;
+      } catch (_) {}
+      result[season.index] = _SeasonProgress(lastWatched: last, total: total);
+    }));
+
+    if (mounted) {
+      setState(() => _progressBySeasonIndex = result);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(widget.searchTitle));
 
     return seasonsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -57,22 +94,46 @@ class TvSeasonsList extends ConsumerWidget {
       data: (seasons) {
         if (seasons.isEmpty) {
           return const Center(
-            child:
-                Text('Aucune saison', style: TextStyle(color: Colors.white54)),
+            child: Text('Aucune saison',
+                style: TextStyle(color: Colors.white54)),
           );
         }
+
+        // Déclenche le chargement global si pas encore fait (ou si les saisons
+        // ont changé).
+        if (_progressBySeasonIndex == null) {
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _loadAllProgress(seasons));
+          return const Center(child: CircularProgressIndicator());
+        }
+
         return ListView.builder(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          shrinkWrap: shrinkWrap,
-          physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
+          shrinkWrap: widget.shrinkWrap,
+          physics: widget.shrinkWrap ? const NeverScrollableScrollPhysics() : null,
           itemCount: seasons.length,
-          itemBuilder: (context, i) => _TvSeasonRow(
-            media: media,
-            season: seasons[i],
-            searchTitle: searchTitle,
-            isLastSeason: seasons[i].index == seasons.last.index,
-            autofocus: autofocusFirst && i == 0,
-          ),
+          itemBuilder: (context, i) {
+            final season = seasons[i];
+            final progress = _progressBySeasonIndex![season.index]!;
+            return _TvSeasonRow(
+              media: widget.media,
+              season: season,
+              searchTitle: widget.searchTitle,
+              isLastSeason: season.index == seasons.last.index,
+              autofocus: widget.autofocusFirst && i == 0,
+              initialLastWatched: progress.lastWatched,
+              initialTotal: progress.total,
+              onProgressChanged: (lastWatched) {
+                setState(() {
+                  _progressBySeasonIndex = {
+                    ..._progressBySeasonIndex!,
+                    season.index: _SeasonProgress(
+                        lastWatched: lastWatched, total: progress.total),
+                  };
+                });
+              },
+            );
+          },
         );
       },
     );
@@ -85,6 +146,9 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
   final String searchTitle;
   final bool isLastSeason;
   final bool autofocus;
+  final int initialLastWatched;
+  final int? initialTotal;
+  final void Function(int lastWatched) onProgressChanged;
 
   const _TvSeasonRow({
     required this.media,
@@ -92,6 +156,9 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
     required this.searchTitle,
     required this.isLastSeason,
     required this.autofocus,
+    required this.initialLastWatched,
+    required this.initialTotal,
+    required this.onProgressChanged,
   });
 
   @override
@@ -99,9 +166,8 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
 }
 
 class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
-  int _lastWatched = 0; // dernier épisode vu (0 = rien)
-  int? _total; // nombre d'épisodes anime-sama de la saison
-  bool _loaded = false;
+  late int _lastWatched;
+  late int? _total;
 
   // Nœuds explicites : la navigation verticale (haut/bas) circule entre les
   // tuiles ; le bouton « marquer-vu » n'est atteint que latéralement (droite
@@ -110,38 +176,17 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
   final FocusNode _buttonNode = FocusNode(debugLabel: 'seasonButton');
 
   @override
+  void initState() {
+    super.initState();
+    _lastWatched = widget.initialLastWatched;
+    _total = widget.initialTotal;
+  }
+
+  @override
   void dispose() {
     _tileNode.dispose();
     _buttonNode.dispose();
     super.dispose();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _loadProgress());
-  }
-
-  Future<void> _loadProgress() async {
-    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-    final last = await seasonProgress.lastWatched(
-        widget.media.mediaId, widget.season.index);
-
-    int? total;
-    try {
-      final eps = await ref.read(animeSamaEpisodesProvider(
-        (title: widget.searchTitle, seasonIndex: widget.season.index),
-      ).future);
-      if (eps.isNotEmpty) total = eps.length;
-    } catch (_) {/* total inconnu → barre indéterminée */}
-
-    if (mounted) {
-      setState(() {
-        _lastWatched = last;
-        _total = total;
-        _loaded = true;
-      });
-    }
   }
 
   Future<void> _reloadWatchedOnly() async {
@@ -150,6 +195,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
         widget.media.mediaId, widget.season.index);
     if (mounted && last != _lastWatched) {
       setState(() => _lastWatched = last);
+      widget.onProgressChanged(last);
     }
   }
 
@@ -186,11 +232,9 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
           animeSamaTitle: widget.searchTitle,
         ),
       ),
-    ).then((_) => _loadProgress());
+    ).then((_) => _reloadWatchedOnly());
   }
 
-  /// Marque cette saison entièrement vue, puis tente de passer l'anime
-  /// « Terminé » si c'était la dernière saison manquante.
   Future<void> _markThisSeasonWatched() async {
     await ref
         .read(seasonProgressRepositoryProvider)
@@ -204,8 +248,6 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
     await _maybeMarkSeriesCompleted();
   }
 
-  /// Annule le marquage « vue » : remet à 0 et repasse l'anime « En cours »
-  /// s'il était « Terminé ».
   Future<void> _unmarkThisSeason() async {
     await ref
         .read(seasonProgressRepositoryProvider)
@@ -223,7 +265,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
         ref.invalidate(entriesByStatusProvider);
         ref.invalidate(countByStatusProvider);
       }
-    } catch (_) {/* best-effort */}
+    } catch (_) {}
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -232,15 +274,14 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
     }
   }
 
-  /// Passe l'anime « Terminé » si TOUTES ses saisons anime-sama sont vues.
   Future<void> _maybeMarkSeriesCompleted() async {
     try {
       final listRepo = ref.read(listRepositoryProvider);
       final existing = await listRepo.getEntry(widget.media.mediaId);
       if (existing != null && existing.status == ListStatus.completed) return;
 
-      final seasons =
-          await ref.read(animeSamaSeasonsProvider(widget.searchTitle).future);
+      final seasons = await ref
+          .read(animeSamaSeasonsProvider(widget.searchTitle).future);
       if (seasons.isEmpty) return;
       final seasonProgress = ref.read(seasonProgressRepositoryProvider);
       var totalEpisodes = 0;
@@ -276,7 +317,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
           const SnackBar(content: Text('Anime terminé ! 🎉')),
         );
       }
-    } catch (_) {/* best-effort */}
+    } catch (_) {}
   }
 
   @override
@@ -301,13 +342,11 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
     final doneLabel =
         (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
 
-    final progressText = !_loaded
-        ? '…'
-        : done
-            ? doneLabel
-            : total != null
-                ? '$_lastWatched/$total'
-                : '$_lastWatched vu(s)';
+    final progressText = done
+        ? doneLabel
+        : total != null
+            ? '$_lastWatched/$total'
+            : '$_lastWatched vu(s)';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -319,8 +358,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
             child: Focus(
               canRequestFocus: false,
               onKeyEvent: (_, event) {
-                if (_loaded &&
-                    event is KeyDownEvent &&
+                if (event is KeyDownEvent &&
                     event.logicalKey == LogicalKeyboardKey.arrowRight) {
                   _buttonNode.requestFocus();
                   return KeyEventResult.handled;
@@ -375,7 +413,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
                       ClipRRect(
                         borderRadius: BorderRadius.circular(4),
                         child: LinearProgressIndicator(
-                          value: ratio, // null → barre indéterminée
+                          value: ratio,
                           minHeight: 5,
                           backgroundColor: Colors.white24,
                           color: done
@@ -393,37 +431,36 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
           // Bouton séparé : marquer vue / annuler. Exclu de la traversée
           // verticale (haut/bas ne l'atteignent pas) : accessible seulement par
           // flèche droite depuis la tuile ; flèche gauche y revient.
-          if (_loaded)
-            Focus(
-              canRequestFocus: false,
-              onKeyEvent: (_, event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                  _tileNode.requestFocus();
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: FocusTraversalGroup(
-                descendantsAreTraversable: false,
-                child: TvFocusable(
-                  focusNode: _buttonNode,
-                  onPressed: done ? _unmarkThisSeason : _markThisSeasonWatched,
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white10,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      done ? Icons.remove_done : Icons.done_all,
-                      color: Colors.white,
-                      size: 22,
-                    ),
+          Focus(
+            canRequestFocus: false,
+            onKeyEvent: (_, event) {
+              if (event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                _tileNode.requestFocus();
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+            child: FocusTraversalGroup(
+              descendantsAreTraversable: false,
+              child: TvFocusable(
+                focusNode: _buttonNode,
+                onPressed: done ? _unmarkThisSeason : _markThisSeasonWatched,
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white10,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    done ? Icons.remove_done : Icons.done_all,
+                    color: Colors.white,
+                    size: 22,
                   ),
                 ),
               ),
             ),
+          ),
         ],
       ),
     );

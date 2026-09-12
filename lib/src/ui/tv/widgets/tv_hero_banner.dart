@@ -102,13 +102,17 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
         final key = event.logicalKey;
-        if (key == LogicalKeyboardKey.arrowLeft && widget.items.length > 1) {
-          setState(() => _current =
-              (_current - 1 + widget.items.length) % widget.items.length);
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          if (widget.items.length > 1) {
+            setState(() => _current =
+                (_current - 1 + widget.items.length) % widget.items.length);
+          }
           return KeyEventResult.handled;
         }
-        if (key == LogicalKeyboardKey.arrowRight && widget.items.length > 1) {
-          setState(() => _current = (_current + 1) % widget.items.length);
+        if (key == LogicalKeyboardKey.arrowRight) {
+          if (widget.items.length > 1) {
+            setState(() => _current = (_current + 1) % widget.items.length);
+          }
           return KeyEventResult.handled;
         }
         if (key == LogicalKeyboardKey.select ||
