@@ -85,8 +85,15 @@ class MediaDetailPageTv extends ConsumerStatefulWidget {
 }
 
 class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
-  // null = pas de panneau ; 'seasons' | 'status' = panneau ouvert
   String? _openPanel;
+  final FocusNode _firstSeasonNode =
+      FocusNode(debugLabel: 'firstSeasonTile');
+
+  @override
+  void dispose() {
+    _firstSeasonNode.dispose();
+    super.dispose();
+  }
 
   void _closePanel() => setState(() => _openPanel = null);
 
@@ -184,6 +191,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                             title: title,
                             onOpenStatus: () =>
                                 setState(() => _openPanel = 'status'),
+                            firstSeasonNode: _firstSeasonNode,
                           ),
                         ),
                       ],
@@ -206,22 +214,37 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                           media.title.preferred,
                       shrinkWrap: true,
                       autofocusFirst: false,
+                      firstSeasonFocusNode: _firstSeasonNode,
                     ),
                   ],
                 ),
               ),
             ),
-            // Bouton Retour
+            // Bouton Retour — absorbe les touches directionnelles pour ne
+            // pas perdre le focus si on appuie sur une mauvaise touche.
             Positioned(
               top: 16,
               left: 16,
-              child: TvFocusable(
-                onPressed: () => Navigator.of(context).pop(),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Icon(Icons.arrow_back, color: Colors.white),
+              child: Focus(
+                canRequestFocus: false,
+                onKeyEvent: (_, event) {
+                  if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                  final k = event.logicalKey;
+                  if (k == LogicalKeyboardKey.arrowUp ||
+                      k == LogicalKeyboardKey.arrowDown ||
+                      k == LogicalKeyboardKey.arrowRight) {
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: TvFocusable(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Icon(Icons.arrow_back, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -391,11 +414,13 @@ class _ButtonColumn extends ConsumerWidget {
   final Media media;
   final String title;
   final VoidCallback onOpenStatus;
+  final FocusNode firstSeasonNode;
 
   const _ButtonColumn({
     required this.media,
     required this.title,
     required this.onOpenStatus,
+    required this.firstSeasonNode,
   });
 
   @override
@@ -409,6 +434,15 @@ class _ButtonColumn extends ConsumerWidget {
         if (event is KeyDownEvent &&
             event.logicalKey == LogicalKeyboardKey.arrowLeft) {
           return KeyEventResult.handled;
+        }
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          // Ciblage direct de la première tuile de saison — fiable même quand
+          // focusInDirection ne traverse pas le ListView shrinkWrap.
+          if (firstSeasonNode.canRequestFocus) {
+            firstSeasonNode.requestFocus();
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       },

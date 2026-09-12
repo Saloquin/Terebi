@@ -32,14 +32,12 @@ class _SeasonProgress {
 class TvSeasonsList extends ConsumerStatefulWidget {
   final Media media;
   final String searchTitle;
-
-  /// Si vrai, la liste ne défile pas elle-même (shrinkWrap) : à utiliser quand
-  /// elle est intégrée dans un Scrollable parent (page détail inline).
   final bool shrinkWrap;
-
-  /// Si vrai, la première saison prend l'autofocus. À laisser faux quand un
-  /// autre élément de la page (ex. bouton « Lire ») doit avoir le focus initial.
   final bool autofocusFirst;
+
+  /// Si fourni, ce FocusNode est donné à la première tuile de saison.
+  /// Permet à un parent (ex. _ButtonColumn) de cibler directement la 1re saison.
+  final FocusNode? firstSeasonFocusNode;
 
   const TvSeasonsList({
     super.key,
@@ -47,6 +45,7 @@ class TvSeasonsList extends ConsumerStatefulWidget {
     required this.searchTitle,
     this.shrinkWrap = false,
     this.autofocusFirst = true,
+    this.firstSeasonFocusNode,
   });
 
   @override
@@ -123,6 +122,7 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
               autofocus: widget.autofocusFirst && i == 0,
               initialLastWatched: progress.lastWatched,
               initialTotal: progress.total,
+              externalTileNode: i == 0 ? widget.firstSeasonFocusNode : null,
               onProgressChanged: (lastWatched) {
                 setState(() {
                   _progressBySeasonIndex = {
@@ -149,6 +149,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
   final int initialLastWatched;
   final int? initialTotal;
   final void Function(int lastWatched) onProgressChanged;
+  final FocusNode? externalTileNode;
 
   const _TvSeasonRow({
     required this.media,
@@ -159,6 +160,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
     required this.initialLastWatched,
     required this.initialTotal,
     required this.onProgressChanged,
+    this.externalTileNode,
   });
 
   @override
@@ -373,7 +375,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
                 return KeyEventResult.ignored;
               },
               child: TvFocusable(
-                focusNode: _tileNode,
+                focusNode: widget.externalTileNode ?? _tileNode,
                 autofocus: widget.autofocus,
                 onPressed: _play,
                 child: Container(

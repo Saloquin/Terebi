@@ -44,6 +44,7 @@ class TvSidePanel extends StatelessWidget {
         color: Colors.black87,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -57,30 +58,30 @@ class TvSidePanel extends StatelessWidget {
               ),
             ),
             const Divider(color: Colors.white24, height: 1),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: items.length,
-                itemBuilder: (context, i) {
-                  final item = items[i];
-                  return TvFocusable(
-                    autofocus: i == 0,
-                    onPressed: () => onSelected(item),
-                    child: GestureDetector(
-                      onTap: () => onSelected(item),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
-                        child: Text(
-                          item.label,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 15),
-                        ),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: items.length,
+              itemBuilder: (context, i) {
+                final item = items[i];
+                return TvFocusable(
+                  autofocus: i == 0,
+                  onPressed: () => onSelected(item),
+                  child: GestureDetector(
+                    onTap: () => onSelected(item),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      child: Text(
+                        item.label,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 15),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
           ],
         ),
