@@ -3,19 +3,19 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/catalog_genre.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/models/list_status.dart';
 import '../../services/stream_resolver.dart';
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page_tv.dart';
-import 'widgets/tv_genre_grid.dart';
 
-// Provider de recherche (privé, identique à catalog_page.dart).
 final _searchResultsProvider =
     FutureProvider.family<List<AnimeSamaCatalogueItem>, String>(
         (ref, query) async {
@@ -40,6 +40,10 @@ class CatalogPageTv extends ConsumerStatefulWidget {
 }
 
 class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
+  final TextEditingController _textCtrl = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'catalogSearch');
+  Timer? _debounce;
+
   String _query = '';
   String? _selectedGenre;
   bool _hideLibrary = false;
@@ -55,17 +59,34 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
     });
   }
 
-  Future<void> _openSearch() async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => _TvSearchDialog(initialValue: _query),
-    );
-    if (result != null && result.isNotEmpty) {
-      setState(() {
-        _query = result;
-        _selectedGenre = null;
-      });
-    }
+  @override
+  void dispose() {
+    _textCtrl.dispose();
+    _searchFocusNode.dispose();
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  void _onTextChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) {
+        setState(() {
+          _query = v.trim();
+          if (_query.isNotEmpty) _selectedGenre = null;
+        });
+      }
+    });
+  }
+
+  void _onGenreSelected(String genre) {
+    setState(() {
+      _selectedGenre = _selectedGenre == genre ? null : genre;
+      if (_selectedGenre != null) {
+        _query = '';
+        _textCtrl.clear();
+      }
+    });
   }
 
   Future<void> _toggleHideLibrary() async {
@@ -76,112 +97,363 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
         .set(SettingsKeys.catalogHideLibrary, newValue ? '1' : '0');
   }
 
-  void _clearResults() {
-    setState(() {
-      _query = '';
-      _selectedGenre = null;
-    });
-  }
-
   bool get _showResults => _query.isNotEmpty || _selectedGenre != null;
 
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Colors.black,
-      child: Column(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Barre supérieure
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
-            child: Row(
-              children: [
-                TvFocusable(
-                  autofocus: !_showResults,
-                  onPressed: _openSearch,
-                  child: GestureDetector(
-                    onTap: _openSearch,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.white12,
-                        borderRadius: BorderRadius.circular(8),
+          // ─── Colonne gauche ───────────────────────────────────────────────
+          SizedBox(
+            width: 280,
+            child: Focus(
+              canRequestFocus: false,
+              onKeyEvent: (_, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowRight) {
+                  FocusManager.instance.primaryFocus
+                      ?.focusInDirection(TraversalDirection.right);
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF111111),
+                  border: Border(
+                    right: BorderSide(color: Colors.white12, width: 1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Champ de recherche : le TvFocusable reçoit le OK du D-pad
+                    // et transfère le focus au TextField — Android TV ouvre alors
+                    // le clavier car c'est une action utilisateur explicite.
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+                      child: _TvSearchField(
+                        controller: _textCtrl,
+                        focusNode: _searchFocusNode,
+                        onChanged: _onTextChanged,
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    ),
+                    _SidebarButton(
+                      icon: _hideLibrary
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      label: _hideLibrary
+                          ? 'Afficher déjà vus'
+                          : 'Masquer déjà vus',
+                      selected: false,
+                      onPressed: _toggleHideLibrary,
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: Divider(color: Colors.white12, height: 16),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.only(bottom: 16),
                         children: [
-                          const Icon(Icons.search,
-                              color: Colors.white70, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            _query.isNotEmpty ? _query : 'Rechercher…',
-                            style: TextStyle(
-                              color: _query.isNotEmpty
-                                  ? Colors.white
-                                  : Colors.white54,
-                              fontSize: 14,
+                          for (int i = 0; i < kAnimeSamaGenres.length; i++)
+                            _SidebarButton(
+                              icon: _genreIcon(kAnimeSamaGenres[i]),
+                              label: kAnimeSamaGenres[i],
+                              selected: _selectedGenre == kAnimeSamaGenres[i],
+                              autofocus: i == 0,
+                              onPressed: () =>
+                                  _onGenreSelected(kAnimeSamaGenres[i]),
                             ),
-                          ),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                TvFocusable(
-                  onPressed: _toggleHideLibrary,
-                  child: GestureDetector(
-                    onTap: _toggleHideLibrary,
-                    child: Padding(
-                      padding: const EdgeInsets.all(10),
-                      child: Icon(
-                        _hideLibrary
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color:
-                            _hideLibrary ? Colors.white : Colors.white54,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
-                if (_showResults) ...[
-                  const SizedBox(width: 16),
-                  TvFocusable(
-                    onPressed: _clearResults,
-                    child: GestureDetector(
-                      onTap: _clearResults,
-                      child: const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: Icon(Icons.arrow_back, color: Colors.white70),
-                      ),
-                    ),
-                  ),
-                ],
-                if (_selectedGenre != null) ...[
-                  const SizedBox(width: 12),
-                  Text(
-                    _selectedGenre!,
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 14),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-          // Corps
+
+          // ─── Panneau droit : résultats ────────────────────────────────────
           Expanded(
-            child: _showResults
-                ? _ResultsGrid(
-                    query: _query,
-                    genre: _selectedGenre,
-                    hideLibrary: _hideLibrary,
-                  )
-                : TvGenreGrid(
-                    onGenreSelected: (genre) =>
-                        setState(() => _selectedGenre = genre),
+            child: Focus(
+              canRequestFocus: false,
+              onKeyEvent: (_, event) {
+                if (event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+                  FocusManager.instance.primaryFocus
+                      ?.focusInDirection(TraversalDirection.left);
+                  return KeyEventResult.handled;
+                }
+                return KeyEventResult.ignored;
+              },
+              child: _showResults
+                  ? _ResultsGrid(
+                      query: _query,
+                      genre: _selectedGenre,
+                      hideLibrary: _hideLibrary,
+                    )
+                  : _EmptyPanel(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _genreIcon(String genre) {
+    const icons = <String, IconData>{
+      'Action': Icons.sports_martial_arts,
+      'Arts martiaux': Icons.sports_kabaddi,
+      'Autre monde': Icons.public,
+      'Aventure': Icons.explore,
+      'Combats': Icons.sports_mma,
+      'Comédie': Icons.sentiment_very_satisfied,
+      'Crime': Icons.gavel,
+      'Démons': Icons.whatshot,
+      'Drame': Icons.theater_comedy,
+      'Ecchi': Icons.favorite_border,
+      'Fantastique': Icons.auto_awesome,
+      'Fantasy': Icons.castle,
+      'Ghibli': Icons.forest,
+      'Guerre': Icons.military_tech,
+      'Harem': Icons.group,
+      'Historique': Icons.history_edu,
+      'Horreur': Icons.nightlight,
+      'Isekai': Icons.swap_horiz,
+      'Josei': Icons.woman,
+      'Magie': Icons.stars,
+      'Mecha': Icons.precision_manufacturing,
+      'Musique': Icons.music_note,
+      'Mystère': Icons.search,
+      'Politique': Icons.account_balance,
+      'Psychologique': Icons.psychology,
+      'Réincarnation': Icons.refresh,
+      'Romance': Icons.favorite,
+      'School Life': Icons.school,
+      'Science-Fiction': Icons.rocket_launch,
+      'Seinen': Icons.man,
+      'Shônen': Icons.boy,
+      'Slice of Life': Icons.home,
+      'Sport': Icons.sports_soccer,
+      'Surnaturel': Icons.blur_on,
+      'Thriller': Icons.crisis_alert,
+      'Tournois': Icons.emoji_events,
+      'Vengeance': Icons.flash_on,
+    };
+    return icons[genre] ?? Icons.category;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Champ de recherche TV inline
+// ---------------------------------------------------------------------------
+
+class _TvSearchField extends StatefulWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final void Function(String) onChanged;
+
+  const _TvSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
+
+  @override
+  State<_TvSearchField> createState() => _TvSearchFieldState();
+}
+
+class _TvSearchFieldState extends State<_TvSearchField> {
+  // Nœud intermédiaire : reçoit le focus D-pad et transmet au TextField au OK.
+  final FocusNode _wrapperNode = FocusNode(debugLabel: 'searchWrapper');
+  bool _textFieldActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.focusNode.addListener(_onTextFocusChange);
+  }
+
+  @override
+  void dispose() {
+    widget.focusNode.removeListener(_onTextFocusChange);
+    _wrapperNode.dispose();
+    super.dispose();
+  }
+
+  void _onTextFocusChange() {
+    setState(() => _textFieldActive = widget.focusNode.hasFocus);
+    if (!widget.focusNode.hasFocus) {
+      // Quand le TextField perd le focus (fermeture clavier), on remet le focus
+      // sur le wrapper pour que le D-pad reste dans la colonne gauche.
+      _wrapperNode.requestFocus();
+    }
+  }
+
+  void _activateTextField() {
+    widget.focusNode.requestFocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasFocus = _wrapperNode.hasFocus || _textFieldActive;
+    return Focus(
+      focusNode: _wrapperNode,
+      onKeyEvent: (_, event) {
+        if (!_textFieldActive &&
+            event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          _activateTextField();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: hasFocus ? Colors.white : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: hasFocus
+              ? [
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    blurRadius: 10,
                   ),
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Icon(Icons.search, color: Colors.white54, size: 18),
+            ),
+            Expanded(
+              child: TextField(
+                controller: widget.controller,
+                focusNode: widget.focusNode,
+                autofocus: false,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                cursorColor: Colors.white70,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Rechercher…',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                ),
+                onChanged: widget.onChanged,
+                onSubmitted: (_) => _wrapperNode.requestFocus(),
+              ),
+            ),
+            if (widget.controller.text.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  widget.controller.clear();
+                  widget.onChanged('');
+                  _wrapperNode.requestFocus();
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(Icons.close, color: Colors.white38, size: 16),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bouton de la sidebar gauche
+// ---------------------------------------------------------------------------
+
+class _SidebarButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final bool autofocus;
+  final VoidCallback onPressed;
+
+  const _SidebarButton({
+    required this.icon,
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+    this.autofocus = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TvFocusable(
+      autofocus: autofocus,
+      onPressed: onPressed,
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: selected
+                ? Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.25)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Icon(icon,
+                  color: selected ? Colors.white : Colors.white54, size: 18),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: selected ? Colors.white : Colors.white70,
+                    fontSize: 13,
+                    fontWeight:
+                        selected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Panneau vide
+// ---------------------------------------------------------------------------
+
+class _EmptyPanel extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.search, size: 64, color: Colors.white12),
+          SizedBox(height: 16),
+          Text(
+            'Recherchez un titre ou choisissez un genre',
+            style: TextStyle(color: Colors.white38, fontSize: 14),
           ),
         ],
       ),
@@ -190,7 +462,7 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 }
 
 // ---------------------------------------------------------------------------
-// Grille de résultats (recherche ou genre)
+// Grille de résultats
 // ---------------------------------------------------------------------------
 
 class _ResultsGrid extends ConsumerWidget {
@@ -216,8 +488,7 @@ class _ResultsGrid extends ConsumerWidget {
     final statusMap = ref.watch(libraryStatusMapProvider).asData?.value ?? {};
 
     return resultsAsync.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Erreur : $e',
             style: const TextStyle(color: Colors.white54)),
@@ -303,7 +574,6 @@ class _CatalogTileTv extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               AnimeSamaImage(slug: slug, fit: BoxFit.cover),
-              // Gradient bas + titre
               Positioned(
                 left: 0,
                 right: 0,
@@ -321,12 +591,10 @@ class _CatalogTileTv extends StatelessWidget {
                     item.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
               ),
-              // Badge statut bibliothèque
               if (status != null)
                 Positioned(
                   top: 6,
@@ -366,62 +634,6 @@ class _StatusBadge extends StatelessWidget {
         _labels[status] ?? status.name,
         style: const TextStyle(color: Colors.white, fontSize: 10),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Dialog de recherche TV
-// ---------------------------------------------------------------------------
-
-class _TvSearchDialog extends StatefulWidget {
-  final String initialValue;
-  const _TvSearchDialog({required this.initialValue});
-
-  @override
-  State<_TvSearchDialog> createState() => _TvSearchDialogState();
-}
-
-class _TvSearchDialogState extends State<_TvSearchDialog> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.initialValue);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Rechercher'),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        textInputAction: TextInputAction.search,
-        decoration: const InputDecoration(
-          hintText: 'Titre de l\'anime…',
-          prefixIcon: Icon(Icons.search),
-          border: OutlineInputBorder(),
-        ),
-        onSubmitted: (v) => Navigator.pop(context, v.trim()),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Annuler'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
-          child: const Text('Rechercher'),
-        ),
-      ],
     );
   }
 }

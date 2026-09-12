@@ -13,26 +13,28 @@ import '../pages/settings_page.dart';
 import '../pages/stats_page.dart';
 import '../widgets/tv_focusable.dart';
 import 'home_page_tv.dart';
+import 'widgets/tv_focus_scope.dart';
 
 const int _settingsIndex = 5;
 const int _libraryIndex = 3;
 
-/// Permet aux pages TV de demander le focus sur la navbar via le contexte.
-class TvNavFocusRequest extends InheritedWidget {
-  final VoidCallback requestNavFocus;
+/// Fournit le [TvFocusController] du shell aux pages TV descendantes.
+class TvFocusScopeProvider extends InheritedWidget {
+  final TvFocusController controller;
 
-  const TvNavFocusRequest({
+  const TvFocusScopeProvider({
     super.key,
-    required this.requestNavFocus,
+    required this.controller,
     required super.child,
   });
 
-  static TvNavFocusRequest? maybeOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<TvNavFocusRequest>();
+  static TvFocusController? maybeOf(BuildContext context) => context
+      .dependOnInheritedWidgetOfExactType<TvFocusScopeProvider>()
+      ?.controller;
 
   @override
-  bool updateShouldNotify(TvNavFocusRequest oldWidget) =>
-      requestNavFocus != oldWidget.requestNavFocus;
+  bool updateShouldNotify(TvFocusScopeProvider oldWidget) =>
+      controller != oldWidget.controller;
 }
 
 class _Destination {
@@ -51,8 +53,8 @@ class AppShellTv extends ConsumerStatefulWidget {
 
 class _AppShellTvState extends ConsumerState<AppShellTv> {
   int _index = 0;
-  // FocusNode de la navbar : permet au contenu de lui rendre le focus via arrowUp
-  final _navFocusScope = FocusScopeNode();
+  // Pont de focus navbar ↔ contenu (remonte/redescend le focus au D-pad).
+  final _focus = TvFocusController();
 
   @override
   void initState() {
@@ -69,7 +71,7 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
 
   @override
   void dispose() {
-    _navFocusScope.dispose();
+    _focus.dispose();
     super.dispose();
   }
 
@@ -91,11 +93,6 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
     setState(() => _index = i);
   }
 
-  // Appelé par le contenu quand l'utilisateur appuie arrowUp depuis le haut
-  void _focusNav() {
-    _navFocusScope.requestFocus();
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.watch(slugMigrationProvider);
@@ -106,78 +103,47 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Column(
-        children: [
-          // Navbar dans son propre FocusScope — complètement indépendant du contenu
-          FocusScope(
-            node: _navFocusScope,
-            child: _TvTopBar(
-              destinations: _destinations,
-              selectedIndex: _index,
-              hasNewEpisode: hasNewEpisode,
-              onSelect: (i) {
-                _onSelect(i);
-                // Après sélection d'un onglet, rendre le focus au contenu
-                FocusScope.of(context).requestFocus(FocusNode());
-              },
-            ),
+      body: TvFocusScopeProvider(
+        controller: _focus,
+        child: TvFocusScope(
+          controller: _focus,
+          navBar: _TvTopBar(
+            destinations: _destinations,
+            selectedIndex: _index,
+            hasNewEpisode: hasNewEpisode,
+            onSelect: (i) {
+              _onSelect(i);
+              // Après sélection d'un onglet, rendre le focus au contenu.
+              _focus.focusContent();
+            },
+            onArrowDown: _focus.focusContent,
           ),
-          // Contenu : écoute arrowUp depuis le sommet pour remonter à la navbar
-          Expanded(
-            child: TvNavFocusRequest(
-              requestNavFocus: _focusNav,
-              child: _TvContentArea(
-                index: _index,
-                destinations: _destinations,
-                onRequestNavFocus: _focusNav,
-              ),
-            ),
+          content: _TvContentArea(
+            index: _index,
+            destinations: _destinations,
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-/// Zone de contenu qui intercepte arrowUp pour remonter à la navbar.
-class _TvContentArea extends StatefulWidget {
+/// Zone de contenu du shell. La remontée vers la navbar est gérée par les
+/// pages (arrowUp au sommet) via [TvFocusScopeProvider].
+class _TvContentArea extends StatelessWidget {
   final int index;
   final List<_Destination> destinations;
-  final VoidCallback onRequestNavFocus;
 
   const _TvContentArea({
     required this.index,
     required this.destinations,
-    required this.onRequestNavFocus,
   });
 
   @override
-  State<_TvContentArea> createState() => _TvContentAreaState();
-}
-
-class _TvContentAreaState extends State<_TvContentArea> {
-  @override
   Widget build(BuildContext context) {
-    return Focus(
-      // Intercepte arrowUp uniquement quand aucun descendant ne l'a consommé
-      onKeyEvent: (node, event) {
-        if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.arrowUp) {
-          // Si le focus est sur un élément tout en haut (pas de défilement
-          // possible vers le haut), on remonte à la navbar.
-          // On délègue à la page de décider via son propre onKeyEvent.
-          // Ici on le laisse remonter sauf si un descendant l'a géré.
-          return KeyEventResult.ignored;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: FocusScope(
-        autofocus: true,
-        child: IndexedStack(
-          index: widget.index,
-          children: [for (final d in widget.destinations) d.page],
-        ),
-      ),
+    return IndexedStack(
+      index: index,
+      children: [for (final d in destinations) d.page],
     );
   }
 }
@@ -187,55 +153,67 @@ class _TvTopBar extends StatelessWidget {
   final int selectedIndex;
   final bool hasNewEpisode;
   final void Function(int) onSelect;
+  final VoidCallback onArrowDown;
 
   const _TvTopBar({
     required this.destinations,
     required this.selectedIndex,
     required this.hasNewEpisode,
     required this.onSelect,
+    required this.onArrowDown,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 64,
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border(
-          bottom: BorderSide(
-            color: Colors.white.withValues(alpha: 0.08),
-            width: 1,
-          ),
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        children: [
-          Image.asset(
-            'assets/branding/logo_sombre_texte.png',
-            height: 36,
-            fit: BoxFit.contain,
-          ),
-          const SizedBox(width: 32),
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: [
-                for (int i = 0; i < destinations.length; i++)
-                  _TvTabItem(
-                    icon: destinations[i].icon,
-                    label: destinations[i].label,
-                    selected: selectedIndex == i,
-                    showBadge: i == _libraryIndex && hasNewEpisode,
-                    onPressed: () => onSelect(i),
-                    // Pas d'autofocus sur la navbar au démarrage — le contenu doit
-                    // avoir le focus initial. L'utilisateur remonte avec arrowUp.
-                    autofocus: false,
-                  ),
-              ],
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          onArrowDown();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: Colors.black,
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 1,
             ),
           ),
-        ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/branding/logo_sombre_texte.png',
+              height: 36,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 32),
+            Expanded(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  for (int i = 0; i < destinations.length; i++)
+                    _TvTabItem(
+                      icon: destinations[i].icon,
+                      label: destinations[i].label,
+                      selected: selectedIndex == i,
+                      showBadge: i == _libraryIndex && hasNewEpisode,
+                      onPressed: () => onSelect(i),
+                      // Pas d'autofocus sur la navbar au démarrage — le contenu doit
+                      // avoir le focus initial. L'utilisateur remonte avec arrowUp.
+                      autofocus: false,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -266,7 +244,7 @@ class _TvTabItem extends StatelessWidget {
       child: GestureDetector(
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -276,7 +254,7 @@ class _TvTabItem extends StatelessWidget {
                 child: Icon(
                   icon,
                   color: selected ? Colors.white : Colors.white38,
-                  size: 22,
+                  size: 20,
                 ),
               ),
               const SizedBox(height: 2),

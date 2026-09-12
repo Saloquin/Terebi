@@ -172,14 +172,16 @@ class StatsPage extends ConsumerWidget {
         final totalEntries =
             data.countByStatus.values.fold(0, (a, b) => a + b);
         if (totalEntries == 0) {
-          return const Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.bar_chart, size: 64, color: Colors.white38),
-                SizedBox(height: 12),
-                Text('Aucune entrée dans la bibliothèque'),
-              ],
+          return const Focus(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.bar_chart, size: 64, color: Colors.white38),
+                  SizedBox(height: 12),
+                  Text('Aucune entrée dans la bibliothèque'),
+                ],
+              ),
             ),
           );
         }

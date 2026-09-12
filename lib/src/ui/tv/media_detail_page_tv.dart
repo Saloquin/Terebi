@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
-import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
 import '../../domain/models/list_entry.dart';
@@ -16,6 +15,7 @@ import '../../domain/models/media.dart';
 import '../pages/resume_helper.dart';
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
+import 'widgets/tv_seasons_list.dart';
 import 'widgets/tv_side_panel.dart';
 
 // ---------------------------------------------------------------------------
@@ -45,8 +45,7 @@ final _resolvedSlugProvider =
 });
 
 final _mediaDetailProvider =
-    StreamProvider.family<Media?, ({int id, String? title})>(
-        (ref, arg) async* {
+    StreamProvider.family<Media?, ({int id, String? title})>((ref, arg) async* {
   final repo = ref.watch(mediaRepositoryProvider);
   final cached = await repo.getMedia(arg.id);
   var slug = cached?.animeSamaSlug;
@@ -70,6 +69,7 @@ final _mediaDetailProvider =
 class MediaDetailPageTv extends ConsumerStatefulWidget {
   final int mediaId;
   final String? displayTitle;
+
   /// Slug anime-sama connu à l'avance — évite une résolution réseau supplémentaire.
   final String? animeSamaSlug;
 
@@ -81,15 +81,33 @@ class MediaDetailPageTv extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<MediaDetailPageTv> createState() =>
-      _MediaDetailPageTvState();
+  ConsumerState<MediaDetailPageTv> createState() => _MediaDetailPageTvState();
 }
 
 class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
-  // null = pas de panneau ; 'seasons' | 'status' = panneau ouvert
   String? _openPanel;
+  final FocusNode _firstSeasonNode = FocusNode(debugLabel: 'firstSeasonTile');
+  final FocusNode _playButtonNode = FocusNode(debugLabel: 'playButton');
+
+  @override
+  void dispose() {
+    _firstSeasonNode.dispose();
+    _playButtonNode.dispose();
+    super.dispose();
+  }
 
   void _closePanel() => setState(() => _openPanel = null);
+
+  void _openStatusPanel() {
+    setState(() => _openPanel = 'status');
+    // Le panneau s'insère dans le widget tree au prochain frame : on attend
+    // ce frame pour que le premier item TvFocusable puisse recevoir le focus.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _openPanel == 'status') {
+        FocusScope.of(context).nextFocus();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -98,15 +116,15 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
     final media = mediaAsync.asData?.value ??
         (widget.displayTitle != null
             ? Media.fromAnimeSama(
-                slug: widget.animeSamaSlug ?? normalizeAnimeTitle(widget.displayTitle!),
+                slug: widget.animeSamaSlug ??
+                    normalizeAnimeTitle(widget.displayTitle!),
                 title: widget.displayTitle!)
             : Media(
                 mediaId: widget.mediaId,
                 title: const MediaTitle(romaji: 'Anime')));
 
-    final title = widget.displayTitle ??
-        media.animeSamaTitle ??
-        media.title.preferred;
+    final title =
+        widget.displayTitle ?? media.animeSamaTitle ?? media.title.preferred;
     // Priorité : slug du provider, puis slug passé en paramètre, puis slug synthétique
     final slug = media.animeSamaSlug?.isNotEmpty == true
         ? media.animeSamaSlug!
@@ -152,45 +170,94 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
                 ),
               ),
             ),
-            // --- Contenu : infos + boutons ---
-            Padding(
-              padding: const EdgeInsets.all(48),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  // Panneau latéral gauche (saisons ou statut)
-                  if (_openPanel != null)
-                    _buildPanel(media, title),
-                  // Infos (gauche)
-                  Expanded(
-                    flex: 3,
-                    child: _InfoColumn(
-                        media: media, title: title, displayTitle: widget.displayTitle),
-                  ),
-                  const SizedBox(width: 48),
-                  // Boutons (droite)
-                  _ButtonColumn(
-                    media: media,
-                    title: title,
-                    onOpenStatus: () =>
-                        setState(() => _openPanel = 'status'),
-                    onOpenSeasons: () =>
-                        setState(() => _openPanel = 'seasons'),
-                  ),
-                ],
+            // --- Contenu : infos + boutons en haut, saisons en dessous ---
+            SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(48),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // En-tête : infos (gauche) + boutons (droite)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Panneau latéral gauche (statut uniquement)
+                        if (_openPanel != null) _buildPanel(media, title),
+                        // Infos (gauche)
+                        Expanded(
+                          flex: 3,
+                          child: _InfoColumn(
+                            media: media,
+                            title: title,
+                            displayTitle: widget.displayTitle,
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                        // Boutons (droite) — largeur fixe : _ButtonColumn utilise
+                        // crossAxisAlignment.stretch et doit donc recevoir une
+                        // contrainte de largeur finie (sinon largeur infinie).
+                        SizedBox(
+                          width: 280,
+                          child: _ButtonColumn(
+                            media: media,
+                            title: title,
+                            onOpenStatus: _openStatusPanel,
+                            firstSeasonNode: _firstSeasonNode,
+                            playButtonNode: _playButtonNode,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 32),
+                    // Saisons, sous les infos, toujours visibles.
+                    Text(
+                      'Saisons',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TvSeasonsList(
+                      media: media,
+                      searchTitle: media.animeSamaTitle ??
+                          widget.displayTitle ??
+                          media.title.preferred,
+                      shrinkWrap: true,
+                      autofocusFirst: false,
+                      firstSeasonFocusNode: _firstSeasonNode,
+                      firstSeasonUpNode: _playButtonNode,
+                    ),
+                  ],
+                ),
               ),
             ),
             // Bouton Retour
             Positioned(
               top: 16,
               left: 16,
-              child: TvFocusable(
-                onPressed: () => Navigator.of(context).pop(),
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: Icon(Icons.arrow_back, color: Colors.white),
+              child: Focus(
+                canRequestFocus: false,
+                onKeyEvent: (_, event) {
+                  if (event is KeyDownEvent &&
+                      (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                          event.logicalKey == LogicalKeyboardKey.arrowRight)) {
+                    if (_playButtonNode.canRequestFocus) {
+                      _playButtonNode.requestFocus();
+                    }
+                    return KeyEventResult.handled;
+                  }
+                  return KeyEventResult.ignored;
+                },
+                child: TvFocusable(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: Icon(Icons.arrow_back, color: Colors.white),
+                    ),
                   ),
                 ),
               ),
@@ -202,16 +269,7 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
   }
 
   Widget _buildPanel(Media media, String title) {
-    final searchTitle =
-        media.animeSamaTitle ?? widget.displayTitle ?? media.title.preferred;
-    if (_openPanel == 'seasons') {
-      return _SeasonsPanel(
-        media: media,
-        searchTitle: searchTitle,
-        onClose: _closePanel,
-      );
-    }
-    // Panneau statut
+    // Panneau statut (les saisons sont désormais affichées inline sous les infos).
     final items = [
       const TvSidePanelItem(label: '— Auto (selon progression)', value: null),
       TvSidePanelItem(label: 'En pause', value: ListStatus.paused),
@@ -281,7 +339,8 @@ class _BlurredBackground extends StatelessWidget {
                 fit: BoxFit.cover,
               )
             : media.bannerUrl != null
-                ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
+                ? Image.network(media.bannerUrl!,
+                    fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
                         Container(color: Colors.black))
                 : Container(color: Colors.black),
@@ -350,8 +409,8 @@ class _InfoColumn extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(g,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 12)),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 12)),
                 ),
             ],
           ),
@@ -368,75 +427,89 @@ class _ButtonColumn extends ConsumerWidget {
   final Media media;
   final String title;
   final VoidCallback onOpenStatus;
-  final VoidCallback onOpenSeasons;
+  final FocusNode firstSeasonNode;
+  final FocusNode playButtonNode;
 
   const _ButtonColumn({
     required this.media,
     required this.title,
     required this.onOpenStatus,
-    required this.onOpenSeasons,
+    required this.firstSeasonNode,
+    required this.playButtonNode,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entryAsync = ref.watch(listEntryProvider(media.mediaId));
     final entry = entryAsync.asData?.value;
-    final searchTitle = media.animeSamaTitle ?? title;
-    final seasonsAsync =
-        ref.watch(animeSamaSeasonsProvider(searchTitle));
-    final seasons = seasonsAsync.asData?.value ?? [];
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Lire
-        _TvActionButton(
-          autofocus: true,
-          icon: Icons.play_arrow,
-          label: 'Lire',
-          onPressed: () => resumePlayback(context, ref, media),
-        ),
-        const SizedBox(height: 12),
-        // Ajouter / Modifier statut
-        if (entry == null)
+    // Nœud du 2e bouton (Ajouter / Modifier statut) : arrowDown depuis ce
+    // bouton → première saison. arrowDown depuis Lire → traversée native vers
+    // le 2e bouton (ils sont dans la même Column).
+    final secondButtonNode = FocusNode(debugLabel: 'secondButton');
+
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+          return KeyEventResult.handled;
+        }
+        // arrowDown depuis le 2e bouton → première saison directement.
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.arrowDown &&
+            secondButtonNode.hasFocus) {
+          if (firstSeasonNode.canRequestFocus) {
+            firstSeasonNode.requestFocus();
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
           _TvActionButton(
-            icon: Icons.add,
-            label: 'Ajouter',
-            onPressed: () async {
-              await ref.read(mediaRepositoryProvider).upsertMedia(media);
-              final hasProgress = await ref
-                  .read(seasonProgressRepositoryProvider)
-                  .hasAnyProgress(media.mediaId);
-              final status =
-                  effectiveStatus(entry: null, hasProgress: hasProgress) ??
-                      ListStatus.planning;
-              await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
-                    mediaId: media.mediaId,
-                    status: status,
-                    updatedAt: DateTime.now(),
-                  ));
-              ref.invalidate(entriesByStatusProvider);
-              ref.invalidate(countByStatusProvider);
-            },
-          )
-        else
-          _TvActionButton(
-            icon: Icons.edit,
-            label: 'Modifier statut',
-            onPressed: onOpenStatus,
+            autofocus: true,
+            focusNode: playButtonNode,
+            icon: Icons.play_arrow,
+            label: 'Lire',
+            onPressed: () => resumePlayback(context, ref, media),
           ),
-        // Saisons (si plusieurs)
-        if (seasons.length > 1) ...[
           const SizedBox(height: 12),
-          _TvActionButton(
-            icon: Icons.layers,
-            label: 'Saisons',
-            onPressed: onOpenSeasons,
-          ),
+          if (entry == null)
+            _TvActionButton(
+              focusNode: secondButtonNode,
+              icon: Icons.add,
+              label: 'Ajouter',
+              onPressed: () async {
+                await ref.read(mediaRepositoryProvider).upsertMedia(media);
+                final hasProgress = await ref
+                    .read(seasonProgressRepositoryProvider)
+                    .hasAnyProgress(media.mediaId);
+                final status =
+                    effectiveStatus(entry: null, hasProgress: hasProgress) ??
+                        ListStatus.planning;
+                await ref.read(listRepositoryProvider).upsertEntry(ListEntry(
+                      mediaId: media.mediaId,
+                      status: status,
+                      updatedAt: DateTime.now(),
+                    ));
+                ref.invalidate(entriesByStatusProvider);
+                ref.invalidate(countByStatusProvider);
+              },
+            )
+          else
+            _TvActionButton(
+              focusNode: secondButtonNode,
+              icon: Icons.edit,
+              label: 'Modifier statut',
+              onPressed: onOpenStatus,
+            ),
         ],
-      ],
+      ),
     );
   }
 }
@@ -446,24 +519,26 @@ class _TvActionButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final bool autofocus;
+  final FocusNode? focusNode;
 
   const _TvActionButton({
     required this.icon,
     required this.label,
     required this.onPressed,
     this.autofocus = false,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
     return TvFocusable(
       autofocus: autofocus,
+      focusNode: focusNode,
       onPressed: onPressed,
       child: GestureDetector(
         onTap: onPressed,
         child: Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white12,
             borderRadius: BorderRadius.circular(8),
@@ -474,8 +549,7 @@ class _TvActionButton extends StatelessWidget {
               Icon(icon, color: Colors.white, size: 20),
               const SizedBox(width: 10),
               Text(label,
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 15)),
+                  style: const TextStyle(color: Colors.white, fontSize: 15)),
             ],
           ),
         ),
@@ -485,55 +559,5 @@ class _TvActionButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Panneau des saisons
-// ---------------------------------------------------------------------------
-
-class _SeasonsPanel extends ConsumerWidget {
-  final Media media;
-  final String searchTitle;
-  final VoidCallback onClose;
-
-  const _SeasonsPanel({
-    required this.media,
-    required this.searchTitle,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
-
-    return seasonsAsync.when(
-      loading: () => const SizedBox(
-        width: 280,
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => const SizedBox(
-        width: 280,
-        child: Center(
-            child: Text('Erreur', style: TextStyle(color: Colors.white54))),
-      ),
-      data: (seasons) {
-        final items = seasons
-            .map((s) => TvSidePanelItem(
-                  label: s.name.isNotEmpty ? s.name : 'Saison ${s.index}',
-                  value: s.index,
-                ))
-            .toList();
-        return TvSidePanel(
-          title: 'Saisons',
-          items: items,
-          onSelected: (item) async {
-            final index = item.value as int;
-            await ref
-                .read(settingsRepositoryProvider)
-                .set(SettingsKeys.animeSamaSeasonFor(media.mediaId),
-                    '$index');
-            onClose();
-          },
-          onClose: onClose,
-        );
-      },
-    );
-  }
-}
+// (Le panneau des saisons est désormais rendu par TvSeasonsList, qui reproduit
+// le comportement desktop : progression + marquer-vu par saison.)
