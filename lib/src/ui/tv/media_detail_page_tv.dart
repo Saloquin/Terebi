@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
-import '../../data/repositories/settings_repository.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/logic/effective_status_service.dart';
 import '../../domain/models/list_entry.dart';
@@ -16,6 +15,7 @@ import '../../domain/models/media.dart';
 import '../pages/resume_helper.dart';
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
+import 'widgets/tv_seasons_list.dart';
 import 'widgets/tv_side_panel.dart';
 
 // ---------------------------------------------------------------------------
@@ -209,10 +209,49 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
     final searchTitle =
         media.animeSamaTitle ?? widget.displayTitle ?? media.title.preferred;
     if (_openPanel == 'seasons') {
-      return _SeasonsPanel(
-        media: media,
-        searchTitle: searchTitle,
-        onClose: _closePanel,
+      // Liste verticale enrichie (épisodes + progression + marquer-vu),
+      // reproduit le comportement desktop. Focus D-pad piégé dans le panneau ;
+      // flèche droite / retour ferme (géré par le Focus englobant + goBack).
+      return Focus(
+        canRequestFocus: false,
+        onKeyEvent: (_, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.arrowRight) {
+            _closePanel();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: Container(
+          width: 480,
+          color: Colors.black87,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'Saisons',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Divider(color: Colors.white24, height: 1),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: TvSeasonsList(
+                    media: media,
+                    searchTitle: searchTitle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
     // Panneau statut
@@ -500,54 +539,5 @@ class _TvActionButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Panneau des saisons
-// ---------------------------------------------------------------------------
-
-class _SeasonsPanel extends ConsumerWidget {
-  final Media media;
-  final String searchTitle;
-  final VoidCallback onClose;
-
-  const _SeasonsPanel({
-    required this.media,
-    required this.searchTitle,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final seasonsAsync = ref.watch(animeSamaSeasonsProvider(searchTitle));
-
-    return seasonsAsync.when(
-      loading: () => const SizedBox(
-        width: 280,
-        child: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => const SizedBox(
-        width: 280,
-        child: Center(
-            child: Text('Erreur', style: TextStyle(color: Colors.white54))),
-      ),
-      data: (seasons) {
-        final items = seasons
-            .map((s) => TvSidePanelItem(
-                  label: s.name.isNotEmpty ? s.name : 'Saison ${s.index}',
-                  value: s.index,
-                ))
-            .toList();
-        return TvSidePanel(
-          title: 'Saisons',
-          items: items,
-          onSelected: (item) async {
-            final index = item.value as int;
-            await ref
-                .read(settingsRepositoryProvider)
-                .set(SettingsKeys.animeSamaSeasonFor(media.mediaId), '$index');
-            onClose();
-          },
-          onClose: onClose,
-        );
-      },
-    );
-  }
-}
+// (Le panneau des saisons est désormais rendu par TvSeasonsList, qui reproduit
+// le comportement desktop : progression + marquer-vu par saison.)

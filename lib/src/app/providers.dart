@@ -164,9 +164,10 @@ final effectiveEntriesProvider =
 /// Statut EFFECTIF (affiche) de CHAQUE anime present dans la bibliotheque :
 /// `mediaId -> ListStatus`. Dérivé de [effectiveEntriesProvider] (réactif aux
 /// entrées ET à la progression par saison).
-final libraryStatusMapProvider = Provider<AsyncValue<Map<int, ListStatus>>>((ref) {
-  return ref.watch(effectiveEntriesProvider).whenData((entries) =>
-      {for (final e in entries) e.entry.mediaId: e.status});
+final libraryStatusMapProvider =
+    Provider<AsyncValue<Map<int, ListStatus>>>((ref) {
+  return ref.watch(effectiveEntriesProvider).whenData(
+      (entries) => {for (final e in entries) e.entry.mediaId: e.status});
 });
 
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
@@ -178,9 +179,7 @@ final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
 /// borné à [5, 60].
 final heroRotationSecondsProvider = StreamProvider<int>((ref) {
   final settings = ref.watch(settingsRepositoryProvider);
-  return settings
-      .watchWithPrefix(SettingsKeys.heroRotationSeconds)
-      .map((m) {
+  return settings.watchWithPrefix(SettingsKeys.heroRotationSeconds).map((m) {
     final raw = m[SettingsKeys.heroRotationSeconds];
     final v = int.tryParse(raw ?? '') ?? 10;
     return v.clamp(5, 60);
@@ -274,8 +273,9 @@ typedef CatalogFilterCriteria = ({
 
 /// Catalogue anime-sama filtre par criteres optionnels (genre/annee/episodes).
 /// Vide en cas d'erreur (best-effort). Mode « parcourir » = criteres vides.
-final animeSamaCatalogFilterProvider = FutureProvider.family<
-    List<AnimeSamaCatalogueItem>, CatalogFilterCriteria>((ref, c) async {
+final animeSamaCatalogFilterProvider =
+    FutureProvider.family<List<AnimeSamaCatalogueItem>, CatalogFilterCriteria>(
+        (ref, c) async {
   final resolver = await ref.watch(animeSamaResolverProvider.future);
   try {
     return await resolver.catalogueFilter(
@@ -330,10 +330,23 @@ final animeSamaSeasonsProvider =
 
 /// Numéros d'épisodes d'une (saison) anime-sama. Keyé sur (titre, index) pour
 /// que fiche + lecteur + recheck réutilisent le même résultat.
-final animeSamaEpisodesProvider = FutureProvider.family<List<int>,
-    ({String title, int seasonIndex})>((ref, arg) async {
+final animeSamaEpisodesProvider =
+    FutureProvider.family<List<int>, ({String title, int seasonIndex})>(
+        (ref, arg) async {
   final resolver = await ref.watch(animeSamaResolverProvider.future);
   return resolver.listEpisodes(title: arg.title, seasonIndex: arg.seasonIndex);
+});
+
+/// Titres normalisés présents au planning anime-sama (diffusion en cours).
+/// Sert à décider « À jour » (au planning) vs « Terminée » (hors planning).
+/// Dérive du planning global partagé avec le calendrier (pas de 2e scraping).
+final planningTitlesProvider = FutureProvider<Set<String>>((ref) async {
+  try {
+    final items = await ref.watch(animeSamaPlanningProvider.future);
+    return items.map((e) => normalizeAnimeTitle(e.title)).toSet();
+  } catch (_) {
+    return <String>{};
+  }
 });
 
 /// Nombre TOTAL d'épisodes d'un anime-sama = somme des épisodes de toutes ses
@@ -414,8 +427,14 @@ final animeSamaLanguagesProvider = FutureProvider.family<Set<PlaybackLanguage>,
 /// Best-effort : renvoie un [SkipTimes] vide si rien trouvé (jamais d'erreur).
 /// Mis en cache Riverpod par clé → une seule requête AniSkip par épisode.
 /// [malId] (via AniList/Jikan) fiabilise la résolution AniSkip s'il est connu.
-final animeSamaSkipTimesProvider = FutureProvider.family<SkipTimes,
-    ({String title, int seasonIndex, int episode, int? malId})>((ref, arg) async {
+final animeSamaSkipTimesProvider = FutureProvider.family<
+    SkipTimes,
+    ({
+      String title,
+      int seasonIndex,
+      int episode,
+      int? malId
+    })>((ref, arg) async {
   final resolver = await ref.watch(animeSamaResolverProvider.future);
   return resolver.skipTimes(
     title: arg.title,
@@ -569,4 +588,3 @@ final playerControllerProvider =
 
 final libraryControllerProvider =
     NotifierProvider<LibraryController, LibraryState>(LibraryController.new);
-
