@@ -1,7 +1,5 @@
 library;
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,11 +39,7 @@ class CatalogPageTv extends ConsumerStatefulWidget {
 }
 
 class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
-  final TextEditingController _textCtrl = TextEditingController();
-  final FocusNode _textFieldFocusNode = FocusNode(debugLabel: 'catalogSearch');
-
-  // Délai de debounce pour ne pas déclencher la recherche à chaque frappe.
-  Timer? _debounce;
+  // Délai de debounce supprimé : la saisie passe par un dialog, pas en temps réel.
   String _query = '';
   String? _selectedGenre;
   bool _hideLibrary = false;
@@ -63,34 +57,27 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 
   @override
   void dispose() {
-    _textCtrl.dispose();
-    _textFieldFocusNode.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
-  void _onTextChanged(String v) {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        setState(() {
-          _query = v.trim();
-          if (_query.isNotEmpty) _selectedGenre = null;
-        });
-      }
-    });
+  Future<void> _openSearch() async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _TvSearchDialog(initialValue: _query),
+    );
+    if (result != null) {
+      setState(() {
+        _query = result;
+        if (_query.isNotEmpty) _selectedGenre = null;
+      });
+    }
   }
 
   void _onGenreSelected(String genre) {
     setState(() {
       _selectedGenre = _selectedGenre == genre ? null : genre;
-      if (_selectedGenre != null) {
-        _query = '';
-        _textCtrl.clear();
-      }
+      if (_selectedGenre != null) _query = '';
     });
-    // Après sélection d'un genre, le premier résultat prend le focus via
-    // autofocus:true dans la grille — pas besoin de forcer manuellement.
   }
 
   Future<void> _toggleHideLibrary() async {
@@ -136,14 +123,16 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Champ de recherche
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                      child: _TvSearchField(
-                        controller: _textCtrl,
-                        focusNode: _textFieldFocusNode,
-                        onChanged: _onTextChanged,
-                      ),
+                    // Bouton recherche — ouvre un dialog de saisie au OK.
+                    // On n'utilise pas de TextField inline car Android TV ouvre
+                    // le clavier virtuel automatiquement dès qu'un TextField
+                    // reçoit le focus, même sans autofocus.
+                    _SidebarButton(
+                      icon: Icons.search,
+                      label: _query.isNotEmpty ? _query : 'Rechercher…',
+                      selected: _query.isNotEmpty,
+                      autofocus: true,
+                      onPressed: _openSearch,
                     ),
                     // Bouton masquer/afficher bibliothèque
                     _SidebarButton(
@@ -191,13 +180,11 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
               onKeyEvent: (_, event) {
                 if (event is KeyDownEvent &&
                     event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                  final moved = FocusManager.instance.primaryFocus
-                          ?.focusInDirection(TraversalDirection.left) ??
-                      false;
-                  if (!moved) {
-                    _textFieldFocusNode.requestFocus();
-                    return KeyEventResult.handled;
-                  }
+                  // Tente de bouger à gauche dans la grille ; si on est sur le
+                  // bord gauche, focusInDirection échoue et on laisse la
+                  // traversée naturelle remonter vers la sidebar.
+                  FocusManager.instance.primaryFocus
+                      ?.focusInDirection(TraversalDirection.left);
                   return KeyEventResult.handled;
                 }
                 return KeyEventResult.ignored;
@@ -264,77 +251,58 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 // Champ de recherche TV
 // ---------------------------------------------------------------------------
 
-class _TvSearchField extends StatefulWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final void Function(String) onChanged;
+// ---------------------------------------------------------------------------
+// Dialog de saisie de recherche (clavier système Android TV)
+// ---------------------------------------------------------------------------
 
-  const _TvSearchField({
-    required this.controller,
-    required this.focusNode,
-    required this.onChanged,
-  });
+class _TvSearchDialog extends StatefulWidget {
+  final String initialValue;
+  const _TvSearchDialog({required this.initialValue});
 
   @override
-  State<_TvSearchField> createState() => _TvSearchFieldState();
+  State<_TvSearchDialog> createState() => _TvSearchDialogState();
 }
 
-class _TvSearchFieldState extends State<_TvSearchField> {
-  bool _hasFocus = false;
+class _TvSearchDialogState extends State<_TvSearchDialog> {
+  late final TextEditingController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    widget.focusNode.addListener(_onFocusChange);
+    _ctrl = TextEditingController(text: widget.initialValue);
   }
 
   @override
   void dispose() {
-    widget.focusNode.removeListener(_onFocusChange);
+    _ctrl.dispose();
     super.dispose();
-  }
-
-  void _onFocusChange() {
-    setState(() => _hasFocus = widget.focusNode.hasFocus);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: _hasFocus ? Colors.white : Colors.transparent,
-          width: 2,
-        ),
-        boxShadow: _hasFocus
-            ? [
-                BoxShadow(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  blurRadius: 12,
-                  spreadRadius: 1,
-                ),
-              ]
-            : null,
-      ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: widget.focusNode,
-        autofocus: false,
-        style: const TextStyle(color: Colors.white, fontSize: 14),
-        cursorColor: Colors.white70,
+    return AlertDialog(
+      title: const Text('Rechercher'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
         textInputAction: TextInputAction.search,
         decoration: const InputDecoration(
-          hintText: 'Rechercher…',
-          hintStyle: TextStyle(color: Colors.white38),
-          prefixIcon: Icon(Icons.search, color: Colors.white54, size: 20),
-          border: InputBorder.none,
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          hintText: 'Titre de l\'anime…',
+          prefixIcon: Icon(Icons.search),
+          border: OutlineInputBorder(),
         ),
-        onChanged: widget.onChanged,
+        onSubmitted: (v) => Navigator.pop(context, v.trim()),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, ''),
+          child: const Text('Effacer'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+          child: const Text('Rechercher'),
+        ),
+      ],
     );
   }
 }
@@ -347,6 +315,7 @@ class _SidebarButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool selected;
+  final bool autofocus;
   final VoidCallback onPressed;
 
   const _SidebarButton({
@@ -354,11 +323,13 @@ class _SidebarButton extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onPressed,
+    this.autofocus = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return TvFocusable(
+      autofocus: autofocus,
       onPressed: onPressed,
       child: GestureDetector(
         onTap: onPressed,
