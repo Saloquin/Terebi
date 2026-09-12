@@ -33,12 +33,17 @@ class TvContentRow extends ConsumerWidget {
   final bool withResume;
   final void Function(Media)? onFocused;
 
+  /// Si vrai, la première tuile de cette rangée reçoit l'autofocus initial.
+  /// Ne doit être vrai que pour UNE seule rangée de la page.
+  final bool autofocusFirst;
+
   const TvContentRow({
     super.key,
     required this.title,
     required this.items,
     this.withResume = false,
     this.onFocused,
+    this.autofocusFirst = false,
   });
 
   @override
@@ -47,8 +52,10 @@ class TvContentRow extends ConsumerWidget {
 
     final tileW = _tileWidth(context);
     final tileH = tileW / _tileAspectRatio;
-    // +30px pour bordure TvFocusable + AnimatedScale overflow
-    final rowH = tileH + 30;
+    // Marge verticale réservée au zoom (1.08) + bordure 3px du TvFocusable,
+    // pour éviter le clipping du highlight sans gonfler la logique de layout.
+    const focusMargin = 24.0;
+    final rowH = tileH + focusMargin * 2;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 32),
@@ -72,13 +79,15 @@ class TvContentRow extends ConsumerWidget {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 40),
               itemCount: items.length,
-              itemBuilder: (context, i) => _TvTile(
-                media: items[i],
-                tileWidth: tileW,
-                tileHeight: tileH,
-                withResume: withResume,
-                onFocused: onFocused,
-                autofocus: i == 0,
+              itemBuilder: (context, i) => Center(
+                child: _TvTile(
+                  media: items[i],
+                  tileWidth: tileW,
+                  tileHeight: tileH,
+                  withResume: withResume,
+                  onFocused: onFocused,
+                  autofocus: autofocusFirst && i == 0,
+                ),
               ),
             ),
           ),
