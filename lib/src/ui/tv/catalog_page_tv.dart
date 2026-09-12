@@ -322,7 +322,7 @@ class _TvSearchFieldState extends State<_TvSearchField> {
       child: TextField(
         controller: widget.controller,
         focusNode: widget.focusNode,
-        autofocus: true,
+        autofocus: false,
         style: const TextStyle(color: Colors.white, fontSize: 14),
         cursorColor: Colors.white70,
         textInputAction: TextInputAction.search,

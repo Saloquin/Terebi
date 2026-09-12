@@ -62,6 +62,7 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
         controller: _scrollController,
         children: [
           Focus(
+            canRequestFocus: false,
             onFocusChange: (focused) {
               if (focused) _onHeroFocus();
             },

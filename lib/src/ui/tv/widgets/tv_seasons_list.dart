@@ -363,6 +363,13 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
                   _buttonNode.requestFocus();
                   return KeyEventResult.handled;
                 }
+                // Dernière saison : absorber arrowDown pour ne pas perdre le
+                // focus dans le vide sous la liste.
+                if (widget.isLastSeason &&
+                    event is KeyDownEvent &&
+                    event.logicalKey == LogicalKeyboardKey.arrowDown) {
+                  return KeyEventResult.handled;
+                }
                 return KeyEventResult.ignored;
               },
               child: TvFocusable(
@@ -437,6 +444,11 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
               if (event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.arrowLeft) {
                 _tileNode.requestFocus();
+                return KeyEventResult.handled;
+              }
+              if (widget.isLastSeason &&
+                  event is KeyDownEvent &&
+                  event.logicalKey == LogicalKeyboardKey.arrowDown) {
                 return KeyEventResult.handled;
               }
               return KeyEventResult.ignored;
