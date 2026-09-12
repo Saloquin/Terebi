@@ -1,5 +1,7 @@
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +16,6 @@ import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page_tv.dart';
 
-// Provider de recherche (privé, identique à catalog_page.dart).
 final _searchResultsProvider =
     FutureProvider.family<List<AnimeSamaCatalogueItem>, String>(
         (ref, query) async {
@@ -39,7 +40,10 @@ class CatalogPageTv extends ConsumerStatefulWidget {
 }
 
 class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
-  // Délai de debounce supprimé : la saisie passe par un dialog, pas en temps réel.
+  final TextEditingController _textCtrl = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'catalogSearch');
+  Timer? _debounce;
+
   String _query = '';
   String? _selectedGenre;
   bool _hideLibrary = false;
@@ -57,26 +61,31 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 
   @override
   void dispose() {
+    _textCtrl.dispose();
+    _searchFocusNode.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  Future<void> _openSearch() async {
-    final result = await showDialog<String>(
-      context: context,
-      builder: (_) => _TvSearchDialog(initialValue: _query),
-    );
-    if (result != null) {
-      setState(() {
-        _query = result;
-        if (_query.isNotEmpty) _selectedGenre = null;
-      });
-    }
+  void _onTextChanged(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) {
+        setState(() {
+          _query = v.trim();
+          if (_query.isNotEmpty) _selectedGenre = null;
+        });
+      }
+    });
   }
 
   void _onGenreSelected(String genre) {
     setState(() {
       _selectedGenre = _selectedGenre == genre ? null : genre;
-      if (_selectedGenre != null) _query = '';
+      if (_selectedGenre != null) {
+        _query = '';
+        _textCtrl.clear();
+      }
     });
   }
 
@@ -97,13 +106,11 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ─── Colonne gauche : recherche + genres ─────────────────────────
+          // ─── Colonne gauche ───────────────────────────────────────────────
           SizedBox(
             width: 280,
             child: Focus(
               canRequestFocus: false,
-              // Flèche droite depuis la colonne gauche → premier focusable du
-              // panneau résultats (traversée naturelle vers la droite).
               onKeyEvent: (_, event) {
                 if (event is KeyDownEvent &&
                     event.logicalKey == LogicalKeyboardKey.arrowRight) {
@@ -123,18 +130,17 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Bouton recherche — ouvre un dialog de saisie au OK.
-                    // On n'utilise pas de TextField inline car Android TV ouvre
-                    // le clavier virtuel automatiquement dès qu'un TextField
-                    // reçoit le focus, même sans autofocus.
-                    _SidebarButton(
-                      icon: Icons.search,
-                      label: _query.isNotEmpty ? _query : 'Rechercher…',
-                      selected: _query.isNotEmpty,
-                      autofocus: false,
-                      onPressed: _openSearch,
+                    // Champ de recherche : le TvFocusable reçoit le OK du D-pad
+                    // et transfère le focus au TextField — Android TV ouvre alors
+                    // le clavier car c'est une action utilisateur explicite.
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+                      child: _TvSearchField(
+                        controller: _textCtrl,
+                        focusNode: _searchFocusNode,
+                        onChanged: _onTextChanged,
+                      ),
                     ),
-                    // Bouton masquer/afficher bibliothèque
                     _SidebarButton(
                       icon: _hideLibrary
                           ? Icons.visibility_off
@@ -149,7 +155,6 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
                       padding: EdgeInsets.symmetric(horizontal: 16),
                       child: Divider(color: Colors.white12, height: 16),
                     ),
-                    // Liste des genres
                     Expanded(
                       child: ListView(
                         padding: const EdgeInsets.only(bottom: 16),
@@ -176,15 +181,9 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
           Expanded(
             child: Focus(
               canRequestFocus: false,
-              // Flèche gauche depuis le bord gauche de la grille → sidebar.
-              // focusInDirection tente d'abord de bouger dans la grille ; s'il
-              // ne trouve rien à gauche (bord), on retourne au textfield.
               onKeyEvent: (_, event) {
                 if (event is KeyDownEvent &&
                     event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                  // Tente de bouger à gauche dans la grille ; si on est sur le
-                  // bord gauche, focusInDirection échoue et on laisse la
-                  // traversée naturelle remonter vers la sidebar.
                   FocusManager.instance.primaryFocus
                       ?.focusInDirection(TraversalDirection.left);
                   return KeyEventResult.handled;
@@ -250,61 +249,128 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 }
 
 // ---------------------------------------------------------------------------
-// Champ de recherche TV
+// Champ de recherche TV inline
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Dialog de saisie de recherche (clavier système Android TV)
-// ---------------------------------------------------------------------------
+class _TvSearchField extends StatefulWidget {
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final void Function(String) onChanged;
 
-class _TvSearchDialog extends StatefulWidget {
-  final String initialValue;
-  const _TvSearchDialog({required this.initialValue});
+  const _TvSearchField({
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
+  });
 
   @override
-  State<_TvSearchDialog> createState() => _TvSearchDialogState();
+  State<_TvSearchField> createState() => _TvSearchFieldState();
 }
 
-class _TvSearchDialogState extends State<_TvSearchDialog> {
-  late final TextEditingController _ctrl;
+class _TvSearchFieldState extends State<_TvSearchField> {
+  // Nœud intermédiaire : reçoit le focus D-pad et transmet au TextField au OK.
+  final FocusNode _wrapperNode = FocusNode(debugLabel: 'searchWrapper');
+  bool _textFieldActive = false;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = TextEditingController(text: widget.initialValue);
+    widget.focusNode.addListener(_onTextFocusChange);
   }
 
   @override
   void dispose() {
-    _ctrl.dispose();
+    widget.focusNode.removeListener(_onTextFocusChange);
+    _wrapperNode.dispose();
     super.dispose();
+  }
+
+  void _onTextFocusChange() {
+    setState(() => _textFieldActive = widget.focusNode.hasFocus);
+    if (!widget.focusNode.hasFocus) {
+      // Quand le TextField perd le focus (fermeture clavier), on remet le focus
+      // sur le wrapper pour que le D-pad reste dans la colonne gauche.
+      _wrapperNode.requestFocus();
+    }
+  }
+
+  void _activateTextField() {
+    widget.focusNode.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Rechercher'),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        textInputAction: TextInputAction.search,
-        decoration: const InputDecoration(
-          hintText: 'Titre de l\'anime…',
-          prefixIcon: Icon(Icons.search),
-          border: OutlineInputBorder(),
+    final hasFocus = _wrapperNode.hasFocus || _textFieldActive;
+    return Focus(
+      focusNode: _wrapperNode,
+      onKeyEvent: (_, event) {
+        if (!_textFieldActive &&
+            event is KeyDownEvent &&
+            (event.logicalKey == LogicalKeyboardKey.select ||
+                event.logicalKey == LogicalKeyboardKey.enter)) {
+          _activateTextField();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: hasFocus ? Colors.white : Colors.transparent,
+            width: 2,
+          ),
+          boxShadow: hasFocus
+              ? [
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    blurRadius: 10,
+                  ),
+                ]
+              : null,
         ),
-        onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        child: Row(
+          children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: Icon(Icons.search, color: Colors.white54, size: 18),
+            ),
+            Expanded(
+              child: TextField(
+                controller: widget.controller,
+                focusNode: widget.focusNode,
+                autofocus: false,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                cursorColor: Colors.white70,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Rechercher…',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  border: InputBorder.none,
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 0, vertical: 12),
+                ),
+                onChanged: widget.onChanged,
+                onSubmitted: (_) => _wrapperNode.requestFocus(),
+              ),
+            ),
+            if (widget.controller.text.isNotEmpty)
+              GestureDetector(
+                onTap: () {
+                  widget.controller.clear();
+                  widget.onChanged('');
+                  _wrapperNode.requestFocus();
+                },
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Icon(Icons.close, color: Colors.white38, size: 16),
+                ),
+              ),
+          ],
+        ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, ''),
-          child: const Text('Effacer'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
-          child: const Text('Rechercher'),
-        ),
-      ],
     );
   }
 }
@@ -340,7 +406,10 @@ class _SidebarButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
           decoration: BoxDecoration(
             color: selected
-                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.25)
+                ? Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.25)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
@@ -370,7 +439,7 @@ class _SidebarButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Panneau vide (aucun filtre actif)
+// Panneau vide
 // ---------------------------------------------------------------------------
 
 class _EmptyPanel extends StatelessWidget {
@@ -393,7 +462,7 @@ class _EmptyPanel extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Grille de résultats (recherche ou genre)
+// Grille de résultats
 // ---------------------------------------------------------------------------
 
 class _ResultsGrid extends ConsumerWidget {
@@ -419,8 +488,7 @@ class _ResultsGrid extends ConsumerWidget {
     final statusMap = ref.watch(libraryStatusMapProvider).asData?.value ?? {};
 
     return resultsAsync.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Erreur : $e',
             style: const TextStyle(color: Colors.white54)),
@@ -506,7 +574,6 @@ class _CatalogTileTv extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               AnimeSamaImage(slug: slug, fit: BoxFit.cover),
-              // Gradient bas + titre
               Positioned(
                 left: 0,
                 right: 0,
@@ -524,12 +591,10 @@ class _CatalogTileTv extends StatelessWidget {
                     item.title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
               ),
-              // Badge statut bibliothèque
               if (status != null)
                 Positioned(
                   top: 6,
