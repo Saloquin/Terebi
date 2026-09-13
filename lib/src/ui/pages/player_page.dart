@@ -32,6 +32,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
+import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.
@@ -1326,6 +1327,162 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isTv = ref.read(isTvProvider);
+    if (isTv) return _buildTvBody(context);
+    return _buildDesktopBody(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layout Android TV : plein écran, lecteur en haut, contrôles en bas
+  // ---------------------------------------------------------------------------
+
+  Widget _buildTvBody(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Lecteur : occupe ~65 % de la hauteur disponible.
+            Expanded(
+              flex: 65,
+              child: _buildTvPlayerArea(),
+            ),
+            // Contrôles : barre saison/nav + sélecteur langue + erreur.
+            Expanded(
+              flex: 35,
+              child: _buildTvControls(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Zone lecteur TV : Video toujours dans l'arbre (la surface doit exister dès
+  /// le départ sous Android pour que media_kit puisse s'y attacher), overlay
+  /// « Lancer » / spinner par-dessus via Stack.
+  Widget _buildTvPlayerArea() {
+    return GestureDetector(
+      onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(color: Colors.black),
+          // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
+          // SurfaceView soit créée avant open() pour afficher l'image.
+          _buildVideo(),
+          // Overlay quand pas prêt.
+          if (!_ready)
+            Container(
+              color: Colors.black,
+              child: Center(
+                child: _loading
+                    ? const CircularProgressIndicator()
+                    : TvFocusable(
+                        autofocus: true,
+                        onPressed: _loadAndPlay,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 16),
+                          decoration: BoxDecoration(
+                            color: Colors.white24,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.play_arrow,
+                                  color: Colors.white, size: 32),
+                              SizedBox(width: 12),
+                              Text(
+                                'Lancer',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 20),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTvControls(BuildContext context) {
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Sélecteur de langue
+          if (!_singleLanguage) ...[
+            _LanguageSelector(
+              current: _language,
+              available: _availableLangs,
+              onChanged: _switchLanguage,
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Barre de navigation d'épisode
+          _ControlBar(
+            seasonName: _seasonName,
+            currentEpisode: _currentEpisode,
+            episodes: _episodes,
+            enabled: !_loading,
+            onOpenDetail: _openDetail,
+            onPrev: _prevEpisode != null
+                ? () => _goToEpisode(_prevEpisode!)
+                : null,
+            onNext: _nextEpisode != null
+                ? () => _goToEpisode(_nextEpisode!)
+                : null,
+            onSelect: (ep) => _goToEpisode(ep),
+            isLastEpisode: _isLastEpisode,
+            onFinish: _finishSeason,
+          ),
+          // Erreur
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color:
+                            Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _loading ? null : _loadAndPlay,
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layout Desktop/Mobile standard
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDesktopBody(BuildContext context) {
     final title = widget.media.title.preferred;
 
     return Scaffold(
@@ -1335,10 +1492,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 960),
-          // Défilement vertical : sur les petits/larges écrans (TV, fenêtres
-          // basses), l'AspectRatio 16/9 peut dépasser la hauteur disponible.
-          // Sans scroll, la Column déborderait (RenderFlex overflow). Le
-          // LayoutBuilder recentre verticalement quand le contenu tient.
           child: LayoutBuilder(
             builder: (context, constraints) {
               return SingleChildScrollView(
@@ -1350,7 +1503,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // --- Sélecteur de langue, au-dessus du lecteur (mode fenêtré) ---
                         if (!_singleLanguage) ...[
                           Align(
                             alignment: Alignment.centerLeft,
@@ -1362,14 +1514,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                           ),
                           const SizedBox(height: 8),
                         ],
-                        // --- Lecteur encastré media_kit ---
                         AspectRatio(
                           aspectRatio: 16 / 9,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: GestureDetector(
-                              // Clic droit → menu contextuel (langue + vitesse), utile
-                              // en plein écran où la barre du dessus est masquée.
                               onSecondaryTapDown: (d) =>
                                   _showContextMenu(d.globalPosition),
                               child: Stack(
@@ -1384,25 +1533,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                   else
                                     Center(
                                       child: FilledButton.icon(
-                                        // Sur TV : autofocus pour que OK lance la lecture.
-                                        autofocus: ref.read(isTvProvider),
                                         onPressed: _loadAndPlay,
                                         icon: const Icon(Icons.play_arrow),
                                         label: const Text('Lancer'),
                                       ),
                                     ),
-                                  // (L'overlay auto-play « Épisode suivant dans N… »
-                                  //  est rendu DANS le builder `controls` de _buildVideo
-                                  //  pour rester visible aussi en plein écran.)
                                 ],
                               ),
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 16),
-
-                        // --- Barre de contrôle : saison + fiche | < menu > ---
                         _ControlBar(
                           seasonName: _seasonName,
                           currentEpisode: _currentEpisode,
@@ -1419,14 +1560,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                           isLastEpisode: _isLastEpisode,
                           onFinish: _finishSeason,
                         ),
-
                         if (_error != null) ...[
                           const SizedBox(height: 16),
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color:
-                                  Theme.of(context).colorScheme.errorContainer,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .errorContainer,
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Row(
