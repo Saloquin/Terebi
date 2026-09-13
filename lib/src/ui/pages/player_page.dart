@@ -32,7 +32,6 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
-import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.
@@ -1299,198 +1298,122 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   // ---------------------------------------------------------------------------
-  // Layout Android TV : plein écran, lecteur en haut, contrôles en bas
+  // Layout Android TV : copie exacte du layout desktop, fond noir, sans AppBar
   // ---------------------------------------------------------------------------
 
   Widget _buildTvBody(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Lecteur : occupe ~65 % de la hauteur disponible.
-                Expanded(
-                  flex: 65,
-                  child: _buildTvPlayerArea(),
-                ),
-                // Contrôles : barre saison/nav + sélecteur langue + erreur.
-                Expanded(
-                  flex: 35,
-                  child: _buildTvControls(context),
-                ),
-              ],
-            ),
-            // Bouton retour — bas gauche, toujours visible.
-            Positioned(
-              bottom: 16,
-              left: 16,
-              child: TvFocusable(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTvPlayerArea() {
-    return Focus(
-      // Intercepte les touches D-pad au niveau du lecteur (avant media_kit).
-      onKeyEvent: (_, event) {
-        if (event is! KeyDownEvent || !_ready) return KeyEventResult.ignored;
-        final key = event.logicalKey;
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter) {
-          _player.playOrPause();
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowLeft) {
-          _seekBy(-_seekBackward);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowRight) {
-          _seekBy(_seekForward);
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowUp) {
-          _player.setVolume((_player.state.volume + 5.0).clamp(0.0, 100.0));
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowDown) {
-          _player.setVolume((_player.state.volume - 5.0).clamp(0.0, 100.0));
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: GestureDetector(
-        onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(color: Colors.black),
-            // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
-            // SurfaceView soit créée avant open() pour afficher l'image.
-            // FocusTraversalGroup exclut le Video du D-pad quand pas prêt :
-            // sinon les contrôles media_kit volent le focus au bouton Lancer.
-            FocusTraversalGroup(
-              descendantsAreFocusable: _ready,
-              child: _buildVideo(),
-            ),
-            // Overlay quand pas prêt.
-            if (!_ready)
-              Container(
-                color: Colors.black,
-                child: Center(
-                  child: _loading
-                      ? const CircularProgressIndicator()
-                      : TvFocusable(
-                          autofocus: true,
-                          onPressed: _loadAndPlay,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 32, vertical: 16),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (!_singleLanguage) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _LanguageSelector(
+                              current: _language,
+                              available: _availableLangs,
+                              onChanged: _switchLanguage,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: GestureDetector(
+                              onSecondaryTapDown: (d) =>
+                                  _showContextMenu(d.globalPosition),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Container(color: Colors.black),
+                                  if (_ready)
+                                    _buildVideo()
+                                  else if (_loading)
+                                    const Center(
+                                        child: CircularProgressIndicator())
+                                  else
+                                    Center(
+                                      child: FilledButton.icon(
+                                        autofocus: true,
+                                        onPressed: _loadAndPlay,
+                                        icon: const Icon(Icons.play_arrow),
+                                        label: const Text('Lancer'),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _ControlBar(
+                          seasonName: _seasonName,
+                          currentEpisode: _currentEpisode,
+                          episodes: _episodes,
+                          enabled: !_loading,
+                          onOpenDetail: _openDetail,
+                          onPrev: _prevEpisode != null
+                              ? () => _goToEpisode(_prevEpisode!)
+                              : null,
+                          onNext: _nextEpisode != null
+                              ? () => _goToEpisode(_nextEpisode!)
+                              : null,
+                          onSelect: (ep) => _goToEpisode(ep),
+                          isLastEpisode: _isLastEpisode,
+                          onFinish: _finishSeason,
+                        ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white24,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .errorContainer,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
+                            child: Row(
                               children: [
-                                Icon(Icons.play_arrow,
-                                    color: Colors.white, size: 32),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Lancer',
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 20),
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onErrorContainer,
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _loading ? null : _loadAndPlay,
+                                  child: const Text('Réessayer'),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTvControls(BuildContext context) {
-    return Container(
-      color: Colors.black,
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Sélecteur de langue
-          if (!_singleLanguage) ...[
-            _LanguageSelector(
-              current: _language,
-              available: _availableLangs,
-              onChanged: _switchLanguage,
-            ),
-            const SizedBox(height: 8),
-          ],
-          // Barre de navigation d'épisode
-          _ControlBar(
-            seasonName: _seasonName,
-            currentEpisode: _currentEpisode,
-            episodes: _episodes,
-            enabled: !_loading,
-            onOpenDetail: _openDetail,
-            onPrev: _prevEpisode != null
-                ? () => _goToEpisode(_prevEpisode!)
-                : null,
-            onNext: _nextEpisode != null
-                ? () => _goToEpisode(_nextEpisode!)
-                : null,
-            onSelect: (ep) => _goToEpisode(ep),
-            isLastEpisode: _isLastEpisode,
-            onFinish: _finishSeason,
-          ),
-          // Erreur
-          if (_error != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.errorContainer,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _error!,
-                      style: TextStyle(
-                        color:
-                            Theme.of(context).colorScheme.onErrorContainer,
-                      ),
+                        ],
+                      ],
                     ),
                   ),
-                  TextButton(
-                    onPressed: _loading ? null : _loadAndPlay,
-                    child: const Text('Réessayer'),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
