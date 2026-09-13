@@ -1397,38 +1397,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Stack(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Lecteur : occupe ~65 % de la hauteur disponible.
-                Expanded(
-                  flex: 65,
-                  child: _buildTvPlayerArea(),
-                ),
-                // Contrôles : barre saison/nav + sélecteur langue + erreur.
-                Expanded(
-                  flex: 35,
-                  child: _buildTvControls(context),
-                ),
-              ],
+            Expanded(
+              flex: 65,
+              child: _buildTvPlayerArea(),
             ),
-            // Bouton retour — bas gauche, toujours visible.
-            Positioned(
-              bottom: 16,
-              left: 16,
-              child: TvFocusable(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.arrow_back, color: Colors.white),
-                ),
-              ),
+            Expanded(
+              flex: 35,
+              child: _buildTvControls(context),
             ),
           ],
         ),
@@ -1527,33 +1505,104 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Sélecteur de langue — aligné à droite
-          if (!_singleLanguage)
-            Align(
-              alignment: Alignment.centerRight,
-              child: _LanguageSelector(
-                current: _language,
-                available: _availableLangs,
-                onChanged: _switchLanguage,
+          // Ligne principale : gauche / centre / droite
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // --- Gauche : nom saison + info, retour en dessous ---
+              SizedBox(
+                width: 180,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.layers_outlined,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            _seasonName ?? 'Saison…',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color:
+                                      Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.info_outline),
+                          tooltip: 'Fiche de l\'anime',
+                          onPressed: _openDetail,
+                        ),
+                      ],
+                    ),
+                    TvFocusable(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.arrow_back,
+                                color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text('Retour',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          const SizedBox(height: 4),
-          // Barre de navigation d'épisode
-          _ControlBar(
-            seasonName: _seasonName,
-            currentEpisode: _currentEpisode,
-            episodes: _episodes,
-            enabled: !_loading,
-            onOpenDetail: _openDetail,
-            onPrev: _prevEpisode != null
-                ? () => _goToEpisode(_prevEpisode!)
-                : null,
-            onNext: _nextEpisode != null
-                ? () => _goToEpisode(_nextEpisode!)
-                : null,
-            onSelect: (ep) => _goToEpisode(ep),
-            isLastEpisode: _isLastEpisode,
-            onFinish: _finishSeason,
+              // --- Centre : navigation épisode ---
+              Expanded(
+                child: _ControlBar(
+                  seasonName: null,
+                  currentEpisode: _currentEpisode,
+                  episodes: _episodes,
+                  enabled: !_loading,
+                  onOpenDetail: _openDetail,
+                  onPrev: _prevEpisode != null
+                      ? () => _goToEpisode(_prevEpisode!)
+                      : null,
+                  onNext: _nextEpisode != null
+                      ? () => _goToEpisode(_nextEpisode!)
+                      : null,
+                  onSelect: (ep) => _goToEpisode(ep),
+                  isLastEpisode: _isLastEpisode,
+                  onFinish: _finishSeason,
+                ),
+              ),
+              // --- Droite : sélecteur de langue ---
+              SizedBox(
+                width: 180,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: !_singleLanguage
+                      ? _LanguageSelector(
+                          current: _language,
+                          available: _availableLangs,
+                          onChanged: _switchLanguage,
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+            ],
           ),
           // Erreur
           if (_error != null) ...[
@@ -1798,32 +1847,33 @@ class _ControlBar extends StatelessWidget {
 
     return Row(
       children: [
-        // --- Nom de la saison + accès fiche ---
-        Expanded(
-          child: Row(
-            children: [
-              Icon(Icons.layers_outlined,
-                  size: 18, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  seasonName ?? 'Saison…',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+        // --- Nom de la saison + accès fiche (masqué si géré ailleurs) ---
+        if (seasonName != null)
+          Expanded(
+            child: Row(
+              children: [
+                Icon(Icons.layers_outlined,
+                    size: 18, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    seasonName!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.info_outline),
-                tooltip: 'Fiche de l\'anime',
-                onPressed: onOpenDetail,
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.info_outline),
+                  tooltip: 'Fiche de l\'anime',
+                  onPressed: onOpenDetail,
+                ),
+              ],
+            ),
           ),
-        ),
 
         // --- Navigation d'épisode : < menu > ---
         const SizedBox(width: 12),
