@@ -1589,23 +1589,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                               ? () => _goToEpisode(_prevEpisode!)
                               : null,
                         ),
-                        DropdownButton<int>(
-                          value: _currentEpisode,
-                          underline: const SizedBox.shrink(),
-                          onChanged: !_loading
-                              ? (ep) {
-                                  if (ep != null) _goToEpisode(ep);
-                                }
-                              : null,
-                          items: [
-                            if (!_episodes.contains(_currentEpisode))
-                              DropdownMenuItem(
-                                  value: _currentEpisode,
-                                  child: Text('Épisode $_currentEpisode')),
-                            for (final ep in _episodes)
-                              DropdownMenuItem(
-                                  value: ep, child: Text('Épisode $ep')),
-                          ],
+                        TvFocusable(
+                          onPressed: () {},
+                          child: DropdownButton<int>(
+                            value: _currentEpisode,
+                            underline: const SizedBox.shrink(),
+                            onChanged: !_loading
+                                ? (ep) {
+                                    if (ep != null) _goToEpisode(ep);
+                                  }
+                                : null,
+                            items: [
+                              if (!_episodes.contains(_currentEpisode))
+                                DropdownMenuItem(
+                                    value: _currentEpisode,
+                                    child: Text('Épisode $_currentEpisode')),
+                              for (final ep in _episodes)
+                                DropdownMenuItem(
+                                    value: ep, child: Text('Épisode $ep')),
+                            ],
+                          ),
                         ),
                         if (_isLastEpisode)
                           IconButton(
