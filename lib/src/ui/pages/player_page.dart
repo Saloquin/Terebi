@@ -32,6 +32,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
+import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.
@@ -1016,54 +1017,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   bool get _useMobileControls => _isMobile && !ref.read(isTvProvider);
 
-  /// Vidéo + contrôles media_kit (identique à la version PC).
-  /// Sur TV ce widget est utilisé tel quel dans le layout TV — on ne modifie
-  /// pas le lecteur lui-même.
+  /// Vidéo + contrôles media_kit personnalisés.
+  ///
+  /// Trois variantes :
+  /// - **Android TV** (`_isTv`) : `MaterialVideoControls` (visible en
+  ///   permanence, sans hover) + raccourcis D-pad gérés manuellement via
+  ///   `KeyboardShortcuts`. Les `MaterialDesktop*` exigent un hover souris →
+  ///   invisibles sur TV.
+  /// - **Mobile** (`_useMobileControls`) : `MaterialVideoControls` tactiles.
+  /// - **Desktop** : `MaterialDesktopVideoControls` (hover souris).
   Widget _buildVideo() {
-    List<Widget> topBar(GlobalKey key) => <Widget>[
-          const Spacer(),
-          MaterialDesktopCustomButton(
-            key: key,
-            icon: const Icon(Icons.tune),
-            onPressed: () => _showSettingsMenuFromButton(key),
-          ),
-        ];
+    final isTv = ref.read(isTvProvider);
 
-    List<Widget> bottomBar(String tag) => <Widget>[
-          const MaterialDesktopSkipPreviousButton(),
-          const MaterialDesktopPlayOrPauseButton(),
-          const MaterialDesktopSkipNextButton(),
-          MaterialDesktopVolumeButton(
-            volumeMuteIcon:
-                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
-            volumeLowIcon:
-                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
-            volumeHighIcon:
-                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
-          ),
-          const MaterialDesktopPositionIndicator(),
-          const Spacer(),
-          const MaterialDesktopFullscreenButton(),
-        ];
-
-    List<Widget> topBarMobile(GlobalKey key) => <Widget>[
-          const Spacer(),
-          MaterialCustomButton(
-            key: key,
-            icon: const Icon(Icons.tune),
-            onPressed: () => _showSettingsMenuFromButton(key),
-          ),
-        ];
-
-    List<Widget> bottomBarMobile() => const <Widget>[
-          MaterialPositionIndicator(),
-          Spacer(),
-          MaterialSkipPreviousButton(),
-          MaterialPlayOrPauseButton(),
-          MaterialSkipNextButton(),
-          MaterialFullscreenButton(),
-        ];
-
+    // Raccourcis clavier desktop / TV (D-pad).
     final shortcuts = <ShortcutActivator, VoidCallback>{
       const SingleActivator(LogicalKeyboardKey.space): _player.playOrPause,
       const SingleActivator(LogicalKeyboardKey.select): _player.playOrPause,
@@ -1090,6 +1056,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       },
     };
 
+    // Overlay commun : bouton skip intro/outro + auto-play countdown.
     Widget controls(dynamic state, Widget baseControls) => Builder(
           builder: (ctx) {
             _videoCtx = ctx;
@@ -1133,37 +1100,140 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           },
         );
 
-    final isTv = ref.read(isTvProvider);
+    // Barre basse desktop avec clés uniques pour éviter le bug media_kit 1.3.1
+    // (AnimatedSwitcher du volume avec ValueKey dupliquée entre normal/fullscreen).
+    List<Widget> bottomBarDesktop(String tag) => <Widget>[
+          const MaterialDesktopSkipPreviousButton(),
+          const MaterialDesktopPlayOrPauseButton(),
+          const MaterialDesktopSkipNextButton(),
+          MaterialDesktopVolumeButton(
+            volumeMuteIcon:
+                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
+            volumeLowIcon:
+                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
+            volumeHighIcon:
+                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
+          ),
+          const MaterialDesktopPositionIndicator(),
+          const Spacer(),
+          const MaterialDesktopFullscreenButton(),
+        ];
 
-    if (_useMobileControls || isTv) {
+    List<Widget> topBarDesktop(GlobalKey key) => <Widget>[
+          const Spacer(),
+          MaterialDesktopCustomButton(
+            key: key,
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showSettingsMenuFromButton(key),
+          ),
+        ];
+
+    // ---- Android TV : MaterialVideoControls toujours visibles ----
+    // MaterialDesktopVideoControls n'apparaissent qu'au hover souris → noirs
+    // sur TV. On utilise la variante Material* avec visibleOnMount:true et un
+    // hover très long pour qu'ils restent permanents. Les raccourcis D-pad
+    // sont gérés par le Focus dans _buildTvPlayerArea() (au-dessus dans l'arbre).
+    if (isTv) {
       return MaterialVideoControlsTheme(
         normal: MaterialVideoControlsThemeData(
-          visibleOnMount: isTv,
-          controlsHoverDuration:
-              isTv ? const Duration(hours: 999) : const Duration(seconds: 3),
-          seekOnDoubleTap: !isTv,
-          volumeGesture: !isTv,
-          brightnessGesture: !isTv,
-          seekGesture: !isTv,
-          topButtonBar: isTv
-              ? topBar(_settingsButtonKey)
-              : topBarMobile(_settingsButtonKey),
-          bottomButtonBar:
-              isTv ? bottomBar('n') : bottomBarMobile(),
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 999),
+          seekOnDoubleTap: false,
+          volumeGesture: false,
+          brightnessGesture: false,
+          seekGesture: false,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKey,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKey),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
         ),
         fullscreen: MaterialVideoControlsThemeData(
-          visibleOnMount: isTv,
-          controlsHoverDuration:
-              isTv ? const Duration(hours: 999) : const Duration(seconds: 3),
-          seekOnDoubleTap: !isTv,
-          volumeGesture: !isTv,
-          brightnessGesture: !isTv,
-          seekGesture: !isTv,
-          topButtonBar: isTv
-              ? topBar(_settingsButtonKeyFs)
-              : topBarMobile(_settingsButtonKeyFs),
-          bottomButtonBar:
-              isTv ? bottomBar('fs') : bottomBarMobile(),
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 999),
+          seekOnDoubleTap: false,
+          volumeGesture: false,
+          brightnessGesture: false,
+          seekGesture: false,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKeyFs,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
+        ),
+        child: Video(
+          controller: _videoController,
+          controls: (state) =>
+              controls(state, MaterialVideoControls(state)),
+        ),
+      );
+    }
+
+    // ---- Mobile (Android/iOS sans TV) : contrôles tactiles ----
+    if (_useMobileControls) {
+      return MaterialVideoControlsTheme(
+        normal: MaterialVideoControlsThemeData(
+          seekOnDoubleTap: true,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKey,
+              icon: const Icon(Icons.tune),
+              onPressed: () => _showSettingsMenuFromButton(_settingsButtonKey),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
+        ),
+        fullscreen: MaterialVideoControlsThemeData(
+          seekOnDoubleTap: true,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKeyFs,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
         ),
         child: Video(
           controller: _videoController,
@@ -1172,19 +1242,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       );
     }
 
+    // ---- Desktop Windows : contrôles hover souris ----
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
         modifyVolumeOnScroll: false,
         playAndPauseOnTap: true,
-        topButtonBar: topBar(_settingsButtonKey),
-        bottomButtonBar: bottomBar('n'),
+        topButtonBar: topBarDesktop(_settingsButtonKey),
+        bottomButtonBar: bottomBarDesktop('n'),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
         modifyVolumeOnScroll: false,
         playAndPauseOnTap: true,
-        topButtonBar: topBar(_settingsButtonKeyFs),
-        bottomButtonBar: bottomBar('fs'),
+        topButtonBar: topBarDesktop(_settingsButtonKeyFs),
+        bottomButtonBar: bottomBarDesktop('fs'),
         keyboardShortcuts: shortcuts,
       ),
       child: Video(
@@ -1318,122 +1389,198 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   // ---------------------------------------------------------------------------
-  // Layout Android TV : copie exacte du layout desktop, fond noir, sans AppBar
+  // Layout Android TV : plein écran, lecteur en haut, contrôles en bas
   // ---------------------------------------------------------------------------
 
   Widget _buildTvBody(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (!_singleLanguage) ...[
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: _LanguageSelector(
-                              current: _language,
-                              available: _availableLangs,
-                              onChanged: _switchLanguage,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        AspectRatio(
-                          aspectRatio: 16 / 9,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: GestureDetector(
-                              onSecondaryTapDown: (d) =>
-                                  _showContextMenu(d.globalPosition),
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  Container(color: Colors.black),
-                                  if (_ready)
-                                    _buildVideo()
-                                  else if (_loading)
-                                    const Center(
-                                        child: CircularProgressIndicator())
-                                  else
-                                    Center(
-                                      child: FilledButton.icon(
-                                        autofocus: true,
-                                        onPressed: _loadAndPlay,
-                                        icon: const Icon(Icons.play_arrow),
-                                        label: const Text('Lancer'),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _ControlBar(
-                          seasonName: _seasonName,
-                          currentEpisode: _currentEpisode,
-                          episodes: _episodes,
-                          enabled: !_loading,
-                          onOpenDetail: _openDetail,
-                          onPrev: _prevEpisode != null
-                              ? () => _goToEpisode(_prevEpisode!)
-                              : null,
-                          onNext: _nextEpisode != null
-                              ? () => _goToEpisode(_nextEpisode!)
-                              : null,
-                          onSelect: (ep) => _goToEpisode(ep),
-                          isLastEpisode: _isLastEpisode,
-                          onFinish: _finishSeason,
-                        ),
-                        if (_error != null) ...[
-                          const SizedBox(height: 16),
-                          Container(
-                            padding: const EdgeInsets.all(12),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Lecteur : occupe ~65 % de la hauteur disponible.
+                Expanded(
+                  flex: 65,
+                  child: _buildTvPlayerArea(),
+                ),
+                // Contrôles : barre saison/nav + sélecteur langue + erreur.
+                Expanded(
+                  flex: 35,
+                  child: _buildTvControls(context),
+                ),
+              ],
+            ),
+            // Bouton retour — bas gauche, toujours visible.
+            Positioned(
+              bottom: 16,
+              left: 16,
+              child: TvFocusable(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTvPlayerArea() {
+    return Focus(
+      // Intercepte les touches D-pad au niveau du lecteur (avant media_kit).
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent || !_ready) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          _player.playOrPause();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          _seekBy(-_seekBackward);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowRight) {
+          _seekBy(_seekForward);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp) {
+          _player.setVolume((_player.state.volume + 5.0).clamp(0.0, 100.0));
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _player.setVolume((_player.state.volume - 5.0).clamp(0.0, 100.0));
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: Colors.black),
+            // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
+            // SurfaceView soit créée avant open() pour afficher l'image.
+            // FocusTraversalGroup exclut le Video du D-pad quand pas prêt :
+            // sinon les contrôles media_kit volent le focus au bouton Lancer.
+            FocusTraversalGroup(
+              descendantsAreFocusable: _ready,
+              child: _buildVideo(),
+            ),
+            // Overlay quand pas prêt.
+            if (!_ready)
+              Container(
+                color: Colors.black,
+                child: Center(
+                  child: _loading
+                      ? const CircularProgressIndicator()
+                      : TvFocusable(
+                          autofocus: true,
+                          onPressed: _loadAndPlay,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 16),
                             decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .errorContainer,
+                              color: Colors.white24,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Row(
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
-                                Expanded(
-                                  child: Text(
-                                    _error!,
-                                    style: TextStyle(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onErrorContainer,
-                                    ),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: _loading ? null : _loadAndPlay,
-                                  child: const Text('Réessayer'),
+                                Icon(Icons.play_arrow,
+                                    color: Colors.white, size: 32),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Lancer',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 20),
                                 ),
                               ],
                             ),
                           ),
-                        ],
-                      ],
+                        ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTvControls(BuildContext context) {
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Sélecteur de langue
+          if (!_singleLanguage) ...[
+            _LanguageSelector(
+              current: _language,
+              available: _availableLangs,
+              onChanged: _switchLanguage,
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Barre de navigation d'épisode
+          _ControlBar(
+            seasonName: _seasonName,
+            currentEpisode: _currentEpisode,
+            episodes: _episodes,
+            enabled: !_loading,
+            onOpenDetail: _openDetail,
+            onPrev: _prevEpisode != null
+                ? () => _goToEpisode(_prevEpisode!)
+                : null,
+            onNext: _nextEpisode != null
+                ? () => _goToEpisode(_nextEpisode!)
+                : null,
+            onSelect: (ep) => _goToEpisode(ep),
+            isLastEpisode: _isLastEpisode,
+            onFinish: _finishSeason,
+          ),
+          // Erreur
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color:
+                            Theme.of(context).colorScheme.onErrorContainer,
+                      ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
+                  TextButton(
+                    onPressed: _loading ? null : _loadAndPlay,
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
