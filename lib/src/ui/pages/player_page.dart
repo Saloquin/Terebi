@@ -1515,12 +1515,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.layers_outlined,
                             size: 18,
                             color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 4),
-                        Expanded(
+                        Flexible(
                           child: Text(
                             _seasonName ?? 'Saison…',
                             maxLines: 1,
