@@ -719,6 +719,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
             child: const Text('Recommencer'),
           ),
           FilledButton(
+            autofocus: true,
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reprendre'),
           ),
@@ -1526,15 +1527,28 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Sélecteur de langue
-          if (!_singleLanguage) ...[
-            _LanguageSelector(
-              current: _language,
-              available: _availableLangs,
-              onChanged: _switchLanguage,
-            ),
-            const SizedBox(height: 8),
-          ],
+          // Ligne du haut : langue (gauche) + bouton plein écran (droite)
+          Row(
+            children: [
+              if (!_singleLanguage)
+                _LanguageSelector(
+                  current: _language,
+                  available: _availableLangs,
+                  onChanged: _switchLanguage,
+                ),
+              const Spacer(),
+              if (_ready)
+                IconButton(
+                  icon: const Icon(Icons.fullscreen, color: Colors.white),
+                  tooltip: 'Plein écran',
+                  onPressed: () {
+                    final c = _videoCtx;
+                    if (c != null && c.mounted) toggleFullscreen(c);
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
           // Barre de navigation d'épisode
           _ControlBar(
             seasonName: _seasonName,
@@ -1567,8 +1581,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                     child: Text(
                       _error!,
                       style: TextStyle(
-                        color:
-                            Theme.of(context).colorScheme.onErrorContainer,
+                        color: Theme.of(context).colorScheme.onErrorContainer,
                       ),
                     ),
                   ),
@@ -1824,6 +1837,7 @@ class _ControlBar extends StatelessWidget {
         ),
 
         // --- Navigation d'épisode : < menu > ---
+        const SizedBox(width: 12),
         IconButton(
           icon: const Icon(Icons.chevron_left),
           tooltip: 'Épisode précédent',
