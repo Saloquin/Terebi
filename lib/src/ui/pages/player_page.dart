@@ -1527,12 +1527,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Sélecteur de langue
+          // Sélecteur de langue — aligné à droite
           if (!_singleLanguage)
-            _LanguageSelector(
-              current: _language,
-              available: _availableLangs,
-              onChanged: _switchLanguage,
+            Align(
+              alignment: Alignment.centerRight,
+              child: _LanguageSelector(
+                current: _language,
+                available: _availableLangs,
+                onChanged: _switchLanguage,
+              ),
             ),
           const SizedBox(height: 4),
           // Barre de navigation d'épisode
@@ -1793,71 +1796,68 @@ class _ControlBar extends StatelessWidget {
       ...episodes,
     ]..sort();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
+    return Row(
       children: [
-        // --- Ligne 1 : sélecteur d'épisode centré ---
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left),
-              tooltip: 'Épisode précédent',
-              onPressed: enabled ? onPrev : null,
-            ),
-            DropdownButton<int>(
-              value: currentEpisode,
-              underline: const SizedBox.shrink(),
-              onChanged: enabled
-                  ? (ep) {
-                      if (ep != null) onSelect(ep);
-                    }
-                  : null,
-              items: [
-                for (final ep in items)
-                  DropdownMenuItem(value: ep, child: Text('Épisode $ep')),
-              ],
-            ),
-            if (isLastEpisode)
-              IconButton(
-                icon: const Icon(Icons.check_circle),
-                color: Colors.green,
-                tooltip: 'Valider : saison terminée',
-                onPressed: enabled ? onFinish : null,
-              )
-            else
-              IconButton(
-                icon: const Icon(Icons.chevron_right),
-                tooltip: 'Épisode suivant',
-                onPressed: enabled ? onNext : null,
+        // --- Nom de la saison + accès fiche ---
+        Expanded(
+          child: Row(
+            children: [
+              Icon(Icons.layers_outlined,
+                  size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  seasonName ?? 'Saison…',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                ),
               ),
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Fiche de l\'anime',
+                onPressed: onOpenDetail,
+              ),
+            ],
+          ),
+        ),
+
+        // --- Navigation d'épisode : < menu > ---
+        const SizedBox(width: 12),
+        IconButton(
+          icon: const Icon(Icons.chevron_left),
+          tooltip: 'Épisode précédent',
+          onPressed: enabled ? onPrev : null,
+        ),
+        DropdownButton<int>(
+          value: currentEpisode,
+          underline: const SizedBox.shrink(),
+          onChanged: enabled
+              ? (ep) {
+                  if (ep != null) onSelect(ep);
+                }
+              : null,
+          items: [
+            for (final ep in items)
+              DropdownMenuItem(value: ep, child: Text('Épisode $ep')),
           ],
         ),
-        // --- Ligne 2 : nom de la saison + accès fiche ---
-        Row(
-          children: [
-            Icon(Icons.layers_outlined,
-                size: 18, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                seasonName ?? 'Saison…',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-              ),
-            ),
-            IconButton(
-              icon: const Icon(Icons.info_outline),
-              tooltip: 'Fiche de l\'anime',
-              onPressed: onOpenDetail,
-            ),
-          ],
-        ),
+        if (isLastEpisode)
+          IconButton(
+            icon: const Icon(Icons.check_circle),
+            color: Colors.green,
+            tooltip: 'Valider : saison terminée',
+            onPressed: enabled ? onFinish : null,
+          )
+        else
+          IconButton(
+            icon: const Icon(Icons.chevron_right),
+            tooltip: 'Épisode suivant',
+            onPressed: enabled ? onNext : null,
+          ),
       ],
     );
   }
