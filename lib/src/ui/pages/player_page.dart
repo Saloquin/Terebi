@@ -1479,12 +1479,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                               children: [
                                 Icon(Icons.play_arrow,
                                     color: Colors.white, size: 32),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Lancer',
-                                  style: TextStyle(
-                                      color: Colors.white, fontSize: 20),
-                                ),
                               ],
                             ),
                           ),
@@ -1556,10 +1550,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                           children: [
                             Icon(Icons.arrow_back,
                                 color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text('Retour',
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 14)),
                           ],
                         ),
                       ),
@@ -1589,26 +1579,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                               ? () => _goToEpisode(_prevEpisode!)
                               : null,
                         ),
-                        TvFocusable(
-                          onPressed: () {},
-                          child: DropdownButton<int>(
-                            value: _currentEpisode,
-                            underline: const SizedBox.shrink(),
-                            onChanged: !_loading
-                                ? (ep) {
-                                    if (ep != null) _goToEpisode(ep);
-                                  }
-                                : null,
-                            items: [
-                              if (!_episodes.contains(_currentEpisode))
-                                DropdownMenuItem(
-                                    value: _currentEpisode,
-                                    child: Text('Épisode $_currentEpisode')),
-                              for (final ep in _episodes)
-                                DropdownMenuItem(
-                                    value: ep, child: Text('Épisode $ep')),
-                            ],
-                          ),
+                        DropdownButton<int>(
+                          value: _currentEpisode,
+                          underline: const SizedBox.shrink(),
+                          onChanged: !_loading
+                              ? (ep) {
+                                  if (ep != null) _goToEpisode(ep);
+                                }
+                              : null,
+                          items: [
+                            if (!_episodes.contains(_currentEpisode))
+                              DropdownMenuItem(
+                                  value: _currentEpisode,
+                                  child: Text('Épisode $_currentEpisode')),
+                            for (final ep in _episodes)
+                              DropdownMenuItem(
+                                  value: ep, child: Text('Épisode $ep')),
+                          ],
                         ),
                         if (_isLastEpisode)
                           IconButton(
