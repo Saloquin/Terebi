@@ -66,18 +66,15 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  // Android TV/mobile : vo=mediacodec_embed → surface MediaCodec directe,
-  // sans OpenGL ES → évite EGL_BAD_ATTRIBUTE sur émulateurs x86_64.
-  // hwdec:'auto' laissé par défaut sur Android (MediaCodec matériel OK sur TV).
-  // Autres plateformes (Windows…) : hwdec:'no' forcé pour éviter flash vert HLS.
+  // Décodage LOGICIEL forcé (hwdec: 'no'). Le décodage matériel (d3d11va,
+  // d3d11va-copy) produisait un flash vert + un saut automatique + une zone
+  // injoignable sur certains flux HLS : le segment abîmé restait « brûlé » dans
+  // la session jusqu'à réouverture de l'épisode. Le flash vert est un artefact
+  // purement GPU ; le décodage logiciel l'élimine à la source (plus lourd CPU,
+  // mais un épisode d'anime 1080p reste largement dans les capacités d'un PC).
   late final VideoController _videoController = VideoController(
     _player,
-    configuration: VideoControllerConfiguration(
-      hwdec: defaultTargetPlatform == TargetPlatform.android ? null : 'no',
-      vo: defaultTargetPlatform == TargetPlatform.android
-          ? 'mediacodec_embed'
-          : null,
-    ),
+    configuration: const VideoControllerConfiguration(hwdec: 'no'),
   );
 
   bool _loading = false;
@@ -1020,19 +1017,54 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   bool get _useMobileControls => _isMobile && !ref.read(isTvProvider);
 
-  /// Vidéo + contrôles media_kit personnalisés.
-  ///
-  /// Trois variantes :
-  /// - **Android TV** (`_isTv`) : `MaterialVideoControls` (visible en
-  ///   permanence, sans hover) + raccourcis D-pad gérés manuellement via
-  ///   `KeyboardShortcuts`. Les `MaterialDesktop*` exigent un hover souris →
-  ///   invisibles sur TV.
-  /// - **Mobile** (`_useMobileControls`) : `MaterialVideoControls` tactiles.
-  /// - **Desktop** : `MaterialDesktopVideoControls` (hover souris).
+  /// Vidéo + contrôles media_kit (identique à la version PC).
+  /// Sur TV ce widget est utilisé tel quel dans le layout TV — on ne modifie
+  /// pas le lecteur lui-même.
   Widget _buildVideo() {
-    final isTv = ref.read(isTvProvider);
+    List<Widget> topBar(GlobalKey key) => <Widget>[
+          const Spacer(),
+          MaterialDesktopCustomButton(
+            key: key,
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showSettingsMenuFromButton(key),
+          ),
+        ];
 
-    // Raccourcis clavier desktop / TV (D-pad).
+    List<Widget> bottomBar(String tag) => <Widget>[
+          const MaterialDesktopSkipPreviousButton(),
+          const MaterialDesktopPlayOrPauseButton(),
+          const MaterialDesktopSkipNextButton(),
+          MaterialDesktopVolumeButton(
+            volumeMuteIcon:
+                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
+            volumeLowIcon:
+                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
+            volumeHighIcon:
+                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
+          ),
+          const MaterialDesktopPositionIndicator(),
+          const Spacer(),
+          const MaterialDesktopFullscreenButton(),
+        ];
+
+    List<Widget> topBarMobile(GlobalKey key) => <Widget>[
+          const Spacer(),
+          MaterialCustomButton(
+            key: key,
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showSettingsMenuFromButton(key),
+          ),
+        ];
+
+    List<Widget> bottomBarMobile() => const <Widget>[
+          MaterialPositionIndicator(),
+          Spacer(),
+          MaterialSkipPreviousButton(),
+          MaterialPlayOrPauseButton(),
+          MaterialSkipNextButton(),
+          MaterialFullscreenButton(),
+        ];
+
     final shortcuts = <ShortcutActivator, VoidCallback>{
       const SingleActivator(LogicalKeyboardKey.space): _player.playOrPause,
       const SingleActivator(LogicalKeyboardKey.select): _player.playOrPause,
@@ -1059,7 +1091,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       },
     };
 
-    // Overlay commun : bouton skip intro/outro + auto-play countdown.
     Widget controls(dynamic state, Widget baseControls) => Builder(
           builder: (ctx) {
             _videoCtx = ctx;
@@ -1103,140 +1134,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           },
         );
 
-    // Barre basse desktop avec clés uniques pour éviter le bug media_kit 1.3.1
-    // (AnimatedSwitcher du volume avec ValueKey dupliquée entre normal/fullscreen).
-    List<Widget> bottomBarDesktop(String tag) => <Widget>[
-          const MaterialDesktopSkipPreviousButton(),
-          const MaterialDesktopPlayOrPauseButton(),
-          const MaterialDesktopSkipNextButton(),
-          MaterialDesktopVolumeButton(
-            volumeMuteIcon:
-                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
-            volumeLowIcon:
-                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
-            volumeHighIcon:
-                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
-          ),
-          const MaterialDesktopPositionIndicator(),
-          const Spacer(),
-          const MaterialDesktopFullscreenButton(),
-        ];
-
-    List<Widget> topBarDesktop(GlobalKey key) => <Widget>[
-          const Spacer(),
-          MaterialDesktopCustomButton(
-            key: key,
-            icon: const Icon(Icons.tune),
-            onPressed: () => _showSettingsMenuFromButton(key),
-          ),
-        ];
-
-    // ---- Android TV : MaterialVideoControls toujours visibles ----
-    // MaterialDesktopVideoControls n'apparaissent qu'au hover souris → noirs
-    // sur TV. On utilise la variante Material* avec visibleOnMount:true et un
-    // hover très long pour qu'ils restent permanents. Les raccourcis D-pad
-    // sont gérés par le Focus dans _buildTvPlayerArea() (au-dessus dans l'arbre).
-    if (isTv) {
-      return MaterialVideoControlsTheme(
-        normal: MaterialVideoControlsThemeData(
-          visibleOnMount: true,
-          controlsHoverDuration: const Duration(hours: 999),
-          seekOnDoubleTap: false,
-          volumeGesture: false,
-          brightnessGesture: false,
-          seekGesture: false,
-          topButtonBar: [
-            const Spacer(),
-            MaterialCustomButton(
-              key: _settingsButtonKey,
-              icon: const Icon(Icons.tune),
-              onPressed: () =>
-                  _showSettingsMenuFromButton(_settingsButtonKey),
-            ),
-          ],
-          bottomButtonBar: const [
-            MaterialPositionIndicator(),
-            Spacer(),
-            MaterialSkipPreviousButton(),
-            MaterialPlayOrPauseButton(),
-            MaterialSkipNextButton(),
-            MaterialFullscreenButton(),
-          ],
-        ),
-        fullscreen: MaterialVideoControlsThemeData(
-          visibleOnMount: true,
-          controlsHoverDuration: const Duration(hours: 999),
-          seekOnDoubleTap: false,
-          volumeGesture: false,
-          brightnessGesture: false,
-          seekGesture: false,
-          topButtonBar: [
-            const Spacer(),
-            MaterialCustomButton(
-              key: _settingsButtonKeyFs,
-              icon: const Icon(Icons.tune),
-              onPressed: () =>
-                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
-            ),
-          ],
-          bottomButtonBar: const [
-            MaterialPositionIndicator(),
-            Spacer(),
-            MaterialSkipPreviousButton(),
-            MaterialPlayOrPauseButton(),
-            MaterialSkipNextButton(),
-            MaterialFullscreenButton(),
-          ],
-        ),
-        child: Video(
-          controller: _videoController,
-          controls: (state) =>
-              controls(state, MaterialVideoControls(state)),
-        ),
-      );
-    }
-
-    // ---- Mobile (Android/iOS sans TV) : contrôles tactiles ----
     if (_useMobileControls) {
       return MaterialVideoControlsTheme(
         normal: MaterialVideoControlsThemeData(
           seekOnDoubleTap: true,
-          topButtonBar: [
-            const Spacer(),
-            MaterialCustomButton(
-              key: _settingsButtonKey,
-              icon: const Icon(Icons.tune),
-              onPressed: () => _showSettingsMenuFromButton(_settingsButtonKey),
-            ),
-          ],
-          bottomButtonBar: const [
-            MaterialPositionIndicator(),
-            Spacer(),
-            MaterialSkipPreviousButton(),
-            MaterialPlayOrPauseButton(),
-            MaterialSkipNextButton(),
-            MaterialFullscreenButton(),
-          ],
+          topButtonBar: topBarMobile(_settingsButtonKey),
+          bottomButtonBar: bottomBarMobile(),
         ),
         fullscreen: MaterialVideoControlsThemeData(
           seekOnDoubleTap: true,
-          topButtonBar: [
-            const Spacer(),
-            MaterialCustomButton(
-              key: _settingsButtonKeyFs,
-              icon: const Icon(Icons.tune),
-              onPressed: () =>
-                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
-            ),
-          ],
-          bottomButtonBar: const [
-            MaterialPositionIndicator(),
-            Spacer(),
-            MaterialSkipPreviousButton(),
-            MaterialPlayOrPauseButton(),
-            MaterialSkipNextButton(),
-            MaterialFullscreenButton(),
-          ],
+          topButtonBar: topBarMobile(_settingsButtonKeyFs),
+          bottomButtonBar: bottomBarMobile(),
         ),
         child: Video(
           controller: _videoController,
@@ -1245,20 +1153,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       );
     }
 
-    // ---- Desktop Windows : contrôles hover souris ----
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
         modifyVolumeOnScroll: false,
         playAndPauseOnTap: true,
-        topButtonBar: topBarDesktop(_settingsButtonKey),
-        bottomButtonBar: bottomBarDesktop('n'),
+        topButtonBar: topBar(_settingsButtonKey),
+        bottomButtonBar: bottomBar('n'),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
         modifyVolumeOnScroll: false,
         playAndPauseOnTap: true,
-        topButtonBar: topBarDesktop(_settingsButtonKeyFs),
-        bottomButtonBar: bottomBarDesktop('fs'),
+        topButtonBar: topBar(_settingsButtonKeyFs),
+        bottomButtonBar: bottomBar('fs'),
         keyboardShortcuts: shortcuts,
       ),
       child: Video(
