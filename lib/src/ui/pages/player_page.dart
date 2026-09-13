@@ -1133,17 +1133,37 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           },
         );
 
-    if (_useMobileControls) {
+    final isTv = ref.read(isTvProvider);
+
+    if (_useMobileControls || isTv) {
       return MaterialVideoControlsTheme(
         normal: MaterialVideoControlsThemeData(
-          seekOnDoubleTap: true,
-          topButtonBar: topBarMobile(_settingsButtonKey),
-          bottomButtonBar: bottomBarMobile(),
+          visibleOnMount: isTv,
+          controlsHoverDuration:
+              isTv ? const Duration(hours: 999) : const Duration(seconds: 3),
+          seekOnDoubleTap: !isTv,
+          volumeGesture: !isTv,
+          brightnessGesture: !isTv,
+          seekGesture: !isTv,
+          topButtonBar: isTv
+              ? topBar(_settingsButtonKey)
+              : topBarMobile(_settingsButtonKey),
+          bottomButtonBar:
+              isTv ? bottomBar('n') : bottomBarMobile(),
         ),
         fullscreen: MaterialVideoControlsThemeData(
-          seekOnDoubleTap: true,
-          topButtonBar: topBarMobile(_settingsButtonKeyFs),
-          bottomButtonBar: bottomBarMobile(),
+          visibleOnMount: isTv,
+          controlsHoverDuration:
+              isTv ? const Duration(hours: 999) : const Duration(seconds: 3),
+          seekOnDoubleTap: !isTv,
+          volumeGesture: !isTv,
+          brightnessGesture: !isTv,
+          seekGesture: !isTv,
+          topButtonBar: isTv
+              ? topBar(_settingsButtonKeyFs)
+              : topBarMobile(_settingsButtonKeyFs),
+          bottomButtonBar:
+              isTv ? bottomBar('fs') : bottomBarMobile(),
         ),
         child: Video(
           controller: _videoController,
