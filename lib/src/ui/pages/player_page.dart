@@ -1505,104 +1505,74 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Ligne principale : gauche / centre / droite
+          // Ligne : saison+info (gauche) · langue (droite)
           Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              // --- Gauche : nom saison + info, retour en dessous ---
-              SizedBox(
-                width: 180,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.layers_outlined,
-                            size: 18,
-                            color: Theme.of(context).colorScheme.primary),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            _seasonName ?? 'Saison…',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color:
-                                      Theme.of(context).colorScheme.primary,
-                                ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.info_outline),
-                          tooltip: 'Fiche de l\'anime',
-                          onPressed: _openDetail,
-                        ),
-                      ],
-                    ),
-                    TvFocusable(
-                      onPressed: () => Navigator.of(context).pop(),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white12,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.arrow_back,
-                                color: Colors.white, size: 18),
-                            SizedBox(width: 8),
-                            Text('Retour',
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 14)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // --- Centre : navigation épisode ---
+              Icon(Icons.layers_outlined,
+                  size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 4),
               Expanded(
-                child: _ControlBar(
-                  seasonName: null,
-                  currentEpisode: _currentEpisode,
-                  episodes: _episodes,
-                  enabled: !_loading,
-                  onOpenDetail: _openDetail,
-                  onPrev: _prevEpisode != null
-                      ? () => _goToEpisode(_prevEpisode!)
-                      : null,
-                  onNext: _nextEpisode != null
-                      ? () => _goToEpisode(_nextEpisode!)
-                      : null,
-                  onSelect: (ep) => _goToEpisode(ep),
-                  isLastEpisode: _isLastEpisode,
-                  onFinish: _finishSeason,
+                child: Text(
+                  _seasonName ?? 'Saison…',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
                 ),
               ),
-              // --- Droite : sélecteur de langue ---
-              SizedBox(
-                width: 180,
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: !_singleLanguage
-                      ? _LanguageSelector(
-                          current: _language,
-                          available: _availableLangs,
-                          onChanged: _switchLanguage,
-                        )
-                      : const SizedBox.shrink(),
-                ),
+              IconButton(
+                icon: const Icon(Icons.info_outline),
+                tooltip: 'Fiche de l\'anime',
+                onPressed: _openDetail,
               ),
+              if (!_singleLanguage)
+                _LanguageSelector(
+                  current: _language,
+                  available: _availableLangs,
+                  onChanged: _switchLanguage,
+                ),
             ],
+          ),
+          // Barre de navigation d'épisode
+          _ControlBar(
+            seasonName: null,
+            currentEpisode: _currentEpisode,
+            episodes: _episodes,
+            enabled: !_loading,
+            onOpenDetail: _openDetail,
+            onPrev: _prevEpisode != null
+                ? () => _goToEpisode(_prevEpisode!)
+                : null,
+            onNext: _nextEpisode != null
+                ? () => _goToEpisode(_nextEpisode!)
+                : null,
+            onSelect: (ep) => _goToEpisode(ep),
+            isLastEpisode: _isLastEpisode,
+            onFinish: _finishSeason,
+          ),
+          // Bouton retour
+          TvFocusable(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white12,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.arrow_back, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text('Retour',
+                      style:
+                          TextStyle(color: Colors.white, fontSize: 14)),
+                ],
+              ),
+            ),
           ),
           // Erreur
           if (_error != null) ...[
@@ -1619,7 +1589,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                     child: Text(
                       _error!,
                       style: TextStyle(
-                        color: Theme.of(context).colorScheme.onErrorContainer,
+                        color:
+                            Theme.of(context).colorScheme.onErrorContainer,
                       ),
                     ),
                   ),
