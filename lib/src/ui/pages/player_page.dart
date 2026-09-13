@@ -1578,21 +1578,50 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                         available: _availableLangs,
                         onChanged: _switchLanguage,
                       ),
-                    _ControlBar(
-                      seasonName: null,
-                      currentEpisode: _currentEpisode,
-                      episodes: _episodes,
-                      enabled: !_loading,
-                      onOpenDetail: _openDetail,
-                      onPrev: _prevEpisode != null
-                          ? () => _goToEpisode(_prevEpisode!)
-                          : null,
-                      onNext: _nextEpisode != null
-                          ? () => _goToEpisode(_nextEpisode!)
-                          : null,
-                      onSelect: (ep) => _goToEpisode(ep),
-                      isLastEpisode: _isLastEpisode,
-                      onFinish: _finishSeason,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          tooltip: 'Épisode précédent',
+                          onPressed: !_loading && _prevEpisode != null
+                              ? () => _goToEpisode(_prevEpisode!)
+                              : null,
+                        ),
+                        DropdownButton<int>(
+                          value: _currentEpisode,
+                          underline: const SizedBox.shrink(),
+                          onChanged: !_loading
+                              ? (ep) {
+                                  if (ep != null) _goToEpisode(ep);
+                                }
+                              : null,
+                          items: [
+                            if (!_episodes.contains(_currentEpisode))
+                              DropdownMenuItem(
+                                  value: _currentEpisode,
+                                  child: Text('Épisode $_currentEpisode')),
+                            for (final ep in _episodes)
+                              DropdownMenuItem(
+                                  value: ep, child: Text('Épisode $ep')),
+                          ],
+                        ),
+                        if (_isLastEpisode)
+                          IconButton(
+                            icon: const Icon(Icons.check_circle),
+                            color: Colors.green,
+                            tooltip: 'Valider : saison terminée',
+                            onPressed: !_loading ? _finishSeason : null,
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right),
+                            tooltip: 'Épisode suivant',
+                            onPressed: !_loading && _nextEpisode != null
+                                ? () => _goToEpisode(_nextEpisode!)
+                                : null,
+                          ),
+                      ],
                     ),
                   ],
                 ),
