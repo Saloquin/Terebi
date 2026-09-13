@@ -66,15 +66,18 @@ class PlayerPage extends ConsumerStatefulWidget {
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
   late final Player _player = Player();
-  // Décodage LOGICIEL forcé (hwdec: 'no'). Le décodage matériel (d3d11va,
-  // d3d11va-copy) produisait un flash vert + un saut automatique + une zone
-  // injoignable sur certains flux HLS : le segment abîmé restait « brûlé » dans
-  // la session jusqu'à réouverture de l'épisode. Le flash vert est un artefact
-  // purement GPU ; le décodage logiciel l'élimine à la source (plus lourd CPU,
-  // mais un épisode d'anime 1080p reste largement dans les capacités d'un PC).
+  // Android TV/mobile : vo=mediacodec_embed → surface MediaCodec directe,
+  // sans OpenGL ES → évite EGL_BAD_ATTRIBUTE sur émulateurs x86_64.
+  // hwdec:'auto' laissé par défaut sur Android (MediaCodec matériel OK sur TV).
+  // Autres plateformes (Windows…) : hwdec:'no' forcé pour éviter flash vert HLS.
   late final VideoController _videoController = VideoController(
     _player,
-    configuration: const VideoControllerConfiguration(hwdec: 'no'),
+    configuration: VideoControllerConfiguration(
+      hwdec: defaultTargetPlatform == TargetPlatform.android ? null : 'no',
+      vo: defaultTargetPlatform == TargetPlatform.android
+          ? 'mediacodec_embed'
+          : null,
+    ),
   );
 
   bool _loading = false;
