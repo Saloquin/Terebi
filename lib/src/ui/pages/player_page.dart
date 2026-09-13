@@ -1579,23 +1579,25 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                               ? () => _goToEpisode(_prevEpisode!)
                               : null,
                         ),
-                        DropdownButton<int>(
-                          value: _currentEpisode,
-                          underline: const SizedBox.shrink(),
-                          onChanged: !_loading
-                              ? (ep) {
-                                  if (ep != null) _goToEpisode(ep);
-                                }
-                              : null,
-                          items: [
-                            if (!_episodes.contains(_currentEpisode))
-                              DropdownMenuItem(
-                                  value: _currentEpisode,
-                                  child: Text('Épisode $_currentEpisode')),
-                            for (final ep in _episodes)
-                              DropdownMenuItem(
-                                  value: ep, child: Text('Épisode $ep')),
-                          ],
+                        _FocusBorder(
+                          child: DropdownButton<int>(
+                            value: _currentEpisode,
+                            underline: const SizedBox.shrink(),
+                            onChanged: !_loading
+                                ? (ep) {
+                                    if (ep != null) _goToEpisode(ep);
+                                  }
+                                : null,
+                            items: [
+                              if (!_episodes.contains(_currentEpisode))
+                                DropdownMenuItem(
+                                    value: _currentEpisode,
+                                    child: Text('Épisode $_currentEpisode')),
+                              for (final ep in _episodes)
+                                DropdownMenuItem(
+                                    value: ep, child: Text('Épisode $ep')),
+                            ],
+                          ),
                         ),
                         if (_isLastEpisode)
                           IconButton(
@@ -1826,6 +1828,47 @@ class _LanguageSelector extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Barre de contrôle (saison + fiche | navigation d'épisode)
 // ---------------------------------------------------------------------------
+
+/// Bordure blanche + glow au focus, sans zoom — pour les widgets qui gèrent
+/// leur propre interaction (ex. DropdownButton).
+class _FocusBorder extends StatefulWidget {
+  final Widget child;
+  const _FocusBorder({required this.child});
+
+  @override
+  State<_FocusBorder> createState() => _FocusBorderState();
+}
+
+class _FocusBorderState extends State<_FocusBorder> {
+  bool _focused = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      onFocusChange: (f) => setState(() => _focused = f),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: _focused ? Colors.white : Colors.transparent,
+            width: 3,
+          ),
+          boxShadow: _focused
+              ? [
+                  BoxShadow(
+                    color: Colors.white.withValues(alpha: 0.35),
+                    blurRadius: 16,
+                    spreadRadius: 1,
+                  ),
+                ]
+              : null,
+        ),
+        child: widget.child,
+      ),
+    );
+  }
+}
 
 class _ControlBar extends StatelessWidget {
   final String? seasonName;
