@@ -1340,18 +1340,38 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            // Lecteur : occupe ~65 % de la hauteur disponible.
-            Expanded(
-              flex: 65,
-              child: _buildTvPlayerArea(),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Lecteur : occupe ~65 % de la hauteur disponible.
+                Expanded(
+                  flex: 65,
+                  child: _buildTvPlayerArea(),
+                ),
+                // Contrôles : barre saison/nav + sélecteur langue + erreur.
+                Expanded(
+                  flex: 35,
+                  child: _buildTvControls(context),
+                ),
+              ],
             ),
-            // Contrôles : barre saison/nav + sélecteur langue + erreur.
-            Expanded(
-              flex: 35,
-              child: _buildTvControls(context),
+            // Bouton retour — bas gauche, toujours visible.
+            Positioned(
+              bottom: 16,
+              left: 16,
+              child: TvFocusable(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white12,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white),
+                ),
+              ),
             ),
           ],
         ),
@@ -1371,7 +1391,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           Container(color: Colors.black),
           // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
           // SurfaceView soit créée avant open() pour afficher l'image.
-          _buildVideo(),
+          // FocusTraversalGroup exclut le Video du D-pad quand pas prêt :
+          // sinon les contrôles media_kit volent le focus au bouton Lancer.
+          FocusTraversalGroup(
+            descendantsAreFocusable: _ready,
+            child: _buildVideo(),
+          ),
           // Overlay quand pas prêt.
           if (!_ready)
             Container(
