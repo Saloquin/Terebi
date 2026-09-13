@@ -1132,95 +1132,63 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // MaterialDesktopVideoControls n'apparaissent qu'au hover souris → noirs
     // sur TV. On utilise la variante Material* avec visibleOnMount:true et un
     // hover très long pour qu'ils restent permanents. Les raccourcis D-pad
-    // sont gérés par un Focus wrapper (MaterialVideoControls n'a pas de
-    // keyboardShortcuts contrairement à la variante Desktop).
+    // sont gérés par le Focus dans _buildTvPlayerArea() (au-dessus dans l'arbre).
     if (isTv) {
-      return Focus(
-        autofocus: false,
-        onKeyEvent: (_, event) {
-          if (event is! KeyDownEvent) return KeyEventResult.ignored;
-          final key = event.logicalKey;
-          if (key == LogicalKeyboardKey.select ||
-              key == LogicalKeyboardKey.enter) {
-            _player.playOrPause();
-            return KeyEventResult.handled;
-          }
-          if (key == LogicalKeyboardKey.arrowLeft) {
-            _seekBy(-_seekBackward);
-            return KeyEventResult.handled;
-          }
-          if (key == LogicalKeyboardKey.arrowRight) {
-            _seekBy(_seekForward);
-            return KeyEventResult.handled;
-          }
-          if (key == LogicalKeyboardKey.arrowUp) {
-            _player.setVolume(
-                (_player.state.volume + 5.0).clamp(0.0, 100.0));
-            return KeyEventResult.handled;
-          }
-          if (key == LogicalKeyboardKey.arrowDown) {
-            _player.setVolume(
-                (_player.state.volume - 5.0).clamp(0.0, 100.0));
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: MaterialVideoControlsTheme(
-          normal: MaterialVideoControlsThemeData(
-            visibleOnMount: true,
-            controlsHoverDuration: const Duration(hours: 999),
-            seekOnDoubleTap: false,
-            volumeGesture: false,
-            brightnessGesture: false,
-            seekGesture: false,
-            topButtonBar: [
-              const Spacer(),
-              MaterialCustomButton(
-                key: _settingsButtonKey,
-                icon: const Icon(Icons.tune),
-                onPressed: () =>
-                    _showSettingsMenuFromButton(_settingsButtonKey),
-              ),
-            ],
-            bottomButtonBar: const [
-              MaterialPositionIndicator(),
-              Spacer(),
-              MaterialSkipPreviousButton(),
-              MaterialPlayOrPauseButton(),
-              MaterialSkipNextButton(),
-              MaterialFullscreenButton(),
-            ],
-          ),
-          fullscreen: MaterialVideoControlsThemeData(
-            visibleOnMount: true,
-            controlsHoverDuration: const Duration(hours: 999),
-            seekOnDoubleTap: false,
-            volumeGesture: false,
-            brightnessGesture: false,
-            seekGesture: false,
-            topButtonBar: [
-              const Spacer(),
-              MaterialCustomButton(
-                key: _settingsButtonKeyFs,
-                icon: const Icon(Icons.tune),
-                onPressed: () =>
-                    _showSettingsMenuFromButton(_settingsButtonKeyFs),
-              ),
-            ],
-            bottomButtonBar: const [
-              MaterialPositionIndicator(),
-              Spacer(),
-              MaterialSkipPreviousButton(),
-              MaterialPlayOrPauseButton(),
-              MaterialSkipNextButton(),
-              MaterialFullscreenButton(),
-            ],
-          ),
-          child: Video(
-            controller: _videoController,
-            controls: (state) =>
-                controls(state, MaterialVideoControls(state)),
-          ),
+      return MaterialVideoControlsTheme(
+        normal: MaterialVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 999),
+          seekOnDoubleTap: false,
+          volumeGesture: false,
+          brightnessGesture: false,
+          seekGesture: false,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKey,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKey),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
+        ),
+        fullscreen: MaterialVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 999),
+          seekOnDoubleTap: false,
+          volumeGesture: false,
+          brightnessGesture: false,
+          seekGesture: false,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKeyFs,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
+        ),
+        child: Video(
+          controller: _videoController,
+          controls: (state) =>
+              controls(state, MaterialVideoControls(state)),
         ),
       );
     }
@@ -1467,59 +1435,85 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     );
   }
 
-  /// Zone lecteur TV : Video toujours dans l'arbre (la surface doit exister dès
-  /// le départ sous Android pour que media_kit puisse s'y attacher), overlay
-  /// « Lancer » / spinner par-dessus via Stack.
   Widget _buildTvPlayerArea() {
-    return GestureDetector(
-      onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          Container(color: Colors.black),
-          // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
-          // SurfaceView soit créée avant open() pour afficher l'image.
-          // FocusTraversalGroup exclut le Video du D-pad quand pas prêt :
-          // sinon les contrôles media_kit volent le focus au bouton Lancer.
-          FocusTraversalGroup(
-            descendantsAreFocusable: _ready,
-            child: _buildVideo(),
-          ),
-          // Overlay quand pas prêt.
-          if (!_ready)
-            Container(
-              color: Colors.black,
-              child: Center(
-                child: _loading
-                    ? const CircularProgressIndicator()
-                    : TvFocusable(
-                        autofocus: true,
-                        onPressed: _loadAndPlay,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 32, vertical: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.play_arrow,
-                                  color: Colors.white, size: 32),
-                              SizedBox(width: 12),
-                              Text(
-                                'Lancer',
-                                style: TextStyle(
-                                    color: Colors.white, fontSize: 20),
-                              ),
-                            ],
+    return Focus(
+      // Intercepte les touches D-pad au niveau du lecteur (avant media_kit).
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent || !_ready) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          _player.playOrPause();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          _seekBy(-_seekBackward);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowRight) {
+          _seekBy(_seekForward);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp) {
+          _player.setVolume((_player.state.volume + 5.0).clamp(0.0, 100.0));
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _player.setVolume((_player.state.volume - 5.0).clamp(0.0, 100.0));
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: Colors.black),
+            // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
+            // SurfaceView soit créée avant open() pour afficher l'image.
+            // FocusTraversalGroup exclut le Video du D-pad quand pas prêt :
+            // sinon les contrôles media_kit volent le focus au bouton Lancer.
+            FocusTraversalGroup(
+              descendantsAreFocusable: _ready,
+              child: _buildVideo(),
+            ),
+            // Overlay quand pas prêt.
+            if (!_ready)
+              Container(
+                color: Colors.black,
+                child: Center(
+                  child: _loading
+                      ? const CircularProgressIndicator()
+                      : TvFocusable(
+                          autofocus: true,
+                          onPressed: _loadAndPlay,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.play_arrow,
+                                    color: Colors.white, size: 32),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Lancer',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 20),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
