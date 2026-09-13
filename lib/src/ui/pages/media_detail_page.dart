@@ -77,7 +77,6 @@ final _mediaDetailProvider =
   yield* repo.watchMedia(arg.id);
 });
 
-
 /// Compteur de rafraîchissement de la progression des saisons. Les tuiles de
 /// saison le watchent : l'incrémenter (après « Terminé » manuel, marquage à
 /// fond…) force chaque tuile à recharger `lastWatched`/total sans dépendre de
@@ -87,18 +86,6 @@ final seasonProgressRefreshProvider = StateProvider<int>((ref) => 0);
 /// Saisons anime-sama d'un titre : alias vers le provider **global**
 /// (`animeSamaSeasonsProvider`) pour partager le résultat (et le cache) avec le
 /// lecteur et le recheck de la bibliothèque — évite de relancer le wrapper.
-
-/// Titres normalisés présents au planning anime-sama (diffusion en cours).
-/// Sert à décider « À jour » (au planning) vs « Terminée » (hors planning).
-/// Dérive du planning **global** partagé avec le calendrier (pas de 2e scraping).
-final _planningTitlesProvider = FutureProvider<Set<String>>((ref) async {
-  try {
-    final items = await ref.watch(animeSamaPlanningProvider.future);
-    return items.map((e) => normalizeAnimeTitle(e.title)).toSet();
-  } catch (_) {
-    return <String>{};
-  }
-});
 
 // ---------------------------------------------------------------------------
 // Page
@@ -212,7 +199,9 @@ class _DetailBody extends ConsumerWidget {
                     runSpacing: 4,
                     children: [
                       for (final g in media.genres)
-                        Chip(label: Text(g), visualDensity: VisualDensity.compact),
+                        Chip(
+                            label: Text(g),
+                            visualDensity: VisualDensity.compact),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -248,26 +237,27 @@ class _Header extends StatelessWidget {
           // Banner : derive du slug anime-sama (teste plusieurs extensions,
           // repli sur bannerUrl en base), comme les cartes. Sinon container.
           Positioned.fill(
-            child: (media.animeSamaSlug != null &&
-                    media.animeSamaSlug!.isNotEmpty)
-                ? AnimeSamaImage(
-                    slug: media.animeSamaSlug!,
-                    banner: true,
-                    fallbackUrl: media.bannerUrl,
-                    fit: BoxFit.cover,
-                  )
-                : media.bannerUrl != null
-                    ? Image.network(media.bannerUrl!, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                            ))
-                    : Container(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .surfaceContainerHighest,
-                      ),
+            child:
+                (media.animeSamaSlug != null && media.animeSamaSlug!.isNotEmpty)
+                    ? AnimeSamaImage(
+                        slug: media.animeSamaSlug!,
+                        banner: true,
+                        fallbackUrl: media.bannerUrl,
+                        fit: BoxFit.cover,
+                      )
+                    : media.bannerUrl != null
+                        ? Image.network(media.bannerUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHighest,
+                                ))
+                        : Container(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                          ),
           ),
           // Gradient overlay
           Positioned.fill(
@@ -592,9 +582,8 @@ class _StatusDropdown extends ConsumerWidget {
     // (pause/abandonné/revisionnage), ou null (« Auto »). Planifié/En cours/
     // Terminé sont automatiques et ne sont jamais une valeur du sélecteur.
     final stored = entry?.status;
-    final manualValue = (stored != null && isFreezingManualStatus(stored))
-        ? stored
-        : null;
+    final manualValue =
+        (stored != null && isFreezingManualStatus(stored)) ? stored : null;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -672,8 +661,7 @@ class _StatusDropdown extends ConsumerWidget {
       final msg = newStatus == null
           ? 'Statut : automatique'
           : 'Statut : ${_manualLabels[newStatus]}';
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 }
@@ -860,8 +848,9 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     // (ou à 1 si le total est inconnu) plutôt qu'à un numéro inexistant.
     final markedFull =
         _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
-    final startEpisode =
-        markedFull ? (_total != null && _total! > 0 ? _total! : 1) : _lastWatched + 1;
+    final startEpisode = markedFull
+        ? (_total != null && _total! > 0 ? _total! : 1)
+        : _lastWatched + 1;
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -999,11 +988,12 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
 
     // « À jour » si saison finie + dernière saison + anime au planning
     // (nouveaux épisodes possibles) ; sinon « Terminée ».
-    final planningTitles = ref.watch(_planningTitlesProvider).maybeWhen(
+    final planningTitles = ref.watch(planningTitlesProvider).maybeWhen(
           data: (s) => s,
           orElse: () => const <String>{},
         );
-    final atPlanning = planningTitles.contains(normalizeAnimeTitle(widget.searchTitle));
+    final atPlanning =
+        planningTitles.contains(normalizeAnimeTitle(widget.searchTitle));
     final doneLabel =
         (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
 

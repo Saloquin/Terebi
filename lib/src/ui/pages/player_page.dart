@@ -32,6 +32,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
+import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
 /// Page de lecture d'un épisode.
@@ -187,15 +188,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _singleLanguage =
         (await settings.get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
             '1';
-    _seekForward = int.tryParse(
-            await settings.get(SettingsKeys.seekForwardSeconds,
-                    defaultValue: '10') ??
-                '10') ??
+    _seekForward = int.tryParse(await settings
+                .get(SettingsKeys.seekForwardSeconds, defaultValue: '10') ??
+            '10') ??
         10;
-    _seekBackward = int.tryParse(
-            await settings.get(SettingsKeys.seekBackwardSeconds,
-                    defaultValue: '10') ??
-                '10') ??
+    _seekBackward = int.tryParse(await settings
+                .get(SettingsKeys.seekBackwardSeconds, defaultValue: '10') ??
+            '10') ??
         10;
     if (mounted) setState(() {});
     await _loadSeasonMeta(seasonIndex: _seasonIndex);
@@ -288,7 +287,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     try {
       repo = ref.read(progressRepositoryProvider);
     } catch (_) {
-      repo = null; // ref indisponible pendant le teardown : on saute la sauvegarde.
+      repo =
+          null; // ref indisponible pendant le teardown : on saute la sauvegarde.
     }
 
     // PRIORITÉ ABSOLUE : arrêter/disposer le player, quoi qu'il arrive, pour ne
@@ -330,8 +330,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// réglage global.
   Future<PlaybackLanguage> _preferredLanguage() async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
-    final perAnime =
-        await settingsRepo.get(SettingsKeys.animeSamaLangFor(widget.media.mediaId));
+    final perAnime = await settingsRepo
+        .get(SettingsKeys.animeSamaLangFor(widget.media.mediaId));
     if (perAnime == 'vf') return PlaybackLanguage.vf;
     if (perAnime == 'vostfr') return PlaybackLanguage.vostfr;
     final langStr = await settingsRepo.get(SettingsKeys.playbackLanguage,
@@ -410,7 +410,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// conserver le timecode (même épisode, autre piste).
   /// [startPaused] : après l'ouverture, mettre en pause (conserve l'état
   /// pause/lecture lors d'un changement de langue en pause).
-  Future<void> _loadAndPlay({int? forceResumeAt, bool startPaused = false}) async {
+  Future<void> _loadAndPlay(
+      {int? forceResumeAt, bool startPaused = false}) async {
     if (_loading) return; // garde de réentrance : évite un double « Lancer ».
     setState(() {
       _loading = true;
@@ -425,7 +426,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               .read(settingsRepositoryProvider)
               .get(SettingsKeys.singleLanguage, defaultValue: '0')) ==
           '1';
-      final resolveTitle = widget.animeSamaTitle ?? widget.media.title.preferred;
+      final resolveTitle =
+          widget.animeSamaTitle ?? widget.media.title.preferred;
 
       final seasonIndex = await _storedSeasonIndex();
       _seasonIndex = seasonIndex;
@@ -469,7 +471,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         if (mounted) {
           final label = other == PlaybackLanguage.vf ? 'VF' : 'VOSTFR';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Langue indisponible pour cet épisode — lecture en $label')),
+            SnackBar(
+                content: Text(
+                    'Langue indisponible pour cet épisode — lecture en $label')),
           );
         }
       }
@@ -484,8 +488,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       // Reprise : au changement de langue on reprend DIRECTEMENT au timecode
       // fourni (même épisode). Sinon, si une position a été enregistrée pour
       // cet épisode (non vu), proposer « Reprendre » / « Recommencer ».
-      final int? resumeFrom =
-          forceResumeAt ?? await _resumePositionSeconds();
+      final int? resumeFrom = forceResumeAt ?? await _resumePositionSeconds();
 
       // On passe la position de départ à l'OUVERTURE (Media.start) : mpv décode
       // l'image au bon endroit dès le chargement, ce qui évite l'image noire
@@ -716,6 +719,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
             child: const Text('Recommencer'),
           ),
           FilledButton(
+            autofocus: true,
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Reprendre'),
           ),
@@ -727,7 +731,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     final rewound = pos - _resumeRewindSeconds;
     return rewound > 0 ? rewound : 0;
   }
-
 
   static String _formatDuration(int seconds) {
     final m = seconds ~/ 60;
@@ -809,7 +812,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         final eps = await ref.read(animeSamaEpisodesProvider(
           (title: title, seasonIndex: s.index),
         ).future);
-        if (eps.isEmpty) return; // saison sans épisodes listés → on n'affirme rien.
+        if (eps.isEmpty)
+          return; // saison sans épisodes listés → on n'affirme rien.
         totalEpisodes += eps.length;
         final watched =
             await seasonProgress.lastWatched(widget.media.mediaId, s.index);
@@ -881,7 +885,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// PAS la lecture : le bouton « Lancer » réapparaît pour le nouvel épisode.
   Future<void> _goToEpisode(int ep) async {
     if (ep == _currentEpisode) return;
-    if (_navigating) return; // garde : évite un double marquage si clics rapides.
+    if (_navigating)
+      return; // garde : évite un double marquage si clics rapides.
     _navigating = true;
     _autoPlayTimer?.cancel();
     _autoPlayCountdown = null;
@@ -938,8 +943,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         final newStatus = existing.status == ListStatus.completed
             ? ListStatus.planning
             : existing.status;
-        if (newProgress != existing.progress ||
-            newStatus != existing.status) {
+        if (newProgress != existing.progress || newStatus != existing.status) {
           await listRepo.upsertEntry(existing.copyWith(
             progress: newProgress,
             status: newStatus,
@@ -1014,77 +1018,27 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   bool get _useMobileControls => _isMobile && !ref.read(isTvProvider);
 
-  /// Vidéo + contrôles media_kit personnalisés : un bouton « réglages » est
-  /// ajouté à la barre haute du player (présente aussi EN PLEIN ÉCRAN). Il
-  /// ouvre le menu langue + vitesse. On utilise MaterialDesktopCustomButton
-  /// (les PopupMenuButton bruts ne reçoivent pas les taps dans cette barre).
+  /// Vidéo + contrôles media_kit personnalisés.
+  ///
+  /// Trois variantes :
+  /// - **Android TV** (`_isTv`) : `MaterialVideoControls` (visible en
+  ///   permanence, sans hover) + raccourcis D-pad gérés manuellement via
+  ///   `KeyboardShortcuts`. Les `MaterialDesktop*` exigent un hover souris →
+  ///   invisibles sur TV.
+  /// - **Mobile** (`_useMobileControls`) : `MaterialVideoControls` tactiles.
+  /// - **Desktop** : `MaterialDesktopVideoControls` (hover souris).
   Widget _buildVideo() {
-    // Barre haute : bouton « Passer l'intro/outro » (via _SkipButton, visible
-    // seulement pendant un intervalle) + bouton « réglages ». Clé DISTINCTE
-    // normal/fullscreen (media_kit monte les deux barres → partager une
-    // GlobalKey lève « Multiple widgets used the same GlobalKey »).
-    List<Widget> topBar(GlobalKey key) => <Widget>[
-          const Spacer(),
-          MaterialDesktopCustomButton(
-            key: key,
-            icon: const Icon(Icons.tune),
-            onPressed: () => _showSettingsMenuFromButton(key),
-          ),
-        ];
+    final isTv = ref.read(isTvProvider);
 
-    // Barre basse : identique aux défauts media_kit, MAIS avec un bouton volume
-    // dont les icônes portent des clés UNIQUES par mode. Sinon les deux barres
-    // (normale + plein écran, montées en même temps) partagent la même
-    // ValueKey(Icons.volume_up) dans l'AnimatedSwitcher du volume → crash
-    // « Duplicate keys found » quand on touche au volume (bug media_kit 1.3.1).
-    List<Widget> bottomBar(String tag) => <Widget>[
-          const MaterialDesktopSkipPreviousButton(),
-          const MaterialDesktopPlayOrPauseButton(),
-          const MaterialDesktopSkipNextButton(),
-          MaterialDesktopVolumeButton(
-            volumeMuteIcon:
-                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
-            volumeLowIcon:
-                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
-            volumeHighIcon:
-                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
-          ),
-          const MaterialDesktopPositionIndicator(),
-          const Spacer(),
-          const MaterialDesktopFullscreenButton(),
-        ];
-
-    // Variantes MOBILES (widgets Material*, contrôles tactiles). Le volume se
-    // règle par geste vertical natif sur mobile → pas de bouton volume (donc
-    // pas de risque de clés dupliquées). Bouton réglages = MaterialCustomButton
-    // portant la MÊME GlobalKey → `_showSettingsMenuFromButton` marche tel quel.
-    List<Widget> topBarMobile(GlobalKey key) => <Widget>[
-          const Spacer(),
-          MaterialCustomButton(
-            key: key,
-            icon: const Icon(Icons.tune),
-            onPressed: () => _showSettingsMenuFromButton(key),
-          ),
-        ];
-
-    List<Widget> bottomBarMobile() => const <Widget>[
-          MaterialPositionIndicator(),
-          Spacer(),
-          MaterialSkipPreviousButton(),
-          MaterialPlayOrPauseButton(),
-          MaterialSkipNextButton(),
-          MaterialFullscreenButton(),
-        ];
-
-    // Raccourcis clavier : reprend les défauts media_kit mais avec les durées
-    // de saut avant/arrière configurées dans les Paramètres.
+    // Raccourcis clavier desktop / TV (D-pad).
     final shortcuts = <ShortcutActivator, VoidCallback>{
       const SingleActivator(LogicalKeyboardKey.space): _player.playOrPause,
-      // Touche OK/Centre télécommande Android TV → play/pause.
       const SingleActivator(LogicalKeyboardKey.select): _player.playOrPause,
       const SingleActivator(LogicalKeyboardKey.enter): _player.playOrPause,
-      const SingleActivator(LogicalKeyboardKey.arrowLeft): () => _seekBy(-_seekBackward),
-      const SingleActivator(LogicalKeyboardKey.arrowRight): () => _seekBy(_seekForward),
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+          _seekBy(-_seekBackward),
+      const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+          _seekBy(_seekForward),
       const SingleActivator(LogicalKeyboardKey.arrowUp): () {
         final v = _player.state.volume + 5.0;
         _player.setVolume(v.clamp(0.0, 100.0));
@@ -1093,9 +1047,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         final v = _player.state.volume - 5.0;
         _player.setVolume(v.clamp(0.0, 100.0));
       },
-      // Plein écran (f) / sortie (Échap) : media_kit fournit ces raccourcis par
-      // défaut, mais fournir notre propre map les écrase -> on les rajoute. Le
-      // contexte capturé sous le Video (_videoCtx) est requis par toggleFullscreen.
       const SingleActivator(LogicalKeyboardKey.keyF): () {
         final c = _videoCtx;
         if (c != null && c.mounted) toggleFullscreen(c);
@@ -1106,11 +1057,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       },
     };
 
-    // Empile les contrôles de base (Material ou MaterialDesktop selon la
-    // plateforme) + le bouton « Passer l'intro/outro » + l'overlay auto-play.
-    // Ce builder est RÉUTILISÉ par media_kit en plein écran → le bouton skip et
-    // l'overlay restent visibles dans les deux modes. Le context (_videoCtx)
-    // capté ici permet à toggleFullscreen (raccourci « f ») de remonter l'état.
+    // Overlay commun : bouton skip intro/outro + auto-play countdown.
     Widget controls(dynamic state, Widget baseControls) => Builder(
           builder: (ctx) {
             _videoCtx = ctx;
@@ -1154,20 +1101,140 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           },
         );
 
-    // MOBILE : contrôles tactiles Material* (tap affiche/masque les commandes,
-    // actions via boutons ; volume/luminosité par geste vertical natif).
-    // Sur Android TV (_useMobileControls=false) → contrôles Desktop (D-pad).
+    // Barre basse desktop avec clés uniques pour éviter le bug media_kit 1.3.1
+    // (AnimatedSwitcher du volume avec ValueKey dupliquée entre normal/fullscreen).
+    List<Widget> bottomBarDesktop(String tag) => <Widget>[
+          const MaterialDesktopSkipPreviousButton(),
+          const MaterialDesktopPlayOrPauseButton(),
+          const MaterialDesktopSkipNextButton(),
+          MaterialDesktopVolumeButton(
+            volumeMuteIcon:
+                Icon(Icons.volume_off, key: ValueKey('vol_off_$tag')),
+            volumeLowIcon:
+                Icon(Icons.volume_down, key: ValueKey('vol_low_$tag')),
+            volumeHighIcon:
+                Icon(Icons.volume_up, key: ValueKey('vol_high_$tag')),
+          ),
+          const MaterialDesktopPositionIndicator(),
+          const Spacer(),
+          const MaterialDesktopFullscreenButton(),
+        ];
+
+    List<Widget> topBarDesktop(GlobalKey key) => <Widget>[
+          const Spacer(),
+          MaterialDesktopCustomButton(
+            key: key,
+            icon: const Icon(Icons.tune),
+            onPressed: () => _showSettingsMenuFromButton(key),
+          ),
+        ];
+
+    // ---- Android TV : MaterialVideoControls toujours visibles ----
+    // MaterialDesktopVideoControls n'apparaissent qu'au hover souris → noirs
+    // sur TV. On utilise la variante Material* avec visibleOnMount:true et un
+    // hover très long pour qu'ils restent permanents. Les raccourcis D-pad
+    // sont gérés par le Focus dans _buildTvPlayerArea() (au-dessus dans l'arbre).
+    if (isTv) {
+      return MaterialVideoControlsTheme(
+        normal: MaterialVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 999),
+          seekOnDoubleTap: false,
+          volumeGesture: false,
+          brightnessGesture: false,
+          seekGesture: false,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKey,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKey),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
+        ),
+        fullscreen: MaterialVideoControlsThemeData(
+          visibleOnMount: true,
+          controlsHoverDuration: const Duration(hours: 999),
+          seekOnDoubleTap: false,
+          volumeGesture: false,
+          brightnessGesture: false,
+          seekGesture: false,
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKeyFs,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
+        ),
+        child: Video(
+          controller: _videoController,
+          controls: (state) =>
+              controls(state, MaterialVideoControls(state)),
+        ),
+      );
+    }
+
+    // ---- Mobile (Android/iOS sans TV) : contrôles tactiles ----
     if (_useMobileControls) {
       return MaterialVideoControlsTheme(
         normal: MaterialVideoControlsThemeData(
           seekOnDoubleTap: true,
-          topButtonBar: topBarMobile(_settingsButtonKey),
-          bottomButtonBar: bottomBarMobile(),
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKey,
+              icon: const Icon(Icons.tune),
+              onPressed: () => _showSettingsMenuFromButton(_settingsButtonKey),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
         ),
         fullscreen: MaterialVideoControlsThemeData(
           seekOnDoubleTap: true,
-          topButtonBar: topBarMobile(_settingsButtonKeyFs),
-          bottomButtonBar: bottomBarMobile(),
+          topButtonBar: [
+            const Spacer(),
+            MaterialCustomButton(
+              key: _settingsButtonKeyFs,
+              icon: const Icon(Icons.tune),
+              onPressed: () =>
+                  _showSettingsMenuFromButton(_settingsButtonKeyFs),
+            ),
+          ],
+          bottomButtonBar: const [
+            MaterialPositionIndicator(),
+            Spacer(),
+            MaterialSkipPreviousButton(),
+            MaterialPlayOrPauseButton(),
+            MaterialSkipNextButton(),
+            MaterialFullscreenButton(),
+          ],
         ),
         child: Video(
           controller: _videoController,
@@ -1176,25 +1243,20 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       );
     }
 
-    // Desktop (Windows) : les contrôles sont MaterialDesktop*, pas Material*.
-    // Utiliser la mauvaise variante rend les boutons custom invisibles.
+    // ---- Desktop Windows : contrôles hover souris ----
     return MaterialDesktopVideoControlsTheme(
       normal: MaterialDesktopVideoControlsThemeData(
-        // Coupe le reglage du volume par glisser/molette sur la video : le
-        // glisser (onPanUpdate de media_kit) se declenchait n'importe ou sur le
-        // lecteur et changeait le volume par erreur. Volume via bouton + fleches.
         modifyVolumeOnScroll: false,
-        // Clic simple sur la video -> lecture/pause (desactive par defaut).
         playAndPauseOnTap: true,
-        topButtonBar: topBar(_settingsButtonKey),
-        bottomButtonBar: bottomBar('n'),
+        topButtonBar: topBarDesktop(_settingsButtonKey),
+        bottomButtonBar: bottomBarDesktop('n'),
         keyboardShortcuts: shortcuts,
       ),
       fullscreen: MaterialDesktopVideoControlsThemeData(
         modifyVolumeOnScroll: false,
         playAndPauseOnTap: true,
-        topButtonBar: topBar(_settingsButtonKeyFs),
-        bottomButtonBar: bottomBar('fs'),
+        topButtonBar: topBarDesktop(_settingsButtonKeyFs),
+        bottomButtonBar: bottomBarDesktop('fs'),
         keyboardShortcuts: shortcuts,
       ),
       child: Video(
@@ -1240,8 +1302,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Menu contextuel (clic droit) : langue + vitesse. Indispensable en plein
   /// écran où la barre au-dessus du lecteur est masquée.
   Future<void> _showContextMenu(Offset position) async {
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     // Entrées langue (si dispo et pas en mode langue unique).
     final langItems = <PopupMenuEntry<Object>>[];
     if (!_singleLanguage) {
@@ -1250,7 +1311,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         (PlaybackLanguage.vf, 'VF'),
       ]) {
         final lang = entry.$1;
-        final enabled = _availableLangs == null || _availableLangs!.contains(lang);
+        final enabled =
+            _availableLangs == null || _availableLangs!.contains(lang);
         langItems.add(PopupMenuItem<Object>(
           value: lang,
           enabled: enabled,
@@ -1322,6 +1384,291 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isTv = ref.read(isTvProvider);
+    if (isTv) return _buildTvBody(context);
+    return _buildDesktopBody(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layout Android TV : plein écran, lecteur en haut, contrôles en bas
+  // ---------------------------------------------------------------------------
+
+  Widget _buildTvBody(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 65,
+              child: _buildTvPlayerArea(),
+            ),
+            Expanded(
+              flex: 35,
+              child: _buildTvControls(context),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTvPlayerArea() {
+    return Focus(
+      // Intercepte les touches D-pad au niveau du lecteur (avant media_kit).
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent || !_ready) return KeyEventResult.ignored;
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          _player.playOrPause();
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          _seekBy(-_seekBackward);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowRight) {
+          _seekBy(_seekForward);
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowUp) {
+          _player.setVolume((_player.state.volume + 5.0).clamp(0.0, 100.0));
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.arrowDown) {
+          _player.setVolume((_player.state.volume - 5.0).clamp(0.0, 100.0));
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: GestureDetector(
+        onSecondaryTapDown: (d) => _showContextMenu(d.globalPosition),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: Colors.black),
+            // Video TOUJOURS monté : media_kit Android TV a besoin que la surface
+            // SurfaceView soit créée avant open() pour afficher l'image.
+            // FocusTraversalGroup exclut le Video du D-pad quand pas prêt :
+            // sinon les contrôles media_kit volent le focus au bouton Lancer.
+            FocusTraversalGroup(
+              descendantsAreFocusable: _ready,
+              child: _buildVideo(),
+            ),
+            // Overlay quand pas prêt.
+            if (!_ready)
+              Container(
+                color: Colors.black,
+                child: Center(
+                  child: _loading
+                      ? const CircularProgressIndicator()
+                      : TvFocusable(
+                          autofocus: true,
+                          onPressed: _loadAndPlay,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 16),
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.play_arrow,
+                                    color: Colors.white, size: 32),
+                                SizedBox(width: 12),
+                                Text(
+                                  'Lancer',
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 20),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTvControls(BuildContext context) {
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- Gauche : saison + info, retour en dessous ---
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.layers_outlined,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            _seasonName ?? 'Saison…',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.info_outline),
+                          tooltip: 'Fiche de l\'anime',
+                          onPressed: _openDetail,
+                        ),
+                      ],
+                    ),
+                    TvFocusable(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.arrow_back,
+                                color: Colors.white, size: 18),
+                            SizedBox(width: 8),
+                            Text('Retour',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // --- Droite : langue, sélecteur épisode en dessous ---
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!_singleLanguage)
+                      _LanguageSelector(
+                        current: _language,
+                        available: _availableLangs,
+                        onChanged: _switchLanguage,
+                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          tooltip: 'Épisode précédent',
+                          onPressed: !_loading && _prevEpisode != null
+                              ? () => _goToEpisode(_prevEpisode!)
+                              : null,
+                        ),
+                        TvFocusable(
+                          onPressed: () {},
+                          child: DropdownButton<int>(
+                            value: _currentEpisode,
+                            underline: const SizedBox.shrink(),
+                            onChanged: !_loading
+                                ? (ep) {
+                                    if (ep != null) _goToEpisode(ep);
+                                  }
+                                : null,
+                            items: [
+                              if (!_episodes.contains(_currentEpisode))
+                                DropdownMenuItem(
+                                    value: _currentEpisode,
+                                    child: Text('Épisode $_currentEpisode')),
+                              for (final ep in _episodes)
+                                DropdownMenuItem(
+                                    value: ep, child: Text('Épisode $ep')),
+                            ],
+                          ),
+                        ),
+                        if (_isLastEpisode)
+                          IconButton(
+                            icon: const Icon(Icons.check_circle),
+                            color: Colors.green,
+                            tooltip: 'Valider : saison terminée',
+                            onPressed: !_loading ? _finishSeason : null,
+                          )
+                        else
+                          IconButton(
+                            icon: const Icon(Icons.chevron_right),
+                            tooltip: 'Épisode suivant',
+                            onPressed: !_loading && _nextEpisode != null
+                                ? () => _goToEpisode(_nextEpisode!)
+                                : null,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Erreur
+          if (_error != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.errorContainer,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _loading ? null : _loadAndPlay,
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layout Desktop/Mobile standard
+  // ---------------------------------------------------------------------------
+
+  Widget _buildDesktopBody(BuildContext context) {
     final title = widget.media.title.preferred;
 
     return Scaffold(
@@ -1331,110 +1678,110 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 960),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // --- Sélecteur de langue, au-dessus du lecteur (mode fenêtré) ---
-                if (!_singleLanguage) ...[
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: _LanguageSelector(
-                      current: _language,
-                      available: _availableLangs,
-                      onChanged: _switchLanguage,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                // --- Lecteur encastré media_kit ---
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: GestureDetector(
-                      // Clic droit → menu contextuel (langue + vitesse), utile
-                      // en plein écran où la barre du dessus est masquée.
-                      onSecondaryTapDown: (d) =>
-                          _showContextMenu(d.globalPosition),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Container(color: Colors.black),
-                          if (_ready)
-                            _buildVideo()
-                          else if (_loading)
-                            const Center(child: CircularProgressIndicator())
-                          else
-                            Center(
-                              child: FilledButton.icon(
-                                // Sur TV : autofocus pour que OK lance la lecture.
-                                autofocus: ref.read(isTvProvider),
-                                onPressed: _loadAndPlay,
-                                icon: const Icon(Icons.play_arrow),
-                                label: const Text('Lancer'),
-                              ),
-                            ),
-                          // (L'overlay auto-play « Épisode suivant dans N… »
-                          //  est rendu DANS le builder `controls` de _buildVideo
-                          //  pour rester visible aussi en plein écran.)
-                      ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // --- Barre de contrôle : saison + fiche | < menu > ---
-                _ControlBar(
-                  seasonName: _seasonName,
-                  currentEpisode: _currentEpisode,
-                  episodes: _episodes,
-                  enabled: !_loading,
-                  onOpenDetail: _openDetail,
-                  onPrev: _prevEpisode != null
-                      ? () => _goToEpisode(_prevEpisode!)
-                      : null,
-                  onNext: _nextEpisode != null
-                      ? () => _goToEpisode(_nextEpisode!)
-                      : null,
-                  onSelect: (ep) => _goToEpisode(ep),
-                  isLastEpisode: _isLastEpisode,
-                  onFinish: _finishSeason,
-                ),
-
-                if (_error != null) ...[
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.errorContainer,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: Text(
-                            _error!,
-                            style: TextStyle(
-                              color:
-                                  Theme.of(context).colorScheme.onErrorContainer,
+                        if (!_singleLanguage) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: _LanguageSelector(
+                              current: _language,
+                              available: _availableLangs,
+                              onChanged: _switchLanguage,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: GestureDetector(
+                              onSecondaryTapDown: (d) =>
+                                  _showContextMenu(d.globalPosition),
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  Container(color: Colors.black),
+                                  if (_ready)
+                                    _buildVideo()
+                                  else if (_loading)
+                                    const Center(
+                                        child: CircularProgressIndicator())
+                                  else
+                                    Center(
+                                      child: FilledButton.icon(
+                                        onPressed: _loadAndPlay,
+                                        icon: const Icon(Icons.play_arrow),
+                                        label: const Text('Lancer'),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                        TextButton(
-                          onPressed: _loading ? null : _loadAndPlay,
-                          child: const Text('Réessayer'),
+                        const SizedBox(height: 16),
+                        _ControlBar(
+                          seasonName: _seasonName,
+                          currentEpisode: _currentEpisode,
+                          episodes: _episodes,
+                          enabled: !_loading,
+                          onOpenDetail: _openDetail,
+                          onPrev: _prevEpisode != null
+                              ? () => _goToEpisode(_prevEpisode!)
+                              : null,
+                          onNext: _nextEpisode != null
+                              ? () => _goToEpisode(_nextEpisode!)
+                              : null,
+                          onSelect: (ep) => _goToEpisode(ep),
+                          isLastEpisode: _isLastEpisode,
+                          onFinish: _finishSeason,
                         ),
+                        if (_error != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .errorContainer,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _error!,
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onErrorContainer,
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: _loading ? null : _loadAndPlay,
+                                  child: const Text('Réessayer'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ],
-              ],
-            ),
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -1528,34 +1875,36 @@ class _ControlBar extends StatelessWidget {
 
     return Row(
       children: [
-        // --- Nom de la saison + accès fiche ---
-        Expanded(
-          child: Row(
-            children: [
-              Icon(Icons.layers_outlined,
-                  size: 18, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 4),
-              Flexible(
-                child: Text(
-                  seasonName ?? 'Saison…',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+        // --- Nom de la saison + accès fiche (masqué si géré ailleurs) ---
+        if (seasonName != null)
+          Expanded(
+            child: Row(
+              children: [
+                Icon(Icons.layers_outlined,
+                    size: 18, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    seasonName!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.info_outline),
-                tooltip: 'Fiche de l\'anime',
-                onPressed: onOpenDetail,
-              ),
-            ],
+                IconButton(
+                  icon: const Icon(Icons.info_outline),
+                  tooltip: 'Fiche de l\'anime',
+                  onPressed: onOpenDetail,
+                ),
+              ],
+            ),
           ),
-        ),
 
         // --- Navigation d'épisode : < menu > ---
+        const SizedBox(width: 12),
         IconButton(
           icon: const Icon(Icons.chevron_left),
           tooltip: 'Épisode précédent',
@@ -1574,8 +1923,6 @@ class _ControlBar extends StatelessWidget {
               DropdownMenuItem(value: ep, child: Text('Épisode $ep')),
           ],
         ),
-        // Dernier épisode → bouton ✓ « valider fin de saison ».
-        // Sinon → flèche « épisode suivant ».
         if (isLastEpisode)
           IconButton(
             icon: const Icon(Icons.check_circle),
@@ -1631,8 +1978,8 @@ class _SkipButton extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: FilledButton.icon(
-            onPressed: () => player.seek(
-                Duration(milliseconds: (active.target * 1000).round())),
+            onPressed: () => player
+                .seek(Duration(milliseconds: (active.target * 1000).round())),
             icon: const Icon(Icons.skip_next, size: 18),
             label: Text(active.label),
           ),

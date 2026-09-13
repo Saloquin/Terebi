@@ -42,6 +42,12 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Désactive Impeller sur Android : SurfaceProducer (media_kit) affiche
+             noir avec Impeller sur émulateur x86_64 (EGL_BAD_ATTRIBUTE). Skia
+             (impeller=false) résout le rendu vidéo. -->
+        <meta-data
+            android:name="io.flutter.embedding.android.EnableImpeller"
+            android:value="false" />
     </application>
     <queries>
         <intent>
