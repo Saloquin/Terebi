@@ -21,11 +21,16 @@ import '../../../services/stream_resolver.dart';
 import '../../pages/player_page.dart';
 import '../../widgets/tv_focusable.dart';
 
-// Progression préchargée pour une saison (lastWatched + total épisodes).
+// Progression préchargée pour une saison (lastWatched + total + dernier numéro).
 class _SeasonProgress {
   final int lastWatched;
-  final int? total;
-  const _SeasonProgress({required this.lastWatched, this.total});
+  final int? total; // count d'épisodes (eps.length)
+  final int? lastEpisodeNumber; // dernier numéro d'épisode (eps.last)
+  const _SeasonProgress({
+    required this.lastWatched,
+    this.total,
+    this.lastEpisodeNumber,
+  });
 }
 
 /// Liste des saisons anime-sama pour un anime, en colonne verticale (TV).
@@ -67,13 +72,21 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
       final last = await seasonProgress.lastWatched(
           widget.media.mediaId, season.index);
       int? total;
+      int? lastEpisodeNumber;
       try {
         final eps = await ref.read(animeSamaEpisodesProvider(
           (title: widget.searchTitle, seasonIndex: season.index),
         ).future);
-        if (eps.isNotEmpty) total = eps.length;
+        if (eps.isNotEmpty) {
+          total = eps.length;
+          lastEpisodeNumber = eps.last;
+        }
       } catch (_) {}
-      result[season.index] = _SeasonProgress(lastWatched: last, total: total);
+      result[season.index] = _SeasonProgress(
+        lastWatched: last,
+        total: total,
+        lastEpisodeNumber: lastEpisodeNumber,
+      );
     }));
 
     if (mounted) {
@@ -125,6 +138,7 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
               autofocus: widget.autofocusFirst && i == 0,
               initialLastWatched: progress.lastWatched,
               initialTotal: progress.total,
+              initialLastEpisodeNumber: progress.lastEpisodeNumber,
               externalTileNode: i == 0 ? widget.firstSeasonFocusNode : null,
               upNode: i == 0 ? widget.firstSeasonUpNode : null,
               onProgressChanged: (lastWatched) {
@@ -132,7 +146,10 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
                   _progressBySeasonIndex = {
                     ..._progressBySeasonIndex!,
                     season.index: _SeasonProgress(
-                        lastWatched: lastWatched, total: progress.total),
+                      lastWatched: lastWatched,
+                      total: progress.total,
+                      lastEpisodeNumber: progress.lastEpisodeNumber,
+                    ),
                   };
                 });
               },
@@ -152,6 +169,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
   final bool autofocus;
   final int initialLastWatched;
   final int? initialTotal;
+  final int? initialLastEpisodeNumber;
   final void Function(int lastWatched) onProgressChanged;
   final FocusNode? externalTileNode;
   final FocusNode? upNode;
@@ -164,6 +182,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
     required this.autofocus,
     required this.initialLastWatched,
     required this.initialTotal,
+    required this.initialLastEpisodeNumber,
     required this.onProgressChanged,
     this.externalTileNode,
     this.upNode,
@@ -176,6 +195,7 @@ class _TvSeasonRow extends ConsumerStatefulWidget {
 class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
   late int _lastWatched;
   late int? _total;
+  late int? _lastEpisodeNumber;
 
   // Nœuds explicites : la navigation verticale (haut/bas) circule entre les
   // tuiles ; le bouton « marquer-vu » n'est atteint que latéralement (droite
@@ -188,6 +208,7 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
     super.initState();
     _lastWatched = widget.initialLastWatched;
     _total = widget.initialTotal;
+    _lastEpisodeNumber = widget.initialLastEpisodeNumber;
   }
 
   @override
@@ -244,9 +265,9 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
   }
 
   Future<void> _markThisSeasonWatched() async {
-    await ref
-        .read(seasonProgressRepositoryProvider)
-        .markSeasonFullyWatched(widget.media.mediaId, widget.season.index);
+    await ref.read(seasonProgressRepositoryProvider).markSeasonFullyWatched(
+        widget.media.mediaId, widget.season.index,
+        episodeCount: _lastEpisodeNumber ?? _total);
     await _reloadWatchedOnly();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -312,8 +333,11 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
     final total = _total;
     final markedFull =
         _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
-    final done =
-        markedFull || (total != null && total > 0 && _lastWatched >= total);
+    // « done » : dernier NUMÉRO d'épisode (fiable), ou count (rétrocompat),
+    // ou sentinelle héritée.
+    final done = markedFull ||
+        (_lastEpisodeNumber != null && _lastWatched >= _lastEpisodeNumber!) ||
+        (total != null && total > 0 && _lastWatched >= total);
     final ratio = done
         ? 1.0
         : (total != null && total > 0)

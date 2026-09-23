@@ -779,7 +779,8 @@ class _AnimeSamaSeasonTile extends ConsumerStatefulWidget {
 
 class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   int _lastWatched = 0; // dernier épisode vu de cette saison (0 = rien)
-  int? _total; // nombre d'épisodes anime-sama de la saison
+  int? _total; // nombre d'épisodes anime-sama de la saison (count)
+  int? _lastEpisodeNumber; // dernier NUMÉRO d'épisode (eps.last), pour « done »
   bool _loaded = false;
 
   @override
@@ -794,19 +795,24 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         widget.media.mediaId, widget.season.index);
 
     int? total;
+    int? lastEpisodeNumber;
     try {
       // Passe par le provider global (cache partagé avec le lecteur) plutôt que
       // d'appeler le resolver directement → évite un scraping redondant.
       final eps = await ref.read(animeSamaEpisodesProvider(
         (title: widget.searchTitle, seasonIndex: widget.season.index),
       ).future);
-      if (eps.isNotEmpty) total = eps.length;
+      if (eps.isNotEmpty) {
+        total = eps.length;
+        lastEpisodeNumber = eps.last;
+      }
     } catch (_) {/* total inconnu → barre indéterminée */}
 
     if (mounted) {
       setState(() {
         _lastWatched = last;
         _total = total;
+        _lastEpisodeNumber = lastEpisodeNumber;
         _loaded = true;
       });
     }
@@ -872,9 +878,9 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   /// autres saisons ni au statut global de l'anime). Rafraîchit la barre, puis
   /// tente de passer l'anime « Terminé » si c'était la dernière saison manquante.
   Future<void> _markThisSeasonWatched() async {
-    await ref
-        .read(seasonProgressRepositoryProvider)
-        .markSeasonFullyWatched(widget.media.mediaId, widget.season.index);
+    await ref.read(seasonProgressRepositoryProvider).markSeasonFullyWatched(
+        widget.media.mediaId, widget.season.index,
+        episodeCount: _lastEpisodeNumber ?? _total);
     await _reloadWatchedOnly();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -957,8 +963,11 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     // les épisodes → total parfois inconnu).
     final markedFull =
         _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
-    final done =
-        markedFull || (total != null && total > 0 && _lastWatched >= total);
+    // « done » : vue jusqu'au dernier NUMÉRO d'épisode (fiable même si la
+    // numérotation ne démarre pas à 1), ou au count (rétrocompat), ou sentinelle.
+    final done = markedFull ||
+        (_lastEpisodeNumber != null && _lastWatched >= _lastEpisodeNumber!) ||
+        (total != null && total > 0 && _lastWatched >= total);
     final ratio = done
         ? 1.0
         : (total != null && total > 0)
