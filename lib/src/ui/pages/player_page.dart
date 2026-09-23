@@ -792,50 +792,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Passe l'anime en « Terminé » si TOUTES les saisons anime-sama ont leur
-  /// dernier épisode vu (vérification complète, pas seulement la saison
-  /// courante). S'appuie sur les données anime-sama (fiables) plutôt que sur
-  /// `media.episodes` (Jikan), null pour les longues séries comme One Piece.
-  /// Remplit aussi `entry.progress` avec le total réel d'épisodes. Best-effort.
+  /// dernier épisode vu. Délègue à [SeriesCompletionService] (logique commune) ;
+  /// affiche le message si l'anime vient de passer terminé. Best-effort.
   Future<void> _maybeMarkSeriesCompleted() async {
     try {
-      final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.mediaId);
-      if (existing != null && existing.status == ListStatus.completed) return;
-
       final title = widget.animeSamaTitle ?? widget.media.title.preferred;
       final seasons = await ref.read(animeSamaSeasonsProvider(title).future);
-      if (seasons.isEmpty) return;
-
-      final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-      var totalEpisodes = 0;
-      for (final s in seasons) {
-        final eps = await ref.read(animeSamaEpisodesProvider(
-          (title: title, seasonIndex: s.index),
-        ).future);
-        if (eps.isEmpty)
-          return; // saison sans épisodes listés → on n'affirme rien.
-        totalEpisodes += eps.length;
-        final watched =
-            await seasonProgress.lastWatched(widget.media.mediaId, s.index);
-        final done = watched >= SeasonProgressRepository.fullyWatchedSentinel ||
-            watched >= eps.last;
-        if (!done) return; // au moins une saison non finie → pas « Terminé ».
-      }
-
-      // Toutes les saisons sont vues → Terminé + progress = total réel.
-      final base = existing ??
-          ListEntry(
-            mediaId: widget.media.mediaId,
-            status: ListStatus.completed,
-            updatedAt: DateTime.now(),
-          );
-      final newProgress =
-          totalEpisodes > base.progress ? totalEpisodes : base.progress;
-      await listRepo.upsertEntry(base.copyWith(
-        status: ListStatus.completed,
-        progress: newProgress,
-        updatedAt: DateTime.now(),
-      ));
+      final justCompleted =
+          await ref.read(seriesCompletionServiceProvider).maybeMarkCompleted(
+                mediaId: widget.media.mediaId,
+                seasons: seasons,
+                getEpisodes: (seasonIndex) => ref.read(
+                  animeSamaEpisodesProvider(
+                    (title: title, seasonIndex: seasonIndex),
+                  ).future,
+                ),
+              );
+      if (!justCompleted) return;
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
       if (mounted) {

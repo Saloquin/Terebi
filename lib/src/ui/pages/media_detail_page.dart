@@ -917,43 +917,22 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   }
 
   /// Passe l'anime « Terminé » si TOUTES ses saisons anime-sama sont vues.
-  /// Best-effort (données anime-sama en cache via les providers globaux).
+  /// Délègue à [SeriesCompletionService]. Best-effort.
   Future<void> _maybeMarkSeriesCompleted() async {
     try {
-      final listRepo = ref.read(listRepositoryProvider);
-      final existing = await listRepo.getEntry(widget.media.mediaId);
-      if (existing != null && existing.status == ListStatus.completed) return;
-
       final seasons =
           await ref.read(animeSamaSeasonsProvider(widget.searchTitle).future);
-      if (seasons.isEmpty) return;
-      final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-      var totalEpisodes = 0;
-      for (final s in seasons) {
-        final eps = await ref.read(animeSamaEpisodesProvider(
-          (title: widget.searchTitle, seasonIndex: s.index),
-        ).future);
-        if (eps.isEmpty) return;
-        totalEpisodes += eps.length;
-        final watched =
-            await seasonProgress.lastWatched(widget.media.mediaId, s.index);
-        final done = watched >= SeasonProgressRepository.fullyWatchedSentinel ||
-            watched >= eps.last;
-        if (!done) return;
-      }
-      final base = existing ??
-          ListEntry(
-            mediaId: widget.media.mediaId,
-            status: ListStatus.completed,
-            updatedAt: DateTime.now(),
-          );
-      final newProgress =
-          totalEpisodes > base.progress ? totalEpisodes : base.progress;
-      await listRepo.upsertEntry(base.copyWith(
-        status: ListStatus.completed,
-        progress: newProgress,
-        updatedAt: DateTime.now(),
-      ));
+      final justCompleted =
+          await ref.read(seriesCompletionServiceProvider).maybeMarkCompleted(
+                mediaId: widget.media.mediaId,
+                seasons: seasons,
+                getEpisodes: (seasonIndex) => ref.read(
+                  animeSamaEpisodesProvider(
+                    (title: widget.searchTitle, seasonIndex: seasonIndex),
+                  ).future,
+                ),
+              );
+      if (!justCompleted) return;
       ref.invalidate(entriesByStatusProvider);
       ref.invalidate(countByStatusProvider);
       if (mounted) {
