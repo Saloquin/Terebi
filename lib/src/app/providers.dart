@@ -23,6 +23,7 @@ import '../domain/logic/anime_id.dart';
 import '../domain/logic/effective_status_service.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
+import '../domain/logic/series_completion_service.dart';
 import '../domain/logic/stats_service.dart';
 import '../services/update_service.dart';
 import '../domain/logic/filter_sort_service.dart';
@@ -207,6 +208,14 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
 /// Progression PAR saison anime-sama (dernier épisode vu par saison).
 final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
   (ref) => SeasonProgressRepository(ref.watch(settingsRepositoryProvider)),
+);
+
+/// Détection « série entièrement vue » → statut `completed` (logique factorisée).
+final seriesCompletionServiceProvider = Provider<SeriesCompletionService>(
+  (ref) => SeriesCompletionService(
+    ref.watch(listRepositoryProvider),
+    ref.watch(seasonProgressRepositoryProvider),
+  ),
 );
 
 /// Résolveur anime-sama (VOSTFR/VF) — 100% Dart, Android et desktop.
