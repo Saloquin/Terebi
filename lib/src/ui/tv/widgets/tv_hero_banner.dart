@@ -8,9 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/media.dart';
 import '../../widgets/anime_sama_image.dart';
-import '../../widgets/tv_focusable.dart';
 import '../media_detail_page_tv.dart';
-import '../../pages/resume_helper.dart';
+import 'tv_slide_indicators.dart';
 
 /// Hero plein écran style Netflix pour Android TV.
 /// Affiche les [items] en rotation automatique toutes les [rotationSeconds] secondes.
@@ -66,12 +65,6 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
     return widget.items[_current % widget.items.length];
   }
 
-  void _play(BuildContext context) {
-    final media = _displayed;
-    if (media == null) return;
-    resumePlayback(context, ref, media);
-  }
-
   void _openDetail(BuildContext context) {
     final media = _displayed;
     if (media == null) return;
@@ -101,18 +94,30 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
     final heroHeight = screenHeight - 64;
 
     return Focus(
+      // Le hero est lui-même le focusable : pas de boutons. Flèche gauche/droite
+      // change de slide, OK/Centre ouvre les détails du slide courant. Haut/bas
+      // ne sont pas interceptés → gérés par le parent (navbar / rangées).
+      autofocus: true,
       onFocusChange: (v) => setState(() => _hasFocus = v),
       onKeyEvent: (_, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        if (event.logicalKey == LogicalKeyboardKey.arrowLeft &&
-            widget.items.length > 1) {
-          setState(() =>
-              _current = (_current - 1 + widget.items.length) % widget.items.length);
+        final key = event.logicalKey;
+        if (key == LogicalKeyboardKey.arrowLeft) {
+          if (widget.items.length > 1) {
+            setState(() => _current =
+                (_current - 1 + widget.items.length) % widget.items.length);
+          }
           return KeyEventResult.handled;
         }
-        if (event.logicalKey == LogicalKeyboardKey.arrowRight &&
-            widget.items.length > 1) {
-          setState(() => _current = (_current + 1) % widget.items.length);
+        if (key == LogicalKeyboardKey.arrowRight) {
+          if (widget.items.length > 1) {
+            setState(() => _current = (_current + 1) % widget.items.length);
+          }
+          return KeyEventResult.handled;
+        }
+        if (key == LogicalKeyboardKey.select ||
+            key == LogicalKeyboardKey.enter) {
+          _openDetail(context);
           return KeyEventResult.handled;
         }
         return KeyEventResult.ignored;
@@ -123,15 +128,20 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Fond : cover de l'anime avec transition animée
+            // Fond : bannière (image large paysage) de l'anime, transition
+            // animée. La bannière remplit toute la largeur du hero, contrairement
+            // à la cover portrait.
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 600),
               child: KeyedSubtree(
                 key: ValueKey(media.mediaId),
-                child: AnimeSamaImage(
-                  slug: media.animeSamaSlug ?? '',
-                  fallbackUrl: media.coverUrl,
-                  fit: BoxFit.cover,
+                child: SizedBox.expand(
+                  child: AnimeSamaImage(
+                    slug: media.animeSamaSlug ?? '',
+                    banner: true,
+                    fallbackUrl: media.bannerUrl ?? media.coverUrl,
+                    fit: BoxFit.cover,
+                  ),
                 ),
               ),
             ),
@@ -188,75 +198,24 @@ class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
                     const SizedBox(height: 12),
                     Text(
                       media.genres.take(3).join(' • '),
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 16),
+                      style:
+                          const TextStyle(color: Colors.white70, fontSize: 16),
                     ),
                   ],
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      TvFocusable(
-                        autofocus: true,
-                        onPressed: () => _play(context),
-                        child: FilledButton.icon(
-                          onPressed: () => _play(context),
-                          icon: const Icon(Icons.play_arrow, size: 22),
-                          label: const Text('Lire',
-                              style: TextStyle(fontSize: 16)),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 28, vertical: 14),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      TvFocusable(
-                        onPressed: () => _openDetail(context),
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openDetail(context),
-                          icon: const Icon(Icons.info_outline,
-                              size: 20, color: Colors.white),
-                          label: const Text('Détails',
-                              style: TextStyle(
-                                  fontSize: 16, color: Colors.white)),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 28, vertical: 14),
-                            side:
-                                const BorderSide(color: Colors.white54),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
 
-            // Indicateurs de slide
+            // Indicateurs de slide — limités pour ne jamais déborder la largeur
+            // (un point par item déborde dès qu'il y a beaucoup de sorties).
             if (widget.items.length > 1)
               Positioned(
                 bottom: 24,
                 left: 0,
                 right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (int i = 0; i < widget.items.length; i++)
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        margin:
-                            const EdgeInsets.symmetric(horizontal: 4),
-                        width: i == _current ? 24.0 : 8.0,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: i == _current
-                              ? Colors.white
-                              : Colors.white38,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                  ],
+                child: TvSlideIndicators(
+                  count: widget.items.length,
+                  current: _current,
                 ),
               ),
           ],

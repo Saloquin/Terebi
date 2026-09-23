@@ -68,8 +68,7 @@ class _LibraryPageTvState extends ConsumerState<LibraryPageTv> {
                       count: counts[status] ?? 0,
                       selected: _activeTab == status,
                       autofocus: status == ListStatus.current,
-                      onPressed: () =>
-                          setState(() => _activeTab = status),
+                      onPressed: () => setState(() => _activeTab = status),
                     ),
                 ],
               ),
@@ -121,9 +120,8 @@ class _TvLibTab extends StatelessWidget {
                     label,
                     style: TextStyle(
                       color: selected ? Colors.white : Colors.white54,
-                      fontWeight: selected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontWeight:
+                          selected ? FontWeight.bold : FontWeight.normal,
                       fontSize: 13,
                     ),
                   ),
@@ -140,8 +138,8 @@ class _TvLibTab extends StatelessWidget {
                       ),
                       child: Text(
                         '$count',
-                        style: const TextStyle(
-                            color: Colors.white, fontSize: 10),
+                        style:
+                            const TextStyle(color: Colors.white, fontSize: 10),
                       ),
                     ),
                   ],
@@ -174,26 +172,28 @@ class _LibraryGrid extends ConsumerWidget {
     final entriesAsync = ref.watch(entriesByStatusProvider(status));
 
     return entriesAsync.when(
-      loading: () =>
-          const Center(child: CircularProgressIndicator()),
+      loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child: Text('Erreur : $e',
-            style: const TextStyle(color: Colors.white54)),
+        child:
+            Text('Erreur : $e', style: const TextStyle(color: Colors.white54)),
       ),
       data: (entries) {
         if (entries.isEmpty) {
-          return const Center(
-            child: Text(
-              'Aucun anime dans cette liste',
-              style: TextStyle(color: Colors.white54),
+          // Message focusable : sans focusable dans une grille vide, descendre
+          // ici perdrait le focus (irrécupérable). En le rendant focusable, le
+          // focus reste capturable et arrowUp peut remonter vers la tab bar /
+          // la navbar (remontée centralisée par TvFocusScope).
+          return const Focus(
+            child: Center(
+              child: Text(
+                'Aucun anime dans cette liste',
+                style: TextStyle(color: Colors.white54),
+              ),
             ),
           );
         }
         // Tri par updatedAt desc.
-        final sorted = entries
-            .sortedBy((e) => e.updatedAt)
-            .reversed
-            .toList();
+        final sorted = entries.sortedBy((e) => e.updatedAt).reversed.toList();
 
         return GridView.builder(
           padding: const EdgeInsets.all(24),
@@ -228,8 +228,7 @@ class _LibraryTileTv extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaAsync =
-        ref.watch(_tvLibraryMediaProvider(entry.mediaId));
+    final mediaAsync = ref.watch(_tvLibraryMediaProvider(entry.mediaId));
     final media = mediaAsync.asData?.value;
     final slug = media?.animeSamaSlug ?? '';
     final coverUrl = media?.coverUrl;
@@ -297,8 +296,7 @@ class _LibraryTileTv extends ConsumerWidget {
                     title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 12),
+                    style: const TextStyle(color: Colors.white, fontSize: 12),
                   ),
                 ),
               ),
