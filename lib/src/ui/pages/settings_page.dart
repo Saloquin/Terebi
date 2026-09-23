@@ -1,6 +1,8 @@
 /// Page Paramètres : lecture (langue, saut…), chemins anime-sama, health-check.
 library;
 
+import 'dart:io' show exit;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -711,6 +713,11 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
           _installSuccess = true;
         });
         ref.read(downloadProgressProvider.notifier).state = null;
+        // Le script de swap attend la fermeture de l'app pour remplacer l'exe
+        // (verrouillé tant qu'il tourne), puis relance la version à jour. On
+        // laisse le temps d'afficher le message, puis on quitte.
+        await Future.delayed(const Duration(seconds: 2));
+        exit(0);
       }
     } on UpdateError catch (e) {
       if (mounted) {
@@ -871,7 +878,8 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
               Icon(Icons.check_circle, color: Colors.green, size: 16),
               SizedBox(width: 6),
               Flexible(
-                  child: Text('Installé. Redémarrez l\'application.',
+                  child: Text(
+                      'Mise à jour installée. L\'application va redémarrer…',
                       style: TextStyle(color: Colors.green))),
             ]),
           ),
