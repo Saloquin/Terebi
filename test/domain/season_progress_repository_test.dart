@@ -45,13 +45,24 @@ void main() {
       expect(await repo.lastWatched(1, 1), 10);
     });
 
-    test('markSeasonFullyWatched pose la sentinelle « tout vu »', () async {
+    test('markSeasonFullyWatched(episodeCount) écrit le nombre réel d\'épisodes',
+        () async {
+      await repo.markSeasonFullyWatched(1, 1, episodeCount: 12);
+      expect(await repo.lastWatched(1, 1), 12);
+    });
+
+    test('markSeasonFullyWatched sans count → repli sentinelle', () async {
       await repo.markSeasonFullyWatched(1, 1);
       final v = await repo.lastWatched(1, 1);
       expect(v, SeasonProgressRepository.fullyWatchedSentinel);
-      // La sentinelle est >= tout total réaliste → la saison est « terminée »
-      // quelle que soit la valeur de total constatée ensuite.
       expect(v, greaterThanOrEqualTo(9999));
+    });
+
+    test('markSeasonFullyWatched(episodeCount <= 0) → repli sentinelle',
+        () async {
+      await repo.markSeasonFullyWatched(1, 1, episodeCount: 0);
+      expect(await repo.lastWatched(1, 1),
+          SeasonProgressRepository.fullyWatchedSentinel);
     });
 
     group('hasAnyProgress', () {

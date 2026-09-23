@@ -17,9 +17,11 @@ class SeasonProgressRepository {
   const SeasonProgressRepository(this._settings);
 
   /// Sentinelle « saison entièrement vue » sans connaître le nombre exact
-  /// d'épisodes. Toute barre affiche « Terminée » dès que `lastWatched >= total`
-  /// ; cette valeur est >= n'importe quel total réaliste, donc marque la saison
-  /// finie sans lancer de requête réseau pour compter les épisodes.
+  /// d'épisodes. **Dépréciée** comme valeur d'écriture : on préfère désormais
+  /// écrire le nombre RÉEL d'épisodes (cf. [markSeasonFullyWatched]) pour rester
+  /// cohérent avec les tuiles (qui comparent au total) et permettre au recheck
+  /// de détecter un nouvel épisode. Conservée comme repli (total inconnu) et
+  /// pour la rétrocompatibilité en LECTURE (valeurs héritées en base).
   static const int fullyWatchedSentinel = 1 << 20; // 1 048 576
 
   /// Dernier épisode vu de la saison (0 si aucun).
@@ -39,10 +41,22 @@ class SeasonProgressRepository {
     );
   }
 
-  /// Marque la saison comme entièrement vue via [fullyWatchedSentinel], sans
-  /// avoir à compter les épisodes (aucune requête réseau).
-  Future<void> markSeasonFullyWatched(int anilistId, int seasonIndex) =>
-      setLastWatched(anilistId, seasonIndex, fullyWatchedSentinel);
+  /// Marque la saison comme entièrement vue.
+  ///
+  /// Écrit le nombre RÉEL d'épisodes [episodeCount] (dernier numéro connu) plutôt
+  /// qu'une sentinelle : la saison est « vue » tant que `lastWatched >= total`,
+  /// et si un nouvel épisode sort (`total` augmente), l'anime redevient
+  /// automatiquement « En cours ». Repli sur [fullyWatchedSentinel] uniquement
+  /// si le total est inconnu (`episodeCount` null ou <= 0, ex. réseau échoué).
+  Future<void> markSeasonFullyWatched(int anilistId, int seasonIndex,
+          {int? episodeCount}) =>
+      setLastWatched(
+        anilistId,
+        seasonIndex,
+        (episodeCount != null && episodeCount > 0)
+            ? episodeCount
+            : fullyWatchedSentinel,
+      );
 
   /// Marque l'épisode [episode] comme vu (n'abaisse jamais le compteur).
   Future<void> markWatched(int anilistId, int seasonIndex, int episode) async {
