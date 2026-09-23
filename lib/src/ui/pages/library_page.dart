@@ -13,6 +13,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_dart_resolver.dart';
+import '../../services/stream_resolver.dart' show PlaybackLanguage;
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
@@ -135,7 +136,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // « Terminé » ; inutile de le refaire à chaque ouverture de la biblio.
     // Exception : si la version du recheck est inférieure à '2', on force un
     // passage complet pour nettoyer les faux positifs de l'ancienne logique.
-    const currentRecheckVersion = '2';
+    const currentRecheckVersion = '3';
     final recheckVer =
         await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
     final mustUpgrade = recheckVer != currentRecheckVersion;
@@ -164,6 +165,66 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       return; // résolveur indisponible → pas de recheck (ne marque pas la date).
     }
 
+    // Titres actuellement AU PLANNING hebdo anime-sama = animes en cours de
+    // diffusion. C'est la SEULE notion de « diffusion en cours » disponible :
+    // on ne pose le drapeau « nouvel épisode » QUE pour ces animes (un anime
+    // fini depuis des années est hors planning → jamais de faux « nouveau »).
+    final langStr = await settings.get(SettingsKeys.playbackLanguage,
+        defaultValue: 'vostfr');
+    final language =
+        langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
+    Set<String> planningNormalized;
+    try {
+      final items = await resolver.planning(language: language);
+      planningNormalized =
+          items.map((e) => normalizeAnimeTitle(e.title)).toSet();
+    } catch (_) {
+      // Planning indisponible (réseau) → on ne pose AUCUN drapeau plutôt que de
+      // risquer des faux positifs. Comportement sûr.
+      planningNormalized = const {};
+    }
+
+    // Passe 0 (mise à niveau uniquement) : migration + nettoyage rétroactif.
+    if (mustUpgrade) {
+      // (a) Remplace les sentinelles héritées par le nombre réel d'épisodes.
+      final watchedKeys =
+          await settings.entriesWithPrefix('anime_sama_watched:');
+      for (final kv in watchedKeys.entries) {
+        final v = int.tryParse(kv.value) ?? 0;
+        if (v < SeasonProgressRepository.fullyWatchedSentinel) continue;
+        // Clé = anime_sama_watched:<mediaId>:<seasonIndex>
+        final parts = kv.key.split(':');
+        if (parts.length != 3) continue;
+        final id = int.tryParse(parts[1]);
+        final seasonIndex = int.tryParse(parts[2]);
+        if (id == null || seasonIndex == null) continue;
+        try {
+          final media = await mediaRepo.getMedia(id);
+          final title = media?.animeSamaTitle ?? media?.title.preferred;
+          if (title == null) continue;
+          final eps =
+              await resolver.listEpisodes(title: title, seasonIndex: seasonIndex);
+          if (eps.isNotEmpty) {
+            await seasonProgress.setLastWatched(id, seasonIndex, eps.last);
+          }
+        } catch (_) {/* réseau : on garde la sentinelle, réessai au prochain */}
+      }
+      // (b) Supprime les drapeaux « nouvel épisode » posés à tort sur des animes
+      // hors planning (faux positifs de l'ancienne logique sans filtre planning).
+      final newEpisodeKeys = await settings.entriesWithPrefix('new_episode:');
+      for (final kv in newEpisodeKeys.entries) {
+        if (kv.value != '1') continue;
+        final id = int.tryParse(kv.key.substring('new_episode:'.length));
+        if (id == null) continue;
+        final media = await mediaRepo.getMedia(id);
+        final title = media?.animeSamaTitle ?? media?.title.preferred;
+        final normalized = title != null ? normalizeAnimeTitle(title) : null;
+        if (normalized == null || !planningNormalized.contains(normalized)) {
+          await settings.delete(kv.key);
+        }
+      }
+    }
+
     var changed = false;
     for (final entry in completed) {
       try {
@@ -185,15 +246,18 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
         final watched =
             await seasonProgress.lastWatched(entry.mediaId, last.index);
-        // Marqué « entièrement vu » (sentinelle) → l'utilisateur l'a déclaré
-        // terminé : ne jamais le rétrograder automatiquement.
-        if (watched >= SeasonProgressRepository.fullyWatchedSentinel) continue;
+        // Ne signaler un nouvel épisode QUE si l'anime est actuellement au
+        // planning (en cours de diffusion). Un anime hors planning est fini :
+        // aucun nouvel épisode ne peut apparaître, on ne touche à rien.
+        final isAiring =
+            planningNormalized.contains(normalizeAnimeTitle(title));
+        if (!isAiring) continue;
         // Compare au DERNIER numéro d'épisode réel (numérotation parfois non
-        // contiguë : OAV, épisodes .5…), pas au simple compte de la liste.
+        // contiguë : OAV, épisodes .5…). NB : les sentinelles ont été migrées
+        // en passe 0, donc `watched` est le vrai numéro du dernier épisode vu.
         if (watched < eps.last) {
-          // Il reste des épisodes non vus → retire le drapeau « Terminé »
-          // (repasse `planning` ; l'effectif redevient « En cours » via la
-          // progression). Pose le drapeau « nouvel épisode » pour l'afficher.
+          // Nouvel épisode disponible → repasse EN COURS (planning ;
+          // l'effectif redevient « En cours » via la progression) + drapeau.
           await listRepo.upsertEntry(entry.copyWith(
             status: ListStatus.planning,
             updatedAt: DateTime.now(),
@@ -241,8 +305,10 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
         final watched =
             await seasonProgress.lastWatched(entry.mediaId, last.index);
-        // Marqué « entièrement vu » manuellement → à jour, ne pas signaler.
-        if (watched >= SeasonProgressRepository.fullyWatchedSentinel) continue;
+        // Hors planning = diffusion finie → aucun nouvel épisode possible.
+        final isAiring =
+            planningNormalized.contains(normalizeAnimeTitle(title));
+        if (!isAiring) continue;
         // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
         // y a un nouvel épisode (progression AniList seule, sans clé watched).
         // Nettoie aussi un éventuel faux positif posé par une version antérieure.
