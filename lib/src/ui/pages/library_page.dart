@@ -13,7 +13,6 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import '../../services/animesama_dart_resolver.dart';
-import '../../services/stream_resolver.dart' show PlaybackLanguage;
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
@@ -137,7 +136,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // épisode qui sort le jour même est détecté à la prochaine ouverture.
     // `recheckVersion` ne sert plus qu'à déclencher UNE FOIS la passe 0 de
     // migration (sentinelles + nettoyage des badges hérités).
-    const currentRecheckVersion = '3';
+    const currentRecheckVersion = '4';
     final recheckVer =
         await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
     final mustUpgrade = recheckVer != currentRecheckVersion;
@@ -152,33 +151,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     try {
       resolver = await ref.read(animeSamaResolverProvider.future);
     } catch (_) {
-      return; // résolveur indisponible → pas de recheck (ne marque pas la date).
+      return; // résolveur indisponible → pas de recheck.
     }
 
-    // Titres actuellement AU PLANNING hebdo anime-sama = animes en cours de
-    // diffusion. C'est la SEULE notion de « diffusion en cours » disponible :
-    // on ne pose le drapeau « nouvel épisode » QUE pour ces animes (un anime
-    // fini depuis des années est hors planning → jamais de faux « nouveau »).
-    final langStr = await settings.get(SettingsKeys.playbackLanguage,
-        defaultValue: 'vostfr');
-    final language =
-        langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
-    // Titres BRUTS du planning (non normalisés) : le matching se fait via
-    // `titlesSimilar`, qui tolère les divergences de suffixe de saison. Le
-    // planning écrit « Dandadan Saison 2 » alors que la base stocke « Dandadan »
-    // → une égalité stricte échouait ; `titlesSimilar` gère l'inclusion.
-    List<String> planningTitles;
-    try {
-      final items = await resolver.planning(language: language);
-      planningTitles = items.map((e) => e.title).toList();
-    } catch (_) {
-      // Planning indisponible (réseau) → on ne pose AUCUN drapeau plutôt que de
-      // risquer des faux positifs. Comportement sûr.
-      planningTitles = const [];
-    }
-    // Vrai si [title] correspond (matching flou) à un anime au planning.
-    bool airing(String title) =>
-        planningTitles.any((p) => titlesSimilar(title, p));
+    // Critère « nouvel épisode » : il existe un épisode non vu sur la dernière
+    // saison (watched < dernier numéro). On NE consulte PAS le planning : un
+    // anime fini pendant une longue absence en sort → le planning le masquerait
+    // et ferait rater les épisodes sortis entre-temps. La progression locale
+    // (watched vs eps.last) est le seul signal fiable et robuste au temps.
 
     // Passe 0 (mise à niveau uniquement) : migration + nettoyage rétroactif.
     if (mustUpgrade) {
@@ -205,8 +185,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
           }
         } catch (_) {/* réseau : on garde la sentinelle, réessai au prochain */}
       }
-      // (b) Supprime les drapeaux « nouvel épisode » posés à tort sur des animes
-      // hors planning (faux positifs de l'ancienne logique sans filtre planning).
+      // (b) Nettoie les drapeaux « nouvel épisode » posés à tort par l'ancienne
+      // logique (bug numéro/count) : on ne garde le badge que si un épisode est
+      // réellement non vu sur la dernière saison ; sinon on le supprime.
       final newEpisodeKeys = await settings.entriesWithPrefix('new_episode:');
       for (final kv in newEpisodeKeys.entries) {
         if (kv.value != '1') continue;
@@ -214,9 +195,25 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         if (id == null) continue;
         final media = await mediaRepo.getMedia(id);
         final title = media?.animeSamaTitle ?? media?.title.preferred;
-        if (title == null || !airing(title)) {
+        if (title == null) {
           await settings.delete(kv.key);
+          continue;
         }
+        try {
+          final seasons = await resolver.listSeasons(title: title);
+          if (seasons.isEmpty) {
+            await settings.delete(kv.key);
+            continue;
+          }
+          final last = seasons.last;
+          final eps =
+              await resolver.listEpisodes(title: title, seasonIndex: last.index);
+          final watched = await seasonProgress.lastWatched(id, last.index);
+          // Aucun épisode non vu → badge injustifié, on le retire.
+          if (eps.isEmpty || watched >= eps.last) {
+            await settings.delete(kv.key);
+          }
+        } catch (_) {/* réseau : on garde le badge, réévalué au prochain run */}
       }
     }
 
@@ -241,14 +238,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
         final watched =
             await seasonProgress.lastWatched(entry.mediaId, last.index);
-        // Ne signaler un nouvel épisode QUE si l'anime est actuellement au
-        // planning (en cours de diffusion). Un anime hors planning est fini :
-        // aucun nouvel épisode ne peut apparaître, on ne touche à rien.
-        final isAiring = airing(title);
-        if (!isAiring) continue;
         // Compare au DERNIER numéro d'épisode réel (numérotation parfois non
         // contiguë : OAV, épisodes .5…). NB : les sentinelles ont été migrées
         // en passe 0, donc `watched` est le vrai numéro du dernier épisode vu.
+        // Pas de filtre planning : un épisode non vu suffit, même si l'anime a
+        // fini sa diffusion pendant une longue absence (sinon on le raterait).
         if (watched < eps.last) {
           // Nouvel épisode disponible → repasse EN COURS (planning ;
           // l'effectif redevient « En cours » via la progression) + drapeau.
@@ -299,9 +293,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
         final watched =
             await seasonProgress.lastWatched(entry.mediaId, last.index);
-        // Hors planning = diffusion finie → aucun nouvel épisode possible.
-        final isAiring = airing(title);
-        if (!isAiring) continue;
         // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
         // y a un nouvel épisode (progression AniList seule, sans clé watched).
         // Nettoie aussi un éventuel faux positif posé par une version antérieure.
