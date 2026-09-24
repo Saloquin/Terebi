@@ -132,25 +132,15 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   Future<void> _recheckCompletedImpl() async {
     final settings = ref.read(settingsRepositoryProvider);
 
-    // Garde 1×/jour : le recheck fait plusieurs requêtes anime-sama par anime
-    // « Terminé » ; inutile de le refaire à chaque ouverture de la biblio.
-    // Exception : si la version du recheck est inférieure à '2', on force un
-    // passage complet pour nettoyer les faux positifs de l'ancienne logique.
+    // Le recheck tourne à CHAQUE ouverture de la Bibliothèque, en arrière-plan
+    // (lancé sans await bloquant depuis initState). Pas de garde temporelle : un
+    // épisode qui sort le jour même est détecté à la prochaine ouverture.
+    // `recheckVersion` ne sert plus qu'à déclencher UNE FOIS la passe 0 de
+    // migration (sentinelles + nettoyage des badges hérités).
     const currentRecheckVersion = '3';
     final recheckVer =
         await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
     final mustUpgrade = recheckVer != currentRecheckVersion;
-
-    if (!mustUpgrade) {
-      final lastRaw = await settings.get(SettingsKeys.lastCompletedRecheck);
-      if (lastRaw != null) {
-        final last = DateTime.tryParse(lastRaw);
-        if (last != null &&
-            DateTime.now().difference(last) < const Duration(days: 1)) {
-          return; // déjà fait dans les dernières 24 h.
-        }
-      }
-    }
 
     final listRepo = ref.read(listRepositoryProvider);
     final mediaRepo = ref.read(mediaRepositoryProvider);
@@ -173,16 +163,22 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         defaultValue: 'vostfr');
     final language =
         langStr == 'vf' ? PlaybackLanguage.vf : PlaybackLanguage.vostfr;
-    Set<String> planningNormalized;
+    // Titres BRUTS du planning (non normalisés) : le matching se fait via
+    // `titlesSimilar`, qui tolère les divergences de suffixe de saison. Le
+    // planning écrit « Dandadan Saison 2 » alors que la base stocke « Dandadan »
+    // → une égalité stricte échouait ; `titlesSimilar` gère l'inclusion.
+    List<String> planningTitles;
     try {
       final items = await resolver.planning(language: language);
-      planningNormalized =
-          items.map((e) => normalizeAnimeTitle(e.title)).toSet();
+      planningTitles = items.map((e) => e.title).toList();
     } catch (_) {
       // Planning indisponible (réseau) → on ne pose AUCUN drapeau plutôt que de
       // risquer des faux positifs. Comportement sûr.
-      planningNormalized = const {};
+      planningTitles = const [];
     }
+    // Vrai si [title] correspond (matching flou) à un anime au planning.
+    bool airing(String title) =>
+        planningTitles.any((p) => titlesSimilar(title, p));
 
     // Passe 0 (mise à niveau uniquement) : migration + nettoyage rétroactif.
     if (mustUpgrade) {
@@ -218,8 +214,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         if (id == null) continue;
         final media = await mediaRepo.getMedia(id);
         final title = media?.animeSamaTitle ?? media?.title.preferred;
-        final normalized = title != null ? normalizeAnimeTitle(title) : null;
-        if (normalized == null || !planningNormalized.contains(normalized)) {
+        if (title == null || !airing(title)) {
           await settings.delete(kv.key);
         }
       }
@@ -249,8 +244,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         // Ne signaler un nouvel épisode QUE si l'anime est actuellement au
         // planning (en cours de diffusion). Un anime hors planning est fini :
         // aucun nouvel épisode ne peut apparaître, on ne touche à rien.
-        final isAiring =
-            planningNormalized.contains(normalizeAnimeTitle(title));
+        final isAiring = airing(title);
         if (!isAiring) continue;
         // Compare au DERNIER numéro d'épisode réel (numérotation parfois non
         // contiguë : OAV, épisodes .5…). NB : les sentinelles ont été migrées
@@ -306,8 +300,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         final watched =
             await seasonProgress.lastWatched(entry.mediaId, last.index);
         // Hors planning = diffusion finie → aucun nouvel épisode possible.
-        final isAiring =
-            planningNormalized.contains(normalizeAnimeTitle(title));
+        final isAiring = airing(title);
         if (!isAiring) continue;
         // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
         // y a un nouvel épisode (progression AniList seule, sans clé watched).
@@ -327,10 +320,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       await Future.delayed(const Duration(milliseconds: 400));
     }
 
-    // Mémorise la date du recheck (réussi) et la version pour la garde.
+    // Mémorise la version : la passe 0 de migration ne re-tournera plus.
     await settings.set(SettingsKeys.recheckVersion, currentRecheckVersion);
-    await settings.set(
-        SettingsKeys.lastCompletedRecheck, DateTime.now().toIso8601String());
 
     if (changed && mounted) {
       ref.invalidate(countByStatusProvider);
