@@ -141,8 +141,17 @@ if ($buildLinux) {
 
     if (-not $SkipBuild) {
         if (Get-Command docker -ErrorAction SilentlyContinue) {
-            $imageExists = docker image inspect terebi-ci 2>$null
-            if ($LASTEXITCODE -eq 0) {
+            $imageExists = $false
+            try {
+                $prev = $ErrorActionPreference
+                $ErrorActionPreference = 'SilentlyContinue'
+                docker image inspect terebi-ci 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) { $imageExists = $true }
+                $ErrorActionPreference = $prev
+            } catch {
+                $imageExists = $false
+            }
+            if ($imageExists) {
                 Write-Host '  [build] flutter build linux --release (Docker)' -ForegroundColor Yellow
                 $proj = $ProjectRoot -replace '\\', '/'
                 docker run --rm -v "${proj}:/app" -w /app terebi-ci bash -c 'flutter pub get >/dev/null 2>&1 && flutter build linux --release'
