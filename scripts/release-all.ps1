@@ -189,7 +189,12 @@ if ($artifacts.Count -eq 0) {
 gh release view $Tag --json tagName 2>$null | Out-Null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "  Release $Tag absente - creation" -ForegroundColor DarkYellow
-    gh release create $Tag --title "Terebi $Version" --notes "Release $Version" --latest
+    $notesFile = Join-Path $DistDir "release_notes_$Version.md"
+    if (Test-Path $notesFile) {
+        gh release create $Tag --title "Terebi $Version" --notes-file $notesFile --latest
+    } else {
+        gh release create $Tag --title "Terebi $Version" --notes "Release $Version" --latest
+    }
     if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }
 }
 
