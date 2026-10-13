@@ -1839,16 +1839,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
                               if (_availableSources.isNotEmpty)
-                                Flexible(
-                                  child: SingleChildScrollView(
-                                    scrollDirection: Axis.horizontal,
-                                    child: _SourceSelector(
-                                      current: _selectedSource,
-                                      available: _availableSources,
-                                      onChanged: _switchSource,
-                                      enabled: !_loading,
-                                    ),
-                                  ),
+                                _SourceSelector(
+                                  current: _selectedSource,
+                                  available: _availableSources,
+                                  onChanged: _switchSource,
+                                  enabled: !_loading,
                                 )
                               else
                                 const SizedBox.shrink(),
@@ -2025,35 +2020,55 @@ class _SourceSelector extends StatelessWidget {
     if (available.isEmpty) return const SizedBox.shrink();
 
     final theme = Theme.of(context);
-    bool isCur(VideoHosterSource src) =>
-        (current != null &&
-            (current!.embedUrl == src.embedUrl ||
-                current!.name == src.name)) ||
-        (current == null && src == available.first);
+    final selected = available.firstWhere(
+      (s) =>
+          (current != null &&
+              (s.embedUrl == current!.embedUrl || s.name == current!.name)),
+      orElse: () => available.first,
+    );
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Tooltip(
-          message: 'Lecteurs disponibles',
-          child: Icon(
-            Icons.dns_outlined,
-            size: 16,
-            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+    return _FocusBorder(
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<VideoHosterSource>(
+            value: selected,
+            isDense: true,
+            borderRadius: BorderRadius.circular(8),
+            icon: const Icon(Icons.arrow_drop_down, size: 20),
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+            items: available.map((src) {
+              return DropdownMenuItem<VideoHosterSource>(
+                value: src,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.dns_outlined,
+                      size: 15,
+                      color: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(src.name),
+                  ],
+                ),
+              );
+            }).toList(),
+            onChanged: enabled
+                ? (val) {
+                    if (val != null) onChanged(val);
+                  }
+                : null,
           ),
         ),
-        const SizedBox(width: 6),
-        for (final src in available)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: ChoiceChip(
-              label: Text(src.name),
-              selected: isCur(src),
-              visualDensity: VisualDensity.compact,
-              onSelected: enabled ? (_) => onChanged(src) : null,
-            ),
-          ),
-      ],
+      ),
     );
   }
 }

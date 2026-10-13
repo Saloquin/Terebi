@@ -128,6 +128,17 @@ class VideoHosterSource {
   @override
   String toString() =>
       'VideoHosterSource(name: $name, embed: $embedUrl, direct: $directStreamUrl)';
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is VideoHosterSource &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          embedUrl == other.embedUrl;
+
+  @override
+  int get hashCode => Object.hash(name, embedUrl);
 }
 
 /// Identifie le nom lisible de l'hébergeur d'après son URL.
