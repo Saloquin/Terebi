@@ -47,6 +47,10 @@ abstract final class SettingsKeys {
   /// Mise à jour automatique au démarrage ('1' = activé par défaut, '0' = désactivé).
   static const String autoUpdate = 'auto_update';
 
+  /// Afficher les animes avec nouveaux épisodes en premier dans l'onglet « En cours »
+  /// ('1' = activé par défaut, '0' = désactivé).
+  static const String prioritizeNewEpisodes = 'prioritize_new_episodes';
+
   /// Clé de la saison anime-sama choisie pour un média AniList donné
   /// (index 1-based). Ex. `anime_sama_season:105333`.
   static String animeSamaSeasonFor(int anilistId) =>

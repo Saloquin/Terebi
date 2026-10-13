@@ -1834,29 +1834,34 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (!_singleLanguage || _availableSources.isNotEmpty) ...[
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Wrap(
-                              spacing: 12,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                if (!_singleLanguage)
-                                  _LanguageSelector(
-                                    current: _language,
-                                    available: _availableLangs,
-                                    onChanged: _switchLanguage,
-                                    enabled: !_loading,
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              if (_availableSources.isNotEmpty)
+                                Flexible(
+                                  child: SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: _SourceSelector(
+                                      current: _selectedSource,
+                                      available: _availableSources,
+                                      onChanged: _switchSource,
+                                      enabled: !_loading,
+                                    ),
                                   ),
-                                if (_availableSources.isNotEmpty)
-                                  _SourceSelector(
-                                    current: _selectedSource,
-                                    available: _availableSources,
-                                    onChanged: _switchSource,
-                                    enabled: !_loading,
-                                  ),
-                              ],
-                            ),
+                                )
+                              else
+                                const SizedBox.shrink(),
+                              if (!_singleLanguage)
+                                _LanguageSelector(
+                                  current: _language,
+                                  available: _availableLangs,
+                                  onChanged: _switchLanguage,
+                                  enabled: !_loading,
+                                )
+                              else
+                                const SizedBox.shrink(),
+                            ],
                           ),
                           const SizedBox(height: 8),
                         ],

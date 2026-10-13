@@ -61,6 +61,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   /// Filtre courant, partagé entre tous les onglets.
   MediaFilter _filter = const MediaFilter();
 
+  /// Afficher en premier les animes ayant de nouveaux épisodes dans l'onglet En cours.
+  bool _prioritizeNew = true;
+
   /// Recherche textuelle par titre (partagée entre onglets). Vide = pas de
   /// filtre. Comparaison insensible à la casse/accents (via normalisation).
   String _searchQuery = '';
@@ -70,13 +73,30 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   void initState() {
     super.initState();
     _tabController = TabController(length: _statusOrder.length, vsync: this);
-    // Au montage : normalise les statuts legacy, puis revalide les « Terminé ».
-    // (Plus de dédup : l'identité étant dérivée du slug, un anime a toujours le
-    // même id -> aucun doublon possible.)
+    // Au montage : charge les préférences, normalise les statuts legacy, puis revalide les « Terminé ».
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _loadSettings();
       await _normalizeLegacyStatuses();
       await _recheckCompleted();
     });
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final val = await ref
+          .read(settingsRepositoryProvider)
+          .get(SettingsKeys.prioritizeNewEpisodes, defaultValue: '1');
+      if (mounted) {
+        setState(() => _prioritizeNew = val == '1');
+      }
+    } catch (_) {}
+  }
+
+  void _togglePrioritizeNew(bool val) {
+    setState(() => _prioritizeNew = val);
+    ref
+        .read(settingsRepositoryProvider)
+        .set(SettingsKeys.prioritizeNewEpisodes, val ? '1' : '0');
   }
 
   /// Migration légère (one-shot par ouverture) : convertit les anciens statuts
@@ -437,8 +457,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
           builder: (context, _) {
             final status = _statusOrder[_tabController.index];
             return _SortBar(
+              status: status,
               sortField: _sortFields[status]!,
               sortDesc: _sortDescs[status]!,
+              prioritizeNew: _prioritizeNew,
+              onPrioritizeNewChanged: status == ListStatus.current
+                  ? (val) => _togglePrioritizeNew(val)
+                  : null,
               onChanged: ({required EntrySortField field, required bool desc}) {
                 setState(() {
                   _sortFields[status] = field;
@@ -471,6 +496,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                       sortDesc: _sortDescs[status]!,
                       filter: _filter,
                       searchQuery: _searchQuery,
+                      prioritizeNew: _prioritizeNew,
                     ))
                 .toList(),
           ),
@@ -485,15 +511,21 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 // ---------------------------------------------------------------------------
 
 class _SortBar extends StatelessWidget {
+  final ListStatus status;
   final EntrySortField sortField;
   final bool sortDesc;
+  final bool prioritizeNew;
   final void Function({required EntrySortField field, required bool desc})
       onChanged;
+  final ValueChanged<bool>? onPrioritizeNewChanged;
 
   const _SortBar({
+    required this.status,
     required this.sortField,
     required this.sortDesc,
+    this.prioritizeNew = true,
     required this.onChanged,
+    this.onPrioritizeNewChanged,
   });
 
   @override
@@ -521,6 +553,27 @@ class _SortBar extends StatelessWidget {
               },
             ),
             const SizedBox(width: 6),
+          ],
+          if (status == ListStatus.current && onPrioritizeNewChanged != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              height: 20,
+              width: 1,
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+            ),
+            const SizedBox(width: 10),
+            FilterChip(
+              avatar: Icon(
+                prioritizeNew
+                    ? Icons.notifications_active
+                    : Icons.notifications_outlined,
+                size: 14,
+              ),
+              label: const Text('Nouveaux en premier'),
+              selected: prioritizeNew,
+              onSelected: onPrioritizeNewChanged,
+              visualDensity: VisualDensity.compact,
+            ),
           ],
         ],
       ),
@@ -753,6 +806,8 @@ class _EntriesTab extends ConsumerWidget {
   final MediaFilter filter;
   /// Recherche textuelle par titre (vide = pas de filtre).
   final String searchQuery;
+  /// Afficher les nouveaux épisodes en premier (onglet En cours).
+  final bool prioritizeNew;
 
   const _EntriesTab({
     required this.status,
@@ -760,6 +815,7 @@ class _EntriesTab extends ConsumerWidget {
     required this.sortDesc,
     required this.filter,
     required this.searchQuery,
+    this.prioritizeNew = true,
   });
 
   @override
@@ -795,10 +851,12 @@ class _EntriesTab extends ConsumerWidget {
         // Tri et filtrage : le champ "titre" nécessite un cache local de titres.
         return _SortedEntriesList(
           entries: entries,
+          status: status,
           sortField: sortField,
           sortDesc: sortDesc,
           filter: filter,
           searchQuery: searchQuery,
+          prioritizeNew: prioritizeNew,
         );
       },
     );
@@ -811,19 +869,24 @@ class _EntriesTab extends ConsumerWidget {
 
 class _SortedEntriesList extends ConsumerWidget {
   final List<ListEntry> entries;
+  final ListStatus status;
   final EntrySortField sortField;
   final bool sortDesc;
   /// Filtre à appliquer sur les entrées (via la map Media du provider).
   final MediaFilter filter;
   /// Recherche textuelle par titre (vide = pas de filtre).
   final String searchQuery;
+  /// Afficher les nouveaux épisodes en premier (onglet En cours).
+  final bool prioritizeNew;
 
   const _SortedEntriesList({
     required this.entries,
+    required this.status,
     required this.sortField,
     required this.sortDesc,
     required this.filter,
     required this.searchQuery,
+    this.prioritizeNew = true,
   });
 
   @override
@@ -839,6 +902,11 @@ class _SortedEntriesList extends ConsumerWidget {
       data: (m) => m,
       orElse: () => const <int, Media>{},
     );
+
+    final newIds = ref.watch(newEpisodeIdsProvider).maybeWhen(
+          data: (s) => s,
+          orElse: () => const <int>{},
+        );
 
     // Filtre les entrées selon le MediaFilter courant.
     // - Si le filtre est vide : toutes les entrées passent.
@@ -880,7 +948,14 @@ class _SortedEntriesList extends ConsumerWidget {
           titleOf: titleOf,
         );
 
-        if (sorted.isEmpty && (!filter.isEmpty || query.isNotEmpty)) {
+        final finalEntries = (prioritizeNew && status == ListStatus.current)
+            ? [
+                ...sorted.where((e) => newIds.contains(e.mediaId)),
+                ...sorted.where((e) => !newIds.contains(e.mediaId)),
+              ]
+            : sorted;
+
+        if (finalEntries.isEmpty && (!filter.isEmpty || query.isNotEmpty)) {
           // Aucun résultat après filtrage/recherche : message informatif.
           return Center(
             child: Column(
@@ -908,8 +983,8 @@ class _SortedEntriesList extends ConsumerWidget {
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
           ),
-          itemCount: sorted.length,
-          itemBuilder: (context, i) => _EntryCard(entry: sorted[i]),
+          itemCount: finalEntries.length,
+          itemBuilder: (context, i) => _EntryCard(entry: finalEntries[i]),
         );
       },
     );
