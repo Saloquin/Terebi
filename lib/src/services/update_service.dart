@@ -218,8 +218,8 @@ if (Get-Process -Id $pid -ErrorAction SilentlyContinue) {
   Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
   Start-Sleep -Seconds 1
 }
-Get-Process -Name 'terebi' -ErrorAction SilentlyContinue | Where-Object { \$_.Path -eq "$exePath" } | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Milliseconds 500
+Get-Process -Name 'terebi' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Seconds 1
 
 # Localisation du dossier source (gere le cas ou l'archive contient un dossier parent)
 \$sourceDir = "$extractDir"
@@ -242,7 +242,7 @@ try {
 
 if (-not \$canWrite) {
   "Droits administrateur requis, re-execution via RunAs..." | Out-File \$logFile -Append
-  Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$PSCommandPath`""
+  Start-Process powershell -Verb RunAs -ArgumentList "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$scriptPath`""
   exit
 }
 
@@ -250,26 +250,40 @@ if (-not \$canWrite) {
 \$src = \$sourceDir.TrimEnd('\\')
 \$dst = "$exeDir".TrimEnd('\\')
 "Copie depuis \$src vers \$dst..." | Out-File \$logFile -Append
-& robocopy \$src \$dst /E /IS /IT /NFL /NDL /NJH /NJS /NP /LOG+:\$logFile | Out-Null
+& robocopy \$src \$dst /E /IS /IT /R:3 /W:1 /NFL /NDL /NJH /NJS /NP /LOG+:\$logFile | Out-Null
 \$code = \$LASTEXITCODE
 "Code Robocopy : \$code" | Out-File \$logFile -Append
 
 # Relance l'application mise a jour avec son WorkingDirectory correct
 "Relance de l'app : $exePath dans \$dst" | Out-File \$logFile -Append
-Start-Process -FilePath "$exePath" -WorkingDirectory "\$dst"
+Start-Sleep -Milliseconds 500
+try {
+  Start-Process -FilePath "$exePath" -WorkingDirectory "\$dst" -WindowStyle Normal
+} catch {
+  cmd.exe /c start "" /D "\$dst" "$exePath"
+}
 
 # Nettoyage
 Start-Sleep -Seconds 2
 Remove-Item -Recurse -Force "$extractDir" -ErrorAction SilentlyContinue
 Remove-Item -Force "${zipFile.path}" -ErrorAction SilentlyContinue
-Remove-Item -Force "\$PSCommandPath" -ErrorAction SilentlyContinue
+Remove-Item -Force "$scriptPath" -ErrorAction SilentlyContinue
 ''';
     await File(scriptPath).writeAsString(script);
 
-    // 3. Lance le script en processus détaché
+    // 3. Lance le script en processus véritablement détaché via cmd.exe /c start.
+    // Sur Windows, un Process.start('powershell') direct avec mode detached est
+    // tué par l'OS lorsque le processus parent Flutter appelle exit(0).
+    // Passer par `cmd.exe /c start` délègue à ShellExecuteEx qui s'exécute dans un
+    // processus totalement indépendant du cycle de vie de Terebi.
     await Process.start(
-      'powershell',
+      'cmd.exe',
       [
+        '/c',
+        'start',
+        '""',
+        '/min',
+        'powershell.exe',
         '-NoProfile',
         '-NonInteractive',
         '-WindowStyle',
@@ -280,7 +294,6 @@ Remove-Item -Force "\$PSCommandPath" -ErrorAction SilentlyContinue
         scriptPath,
       ],
       mode: ProcessStartMode.detached,
-      runInShell: false,
     );
     return true;
   }
