@@ -80,4 +80,11 @@ class ProgressRepository {
         .get();
     return rows.isEmpty ? null : _fromRow(rows.first);
   }
+
+  /// Ré-indexe tous les enregistrements de [oldId] vers [newId].
+  Future<void> reindexMediaId(int oldId, int newId) async {
+    await (_db.update(_db.episodeProgresses)
+          ..where((t) => t.mediaId.equals(oldId)))
+        .write(EpisodeProgressesCompanion(mediaId: Value(newId)));
+  }
 }

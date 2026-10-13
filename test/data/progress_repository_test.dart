@@ -109,5 +109,16 @@ void main() {
       expect(last1!.episodeNumber, 10.0);
       expect(last2!.episodeNumber, 3.0);
     });
+
+    test('reindexMediaId déplace les épisodes vers le nouvel id', () async {
+      await repo.upsertProgress(_progress(mediaId: 100, episodeNumber: 1.0, watched: true));
+      await repo.upsertProgress(_progress(mediaId: 100, episodeNumber: 2.0, watched: true));
+
+      await repo.reindexMediaId(100, 200);
+
+      expect(await repo.getProgress(100, 1.0), isNull);
+      expect(await repo.getProgress(200, 1.0), isNotNull);
+      expect(await repo.getProgress(200, 2.0), isNotNull);
+    });
   });
 }

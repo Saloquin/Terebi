@@ -802,6 +802,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// la série en « Terminé » si toutes les saisons sont vues, et lance
   /// l'auto-play si activé dans les réglages et qu'un épisode suivant existe.
   Future<void> _onEpisodeCompleted() async {
+    final dur = _durationSeconds;
+    // Garde stricte : ne JAMAIS valider un épisode si la vidéo n'a pas été réellement
+    // lue jusqu'à la fin (au moins 90% ou dans les 15 dernières secondes).
+    // Évite qu'une erreur de flux, un EOF prématuré, un 404, un stop ou un ad
+    // de quelques secondes ne valide l'épisode à tort (bug nouvel épisode vu = 1).
+    if (dur == null || dur <= 10 || _positionSeconds < dur * 0.90) {
+      return;
+    }
+
     await _markCurrentWatched();
     _positionSeconds = 0;
     _lastPersistedWhole = -1;
@@ -896,7 +905,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _seekTarget = null;
     try {
       if (ep > _currentEpisode) {
-        await _markCurrentWatched();
+        final dur = _durationSeconds;
+        // Ne marque comme vu que si l'épisode quitté a réellement été regardé jusqu'au bout.
+        if (dur != null && dur > 10 && _positionSeconds >= dur * 0.90) {
+          await _markCurrentWatched();
+        } else {
+          // Sinon, sauvegarde la position partielle sans marquer l'épisode comme vu.
+          await _persistPosition();
+        }
       } else {
         // Recul : sauvegarde la position de l'épisode qu'on quitte, puis
         // rétrograde la progression à (ep - 1) : on n'a plus « vu » les épisodes

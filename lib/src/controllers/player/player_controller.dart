@@ -246,7 +246,13 @@ class PlayerController extends Notifier<PlayerState> {
 
     try {
       if (episode > state.currentEpisode) {
-        await _markCurrentWatched(media: media);
+        final dur = state.durationSeconds;
+        final pos = state.positionSeconds;
+        if (dur != null && dur > 10 && pos >= dur * 0.90) {
+          await _markCurrentWatched(media: media);
+        } else {
+          await _persistPosition();
+        }
       } else {
         await _rewindProgressTo(media: media, episode: episode);
       }
@@ -346,6 +352,9 @@ class PlayerController extends Notifier<PlayerState> {
 
   void _onEpisodeCompleted() {
     if (_currentMedia == null) return;
+    final dur = state.durationSeconds;
+    final pos = state.positionSeconds;
+    if (dur == null || dur <= 10 || pos < dur * 0.90) return;
     unawaited(_markCurrentWatched(media: _currentMedia!));
     _maybeStartAutoPlay();
   }

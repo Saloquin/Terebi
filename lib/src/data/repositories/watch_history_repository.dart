@@ -63,6 +63,14 @@ class WatchHistoryRepository {
     return rows.map(_fromRow).toList();
   }
 
+  /// Entrées d'historique pour un média donné.
+  Future<List<WatchHistoryEntry>> forMedia(int mediaId) async {
+    final rows = await (_db.select(_db.watchHistories)
+          ..where((t) => t.mediaId.equals(mediaId)))
+        .get();
+    return rows.map(_fromRow).toList();
+  }
+
   /// Deplace toutes les lignes d'historique de [oldId] vers [newId] (migration
   /// slug : l'historique a ete enregistre avec l'ancien id entier). Best-effort.
   Future<void> reindexMediaId(int oldId, int newId) async {

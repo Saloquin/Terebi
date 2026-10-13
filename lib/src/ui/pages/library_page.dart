@@ -120,7 +120,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // épisode qui sort le jour même est détecté à la prochaine ouverture.
     // `recheckVersion` ne sert plus qu'à déclencher UNE FOIS la passe 0 de
     // migration (sentinelles + nettoyage des badges hérités).
-    const currentRecheckVersion = '4';
+    const currentRecheckVersion = '5';
     final recheckVer =
         await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
     final mustUpgrade = recheckVer != currentRecheckVersion;
@@ -198,6 +198,45 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
             await settings.delete(kv.key);
           }
         } catch (_) {/* réseau : on garde le badge, réévalué au prochain run */}
+      }
+      // (c) Nettoie les progressions erronées sur les saisons suivantes (ex. Saison 2
+      // affichant 1/X alors qu'aucun épisode n'a été réellement regardé).
+      final historyRepo = ref.read(watchHistoryRepositoryProvider);
+      final progressRepo = ref.read(progressRepositoryProvider);
+      for (final kv in watchedKeys.entries) {
+        final v = int.tryParse(kv.value) ?? 0;
+        if (v != 1) continue;
+        final parts = kv.key.split(':');
+        if (parts.length != 3) continue;
+        final id = int.tryParse(parts[1]);
+        final seasonIndex = int.tryParse(parts[2]);
+        if (id == null || seasonIndex == null || seasonIndex <= 1) continue;
+        try {
+          final media = await mediaRepo.getMedia(id);
+          final title = media?.animeSamaTitle ?? media?.title.preferred;
+          if (title == null) continue;
+          final eps =
+              await resolver.listEpisodes(title: title, seasonIndex: seasonIndex);
+          if (eps.length <= 1) continue; // Si la saison n'a qu'un épisode (film/OAV), 1/1 est légitime.
+
+          // Vérifie si l'utilisateur a réellement regardé l'épisode 1.
+          final history = await historyRepo.forMedia(id);
+          final prog = await progressRepo.getProgress(id, 1.0);
+          final actuallyWatched =
+              history.isNotEmpty || (prog != null && prog.positionSeconds > 0);
+          if (!actuallyWatched) {
+            await seasonProgress.setLastWatched(id, seasonIndex, 0);
+            final entry = await listRepo.getEntry(id);
+            if (entry != null &&
+                entry.progress == 1 &&
+                entry.status == ListStatus.planning) {
+              await listRepo.upsertEntry(entry.copyWith(
+                progress: 0,
+                updatedAt: DateTime.now(),
+              ));
+            }
+          }
+        } catch (_) {/* best-effort */}
       }
     }
 

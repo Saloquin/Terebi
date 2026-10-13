@@ -65,6 +65,13 @@ void main() {
           SeasonProgressRepository.fullyWatchedSentinel);
     });
 
+    test('setLastWatched à 0 réinitialise une saison entamée', () async {
+      await repo.setLastWatched(10, 2, 5);
+      expect(await repo.lastWatched(10, 2), 5);
+      await repo.setLastWatched(10, 2, 0);
+      expect(await repo.lastWatched(10, 2), 0);
+    });
+
     group('hasAnyProgress', () {
       test('faux si aucune saison entamée', () async {
         expect(await repo.hasAnyProgress(1), isFalse);

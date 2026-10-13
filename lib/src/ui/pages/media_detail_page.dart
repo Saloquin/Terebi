@@ -1016,17 +1016,30 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
                         fontWeight: done ? FontWeight.bold : null,
                       ),
                     ),
-                    if (_loaded)
-                      IconButton(
-                        icon: Icon(done ? Icons.remove_done : Icons.done_all,
-                            size: 18),
-                        tooltip: done
-                            ? 'Annuler : saison non vue'
-                            : 'Marquer la saison comme vue',
-                        visualDensity: VisualDensity.compact,
-                        onPressed:
-                            done ? _unmarkThisSeason : _markThisSeasonWatched,
-                      ),
+                    if (_loaded) ...[
+                      if (done)
+                        IconButton(
+                          icon: const Icon(Icons.remove_done, size: 18),
+                          tooltip: 'Annuler : saison non vue',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _unmarkThisSeason,
+                        )
+                      else ...[
+                        if (_lastWatched > 0)
+                          IconButton(
+                            icon: const Icon(Icons.restart_alt, size: 18),
+                            tooltip: 'Réinitialiser la saison (0 vu)',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: _unmarkThisSeason,
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.done_all, size: 18),
+                          tooltip: 'Marquer la saison comme vue',
+                          visualDensity: VisualDensity.compact,
+                          onPressed: _markThisSeasonWatched,
+                        ),
+                      ],
+                    ],
                     IconButton(
                       icon: Icon(
                         _expanded ? Icons.expand_less : Icons.expand_more,

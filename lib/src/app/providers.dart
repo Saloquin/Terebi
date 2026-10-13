@@ -308,6 +308,7 @@ final slugMigrationProvider = FutureProvider<void>((ref) async {
     listRepo: ref.watch(listRepositoryProvider),
     settings: ref.watch(settingsRepositoryProvider),
     historyRepo: ref.watch(watchHistoryRepositoryProvider),
+    progressRepo: ref.watch(progressRepositoryProvider),
     resolveSlug: (title) async {
       try {
         final items = await resolver.search(query: title);

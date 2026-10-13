@@ -3,9 +3,11 @@ import 'package:test/test.dart';
 import 'package:terebi/src/data/local/database.dart';
 import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/media_repository.dart';
+import 'package:terebi/src/data/repositories/progress_repository.dart';
 import 'package:terebi/src/data/repositories/settings_repository.dart';
 import 'package:terebi/src/data/repositories/watch_history_repository.dart';
 import 'package:terebi/src/domain/logic/anime_id.dart';
+import 'package:terebi/src/domain/models/episode_progress.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
 import 'package:terebi/src/domain/models/media.dart';
@@ -40,12 +42,21 @@ void main() {
     await settings.set('anime_sama_watched:$oldId:1', '12');
     await historyRepo.record(
         mediaId: oldId, episodeNumber: 5, startedAt: DateTime.utc(2026));
+    final progressRepo = ProgressRepository(db);
+    await progressRepo.upsertProgress(EpisodeProgress(
+      mediaId: oldId,
+      episodeNumber: 1.0,
+      watched: true,
+      positionSeconds: 100,
+      updatedAt: DateTime.utc(2026),
+    ));
 
     final service = SlugMigrationService(
       mediaRepo: mediaRepo,
       listRepo: listRepo,
       settings: settings,
       historyRepo: historyRepo,
+      progressRepo: progressRepo,
       resolveSlug: (title) async => 'one-piece',
     );
     await service.runOnce();
@@ -64,6 +75,9 @@ void main() {
     final hist = await historyRepo.all();
     expect(hist, hasLength(1));
     expect(hist.first.mediaId, newId);
+    // La progression d'épisodes suit aussi le nouvel id.
+    expect(await progressRepo.getProgress(oldId, 1.0), isNull);
+    expect(await progressRepo.getProgress(newId, 1.0), isNotNull);
     expect(await settings.get('slug_migration_done'), '1');
   });
 
