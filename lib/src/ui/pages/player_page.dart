@@ -234,10 +234,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     // Détecte les langues dispo pour l'épisode initial (grise la langue absente
     // dans le sélecteur dès l'arrivée), sauf en mode « langue unique ».
+    final title = widget.animeSamaTitle ?? widget.media.title.preferred;
     if (!_singleLanguage) {
-      final title = widget.animeSamaTitle ?? widget.media.title.preferred;
       _refreshAvailableLangs(title, _seasonIndex, _currentEpisode);
     }
+    _refreshAvailableSources(
+        title, _seasonIndex, _currentEpisode, _language ?? PlaybackLanguage.vostfr);
   }
 
   /// Applique les propriétés mpv sensibles au timing **après** l'ouverture d'un
@@ -366,6 +368,38 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     } catch (_) {/* ignore : sélecteur reste actif */}
   }
 
+  /// Détecte (en tâche de fond) les hébergeurs disponibles pour l'épisode courant
+  /// et met à jour le sélecteur de lecteur.
+  Future<void> _refreshAvailableSources(
+      String title, int seasonIndex, int episode, PlaybackLanguage language) async {
+    try {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      final sources = await resolver.listHosterSources(
+        title: title,
+        season: seasonIndex,
+        episode: episode,
+        language: language,
+      );
+      if (mounted && sources.isNotEmpty) {
+        setState(() {
+          _availableSources = sources;
+          final current = _selectedSource;
+          if (current != null) {
+            final match = sources.cast<VideoHosterSource?>().firstWhere(
+                  (s) =>
+                      s != null &&
+                      (s.name == current.name || s.embedUrl == current.embedUrl),
+                  orElse: () => null,
+                );
+            _selectedSource = match ?? sources.first;
+          } else {
+            _selectedSource = sources.first;
+          }
+        });
+      }
+    } catch (_) {/* ignore : sélecteur reste disponible */}
+  }
+
   /// Change la langue depuis le sélecteur.
   /// - Si la lecture n'est PAS encore lancée (bouton « Lancer » affiché) : on
   ///   mémorise seulement le choix, sans lancer — le clic « Lancer » proposera
@@ -380,10 +414,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // Épisode pas encore lancé → on ne fait que mémoriser + rafraîchir l'état.
     if (!_ready) {
       if (mounted) setState(() {});
+      final title = widget.animeSamaTitle ?? widget.media.title.preferred;
       if (!_singleLanguage) {
-        final title = widget.animeSamaTitle ?? widget.media.title.preferred;
         _refreshAvailableLangs(title, _seasonIndex, _currentEpisode);
       }
+      _refreshAvailableSources(title, _seasonIndex, _currentEpisode, lang);
       return;
     }
 
@@ -931,6 +966,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         _error = null;
       });
       await _player.stop();
+      final title = widget.animeSamaTitle ?? widget.media.title.preferred;
+      if (!_singleLanguage) {
+        _refreshAvailableLangs(title, _seasonIndex, ep);
+      }
+      _refreshAvailableSources(
+          title, _seasonIndex, ep, _language ?? PlaybackLanguage.vostfr);
     } finally {
       _navigating = false;
     }
@@ -1404,6 +1445,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         _selectedSource?.embedUrl == source.embedUrl) {
       return;
     }
+    if (!_ready) {
+      setState(() => _selectedSource = source);
+      return;
+    }
+    if (_loading) return;
     setState(() => _loading = true);
     final pos = _player.state.position;
     final isPlaying = _player.state.playing;
@@ -1655,11 +1701,28 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!_singleLanguage)
-                      _LanguageSelector(
-                        current: _language,
-                        available: _availableLangs,
-                        onChanged: _switchLanguage,
+                    if (!_singleLanguage || _availableSources.isNotEmpty)
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        alignment: WrapAlignment.end,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (!_singleLanguage)
+                            _LanguageSelector(
+                              current: _language,
+                              available: _availableLangs,
+                              onChanged: _switchLanguage,
+                              enabled: !_loading,
+                            ),
+                          if (_availableSources.isNotEmpty)
+                            _SourceSelector(
+                              current: _selectedSource,
+                              available: _availableSources,
+                              onChanged: _switchSource,
+                              enabled: !_loading,
+                            ),
+                        ],
                       ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
@@ -1770,13 +1833,29 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (!_singleLanguage) ...[
+                        if (!_singleLanguage || _availableSources.isNotEmpty) ...[
                           Align(
                             alignment: Alignment.centerLeft,
-                            child: _LanguageSelector(
-                              current: _language,
-                              available: _availableLangs,
-                              onChanged: _switchLanguage,
+                            child: Wrap(
+                              spacing: 12,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                if (!_singleLanguage)
+                                  _LanguageSelector(
+                                    current: _language,
+                                    available: _availableLangs,
+                                    onChanged: _switchLanguage,
+                                    enabled: !_loading,
+                                  ),
+                                if (_availableSources.isNotEmpty)
+                                  _SourceSelector(
+                                    current: _selectedSource,
+                                    available: _availableSources,
+                                    onChanged: _switchSource,
+                                    enabled: !_loading,
+                                  ),
+                              ],
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -1881,28 +1960,30 @@ class _LanguageSelector extends StatelessWidget {
   /// (on ne grise rien, les deux restent cliquables).
   final Set<PlaybackLanguage>? available;
   final ValueChanged<PlaybackLanguage> onChanged;
+  final bool enabled;
 
   const _LanguageSelector({
     required this.current,
     required this.available,
     required this.onChanged,
+    this.enabled = true,
   });
 
   bool _enabled(PlaybackLanguage lang) =>
-      available == null || available!.contains(lang);
+      enabled && (available == null || available!.contains(lang));
 
   @override
   Widget build(BuildContext context) {
     Widget chip(PlaybackLanguage lang, String label) {
-      final enabled = _enabled(lang);
+      final chipEnabled = _enabled(lang);
       return Padding(
         padding: const EdgeInsets.only(right: 4),
         child: ChoiceChip(
           label: Text(label),
           selected: current == lang,
           visualDensity: VisualDensity.compact,
-          // Grisé si la langue n'existe pas pour cet épisode.
-          onSelected: enabled ? (_) => onChanged(lang) : null,
+          // Grisé si la langue n'existe pas pour cet épisode ou si désactivé.
+          onSelected: chipEnabled ? (_) => onChanged(lang) : null,
         ),
       );
     }
@@ -1912,6 +1993,61 @@ class _LanguageSelector extends StatelessWidget {
       children: [
         chip(PlaybackLanguage.vostfr, 'VOSTFR'),
         chip(PlaybackLanguage.vf, 'VF'),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sélecteur d'hébergeur / lecteur vidéo (Sendvid, Sibnet, Voe...)
+// ---------------------------------------------------------------------------
+
+class _SourceSelector extends StatelessWidget {
+  final VideoHosterSource? current;
+  final List<VideoHosterSource> available;
+  final ValueChanged<VideoHosterSource> onChanged;
+  final bool enabled;
+
+  const _SourceSelector({
+    required this.current,
+    required this.available,
+    required this.onChanged,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (available.isEmpty) return const SizedBox.shrink();
+
+    final theme = Theme.of(context);
+    bool isCur(VideoHosterSource src) =>
+        (current != null &&
+            (current!.embedUrl == src.embedUrl ||
+                current!.name == src.name)) ||
+        (current == null && src == available.first);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: 'Lecteurs disponibles',
+          child: Icon(
+            Icons.dns_outlined,
+            size: 16,
+            color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+          ),
+        ),
+        const SizedBox(width: 6),
+        for (final src in available)
+          Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: ChoiceChip(
+              label: Text(src.name),
+              selected: isCur(src),
+              visualDensity: VisualDensity.compact,
+              onSelected: enabled ? (_) => onChanged(src) : null,
+            ),
+          ),
       ],
     );
   }
