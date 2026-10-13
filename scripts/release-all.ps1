@@ -186,8 +186,18 @@ if ($artifacts.Count -eq 0) {
     exit 0
 }
 
-gh release view $Tag --json tagName 2>$null | Out-Null
-if ($LASTEXITCODE -ne 0) {
+$releaseExists = $false
+try {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'SilentlyContinue'
+    gh release view $Tag --json tagName 2>&1 | Out-Null
+    if ($LASTEXITCODE -eq 0) { $releaseExists = $true }
+    $ErrorActionPreference = $prev
+} catch {
+    $releaseExists = $false
+}
+
+if (-not $releaseExists) {
     Write-Host "  Release $Tag absente - creation" -ForegroundColor DarkYellow
     $notesFile = Join-Path $DistDir "release_notes_$Version.md"
     if (Test-Path $notesFile) {
