@@ -619,15 +619,6 @@ class _StatusBadge extends StatelessWidget {
   final ListStatus status;
   const _StatusBadge({required this.status});
 
-  static const _labels = {
-    ListStatus.current: 'En cours',
-    ListStatus.planning: 'Planifié',
-    ListStatus.completed: 'Terminé',
-    ListStatus.paused: 'Pause',
-    ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Revu',
-  };
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -637,7 +628,7 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        _labels[status] ?? status.name,
+        status.label,
         style: const TextStyle(color: Colors.white, fontSize: 10),
       ),
     );

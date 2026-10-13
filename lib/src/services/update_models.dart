@@ -9,20 +9,40 @@ library;
 class ReleaseInfo {
   final String version;
   final String? zipUrl;
-  const ReleaseInfo({required this.version, required this.zipUrl});
+  final String? apkUrl;
+  final String? releaseNotes;
+  final String? releaseUrl;
+
+  const ReleaseInfo({
+    required this.version,
+    required this.zipUrl,
+    this.apkUrl,
+    this.releaseNotes,
+    this.releaseUrl,
+  });
 
   factory ReleaseInfo.fromGitHub(Map<String, dynamic> json) {
     final tag = (json['tag_name'] as String? ?? '').replaceFirst('v', '');
     final assets = json['assets'] as List<dynamic>? ?? const [];
     String? zipUrl;
+    String? apkUrl;
     for (final asset in assets) {
       final name = asset['name'] as String? ?? '';
       if (name.endsWith('.zip')) {
         zipUrl = asset['browser_download_url'] as String?;
-        break;
+      } else if (name.endsWith('.apk')) {
+        apkUrl = asset['browser_download_url'] as String?;
       }
     }
-    return ReleaseInfo(version: tag, zipUrl: zipUrl);
+    final releaseNotes = json['body'] as String?;
+    final releaseUrl = json['html_url'] as String?;
+    return ReleaseInfo(
+      version: tag,
+      zipUrl: zipUrl,
+      apkUrl: apkUrl,
+      releaseNotes: releaseNotes,
+      releaseUrl: releaseUrl,
+    );
   }
 }
 
@@ -39,10 +59,17 @@ class UpdateAvailable extends UpdateStatus {
   final String currentVersion;
   final String latestVersion;
   final String? zipUrl;
+  final String? apkUrl;
+  final String? releaseNotes;
+  final String? releaseUrl;
+
   const UpdateAvailable({
     required this.currentVersion,
     required this.latestVersion,
     required this.zipUrl,
+    this.apkUrl,
+    this.releaseNotes,
+    this.releaseUrl,
   });
 }
 
@@ -58,9 +85,12 @@ class UpdateError extends UpdateStatus {
 bool isNewerVersion({required String current, required String latest}) {
   final a = _parseVersion(current);
   final b = _parseVersion(latest);
-  for (var i = 0; i < 3; i++) {
-    if (b[i] > a[i]) return true;
-    if (b[i] < a[i]) return false;
+  final maxLen = a.length > b.length ? a.length : b.length;
+  for (var i = 0; i < maxLen; i++) {
+    final partA = i < a.length ? a[i] : 0;
+    final partB = i < b.length ? b[i] : 0;
+    if (partB > partA) return true;
+    if (partB < partA) return false;
   }
   return false;
 }

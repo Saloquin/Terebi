@@ -6,6 +6,8 @@
 /// action_planning, action_home, _normalize_genres, _cdn_image_url, _slug_from_url).
 library;
 
+import 'package:html/parser.dart' as html_parser;
+
 /// Extensions CDN testées dans l'ordre (cover=webp d'abord, bannière=jpg).
 const _cdnCoverExts = ['webp', 'jpg', 'png'];
 const _cdnBannerExts = ['jpg', 'webp', 'png'];
@@ -99,26 +101,23 @@ CatalogueDetailData parseCatalogueDetail(String htmlContent, String slug) {
   String? synopsis;
   var genres = <String>[];
 
-  final mt = RegExp(r'<h1[^>]*>([^<]+)</h1>').firstMatch(htmlContent);
-  if (mt != null) title = mt.group(1)!.trim();
-
-  final ms = RegExp(r'<p[^>]+id="synopsisText"[^>]*>(.*?)</p>',
-          dotAll: true, caseSensitive: false)
-      .firstMatch(htmlContent);
-  if (ms != null) {
-    synopsis = ms.group(1)!.replaceAll(RegExp(r'<[^>]+>'), '').trim();
+  final doc = html_parser.parse(htmlContent);
+  final h1 = doc.querySelector('h1');
+  if (h1 != null && h1.text.trim().isNotEmpty) {
+    title = h1.text.trim();
   }
 
-  final mw = RegExp(r'<div[^>]+class="[^"]*genres-wrap[^"]*"[^>]*>(.*?)</div>',
-          dotAll: true, caseSensitive: false)
-      .firstMatch(htmlContent);
-  if (mw != null) {
-    final pills = RegExp(
-            r'<span[^>]+class="[^"]*genre-pill[^"]*"[^>]*>([^<]+)</span>',
-            caseSensitive: false)
-        .allMatches(mw.group(1)!)
-        .map((m) => m.group(1)!)
-        .toList();
+  final synEl = doc.querySelector('#synopsisText');
+  if (synEl != null) {
+    synopsis = synEl.text.trim();
+  }
+
+  final pills = doc
+      .querySelectorAll('.genres-wrap .genre-pill, .genre-pill')
+      .map((e) => e.text.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (pills.isNotEmpty) {
     genres = normalizeGenres(pills);
   }
 
@@ -142,50 +141,45 @@ class CatalogueCard {
   });
 }
 
-/// Type de contenu d'une carte (« Anime », « Scans »…). Port de `_card_type`.
-String _cardType(String inner) {
-  final m = RegExp(
-          r'type-row"?\s*>.*?<p[^>]+class="[^"]*info-value[^"]*"[^>]*>([^<]+)</p>',
-          dotAll: true, caseSensitive: false)
-      .firstMatch(inner);
-  return m?.group(1)?.trim() ?? '';
-}
 
-/// Vrai si la carte contient de la vidéo (anime/film), pas du pur « Scans ».
-/// Port EXACT de `_is_video_card` (garde par défaut si type absent).
-bool _isVideoCard(String inner) {
-  final t = _cardType(inner).toLowerCase();
-  if (t.isEmpty) return true;
-  return t.contains('anime') || t.contains('film');
-}
-
-/// Parse les cartes d'un fragment de catalogue. Port EXACT de `_cards_from_html`.
+/// Parse les cartes d'un fragment de catalogue. Port de `_cards_from_html`.
 List<CatalogueCard> parseCards(String htmlContent, String domain) {
-  final cardRe = RegExp(
-    r'<a\s[^>]*href="https?://[^"]*?/catalogue/([^/"]+)/?[^"]*"[^>]*>(.*?)</a>',
-    dotAll: true,
-  );
-  final imgRe = RegExp(
-      r'<img[^>]+class="[^"]*card-image[^"]*"[^>]+src="([^"]+)"',
-      dotAll: true);
-  final imgAltRe = RegExp(r'<img[^>]+src="([^"]+)"', dotAll: true);
-  final titleRe = RegExp(r'<h2[^>]*card-title[^>]*>([^<]+)</h2>', dotAll: true);
-  final genreTagRe = RegExp(
-      r'<span[^>]+class="[^"]*genre-tag[^"]*"[^>]*>([^<]+)</span>',
-      caseSensitive: false);
-
+  final doc = html_parser.parse(htmlContent);
   final items = <CatalogueCard>[];
-  for (final m in cardRe.allMatches(htmlContent)) {
-    final slug = m.group(1)!.trim();
-    final inner = m.group(2)!;
-    if (!_isVideoCard(inner)) continue;
-    final mt = titleRe.firstMatch(inner);
-    if (mt == null) continue;
-    final title = mt.group(1)!.trim();
-    final mc = imgRe.firstMatch(inner) ?? imgAltRe.firstMatch(inner);
-    final coverUrl = mc != null ? mc.group(1)!.trim() : cdnImageUrl(slug);
+
+  for (final card in doc.querySelectorAll('a[href*="/catalogue/"]')) {
+    final href = card.attributes['href'] ?? '';
+    final slugMatch = RegExp(r'/catalogue/([^/"]+)').firstMatch(href);
+    if (slugMatch == null) continue;
+    final slug = slugMatch.group(1)!.trim();
+    if (slug.isEmpty || slug == 'catalogue') continue;
+
+    // Doit être une carte vidéo (anime/film), pas du pur Scans
+    final typeEl =
+        card.querySelector('.info-value') ?? card.querySelector('.type-row');
+    final typeText = typeEl?.text.trim().toLowerCase() ?? '';
+    if (typeText.isNotEmpty &&
+        !typeText.contains('anime') &&
+        !typeText.contains('film')) {
+      continue;
+    }
+
+    final titleEl =
+        card.querySelector('.card-title') ?? card.querySelector('h2');
+    if (titleEl == null || titleEl.innerHtml.trim().isEmpty) continue;
+    final title = titleEl.innerHtml.trim();
+
+    final imgEl =
+        card.querySelector('img.card-image') ?? card.querySelector('img');
+    final coverSrc = imgEl?.attributes['src']?.trim();
+    final coverUrl = (coverSrc != null && coverSrc.isNotEmpty)
+        ? coverSrc
+        : cdnImageUrl(slug);
+
+    final genreEls = card.querySelectorAll('.genre-tag');
     final genres = normalizeGenres(
-        genreTagRe.allMatches(inner).map((g) => g.group(1)!).toList());
+        genreEls.map((g) => g.text.trim()).where((g) => g.isNotEmpty).toList());
+
     items.add(CatalogueCard(
       title: title,
       url: 'https://$domain/catalogue/$slug/',
@@ -229,14 +223,63 @@ List<PlanningItemData> parsePlanning(
   bool vf = false,
   required String Function(int ts) formatTime,
 }) {
+  final doc = html_parser.parse(htmlContent);
+  final dayHeaders = doc.querySelectorAll('h2.titreJours');
+  if (dayHeaders.isNotEmpty) {
+    final items = <PlanningItemData>[];
+    final seen = <String>{};
+    for (final dayHeader in dayHeaders) {
+      final currentDay = dayHeader.text.trim();
+      final dayContainer = dayHeader.parent ?? dayHeader;
+      for (final card in dayContainer.querySelectorAll('.planning-card')) {
+        final classAttr = card.attributes['class'] ?? '';
+        if (classAttr.contains('scan-card-premium') ||
+            classAttr.split(RegExp(r'\s+')).contains('Scans')) {
+          continue;
+        }
+        final aTag = card.querySelector('a[href]');
+        final cardUrl = aTag?.attributes['href']?.trim() ?? '';
+        if (cardUrl.isEmpty || isScanUrl(cardUrl)) continue;
+
+        final titleAttr = card.attributes['data-title'];
+        final title = (titleAttr != null && titleAttr.isNotEmpty)
+            ? unescapeHtml(titleAttr).trim()
+            : (card.querySelector('.card-title')?.text.trim() ?? '');
+
+        final isVf = classAttr.split(RegExp(r'\s+')).contains('VF') ||
+            cardUrl.toLowerCase().contains('/vf/');
+        final isVo = classAttr.split(RegExp(r'\s+')).contains('VOSTFR') ||
+            cardUrl.toLowerCase().contains('/vostfr/');
+        if (vf && !isVf) continue;
+        if (!vf && isVf && !isVo) continue;
+
+        final slug = slugFromUrl(cardUrl);
+        final key = '$currentDay|$slug';
+        if (slug.isEmpty || seen.contains(key)) continue;
+        seen.add(key);
+
+        final tsAttr = card.attributes['data-release-ts'];
+        final ts = tsAttr != null ? int.tryParse(tsAttr) : null;
+        final time = ts != null ? formatTime(ts) : '?';
+
+        items.add(PlanningItemData(
+          day: currentDay,
+          time: time,
+          title: title,
+          url: cardUrl,
+          slug: slug,
+        ));
+      }
+    }
+    return items;
+  }
+
+  // Fallback regex si pas de hiérarchie de conteneurs standard
   final dayPattern = RegExp(r'<h2 class="titreJours[^>]*>([^<]+)</h2>');
   final planning = {
     for (final m in dayPattern.allMatches(htmlContent))
       m.group(1)!.trim(): <PlanningItemData>[]
   };
-  // Reproduit Python `re.split` AVEC groupe capturant : le résultat alterne
-  // [texte, capture, texte, capture, ...]. Dart `String.split` ne conserve PAS
-  // les captures, on reconstruit donc la liste à la main.
   final daySections = _splitKeepingGroup(htmlContent, dayPattern);
 
   final cardRe = RegExp(

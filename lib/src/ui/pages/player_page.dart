@@ -32,6 +32,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
+import '../../services/animesama_embed_resolver.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
@@ -93,6 +94,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Index de saison anime-sama courant (résolu au 1er `_prepareMeta`).
   int _seasonIndex = 1;
+
+  /// Sources d'hébergeurs vidéo disponibles pour cet épisode.
+  List<VideoHosterSource> _availableSources = const [];
+
+  /// Source d'hébergeur activement lue.
+  VideoHosterSource? _selectedSource;
 
   /// Clés du bouton « réglages » de la barre du player (ancrage du menu).
   /// DEUX clés distinctes : la barre normale et la barre plein écran sont
@@ -448,9 +455,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       final resolver = await ref.read(animeSamaResolverProvider.future);
       // Tente la langue courante ; si l'épisode n'existe pas dans cette langue
       // (pas encore doublé…), fallback automatique sur l'autre langue.
-      String url;
+      VideoHosterSource source;
       try {
-        url = await resolver.resolveStreamUrl(
+        source = await resolver.resolveStreamSource(
+          title: resolveTitle,
+          episode: _currentEpisode,
+          season: seasonIndex,
+          language: _language!,
+          preferredSource: _selectedSource,
+        );
+        _availableSources = await resolver.listHosterSources(
           title: resolveTitle,
           episode: _currentEpisode,
           season: seasonIndex,
@@ -460,7 +474,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         final other = _language == PlaybackLanguage.vf
             ? PlaybackLanguage.vostfr
             : PlaybackLanguage.vf;
-        url = await resolver.resolveStreamUrl(
+        source = await resolver.resolveStreamSource(
+          title: resolveTitle,
+          episode: _currentEpisode,
+          season: seasonIndex,
+          language: other,
+        );
+        _availableSources = await resolver.listHosterSources(
           title: resolveTitle,
           episode: _currentEpisode,
           season: seasonIndex,
@@ -477,6 +497,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           );
         }
       }
+
+      _selectedSource = source;
+      final url = source.directStreamUrl!;
+      final headers = source.httpHeaders;
 
       // Mémorise la langue effective pour cet anime + lance la détection des
       // langues dispo (pour le sélecteur), sauf en mode « langue unique ».
@@ -496,7 +520,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       final startAt = (resumeFrom != null && resumeFrom > 0)
           ? Duration(seconds: resumeFrom)
           : null;
-      await _player.open(Media(url, start: startAt), play: true);
+      await _player.open(
+        Media(url, httpHeaders: headers.isNotEmpty ? headers : null, start: startAt),
+        play: true,
+      );
 
       // Applique les propriétés mpv (seek exact, buffers…) MAINTENANT que le
       // backend est actif : posées avant l'open, elles étaient ignorées.
@@ -858,8 +885,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// PAS la lecture : le bouton « Lancer » réapparaît pour le nouvel épisode.
   Future<void> _goToEpisode(int ep) async {
     if (ep == _currentEpisode) return;
-    if (_navigating)
+    if (_navigating) {
       return; // garde : évite un double marquage si clics rapides.
+    }
     _navigating = true;
     _autoPlayTimer?.cancel();
     _autoPlayCountdown = null;
@@ -1302,6 +1330,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       langItems.add(const PopupMenuDivider());
     }
 
+    // Entrées de choix d'hébergeur / lecteur alternatif (Sendvid, Sibnet, Vidmoly...)
+    final sourceItems = <PopupMenuEntry<Object>>[];
+    if (_availableSources.isNotEmpty) {
+      for (final src in _availableSources) {
+        final isCur = _selectedSource?.name == src.name &&
+            _selectedSource?.embedUrl == src.embedUrl;
+        sourceItems.add(PopupMenuItem<Object>(
+          value: src,
+          child: Row(
+            children: [
+              Icon(isCur ? Icons.check : Icons.dns_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text('Lecteur : ${src.name}'),
+            ],
+          ),
+        ));
+      }
+      sourceItems.add(const PopupMenuDivider());
+    }
+
     final selected = await showMenu<Object>(
       context: context,
       position: RelativeRect.fromRect(
@@ -1310,6 +1358,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ),
       items: [
         ...langItems,
+        ...sourceItems,
         for (final s in _speeds)
           PopupMenuItem<Object>(
             value: s,
@@ -1326,8 +1375,62 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     if (selected is PlaybackLanguage) {
       await _switchLanguage(selected);
+    } else if (selected is VideoHosterSource) {
+      await _switchSource(selected);
     } else if (selected is double) {
       await _setSpeed(selected);
+    }
+  }
+
+  /// Change de lecteur / hébergeur vidéo (Sendvid, Sibnet...) en conservant la position de lecture.
+  Future<void> _switchSource(VideoHosterSource source) async {
+    if (_selectedSource?.name == source.name &&
+        _selectedSource?.embedUrl == source.embedUrl) {
+      return;
+    }
+    setState(() => _loading = true);
+    final pos = _player.state.position;
+    final isPlaying = _player.state.playing;
+
+    final resolver = await ref.read(animeSamaResolverProvider.future);
+    try {
+      final resolved = await resolver.resolveSource(source);
+      if (resolved == null || !resolved.isResolved) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content:
+                    Text('Impossible de charger le lecteur ${source.name}')),
+          );
+          setState(() => _loading = false);
+        }
+        return;
+      }
+      _selectedSource = resolved;
+      if (mounted) setState(() => _loading = false);
+
+      await _player.open(
+        Media(
+          resolved.directStreamUrl!,
+          httpHeaders:
+              resolved.httpHeaders.isNotEmpty ? resolved.httpHeaders : null,
+          start: pos,
+        ),
+        play: isPlaying,
+      );
+      await _applyMpvProperties();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lecteur changé : ${source.name}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors du changement de lecteur : $e')),
+        );
+      }
     }
   }
 

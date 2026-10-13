@@ -44,7 +44,7 @@ abstract final class SettingsKeys {
   /// autre/absent = afficher). Désactivé par défaut.
   static const String catalogHideLibrary = 'catalog_hide_library';
 
-  /// Mise à jour automatique au démarrage ('1' = activé, autre/absent = désactivé).
+  /// Mise à jour automatique au démarrage ('1' = activé par défaut, '0' = désactivé).
   static const String autoUpdate = 'auto_update';
 
   /// Clé de la saison anime-sama choisie pour un média AniList donné

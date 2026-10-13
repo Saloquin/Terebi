@@ -10,6 +10,7 @@ import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/health_service.dart';
 import '../../services/update_service.dart';
+import '../widgets/update_dialog.dart';
 
 // ---------------------------------------------------------------------------
 // Providers locaux
@@ -687,8 +688,13 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
       _installSuccess = false;
     });
     ref.invalidate(updateCheckProvider);
-    await ref.read(updateCheckProvider.future);
-    if (mounted) setState(() => _checking = false);
+    final status = await ref.read(updateCheckProvider.future);
+    if (mounted) {
+      setState(() => _checking = false);
+      if (status is UpdateAvailable) {
+        showUpdateDialog(context, status);
+      }
+    }
   }
 
   Future<void> _downloadAndInstall(String zipUrl) async {
@@ -713,9 +719,6 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
           _installSuccess = true;
         });
         ref.read(downloadProgressProvider.notifier).state = null;
-        // Le script de swap attend la fermeture de l'app pour remplacer l'exe
-        // (verrouillé tant qu'il tourne), puis relance la version à jour. On
-        // laisse le temps d'afficher le message, puis on quitte.
         await Future.delayed(const Duration(seconds: 2));
         exit(0);
       }
@@ -761,9 +764,9 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
 
         // Toggle auto-update
         FutureBuilder<String?>(
-          future: settings.get(SettingsKeys.autoUpdate, defaultValue: '0'),
+          future: settings.get(SettingsKeys.autoUpdate, defaultValue: '1'),
           builder: (context, snap) {
-            final enabled = (snap.data ?? '0') == '1';
+            final enabled = (snap.data ?? '1') == '1';
             return SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Mise à jour automatique'),
@@ -812,7 +815,7 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
                         style: Theme.of(context).textTheme.bodySmall),
                   ]),
                 ),
-              UpdateAvailable(:final latestVersion, :final zipUrl) => Padding(
+              UpdateAvailable(:final latestVersion, :final zipUrl, :final apkUrl) => Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -828,36 +831,45 @@ class _UpdateSectionState extends ConsumerState<_UpdateSection> {
                                 ?.copyWith(fontWeight: FontWeight.w600)),
                       ]),
                       const SizedBox(height: 8),
-                      if (zipUrl != null)
-                        _downloading && progress != null
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  LinearProgressIndicator(value: progress),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                      'Téléchargement : ${(progress * 100).toStringAsFixed(0)} %',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall),
-                                ],
-                              )
-                            : FilledButton.icon(
-                                onPressed: _downloading
-                                    ? null
-                                    : () => _downloadAndInstall(zipUrl),
-                                icon: const Icon(Icons.download_outlined,
-                                    size: 16),
-                                label: const Text('Télécharger et installer'),
-                              )
-                      else
-                        Text(
-                          'Fichier .zip absent de cette release.',
-                          style: TextStyle(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant),
-                        ),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          if (zipUrl != null)
+                            _downloading && progress != null
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      LinearProgressIndicator(value: progress),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                          'Téléchargement : ${(progress * 100).toStringAsFixed(0)} %',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall),
+                                    ],
+                                  )
+                                : FilledButton.icon(
+                                    onPressed: _downloading
+                                        ? null
+                                        : () => _downloadAndInstall(zipUrl),
+                                    icon: const Icon(Icons.download_outlined,
+                                        size: 16),
+                                    label: const Text('Télécharger et installer'),
+                                  ),
+                          FilledButton.tonalIcon(
+                            onPressed: () => showUpdateDialog(context, status),
+                            icon: const Icon(Icons.info_outline, size: 16),
+                            label: const Text('Voir les détails'),
+                          ),
+                          if (apkUrl != null && zipUrl == null)
+                            FilledButton.icon(
+                              onPressed: () => showUpdateDialog(context, status),
+                              icon: const Icon(Icons.android_outlined, size: 16),
+                              label: const Text('Télécharger l\'APK'),
+                            ),
+                        ],
+                      ),
                     ],
                   ),
                 ),

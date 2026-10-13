@@ -31,9 +31,11 @@ void main() {
   });
 
   group('ReleaseInfo.fromGitHub', () {
-    test('extrait tag et url ZIP', () {
+    test('extrait tag, url ZIP, url APK et notes', () {
       final json = {
         'tag_name': 'v1.2.3',
+        'body': 'Notes de version 1.2.3',
+        'html_url': 'https://github.com/Saloquin/Terebi/releases/tag/v1.2.3',
         'assets': [
           {
             'name': 'terebi-1.2.3-windows-x64.zip',
@@ -48,9 +50,12 @@ void main() {
       final release = ReleaseInfo.fromGitHub(json);
       expect(release.version, equals('1.2.3'));
       expect(release.zipUrl, equals('https://example.com/terebi.zip'));
+      expect(release.apkUrl, equals('https://example.com/terebi.apk'));
+      expect(release.releaseNotes, equals('Notes de version 1.2.3'));
+      expect(release.releaseUrl, equals('https://github.com/Saloquin/Terebi/releases/tag/v1.2.3'));
     });
 
-    test('sans asset ZIP : zipUrl est null', () {
+    test('sans asset ZIP : zipUrl est null mais apkUrl present', () {
       final json = {
         'tag_name': 'v1.2.3',
         'assets': [
@@ -62,6 +67,7 @@ void main() {
       };
       final release = ReleaseInfo.fromGitHub(json);
       expect(release.zipUrl, isNull);
+      expect(release.apkUrl, equals('https://example.com/terebi.apk'));
     });
 
     test('tag sans prefixe v', () {
@@ -78,6 +84,7 @@ void main() {
       final release = ReleaseInfo.fromGitHub(json);
       expect(release.version, equals('1.0.0'));
       expect(release.zipUrl, isNull);
+      expect(release.apkUrl, isNull);
     });
   });
 }

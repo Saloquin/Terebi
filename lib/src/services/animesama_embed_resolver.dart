@@ -14,6 +14,11 @@ library;
 
 import 'animesama_http_client.dart';
 import 'animesama_domain.dart';
+import 'animesama_seasons.dart';
+
+/// User-Agent desktop moderne pour contourner les blocages de qualité / DRM légers des hébergeurs.
+const String kDesktopUserAgent =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 /// Déobfusque les scripts packés `eval(function(p,a,c,k,e,d){...}(...))` d'un
 /// HTML et renvoie la liste des scripts dépaquetés.
@@ -89,8 +94,187 @@ String? extractStreamUrl(String htmlContent) {
   return null;
 }
 
+/// Représente une source vidéo alternative (cyberlocker / hébergeur d'embed).
+class VideoHosterSource {
+  final String name;
+  final String embedUrl;
+  final String? directStreamUrl;
+  final Map<String, String> httpHeaders;
+
+  const VideoHosterSource({
+    required this.name,
+    required this.embedUrl,
+    this.directStreamUrl,
+    this.httpHeaders = const {},
+  });
+
+  bool get isResolved =>
+      directStreamUrl != null && directStreamUrl!.isNotEmpty;
+
+  VideoHosterSource copyWith({
+    String? name,
+    String? embedUrl,
+    String? directStreamUrl,
+    Map<String, String>? httpHeaders,
+  }) {
+    return VideoHosterSource(
+      name: name ?? this.name,
+      embedUrl: embedUrl ?? this.embedUrl,
+      directStreamUrl: directStreamUrl ?? this.directStreamUrl,
+      httpHeaders: httpHeaders ?? this.httpHeaders,
+    );
+  }
+
+  @override
+  String toString() =>
+      'VideoHosterSource(name: $name, embed: $embedUrl, direct: $directStreamUrl)';
+}
+
+/// Identifie le nom lisible de l'hébergeur d'après son URL.
+String identifyHosterName(String embedUrl) {
+  final low = embedUrl.toLowerCase();
+  if (low.contains('sendvid.com')) return 'Sendvid';
+  if (low.contains('sibnet.ru')) return 'Sibnet';
+  if (low.contains('vidmoly')) return 'Vidmoly';
+  if (low.contains('voe.sx') ||
+      low.contains('voe-network') ||
+      low.contains('voe.net') ||
+      low.contains('voe.to')) {
+    return 'Voe';
+  }
+  if (low.contains('filemoon')) return 'Filemoon';
+  if (low.contains('streamtape')) return 'Streamtape';
+  if (low.contains('dood') || low.contains('ds2play')) return 'Doodstream';
+  if (low.contains('mp4upload')) return 'Mp4Upload';
+  if (low.contains('myvi.tv')) return 'MyVi';
+  return 'Lecteur';
+}
+
+/// Extrait la liste ordonnée des sources alternatives depuis une liste d'URLs d'embeds.
+/// Ignore les URLs vides ou fantômes (sans identifiant vidéo).
+List<VideoHosterSource> parseHosterSources(List<String> embedUrls) {
+  final valid = embedUrls.where((u) => urlHasId(u)).toList();
+  final totals = <String, int>{};
+  for (final rawUrl in valid) {
+    final base = identifyHosterName(rawUrl);
+    totals[base] = (totals[base] ?? 0) + 1;
+  }
+
+  final indices = <String, int>{};
+  final result = <VideoHosterSource>[];
+  for (final rawUrl in valid) {
+    final base = identifyHosterName(rawUrl);
+    final idx = (indices[base] ?? 0) + 1;
+    indices[base] = idx;
+    final name = (totals[base] ?? 0) > 1 ? '$base $idx' : base;
+    result.add(VideoHosterSource(name: name, embedUrl: rawUrl));
+  }
+  return result;
+}
+
+/// Extrait l'URL directe du fichier mp4 depuis le HTML d'une page embed Sendvid.
+/// Cherche dans <source src="..."> ou la variable JS video_source.
+String? extractSendvidDirectUrl(String htmlContent) {
+  var m = RegExp(
+    r'''<source[^>]+src=["']([^"']+\.mp4[^"']*)["']''',
+    caseSensitive: false,
+  ).firstMatch(htmlContent);
+  if (m != null) return m.group(1)!.replaceAll('&amp;', '&');
+
+  m = RegExp(
+    r'''var\s+video_source\s*=\s*["']([^"']+\.mp4[^"']*)["']''',
+    caseSensitive: false,
+  ).firstMatch(htmlContent);
+  if (m != null) return m.group(1)!.replaceAll('&amp;', '&');
+
+  m = RegExp(
+    r'''(?:source|file)\s*:\s*["']([^"']+\.mp4[^"']*)["']''',
+    caseSensitive: false,
+  ).firstMatch(htmlContent);
+  if (m != null) return m.group(1)!.replaceAll('&amp;', '&');
+
+  return extractStreamUrl(htmlContent);
+}
+
+/// Résout l'URL directe MP4 d'un embed Sendvid.
+Future<String?> resolveSendvid(
+  HttpFetcher fetch,
+  String embedUrl,
+) async {
+  try {
+    final resp = await fetch(
+      embedUrl,
+      headers: {
+        ...kHeadersBase,
+        'user-agent': kDesktopUserAgent,
+        'referer': 'https://sendvid.com/',
+      },
+    );
+    if (!resp.ok) return null;
+    return extractSendvidDirectUrl(resp.body);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Résout un [VideoHosterSource] en flux direct lisible, avec ses headers requis
+/// (Referer, User-Agent) pour éviter les blocages de qualité (403).
+Future<VideoHosterSource?> resolveHosterSource(
+  HttpFetcher fetch,
+  String domain,
+  VideoHosterSource source,
+) async {
+  final embedUrl = source.embedUrl;
+  final low = embedUrl.toLowerCase();
+
+  if (low.contains('sendvid.com')) {
+    final direct = await resolveSendvid(fetch, embedUrl);
+    if (direct != null && direct.isNotEmpty) {
+      final normalized = direct.startsWith('//') ? 'https:$direct' : direct;
+      return source.copyWith(
+        directStreamUrl: normalized,
+        httpHeaders: {
+          'Referer': 'https://sendvid.com/',
+          'User-Agent': kDesktopUserAgent,
+        },
+      );
+    }
+  } else if (low.contains('sibnet.ru')) {
+    final vid = RegExp(r'videoid=(\d+)').firstMatch(embedUrl);
+    if (vid != null) {
+      final direct = await _resolveSibnet(fetch, vid.group(1)!);
+      if (direct != null && direct.isNotEmpty) {
+        final normalized = direct.startsWith('//') ? 'https:$direct' : direct;
+        return source.copyWith(
+          directStreamUrl: normalized,
+          httpHeaders: {
+            'Referer': 'https://video.sibnet.ru/',
+            'User-Agent': kDesktopUserAgent,
+          },
+        );
+      }
+    }
+  } else {
+    final direct = await resolveEmbed(fetch, domain, embedUrl);
+    if (direct != null && direct.isNotEmpty) {
+      final normalized = direct.startsWith('//') ? 'https:$direct' : direct;
+      final referer = low.contains('vidmoly')
+          ? 'https://vidmoly.biz/'
+          : 'https://$domain/';
+      return source.copyWith(
+        directStreamUrl: normalized,
+        httpHeaders: {
+          'Referer': referer,
+          'User-Agent': kDesktopUserAgent,
+        },
+      );
+    }
+  }
+  return null;
+}
+
 /// Résout l'URL de flux d'un seul embed [videoId] (réseau).
-/// Port EXACT de `get_video_url` : sibnet spécial, sinon fetch + extract.
+/// Port EXACT de `get_video_url` : sibnet spécial, sendvid direct, sinon fetch + extract.
 Future<String?> resolveEmbed(
   HttpFetcher fetch,
   String domain,
@@ -103,6 +287,12 @@ Future<String?> resolveEmbed(
       if (vid != null) return _resolveSibnet(fetch, vid.group(1)!);
     }
 
+    // 2. Sendvid direct : page embed -> source MP4.
+    if (videoId.contains('sendvid.com')) {
+      final sv = await resolveSendvid(fetch, videoId);
+      if (sv != null && sv.isNotEmpty) return sv;
+    }
+
     // Vidmoly : .to -> .biz, .net -> .biz (comme le Python).
     var url = videoId;
     if (url.contains('vidmoly.to')) url = url.replaceAll('vidmoly.to', 'vidmoly.biz');
@@ -110,6 +300,7 @@ Future<String?> resolveEmbed(
 
     final resp = await fetch(url, headers: {
       ...kHeadersBase,
+      'user-agent': kDesktopUserAgent,
       'accept':
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'referer': 'https://$domain/',
@@ -127,7 +318,10 @@ Future<String?> _resolveSibnet(HttpFetcher fetch, String videoId) async {
   try {
     final resp = await fetch(
       'https://video.sibnet.ru/shell.php',
-      headers: kHeadersBase,
+      headers: {
+        ...kHeadersBase,
+        'user-agent': kDesktopUserAgent,
+      },
       query: {'videoid': videoId},
     );
     if (!resp.ok) return null;
@@ -141,6 +335,7 @@ Future<String?> _resolveSibnet(HttpFetcher fetch, String videoId) async {
       mp4Url,
       headers: {
         ...kHeadersBase,
+        'user-agent': kDesktopUserAgent,
         'range': 'bytes=0-',
         'accept-encoding': 'identity',
         'referer': 'https://video.sibnet.ru/',

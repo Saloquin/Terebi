@@ -21,7 +21,7 @@ import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
-import 'player_page.dart';
+import 'media_detail_page.dart';
 
 // ---------------------------------------------------------------------------
 // Providers
@@ -368,52 +368,22 @@ class _PlanningCardState extends ConsumerState<_PlanningCard> {
     final messenger = ScaffoldMessenger.of(context);
     try {
       final media = await _resolveMedia();
-      await _memorizeCurrentSeason(media.mediaId);
-
-      final listRepo = ref.read(listRepositoryProvider);
-      final progressRepo = ref.read(progressRepositoryProvider);
-      final existing = await listRepo.getEntry(media.mediaId);
-      final entry = existing ??
-          ListEntry(
-            mediaId: media.mediaId,
-            status: ListStatus.planning,
-            updatedAt: DateTime.now(),
-          );
-      final lastWatched = await progressRepo.lastWatched(media.mediaId);
-      final episode = lastWatched?.episodeNumber.toInt() ?? 1;
-
       if (!mounted) return;
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => PlayerPage(
-            media: media,
-            episode: episode,
-            entry: entry,
-            animeSamaTitle: widget.item.title,
+          builder: (_) => MediaDetailPage(
+            mediaId: media.mediaId,
+            displayTitle: widget.item.title,
           ),
         ),
       );
     } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Lecture impossible : $e')));
+      messenger.showSnackBar(
+          SnackBar(content: Text('Impossible d\'ouvrir la fiche : $e')));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  /// Mémorise la saison la plus récente d'anime-sama (best-effort).
-  Future<void> _memorizeCurrentSeason(int mediaId) async {
-    try {
-      // Provider global (cache partagé avec la fiche) plutôt qu'un appel direct.
-      final seasons =
-          await ref.read(animeSamaSeasonsProvider(widget.item.title).future);
-      if (seasons.isNotEmpty) {
-        await ref.read(settingsRepositoryProvider).set(
-              SettingsKeys.animeSamaSeasonFor(mediaId),
-              '${seasons.last.index}',
-            );
-      }
-    } catch (_) {/* best-effort */}
   }
 
   Future<void> _togglePlanning() async {

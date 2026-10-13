@@ -31,7 +31,7 @@ Future<void> main() async {
   final isTv = await detectIsTelevision();
 
   final autoUpdate =
-      (await settings.get(SettingsKeys.autoUpdate, defaultValue: '0')) == '1';
+      (await settings.get(SettingsKeys.autoUpdate, defaultValue: '1')) == '1';
 
   runApp(
     ProviderScope(

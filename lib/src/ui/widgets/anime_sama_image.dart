@@ -43,11 +43,19 @@ class AnimeSamaImage extends StatefulWidget {
 }
 
 class _AnimeSamaImageState extends State<AnimeSamaImage> {
+  /// Cache statique en mémoire des URLs résolues avec succès :
+  /// clé = 'b:slug' pour bannière, 'c:slug' pour cover.
+  /// Évite de répéter les requêtes 404 (cascade webp -> jpg -> png) lors
+  /// du défilement ou du réaffichage des cartes.
+  static final Map<String, String> _resolvedUrlCache = {};
+
   /// Liste ordonnée des URLs candidates à essayer (fallback puis extensions).
   late List<String> _candidates;
 
   /// Index de la candidate en cours d'essai.
   int _index = 0;
+
+  String get _cacheKey => '${widget.banner ? "b" : "c"}:${widget.slug}';
 
   @override
   void initState() {
@@ -69,13 +77,20 @@ class _AnimeSamaImageState extends State<AnimeSamaImage> {
     }
   }
 
-  /// Construit la liste ordonnée : [fallbackUrl] (si présent) puis chaque
-  /// extension du CDN dans l'ordre adapté au type (cover=webp d'abord,
-  /// banner=jpg d'abord).
+  /// Construit la liste ordonnée :
+  /// 1. URL déjà résolue avec succès en cache mémoire pour ce slug
+  /// 2. [fallbackUrl] (si présent)
+  /// 3. chaque extension du CDN dans l'ordre adapté (cover=webp, banner=jpg)
   List<String> _buildCandidates() {
     final urls = <String>[];
+    final cached = _resolvedUrlCache[_cacheKey];
+    if (cached != null && cached.isNotEmpty) {
+      urls.add(cached);
+    }
     final fb = widget.fallbackUrl;
-    if (fb != null && fb.isNotEmpty) urls.add(fb);
+    if (fb != null && fb.isNotEmpty && !urls.contains(fb)) {
+      urls.add(fb);
+    }
     final exts = widget.banner
         ? animeSamaBannerExtensions
         : animeSamaCoverExtensions;
@@ -108,6 +123,12 @@ class _AnimeSamaImageState extends State<AnimeSamaImage> {
       // Garde l'image precedente affichee pendant le chargement de la nouvelle
       // (evite un flash de placeholder au recyclage/scroll).
       gaplessPlayback: true,
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (frame != null && widget.slug.isNotEmpty) {
+          _resolvedUrlCache[_cacheKey] = url;
+        }
+        return child;
+      },
       // Passe à la candidate suivante au prochain frame (evite setState en build).
       errorBuilder: (context, _, __) {
         if (_index < _candidates.length - 1) {

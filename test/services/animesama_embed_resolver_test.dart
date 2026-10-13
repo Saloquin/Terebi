@@ -122,4 +122,104 @@ void main() {
       expect(url, 'https://x.com/proto-relative.m3u8');
     });
   });
+
+  group('identifyHosterName / parseHosterSources', () {
+    test('identifyHosterName identifie les principaux hébergeurs', () {
+      expect(identifyHosterName('https://sendvid.com/embed/abc'), 'Sendvid');
+      expect(identifyHosterName('https://video.sibnet.ru/shell.php?videoid=123'), 'Sibnet');
+      expect(identifyHosterName('https://vidmoly.to/embed-xyz.html'), 'Vidmoly');
+      expect(identifyHosterName('https://voe.sx/e/def'), 'Voe');
+      expect(identifyHosterName('https://filemoon.sx/e/ghi'), 'Filemoon');
+      expect(identifyHosterName('https://streamtape.com/e/jkl'), 'Streamtape');
+      expect(identifyHosterName('https://doodstream.com/e/mno'), 'Doodstream');
+      expect(identifyHosterName('https://mp4upload.com/embed-pqr.html'), 'Mp4Upload');
+      expect(identifyHosterName('https://other.example/embed/1'), 'Lecteur');
+    });
+
+    test('parseHosterSources filtre les fantômes et numérote les doublons', () {
+      final raw = [
+        'https://sendvid.com/embed/abc1',
+        'https://video.sibnet.ru/shell.php?videoid=', // fantôme (sans id)
+        'https://video.sibnet.ru/shell.php?videoid=12345',
+        'https://sendvid.com/embed/abc2',
+        'https://vidmoly.to/embed-xyz.html',
+      ];
+      final sources = parseHosterSources(raw);
+      expect(sources.length, 4);
+      expect(sources[0].name, 'Sendvid 1');
+      expect(sources[0].embedUrl, 'https://sendvid.com/embed/abc1');
+      expect(sources[1].name, 'Sibnet');
+      expect(sources[1].embedUrl, 'https://video.sibnet.ru/shell.php?videoid=12345');
+      expect(sources[2].name, 'Sendvid 2');
+      expect(sources[2].embedUrl, 'https://sendvid.com/embed/abc2');
+      expect(sources[3].name, 'Vidmoly');
+    });
+  });
+
+  group('Sendvid extraction & multi-hoster resolution', () {
+    test('extractSendvidDirectUrl extrait depuis balise source', () {
+      const html = '''
+        <div class="video-container">
+          <video id="video">
+            <source src="https://media.sendvid.com/mp4/test1234.mp4" type="video/mp4"/>
+          </video>
+        </div>
+      ''';
+      expect(extractSendvidDirectUrl(html), 'https://media.sendvid.com/mp4/test1234.mp4');
+    });
+
+    test('extractSendvidDirectUrl extrait depuis variable JS video_source', () {
+      const html = '''
+        <script>
+          var video_source = "https://media.sendvid.com/mp4/video_from_js.mp4";
+        </script>
+      ''';
+      expect(extractSendvidDirectUrl(html), 'https://media.sendvid.com/mp4/video_from_js.mp4');
+    });
+
+    test('resolveSendvid injecte desktop User-Agent et Referer', () async {
+      final fetch = RoutedFetcher({
+        'sendvid.com/embed/abc': const HttpResponse(
+          statusCode: 200,
+          body: '<source src="https://sendvid.com/stream.mp4">',
+        ),
+      });
+      final direct = await resolveSendvid(fetch.call, 'https://sendvid.com/embed/abc');
+      expect(direct, 'https://sendvid.com/stream.mp4');
+    });
+
+    test('resolveHosterSource résout Sendvid avec en-têtes HTTP', () async {
+      final fetch = RoutedFetcher({
+        'sendvid.com/embed/abc': const HttpResponse(
+          statusCode: 200,
+          body: '<source src="https://sendvid.com/stream.mp4">',
+        ),
+      });
+      final src = VideoHosterSource(name: 'Sendvid', embedUrl: 'https://sendvid.com/embed/abc');
+      final resolved = await resolveHosterSource(fetch.call, 'anime-sama.to', src);
+      expect(resolved, isNotNull);
+      expect(resolved!.directStreamUrl, 'https://sendvid.com/stream.mp4');
+      expect(resolved.httpHeaders['Referer'], 'https://sendvid.com/');
+      expect(resolved.httpHeaders['User-Agent'], isNotEmpty);
+    });
+
+    test('resolveHosterSource résout Sibnet avec en-têtes HTTP', () async {
+      final fetch = RoutedFetcher({
+        'shell.php': const HttpResponse(
+          statusCode: 200,
+          body: 'player.src([{src: "/v/hash1/999.mp4"',
+        ),
+        '/v/hash1/999.mp4': const HttpResponse(
+          statusCode: 302,
+          headers: {'location': 'https://video.sibnet.ru/999_final.mp4'},
+        ),
+      });
+      final src = VideoHosterSource(name: 'Sibnet', embedUrl: 'https://video.sibnet.ru/shell.php?videoid=999');
+      final resolved = await resolveHosterSource(fetch.call, 'anime-sama.to', src);
+      expect(resolved, isNotNull);
+      expect(resolved!.directStreamUrl, 'https://video.sibnet.ru/999_final.mp4');
+      expect(resolved.httpHeaders['Referer'], 'https://video.sibnet.ru/');
+      expect(resolved.httpHeaders['User-Agent'], isNotEmpty);
+    });
+  });
 }

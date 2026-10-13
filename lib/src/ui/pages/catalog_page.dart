@@ -665,16 +665,6 @@ class _StatusBadge extends StatelessWidget {
   final ListStatus status;
   const _StatusBadge({required this.status});
 
-  // Labels FR (inclut `repeating`, absent de la map de library_page).
-  static const _labels = {
-    ListStatus.current: 'En cours',
-    ListStatus.planning: 'Planifié',
-    ListStatus.completed: 'Terminé',
-    ListStatus.paused: 'En pause',
-    ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Revisionnage',
-  };
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -694,7 +684,7 @@ class _StatusBadge extends StatelessWidget {
                 size: 12, color: theme.colorScheme.onPrimaryContainer),
             const SizedBox(width: 4),
             Text(
-              _labels[status] ?? status.name,
+              status.label,
               style: theme.textTheme.labelSmall?.copyWith(
                 color: theme.colorScheme.onPrimaryContainer,
               ),

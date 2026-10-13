@@ -33,6 +33,26 @@ enum ListStatus {
         ListStatus.repeating => 'REPEATING',
       };
 
+  /// Libellé affichable en français (ex. « En cours »).
+  String get label => switch (this) {
+        ListStatus.current => 'En cours',
+        ListStatus.planning => 'Planifié',
+        ListStatus.completed => 'Terminé',
+        ListStatus.repeating => 'Revisionnage',
+        ListStatus.paused => 'En pause',
+        ListStatus.dropped => 'Abandonné',
+      };
+
+  /// Ordre standard d'affichage des onglets et filtres.
+  static const List<ListStatus> displayOrder = [
+    ListStatus.current,
+    ListStatus.planning,
+    ListStatus.completed,
+    ListStatus.repeating,
+    ListStatus.paused,
+    ListStatus.dropped,
+  ];
+
   /// Construit un [ListStatus] depuis une valeur AniList. Défaut : [planning].
   static ListStatus fromAniList(String? value) => switch (value) {
         'CURRENT' => ListStatus.current,

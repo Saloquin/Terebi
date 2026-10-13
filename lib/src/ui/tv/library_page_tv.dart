@@ -12,23 +12,7 @@ import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page_tv.dart';
 
-const _statusOrder = [
-  ListStatus.current,
-  ListStatus.planning,
-  ListStatus.completed,
-  ListStatus.repeating,
-  ListStatus.paused,
-  ListStatus.dropped,
-];
-
-const _statusLabels = {
-  ListStatus.current: 'En cours',
-  ListStatus.planning: 'Planifié',
-  ListStatus.completed: 'Terminé',
-  ListStatus.repeating: 'Revisionnage',
-  ListStatus.paused: 'En pause',
-  ListStatus.dropped: 'Abandonné',
-};
+const _statusOrder = ListStatus.displayOrder;
 
 // Provider local : media par mediaId, best-effort (null si absent).
 final _tvLibraryMediaProvider =
@@ -64,7 +48,7 @@ class _LibraryPageTvState extends ConsumerState<LibraryPageTv> {
                 children: [
                   for (final status in _statusOrder)
                     _TvLibTab(
-                      label: _statusLabels[status] ?? status.name,
+                      label: status.label,
                       count: counts[status] ?? 0,
                       selected: _activeTab == status,
                       autofocus: status == ListStatus.current,

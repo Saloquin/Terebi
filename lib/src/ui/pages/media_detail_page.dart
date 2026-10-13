@@ -545,25 +545,6 @@ class _StatusDropdown extends ConsumerWidget {
 
   const _StatusDropdown({required this.media, required this.entry});
 
-  /// Libellés des statuts MANUELS proposés dans le sélecteur. « Planifié »,
-  /// « En cours » et « Terminé » sont AUTOMATIQUES (dérivés de la progression :
-  /// 0 vu = Planifié, tout vu = Terminé, sinon En cours) et ne figurent donc PAS
-  /// dans le sélecteur. Ne restent que les statuts « gelants » choisis à la main.
-  static const _manualLabels = {
-    ListStatus.paused: 'En pause',
-    ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Revisionnage',
-  };
-
-  /// Libellé du statut EFFECTIF (affiché en info, incluant les auto).
-  static const _effectiveLabels = {
-    ListStatus.current: 'En cours',
-    ListStatus.planning: 'Planifié',
-    ListStatus.completed: 'Terminé',
-    ListStatus.paused: 'En pause',
-    ListStatus.dropped: 'Abandonné',
-    ListStatus.repeating: 'Revisionnage',
-  };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -591,7 +572,7 @@ class _StatusDropdown extends ConsumerWidget {
         // Badge informatif du statut effectif (auto ou manuel).
         if (eff != null) ...[
           Chip(
-            label: Text(_effectiveLabels[eff] ?? eff.name),
+            label: Text(eff.label),
             visualDensity: VisualDensity.compact,
           ),
           const SizedBox(width: 8),
@@ -610,7 +591,7 @@ class _StatusDropdown extends ConsumerWidget {
               if (s != ListStatus.planning)
                 DropdownMenuItem<ListStatus?>(
                   value: s,
-                  child: Text(_manualLabels[s] ?? s.name),
+                  child: Text(s.label),
                 ),
           ],
           onChanged: (newStatus) => _applyManualStatus(context, ref, newStatus),
@@ -660,7 +641,7 @@ class _StatusDropdown extends ConsumerWidget {
     if (context.mounted) {
       final msg = newStatus == null
           ? 'Statut : automatique'
-          : 'Statut : ${_manualLabels[newStatus]}';
+          : 'Statut : ${newStatus.label}';
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
@@ -781,6 +762,8 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   int _lastWatched = 0; // dernier épisode vu de cette saison (0 = rien)
   int? _total; // nombre d'épisodes anime-sama de la saison (count)
   int? _lastEpisodeNumber; // dernier NUMÉRO d'épisode (eps.last), pour « done »
+  List<int> _episodeList = const [];
+  bool _expanded = false;
   bool _loaded = false;
 
   @override
@@ -796,6 +779,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
 
     int? total;
     int? lastEpisodeNumber;
+    List<int> episodeList = const [];
     try {
       // Passe par le provider global (cache partagé avec le lecteur) plutôt que
       // d'appeler le resolver directement → évite un scraping redondant.
@@ -805,6 +789,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
       if (eps.isNotEmpty) {
         total = eps.length;
         lastEpisodeNumber = eps.last;
+        episodeList = eps;
       }
     } catch (_) {/* total inconnu → barre indéterminée */}
 
@@ -813,6 +798,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         _lastWatched = last;
         _total = total;
         _lastEpisodeNumber = lastEpisodeNumber;
+        _episodeList = episodeList;
         _loaded = true;
       });
     }
@@ -830,9 +816,8 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     }
   }
 
-  Future<void> _play() async {
+  Future<void> _playEpisode(int ep) async {
     final settingsRepo = ref.read(settingsRepositoryProvider);
-    // Mémorise la saison choisie (le lecteur lira dernier vu + 1 tout seul).
     await settingsRepo.set(
       SettingsKeys.animeSamaSeasonFor(widget.media.mediaId),
       '${widget.season.index}',
@@ -848,30 +833,29 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         );
 
     if (!mounted) return;
-    // Épisode de départ = dernier vu + 1. Si la saison a été marquée
-    // « entièrement vue » via la sentinelle (« Terminé » manuel), _lastWatched
-    // est artificiellement énorme : on repart au dernier épisode réel connu
-    // (ou à 1 si le total est inconnu) plutôt qu'à un numéro inexistant.
-    final markedFull =
-        _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
-    final startEpisode = markedFull
-        ? (_total != null && _total! > 0 ? _total! : 1)
-        : _lastWatched + 1;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => PlayerPage(
           media: widget.media,
-          episode: startEpisode,
+          episode: ep,
           entry: entry,
           cameFromDetail: true,
           animeSamaTitle: widget.searchTitle,
         ),
       ),
     ).then((_) {
-      // Au retour du lecteur, la progression a pu changer → recharger la barre.
       _loadProgress();
     });
+  }
+
+  Future<void> _play() async {
+    final markedFull =
+        _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;
+    final startEpisode = markedFull
+        ? (_total != null && _total! > 0 ? _total! : 1)
+        : _lastWatched + 1;
+    await _playEpisode(startEpisode);
   }
 
   /// Marque UNIQUEMENT cette saison comme entièrement vue (sans toucher aux
@@ -985,66 +969,171 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     final doneLabel =
         (widget.isLastSeason && atPlanning) ? 'À jour' : 'Terminée';
 
-    // Wrapper TV : focus D-pad sur la tuile de saison (tap souris/tactile conservé via InkWell interne).
-    return TvFocusable(
-      onPressed: _play,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: InkWell(
-          onTap: _play,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    done ? Icons.check_circle : Icons.play_circle_outline,
-                    color: done ? Colors.green : null,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(widget.season.name,
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-                  Text(
-                    !_loaded
-                        ? '…'
-                        : done
-                            ? doneLabel
-                            : total != null
-                                ? '$_lastWatched/$total'
-                                : '$_lastWatched vu(s)',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: done
-                          ? Colors.green
-                          : theme.colorScheme.onSurfaceVariant,
-                      fontWeight: done ? FontWeight.bold : null,
-                    ),
-                  ),
-                  // Bascule vu/pas vu : si la saison n'est pas finie → la marquer
-                  // vue ; si elle est finie → l'annuler (remettre à 0 épisode vu).
-                  if (_loaded)
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TvFocusable(
+            onPressed: () => setState(() => _expanded = !_expanded),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+                child: Row(
+                  children: [
                     IconButton(
-                      icon: Icon(done ? Icons.remove_done : Icons.done_all,
-                          size: 18),
-                      tooltip: done
-                          ? 'Annuler : saison non vue'
-                          : 'Marquer la saison comme vue',
+                      icon: Icon(
+                        done ? Icons.check_circle : Icons.play_circle_fill,
+                        color: done ? Colors.green : theme.colorScheme.primary,
+                        size: 24,
+                      ),
+                      tooltip: 'Lire l\'épisode suivant',
+                      onPressed: _play,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        widget.season.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    Text(
+                      !_loaded
+                          ? '…'
+                          : done
+                              ? doneLabel
+                              : total != null
+                                  ? '$_lastWatched/$total'
+                                  : '$_lastWatched vu(s)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: done
+                            ? Colors.green
+                            : theme.colorScheme.onSurfaceVariant,
+                        fontWeight: done ? FontWeight.bold : null,
+                      ),
+                    ),
+                    if (_loaded)
+                      IconButton(
+                        icon: Icon(done ? Icons.remove_done : Icons.done_all,
+                            size: 18),
+                        tooltip: done
+                            ? 'Annuler : saison non vue'
+                            : 'Marquer la saison comme vue',
+                        visualDensity: VisualDensity.compact,
+                        onPressed:
+                            done ? _unmarkThisSeason : _markThisSeasonWatched,
+                      ),
+                    IconButton(
+                      icon: Icon(
+                        _expanded ? Icons.expand_less : Icons.expand_more,
+                        size: 20,
+                      ),
+                      tooltip:
+                          _expanded ? 'Masquer les épisodes' : 'Voir les épisodes',
                       visualDensity: VisualDensity.compact,
-                      onPressed:
-                          done ? _unmarkThisSeason : _markThisSeasonWatched,
+                      onPressed: () => setState(() => _expanded = !_expanded),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: ratio, // null → barre indéterminée si total inconnu
+              minHeight: 4,
+              backgroundColor: theme.colorScheme.surfaceContainerHighest,
+              color: done ? Colors.green : theme.colorScheme.primary,
+            ),
+          ),
+          if (_expanded && _episodeList.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 10, bottom: 6),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final ep in _episodeList)
+                    _EpisodeChip(
+                      episode: ep,
+                      isWatched: ep <= _lastWatched,
+                      isNext: ep == _lastWatched + 1,
+                      onTap: () => _playEpisode(ep),
                     ),
                 ],
               ),
-              const SizedBox(height: 4),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: ratio, // null → barre indéterminée si total inconnu
-                  minHeight: 5,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                  color: done ? Colors.green : theme.colorScheme.primary,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EpisodeChip extends StatelessWidget {
+  final int episode;
+  final bool isWatched;
+  final bool isNext;
+  final VoidCallback onTap;
+
+  const _EpisodeChip({
+    required this.episode,
+    required this.isWatched,
+    required this.isNext,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final Color bgColor;
+    final Color fgColor;
+    final Border? border;
+
+    if (isNext) {
+      bgColor = theme.colorScheme.primaryContainer;
+      fgColor = theme.colorScheme.onPrimaryContainer;
+      border = Border.all(color: theme.colorScheme.primary, width: 1.5);
+    } else if (isWatched) {
+      bgColor = theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5);
+      fgColor = theme.colorScheme.onSurfaceVariant;
+      border = null;
+    } else {
+      bgColor = theme.colorScheme.surfaceContainerHighest;
+      fgColor = theme.colorScheme.onSurface;
+      border = null;
+    }
+
+    return TvFocusable(
+      onPressed: onTap,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(6),
+            border: border,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isWatched) ...[
+                const Icon(Icons.check, size: 14, color: Colors.green),
+                const SizedBox(width: 4),
+              ],
+              Text(
+                'Ép. $episode',
+                style: TextStyle(
+                  color: fgColor,
+                  fontWeight: isNext ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 12,
                 ),
               ),
             ],

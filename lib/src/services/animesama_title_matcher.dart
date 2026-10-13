@@ -97,9 +97,9 @@ List<CatalogueEntry> parseCatalogueHtml(String htmlContent, {bool vf = false}) {
     var href = card.attributes['href'] ?? '';
     if (!href.contains('/catalogue/') || seen.contains(href)) continue;
     if (href == '/catalogue/' || href == '/catalogue') continue;
-    var titleTag = card.querySelector('h2.card-title');
-    titleTag ??= card.querySelector(
-        'h1.text-white.font-bold.uppercase.text-md.line-clamp-2');
+    var titleTag = card.querySelector('h2.card-title') ??
+        card.querySelector('.card-title') ??
+        card.querySelector('h1.font-bold, h1, h2, h3');
     if (titleTag == null) continue;
     final titre = titleTag.text.trim();
     if (titre.isEmpty) continue;

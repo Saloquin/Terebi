@@ -6,12 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../services/update_models.dart';
 import '../pages/calendar_page.dart';
 import 'catalog_page_tv.dart';
 import 'library_page_tv.dart';
 import '../pages/settings_page.dart';
 import '../pages/stats_page.dart';
 import '../widgets/tv_focusable.dart';
+import '../widgets/update_dialog.dart';
 import 'home_page_tv.dart';
 import 'widgets/tv_focus_scope.dart';
 
@@ -62,11 +64,21 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final settings = ref.read(settingsRepositoryProvider);
       final autoUpdate =
-          await settings.get(SettingsKeys.autoUpdate, defaultValue: '0');
+          await settings.get(SettingsKeys.autoUpdate, defaultValue: '1');
       if (autoUpdate == '1' && mounted) {
-        ref.invalidate(updateCheckProvider);
+        _checkForUpdateOnStartup();
       }
     });
+  }
+
+  Future<void> _checkForUpdateOnStartup() async {
+    try {
+      final status = await ref.read(updateCheckProvider.future);
+      if (!mounted) return;
+      if (status is UpdateAvailable) {
+        showUpdateDialog(context, status);
+      }
+    } catch (_) {}
   }
 
   @override

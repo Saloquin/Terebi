@@ -13,6 +13,7 @@ void main() {
         progress: 42,
         hiddenFromPlanning: true,
         updatedAt: dateFixe,
+        totalEpisodesOnPage: 50,
       );
 
       final restored = ListEntry.fromJson(original.toJson());
@@ -22,6 +23,7 @@ void main() {
       expect(restored.progress, original.progress);
       expect(restored.hiddenFromPlanning, original.hiddenFromPlanning);
       expect(restored.updatedAt, original.updatedAt);
+      expect(restored.totalEpisodesOnPage, 50);
     });
 
     test('round-trip avec champs optionnels à leurs valeurs par défaut', () {
@@ -35,6 +37,7 @@ void main() {
 
       expect(restored.progress, 0);
       expect(restored.hiddenFromPlanning, isFalse);
+      expect(restored.totalEpisodesOnPage, 0);
     });
   });
 
@@ -45,18 +48,21 @@ void main() {
         status: ListStatus.planning,
         progress: 0,
         updatedAt: dateFixe,
+        totalEpisodesOnPage: 12,
       );
 
       final updated = base.copyWith(
         status: ListStatus.current,
         progress: 5,
         updatedAt: DateTime.utc(2024, 6, 1),
+        totalEpisodesOnPage: 24,
       );
 
       expect(updated.mediaId, 1); // conservé
       expect(updated.status, ListStatus.current);
       expect(updated.progress, 5);
       expect(updated.updatedAt, DateTime.utc(2024, 6, 1));
+      expect(updated.totalEpisodesOnPage, 24);
     });
 
     test('copyWith sans argument retourne une copie identique', () {
@@ -66,6 +72,7 @@ void main() {
         progress: 12,
         hiddenFromPlanning: true,
         updatedAt: dateFixe,
+        totalEpisodesOnPage: 12,
       );
 
       final copy = base.copyWith();
@@ -75,6 +82,7 @@ void main() {
       expect(copy.progress, base.progress);
       expect(copy.hiddenFromPlanning, base.hiddenFromPlanning);
       expect(copy.updatedAt, base.updatedAt);
+      expect(copy.totalEpisodesOnPage, base.totalEpisodesOnPage);
     });
 
     test('copyWith hiddenFromPlanning', () {
@@ -89,7 +97,7 @@ void main() {
   });
 
   group('ListEntry valeurs par défaut', () {
-    test('progress=0, hiddenFromPlanning=false par défaut', () {
+    test('progress=0, hiddenFromPlanning=false, totalEpisodesOnPage=0 par défaut', () {
       final entry = ListEntry(
         mediaId: 10,
         status: ListStatus.planning,
@@ -97,6 +105,85 @@ void main() {
       );
       expect(entry.progress, 0);
       expect(entry.hiddenFromPlanning, isFalse);
+      expect(entry.totalEpisodesOnPage, 0);
+    });
+  });
+
+  group('ListEntry.calculatedStatus', () {
+    test('respecte les statuts manuels gelants indépendamment de la progression', () {
+      for (final manual in [ListStatus.paused, ListStatus.dropped, ListStatus.repeating]) {
+        final entry = ListEntry(
+          mediaId: 1,
+          status: manual,
+          progress: 12,
+          totalEpisodesOnPage: 12,
+          updatedAt: dateFixe,
+        );
+        expect(entry.calculatedStatus, manual);
+      }
+    });
+
+    test('retourne planning si progress == 0', () {
+      final entry = ListEntry(
+        mediaId: 1,
+        status: ListStatus.planning,
+        progress: 0,
+        totalEpisodesOnPage: 12,
+        updatedAt: dateFixe,
+      );
+      expect(entry.calculatedStatus, ListStatus.planning);
+    });
+
+    test('retourne completed si totalEpisodesOnPage > 0 et progress >= totalEpisodesOnPage', () {
+      final entry = ListEntry(
+        mediaId: 1,
+        status: ListStatus.planning,
+        progress: 12,
+        totalEpisodesOnPage: 12,
+        updatedAt: dateFixe,
+      );
+      expect(entry.calculatedStatus, ListStatus.completed);
+
+      final overProgress = entry.copyWith(progress: 15);
+      expect(overProgress.calculatedStatus, ListStatus.completed);
+    });
+
+    test('retourne current si progress < totalEpisodesOnPage', () {
+      final entry = ListEntry(
+        mediaId: 1,
+        status: ListStatus.planning,
+        progress: 5,
+        totalEpisodesOnPage: 12,
+        updatedAt: dateFixe,
+      );
+      expect(entry.calculatedStatus, ListStatus.current);
+    });
+
+    test('retourne current si progress > 0 et totalEpisodesOnPage == 0 (inconnu)', () {
+      final entry = ListEntry(
+        mediaId: 1,
+        status: ListStatus.planning,
+        progress: 3,
+        totalEpisodesOnPage: 0,
+        updatedAt: dateFixe,
+      );
+      expect(entry.calculatedStatus, ListStatus.current);
+    });
+
+    test('rebascule automatiquement un animé complété en current si de nouveaux épisodes sont détectés', () {
+      // 1. L'animé est initialement terminé (12/12 épisodes vus)
+      final completed = ListEntry(
+        mediaId: 1,
+        status: ListStatus.completed,
+        progress: 12,
+        totalEpisodesOnPage: 12,
+        updatedAt: dateFixe,
+      );
+      expect(completed.calculatedStatus, ListStatus.completed);
+
+      // 2. Le scraper détecte un nouvel épisode sur la page (13 épisodes)
+      final withNewEpisode = completed.copyWith(totalEpisodesOnPage: 13);
+      expect(withNewEpisode.calculatedStatus, ListStatus.current);
     });
   });
 }

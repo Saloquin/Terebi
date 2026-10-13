@@ -150,17 +150,10 @@ Future<Map<String, double>?> fetchAniskipTimes(
 ) async {
   try {
     final resp = await fetch(
-      'https://api.aniskip.com/v1/skip-times/$malId/$episode',
-      query: {'types': 'op'}, // op + ed (l'API accepte la répétition ; ed ajouté ci-dessous)
-    );
-    // L'API Python passe types=[op,ed] ; on refait un appel combiné via query
-    // brute pour rester fidèle (op ET ed).
-    final resp2 = await fetch(
       'https://api.aniskip.com/v1/skip-times/$malId/$episode?types=op&types=ed',
     );
-    final r = resp2.ok ? resp2 : resp;
-    if (!r.ok) return null;
-    return parseAniskipResponse(r.body);
+    if (!resp.ok) return null;
+    return parseAniskipResponse(resp.body);
   } catch (_) {
     return null;
   }

@@ -30,23 +30,7 @@ final _allMediaMapProvider = FutureProvider<Map<int, Media>>((ref) async {
 // Page
 // ---------------------------------------------------------------------------
 
-const _statusOrder = [
-  ListStatus.current,
-  ListStatus.planning,
-  ListStatus.completed,
-  ListStatus.repeating,
-  ListStatus.paused,
-  ListStatus.dropped,
-];
-
-const _statusLabels = {
-  ListStatus.current: 'En cours',
-  ListStatus.planning: 'Planifié',
-  ListStatus.completed: 'Terminé',
-  ListStatus.repeating: 'Revisionnage',
-  ListStatus.paused: 'En pause',
-  ListStatus.dropped: 'Abandonné',
-};
+const _statusOrder = ListStatus.displayOrder;
 
 const _sortFieldLabels = {
   EntrySortField.title: 'Titre',
@@ -360,7 +344,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
               data: (m) => m[status] ?? 0,
               orElse: () => null,
             );
-            final label = _statusLabels[status] ?? status.name;
+            final label = status.label;
             // Pastille « ! » : uniquement l'onglet En cours, si nouvel épisode.
             final showNewDot =
                 status == ListStatus.current && newCurrentCount > 0;
@@ -761,7 +745,7 @@ class _EntriesTab extends ConsumerWidget {
                     size: 48, color: Colors.white38),
                 const SizedBox(height: 12),
                 Text(
-                  'Aucun anime dans « ${_statusLabels[status]} »',
+                  'Aucun anime dans « ${status.label} »',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
               ],

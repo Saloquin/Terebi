@@ -139,15 +139,14 @@ class DartAnimeSamaResolver implements StreamResolver {
     return [for (final k in keys) int.tryParse(k)].whereType<int>().toList();
   }
 
-  @override
-  Future<String> resolveStreamUrl({
+  /// Retourne la liste des hébergeurs alternatifs disponibles pour cet épisode.
+  Future<List<VideoHosterSource>> listHosterSources({
     required String title,
     required int episode,
     int season = 1,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     final vf = _isVf(language);
-    final domain = await _ensureDomain();
     final (animeUrl, seasons) = await _seasonsFor(title, vf);
     final s = _pickByIndex(seasons, season);
     if (s == null) {
@@ -157,14 +156,85 @@ class DartAnimeSamaResolver implements StreamResolver {
     final episodes = await fetchEpisodes(fetch, _seasonUrl(animeUrl, s, vf));
     if (episodes.isEmpty) throw const ResolveException('aucun episode trouve');
     final ids = episodes['$episode'];
-    if (ids == null) {
-      throw ResolveException('episode $episode indisponible');
+    if (ids == null || ids.isEmpty) return const [];
+    return parseHosterSources(ids);
+  }
+
+  /// Résout le flux direct d'un lecteur spécifique avec ses en-têtes HTTP requis.
+  Future<VideoHosterSource?> resolveSource(VideoHosterSource source) async {
+    final domain = await _ensureDomain();
+    return resolveHosterSource(fetch, domain, source);
+  }
+
+  /// Résout la meilleure source vidéo disponible (ou [preferredSource] si demandée),
+  /// avec son flux direct et ses en-têtes HTTP associés (Referer, User-Agent).
+  Future<VideoHosterSource> resolveStreamSource({
+    required String title,
+    required int episode,
+    int season = 1,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+    VideoHosterSource? preferredSource,
+  }) async {
+    final sources = await listHosterSources(
+      title: title,
+      episode: episode,
+      season: season,
+      language: language,
+    );
+    if (sources.isEmpty) {
+      throw const ResolveException('aucun lecteur disponible');
     }
-    final url = await resolveVideoUrl(fetch, domain, ids);
-    if (url == null || url.isEmpty) {
-      throw const ResolveException('aucune URL de flux resolue');
+
+    if (preferredSource != null) {
+      final match = sources.firstWhere(
+        (s) =>
+            s.embedUrl == preferredSource.embedUrl ||
+            s.name == preferredSource.name,
+        orElse: () => preferredSource,
+      );
+      final resolved = await resolveSource(match);
+      if (resolved != null && resolved.isResolved) return resolved;
     }
-    return url;
+
+    for (final src in sources) {
+      final resolved = await resolveSource(src);
+      if (resolved != null && resolved.isResolved) {
+        return resolved;
+      }
+    }
+
+    // Fallback de dernier recours : resolveVideoUrl
+    final domain = await _ensureDomain();
+    final fallbackUrl = await resolveVideoUrl(
+      fetch,
+      domain,
+      sources.map((s) => s.embedUrl).toList(),
+    );
+    if (fallbackUrl != null && fallbackUrl.isNotEmpty) {
+      return VideoHosterSource(
+        name: 'Lecteur',
+        embedUrl: fallbackUrl,
+        directStreamUrl: fallbackUrl,
+      );
+    }
+
+    throw const ResolveException('aucune URL de flux resolue');
+  }
+
+  @override
+  Future<String> resolveStreamUrl({
+    required String title,
+    required int episode,
+    int season = 1,
+    PlaybackLanguage language = PlaybackLanguage.vostfr,
+  }) async {
+    final source = await resolveStreamSource(
+      title: title,
+      episode: episode,
+      season: season,
+      language: language,
+    );
+    return source.directStreamUrl!;
   }
 
   Future<SkipTimes> skipTimes({

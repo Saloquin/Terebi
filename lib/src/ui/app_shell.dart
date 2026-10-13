@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/providers.dart';
 import '../data/repositories/settings_repository.dart';
+import '../services/update_models.dart';
 import 'pages/calendar_page.dart';
 import 'pages/catalog_page.dart';
 import 'pages/home_page.dart';
@@ -14,6 +15,7 @@ import 'pages/library_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/stats_page.dart';
 import 'tv/app_shell_tv.dart';
+import 'widgets/update_dialog.dart';
 
 /// Une destination de navigation.
 class _Destination {
@@ -47,11 +49,21 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final settings = ref.read(settingsRepositoryProvider);
       final autoUpdate =
-          await settings.get(SettingsKeys.autoUpdate, defaultValue: '0');
+          await settings.get(SettingsKeys.autoUpdate, defaultValue: '1');
       if (autoUpdate == '1' && mounted) {
-        ref.invalidate(updateCheckProvider);
+        _checkForUpdateOnStartup();
       }
     });
+  }
+
+  Future<void> _checkForUpdateOnStartup() async {
+    try {
+      final status = await ref.read(updateCheckProvider.future);
+      if (!mounted) return;
+      if (status is UpdateAvailable) {
+        showUpdateDialog(context, status);
+      }
+    } catch (_) {}
   }
 
   static const _destinations = <_Destination>[

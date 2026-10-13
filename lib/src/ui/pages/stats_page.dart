@@ -341,15 +341,6 @@ class _StatCard extends StatelessWidget {
 // Répartition par statut (barres)
 // ---------------------------------------------------------------------------
 
-const _statusLabels = {
-  ListStatus.current: 'En cours',
-  ListStatus.planning: 'Planifié',
-  ListStatus.completed: 'Terminé',
-  ListStatus.paused: 'En pause',
-  ListStatus.dropped: 'Abandonné',
-  ListStatus.repeating: 'Re-vision',
-};
-
 class _StatusBars extends StatelessWidget {
   final Map<ListStatus, int> countByStatus;
   const _StatusBars({required this.countByStatus});
@@ -366,7 +357,7 @@ class _StatusBars extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: _StatusRow(
-                label: _statusLabels[status] ?? status.name,
+                label: status.label,
                 count: countByStatus[status] ?? 0,
                 total: total,
                 color: _statusColor(status),
