@@ -101,6 +101,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Source d'hébergeur activement lue.
   VideoHosterSource? _selectedSource;
 
+  /// Sources ayant échoué (vidéo d'erreur < 1 min ou résolution impossible) pour l'épisode courant.
+  final Set<String> _failedSourceEmbeds = <String>{};
+
+  /// Garde anti-boucle pour le basculement automatique de lecteur.
+  bool _isHandlingShortVideoFallback = false;
+
   /// Clés du bouton « réglages » de la barre du player (ancrage du menu).
   /// DEUX clés distinctes : la barre normale et la barre plein écran sont
   /// montées SIMULTANÉMENT par media_kit ; partager une seule GlobalKey entre
@@ -178,10 +184,109 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     _durationSub = _player.stream.duration.listen((dur) {
       final s = dur.inMilliseconds / 1000.0;
       _durationSeconds = s > 0 ? s : null;
+      _checkShortVideoDuration(dur);
     });
     _completedSub = _player.stream.completed.listen((done) {
       if (done) _onEpisodeCompleted();
     });
+  }
+
+  /// Détecte les vidéos de moins d'une minute (vidéos d'erreur d'hébergeur).
+  void _checkShortVideoDuration(Duration dur) {
+    if (dur > const Duration(milliseconds: 100) &&
+        dur < const Duration(minutes: 1)) {
+      _handleShortVideoDetected(dur);
+    }
+  }
+
+  /// Gère le fallback automatique lorsqu'une vidéo d'erreur est détectée.
+  Future<void> _handleShortVideoDetected(Duration dur) async {
+    if (_isHandlingShortVideoFallback || !_ready) return;
+    final current = _selectedSource;
+    if (current == null) return;
+
+    final key = current.embedUrl.isNotEmpty ? current.embedUrl : current.name;
+    if (_failedSourceEmbeds.contains(key)) return;
+
+    _isHandlingShortVideoFallback = true;
+    _failedSourceEmbeds.add(key);
+
+    try {
+      await _player.stop();
+    } catch (_) {}
+
+    // Recherche le prochain lecteur disponible non encore testé/échoué
+    VideoHosterSource? nextSource;
+    if (_availableSources.isNotEmpty) {
+      final curIdx = _availableSources.indexWhere(
+        (s) =>
+            (s.embedUrl.isNotEmpty && s.embedUrl == current.embedUrl) ||
+            s.name == current.name,
+      );
+
+      // Cherche en priorité les lecteurs suivants dans la liste
+      for (var i = curIdx + 1; i < _availableSources.length; i++) {
+        final cand = _availableSources[i];
+        final candKey = cand.embedUrl.isNotEmpty ? cand.embedUrl : cand.name;
+        if (!_failedSourceEmbeds.contains(candKey)) {
+          nextSource = cand;
+          break;
+        }
+      }
+
+      // Si aucun trouvé après, cherche parmi les précédents (wrap-around)
+      if (nextSource == null && curIdx > 0) {
+        for (var i = 0; i < curIdx; i++) {
+          final cand = _availableSources[i];
+          final candKey = cand.embedUrl.isNotEmpty ? cand.embedUrl : cand.name;
+          if (!_failedSourceEmbeds.contains(candKey)) {
+            nextSource = cand;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!mounted) {
+      _isHandlingShortVideoFallback = false;
+      return;
+    }
+
+    if (nextSource != null) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Impossible de charger le lecteur ${current.name} (vidéo d\'erreur détectée) — bascule sur ${nextSource.name}…',
+          ),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
+      try {
+        await _switchSource(nextSource, forcePlay: true);
+      } finally {
+        _isHandlingShortVideoFallback = false;
+      }
+    } else {
+      _isHandlingShortVideoFallback = false;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Impossible de charger le lecteur ${current.name} — aucun autre lecteur disponible',
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      if (mounted) {
+        setState(() {
+          _error =
+              'Impossible de charger la vidéo sur ce lecteur (vidéo d\'erreur ou supprimée).';
+          _loading = false;
+        });
+      }
+    }
   }
 
   /// Charge (sans lancer la vidéo) le nom de saison + la liste des épisodes,
@@ -455,6 +560,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<void> _loadAndPlay(
       {int? forceResumeAt, bool startPaused = false}) async {
     if (_loading) return; // garde de réentrance : évite un double « Lancer ».
+    _failedSourceEmbeds.clear();
+    _isHandlingShortVideoFallback = false;
     setState(() {
       _loading = true;
       _error = null;
@@ -842,7 +949,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     // lue jusqu'à la fin (au moins 90% ou dans les 15 dernières secondes).
     // Évite qu'une erreur de flux, un EOF prématuré, un 404, un stop ou un ad
     // de quelques secondes ne valide l'épisode à tort (bug nouvel épisode vu = 1).
-    if (dur == null || dur <= 10 || _positionSeconds < dur * 0.90) {
+    if (dur == null || dur < 60 || _positionSeconds < dur * 0.90) {
       return;
     }
 
@@ -1440,7 +1547,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   }
 
   /// Change de lecteur / hébergeur vidéo (Sendvid, Sibnet...) en conservant la position de lecture.
-  Future<void> _switchSource(VideoHosterSource source) async {
+  Future<void> _switchSource(
+    VideoHosterSource source, {
+    bool forcePlay = false,
+  }) async {
     if (_selectedSource?.name == source.name &&
         _selectedSource?.embedUrl == source.embedUrl) {
       return;
@@ -1452,12 +1562,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (_loading) return;
     setState(() => _loading = true);
     final pos = _player.state.position;
-    final isPlaying = _player.state.playing;
+    final isPlaying = forcePlay || _player.state.playing;
+
+    Duration? startPos;
+    if (pos >= const Duration(minutes: 1)) {
+      startPos = pos;
+    } else if (_lastPersistedWhole > 60) {
+      startPos = Duration(seconds: _lastPersistedWhole);
+    } else {
+      startPos = null;
+    }
 
     final resolver = await ref.read(animeSamaResolverProvider.future);
     try {
       final resolved = await resolver.resolveSource(source);
       if (resolved == null || !resolved.isResolved) {
+        final key = source.embedUrl.isNotEmpty ? source.embedUrl : source.name;
+        _failedSourceEmbeds.add(key);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -1466,6 +1587,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           );
           setState(() => _loading = false);
         }
+        _handleShortVideoDetected(const Duration(seconds: 1));
         return;
       }
       _selectedSource = resolved;
@@ -1476,23 +1598,26 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           resolved.directStreamUrl!,
           httpHeaders:
               resolved.httpHeaders.isNotEmpty ? resolved.httpHeaders : null,
-          start: pos,
+          start: startPos,
         ),
         play: isPlaying,
       );
       await _applyMpvProperties();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lecteur changé : ${source.name}')),
+          SnackBar(content: Text('Lecteur : ${source.name}')),
         );
       }
     } catch (e) {
+      final key = source.embedUrl.isNotEmpty ? source.embedUrl : source.name;
+      _failedSourceEmbeds.add(key);
       if (mounted) {
         setState(() => _loading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors du changement de lecteur : $e')),
+          SnackBar(content: Text('Impossible de charger le lecteur ${source.name} : $e')),
         );
       }
+      _handleShortVideoDetected(const Duration(seconds: 1));
     }
   }
 
