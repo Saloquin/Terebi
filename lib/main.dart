@@ -10,6 +10,7 @@ import 'src/services/tv_detection_service.dart';
 import 'src/ui/app_shell.dart';
 import 'src/ui/splash_page.dart';
 import 'src/ui/theme/app_theme.dart';
+import 'src/ui/widgets/mini_player_overlay.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -90,6 +91,14 @@ class _TerebiAppState extends ConsumerState<TerebiApp> {
       theme: terebiLightTheme(),
       darkTheme: terebiDarkTheme(),
       themeMode: themeMode,
+      builder: (context, child) {
+        return Stack(
+          children: [
+            if (child != null) child,
+            const MiniPlayerOverlay(),
+          ],
+        );
+      },
       home: _splashDone
           ? const AppShell()
           : SplashScreen(onDone: () => setState(() => _splashDone = true)),

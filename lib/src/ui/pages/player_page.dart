@@ -33,6 +33,8 @@ import '../../domain/models/media.dart' as domain;
 import '../../domain/season_progress_repository.dart';
 import '../../services/stream_resolver.dart';
 import '../../services/animesama_embed_resolver.dart';
+import '../../services/active_playback_service.dart';
+import '../../services/windows_pip_service.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 
@@ -52,6 +54,12 @@ class PlayerPage extends ConsumerStatefulWidget {
   /// l'afficher au lieu du titre AniList. `null` si inconnu.
   final String? animeSamaTitle;
 
+  /// Player déjà instancié (cas de reprise depuis le mini-lecteur).
+  final Player? existingPlayer;
+
+  /// Contrôleur déjà instancié (cas de reprise depuis le mini-lecteur).
+  final VideoController? existingController;
+
   const PlayerPage({
     super.key,
     required this.media,
@@ -59,6 +67,8 @@ class PlayerPage extends ConsumerStatefulWidget {
     required this.entry,
     this.cameFromDetail = false,
     this.animeSamaTitle,
+    this.existingPlayer,
+    this.existingController,
   });
 
   @override
@@ -66,17 +76,18 @@ class PlayerPage extends ConsumerStatefulWidget {
 }
 
 class _PlayerPageState extends ConsumerState<PlayerPage> {
-  late final Player _player = Player();
+  late final Player _player = widget.existingPlayer ?? Player();
   // Décodage LOGICIEL forcé (hwdec: 'no'). Le décodage matériel (d3d11va,
   // d3d11va-copy) produisait un flash vert + un saut automatique + une zone
   // injoignable sur certains flux HLS : le segment abîmé restait « brûlé » dans
   // la session jusqu'à réouverture de l'épisode. Le flash vert est un artefact
   // purement GPU ; le décodage logiciel l'élimine à la source (plus lourd CPU,
   // mais un épisode d'anime 1080p reste largement dans les capacités d'un PC).
-  late final VideoController _videoController = VideoController(
-    _player,
-    configuration: const VideoControllerConfiguration(hwdec: 'no'),
-  );
+  late final VideoController _videoController = widget.existingController ??
+      VideoController(
+        _player,
+        configuration: const VideoControllerConfiguration(hwdec: 'no'),
+      );
 
   bool _loading = false;
   bool _ready = false;
@@ -106,6 +117,42 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Garde anti-boucle pour le basculement automatique de lecteur.
   bool _isHandlingShortVideoFallback = false;
+
+  /// Indique que le lecteur a été réduit dans l'application (ne pas disposer le player au pop).
+  bool _minimizedToMiniPlayer = false;
+
+  /// Indique si la fenêtre est en mode Picture-in-Picture natif Windows.
+  bool _isWindowPip = false;
+
+  void _minimizeToInApp() {
+    if (!_ready) return;
+    final c = _videoCtx;
+    if (c != null && c.mounted && isFullscreen(c)) {
+      toggleFullscreen(c);
+    }
+    _minimizedToMiniPlayer = true;
+    ActivePlaybackService.instance.minimize(
+      media: widget.media,
+      episode: _currentEpisode,
+      entry: _currentEntry,
+      animeSamaTitle: widget.animeSamaTitle,
+      player: _player,
+      controller: _videoController,
+    );
+    Navigator.of(context).pop();
+  }
+
+  void _toggleWindowPip() {
+    if (!WindowsPipService.isSupported || !_ready) return;
+    final c = _videoCtx;
+    if (c != null && c.mounted && isFullscreen(c)) {
+      toggleFullscreen(c);
+    }
+    final success = WindowsPipService.togglePip();
+    if (success) {
+      setState(() => _isWindowPip = WindowsPipService.isPip);
+    }
+  }
 
   /// Clés du bouton « réglages » de la barre du player (ancrage du menu).
   /// DEUX clés distinctes : la barre normale et la barre plein écran sont
@@ -168,6 +215,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     super.initState();
     _currentEpisode = widget.episode;
     _currentEntry = widget.entry;
+    if (widget.existingPlayer == null &&
+        ActivePlaybackService.instance.hasActivePlayback) {
+      ActivePlaybackService.instance.stop();
+    }
+    if (widget.existingPlayer != null) {
+      _ready = true;
+      _loading = false;
+    }
     _subscribePlayerStreams();
     // La lecture ne démarre PAS automatiquement : l'utilisateur clique « Lancer ».
     // On charge tout de même le nom de saison + la liste d'épisodes pour la barre.
@@ -405,9 +460,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           null; // ref indisponible pendant le teardown : on saute la sauvegarde.
     }
 
-    // PRIORITÉ ABSOLUE : arrêter/disposer le player, quoi qu'il arrive, pour ne
-    // jamais laisser une vidéo tourner en arrière-plan.
-    _player.dispose();
+    if (_isWindowPip) {
+      WindowsPipService.exitPip();
+    }
+
+    if (!_minimizedToMiniPlayer) {
+      _player.dispose();
+      ActivePlaybackService.instance.stop();
+    }
 
     // Persistance best-effort APRÈS le dispose du player (ne bloque jamais la
     // fermeture, ne peut plus empêcher l'arrêt de la lecture).
@@ -1217,9 +1277,15 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         if (c != null && c.mounted) toggleFullscreen(c);
       },
       const SingleActivator(LogicalKeyboardKey.escape): () {
+        if (_isWindowPip) {
+          _toggleWindowPip();
+          return;
+        }
         final c = _videoCtx;
         if (c != null && c.mounted && isFullscreen(c)) toggleFullscreen(c);
       },
+      const SingleActivator(LogicalKeyboardKey.keyP): _toggleWindowPip,
+      const SingleActivator(LogicalKeyboardKey.keyM): _minimizeToInApp,
     };
 
     // Overlay commun : bouton skip intro/outro + auto-play countdown.
@@ -1282,6 +1348,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
           ),
           const MaterialDesktopPositionIndicator(),
           const Spacer(),
+          MaterialDesktopCustomButton(
+            icon: const Icon(Icons.branding_watermark_outlined),
+            onPressed: _minimizeToInApp,
+          ),
+          if (WindowsPipService.isSupported)
+            MaterialDesktopCustomButton(
+              icon: Icon(_isWindowPip
+                  ? Icons.open_in_full
+                  : Icons.picture_in_picture_alt),
+              onPressed: _toggleWindowPip,
+            ),
           const MaterialDesktopFullscreenButton(),
         ];
 
@@ -1372,13 +1449,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               onPressed: () => _showSettingsMenuFromButton(_settingsButtonKey),
             ),
           ],
-          bottomButtonBar: const [
-            MaterialPositionIndicator(),
-            Spacer(),
-            MaterialSkipPreviousButton(),
-            MaterialPlayOrPauseButton(),
-            MaterialSkipNextButton(),
-            MaterialFullscreenButton(),
+          bottomButtonBar: [
+            const MaterialPositionIndicator(),
+            const Spacer(),
+            const MaterialSkipPreviousButton(),
+            const MaterialPlayOrPauseButton(),
+            const MaterialSkipNextButton(),
+            MaterialCustomButton(
+              icon: const Icon(Icons.branding_watermark_outlined),
+              onPressed: _minimizeToInApp,
+            ),
+            const MaterialFullscreenButton(),
           ],
         ),
         fullscreen: MaterialVideoControlsThemeData(
@@ -1392,13 +1473,17 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                   _showSettingsMenuFromButton(_settingsButtonKeyFs),
             ),
           ],
-          bottomButtonBar: const [
-            MaterialPositionIndicator(),
-            Spacer(),
-            MaterialSkipPreviousButton(),
-            MaterialPlayOrPauseButton(),
-            MaterialSkipNextButton(),
-            MaterialFullscreenButton(),
+          bottomButtonBar: [
+            const MaterialPositionIndicator(),
+            const Spacer(),
+            const MaterialSkipPreviousButton(),
+            const MaterialPlayOrPauseButton(),
+            const MaterialSkipNextButton(),
+            MaterialCustomButton(
+              icon: const Icon(Icons.branding_watermark_outlined),
+              onPressed: _minimizeToInApp,
+            ),
+            const MaterialFullscreenButton(),
           ],
         ),
         child: Video(
@@ -1647,9 +1732,57 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isWindowPip) return _buildWindowPipBody(context);
     final isTv = ref.read(isTvProvider);
     if (isTv) return _buildTvBody(context);
     return _buildDesktopBody(context);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Layout Windows Picture-in-Picture (Fenêtre compacte Always-on-Top)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildWindowPipBody(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          _buildVideo(),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Material(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.open_in_full,
+                        size: 16, color: Colors.white),
+                    tooltip: 'Agrandir la fenêtre (Quitter PiP)',
+                    padding: const EdgeInsets.all(6),
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: _toggleWindowPip,
+                  ),
+                  IconButton(
+                    icon:
+                        const Icon(Icons.close, size: 16, color: Colors.white),
+                    tooltip: 'Fermer',
+                    padding: const EdgeInsets.all(6),
+                    constraints:
+                        const BoxConstraints(minWidth: 28, minHeight: 28),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -1943,6 +2076,24 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(title, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.branding_watermark_outlined),
+            tooltip: 'Réduire dans l\'application (Mini-lecteur)',
+            onPressed: _ready ? _minimizeToInApp : null,
+          ),
+          if (WindowsPipService.isSupported)
+            IconButton(
+              icon: Icon(_isWindowPip
+                  ? Icons.open_in_full
+                  : Icons.picture_in_picture_alt),
+              tooltip: _isWindowPip
+                  ? 'Quitter le mode PiP'
+                  : 'Fenêtre flottante (Picture-in-Picture Windows)',
+              onPressed: _ready ? _toggleWindowPip : null,
+            ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: Center(
         child: ConstrainedBox(
