@@ -61,6 +61,11 @@ abstract final class SettingsKeys {
   static String animeSamaWatchedFor(int anilistId, int seasonIndex) =>
       'anime_sama_watched:$anilistId:$seasonIndex';
 
+  /// Clé du nombre TOTAL d'épisodes d'une saison anime-sama (int, 0 = inconnu).
+  /// Progression PAR saison. Ex. `anime_sama_total:105333:2`.
+  static String animeSamaTotalFor(int anilistId, int seasonIndex) =>
+      'anime_sama_total:$anilistId:$seasonIndex';
+
   /// Date (ISO 8601) du dernier recheck des « Terminé » de la bibliothèque.
   /// Sert à ne relancer ce recheck (coûteux en requêtes anime-sama) qu'1×/jour.
   static const String lastCompletedRecheck = 'last_completed_recheck';

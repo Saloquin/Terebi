@@ -279,23 +279,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         );
         if (eps.isEmpty) continue;
 
-        final watched =
-            await seasonProgress.lastWatched(entry.mediaId, last.index);
-        // Compare au DERNIER numéro d'épisode réel (numérotation parfois non
-        // contiguë : OAV, épisodes .5…). NB : les sentinelles ont été migrées
-        // en passe 0, donc `watched` est le vrai numéro du dernier épisode vu.
-        // Pas de filtre planning : un épisode non vu suffit, même si l'anime a
-        // fini sa diffusion pendant une longue absence (sinon on le raterait).
-        if (watched < eps.last) {
-          // Nouvel épisode disponible → repasse EN COURS (planning ;
-          // l'effectif redevient « En cours » via la progression) + drapeau.
-          await listRepo.upsertEntry(entry.copyWith(
-            status: ListStatus.planning,
-            updatedAt: DateTime.now(),
-          ));
-          await settings.set(SettingsKeys.newEpisodeFor(entry.mediaId), '1');
-          changed = true;
-        }
+        // Met à jour le nombre total d'épisodes (déclenche le patron observateur
+        // qui compare automatiquement watched et total, et déplace l'anime dans
+        // la bonne catégorie).
+        await seasonProgress.setTotalEpisodes(
+            entry.mediaId, last.index, eps.last);
+        changed = true;
       } catch (_) {
         // Ignore les erreurs individuelles (réseau, anime introuvable…).
       }
@@ -343,11 +332,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
           await settings.delete(SettingsKeys.newEpisodeFor(entry.mediaId));
           continue;
         }
-        if (watched < eps.last) {
-          // Épisode(s) non vu(s) sur la dernière saison → nouvel épisode.
-          await settings.set(SettingsKeys.newEpisodeFor(entry.mediaId), '1');
-          changed = true;
-        }
+        await seasonProgress.setTotalEpisodes(
+            entry.mediaId, last.index, eps.last);
+        changed = true;
       } catch (_) {
         // Ignore les erreurs individuelles (réseau, anime introuvable…).
       }

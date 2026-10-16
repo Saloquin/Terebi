@@ -814,7 +814,14 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       final eps = await ref.read(animeSamaEpisodesProvider(
         (title: title, seasonIndex: seasonIndex),
       ).future);
-      if (eps.isNotEmpty) _episodes = eps;
+      if (eps.isNotEmpty) {
+        _episodes = eps;
+        await ref.read(seasonProgressRepositoryProvider).setTotalEpisodes(
+          widget.media.mediaId,
+          seasonIndex,
+          eps.last,
+        );
+      }
     } catch (_) {
       // listSeasons/listEpisodes optionnels : on continue sans.
     }

@@ -21,6 +21,7 @@ import '../data/repositories/watch_history_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../domain/logic/anime_id.dart';
 import '../domain/logic/effective_status_service.dart';
+import '../domain/logic/season_category_observer.dart';
 import '../domain/season_progress_repository.dart';
 import '../domain/logic/progress_service.dart';
 import '../domain/logic/series_completion_service.dart';
@@ -137,10 +138,13 @@ final effectiveEntriesProvider =
     StreamProvider<List<({ListEntry entry, ListStatus status})>>((ref) {
   final listRepo = ref.watch(listRepositoryProvider);
   final settings = ref.watch(settingsRepositoryProvider);
-  return Rx.combineLatest2(
+  return Rx.combineLatest4(
     listRepo.watchAllEntries(),
     settings.watchWithPrefix('anime_sama_watched:'),
-    (List<ListEntry> all, Map<String, String> watched) {
+    settings.watchWithPrefix('new_episode:'),
+    settings.watchWithPrefix('anime_sama_total:'),
+    (List<ListEntry> all, Map<String, String> watched,
+        Map<String, String> newEps, Map<String, String> totals) {
       // Ids ayant une progression par saison > 0 (clé anime_sama_watched:<id>:<s>).
       final progressedIds = <int>{};
       for (final kv in watched.entries) {
@@ -151,10 +155,26 @@ final effectiveEntriesProvider =
           if (id != null) progressedIds.add(id);
         }
       }
+      // Ids ayant le drapeau « nouvel épisode ».
+      final newEpisodeIds = <int>{};
+      for (final kv in newEps.entries) {
+        if (kv.value == '1') {
+          final parts = kv.key.split(':');
+          if (parts.length >= 2) {
+            final id = int.tryParse(parts[1]);
+            if (id != null) newEpisodeIds.add(id);
+          }
+        }
+      }
       final result = <({ListEntry entry, ListStatus status})>[];
       for (final e in all) {
         final hasProgress = e.progress > 0 || progressedIds.contains(e.mediaId);
-        final eff = effectiveStatus(entry: e, hasProgress: hasProgress);
+        final hasNew = newEpisodeIds.contains(e.mediaId);
+        final eff = effectiveStatus(
+          entry: e,
+          hasProgress: hasProgress,
+          hasNewEpisode: hasNew,
+        );
         if (eff != null) result.add((entry: e, status: eff));
       }
       return result;
@@ -205,9 +225,22 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepository(ref.watch(databaseProvider)),
 );
 
+/// Observateur synchronisant automatiquement la catégorie en bibliothèque
+/// selon la comparaison (épisodes vus vs épisodes max) (patron Observateur).
+final seasonCategoryObserverProvider = Provider<SeasonCategoryObserver>((ref) {
+  return SeasonCategoryObserver(
+    listRepo: ref.watch(listRepositoryProvider),
+    settings: ref.watch(settingsRepositoryProvider),
+  );
+});
+
 /// Progression PAR saison anime-sama (dernier épisode vu par saison).
 final seasonProgressRepositoryProvider = Provider<SeasonProgressRepository>(
-  (ref) => SeasonProgressRepository(ref.watch(settingsRepositoryProvider)),
+  (ref) {
+    final repo = SeasonProgressRepository(ref.watch(settingsRepositoryProvider));
+    repo.addObserver(ref.watch(seasonCategoryObserverProvider));
+    return repo;
+  },
 );
 
 /// Détection « série entièrement vue » → statut `completed` (logique factorisée).

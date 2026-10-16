@@ -790,6 +790,8 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
         total = eps.length;
         lastEpisodeNumber = eps.last;
         episodeList = eps;
+        await seasonProgress.setTotalEpisodes(
+            widget.media.mediaId, widget.season.index, eps.last);
       }
     } catch (_) {/* total inconnu → barre indéterminée */}
 

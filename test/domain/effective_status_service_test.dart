@@ -30,6 +30,17 @@ void main() {
       );
     });
 
+    test('completed stocké mais nouvel épisode disponible → En cours', () {
+      expect(
+        effectiveStatus(
+          entry: entry(ListStatus.completed, progress: 12),
+          hasProgress: true,
+          hasNewEpisode: true,
+        ),
+        ListStatus.current,
+      );
+    });
+
     test('planning + aucune progression → Planifié', () {
       expect(
         effectiveStatus(entry: entry(ListStatus.planning), hasProgress: false),

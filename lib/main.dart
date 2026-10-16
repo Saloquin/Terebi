@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'src/app/navigator_key.dart';
 import 'src/app/providers.dart';
 import 'src/data/local/connection.dart';
 import 'src/data/repositories/settings_repository.dart';
@@ -86,6 +87,7 @@ class _TerebiAppState extends ConsumerState<TerebiApp> {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
+      navigatorKey: rootNavigatorKey,
       title: 'Terebi',
       debugShowCheckedModeBanner: false,
       theme: terebiLightTheme(),

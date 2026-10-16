@@ -51,18 +51,21 @@ bool isFreezingManualStatus(ListStatus status) =>
 /// ajouté et aucune progression).
 ///
 /// Priorités :
-/// 1. `completed` stocké (drapeau « entièrement vu ») → Terminé.
-/// 2. Statut manuel gelant (pause/abandonné/revisionnage) → ce statut.
-/// 3. Progression > 0 → En cours (calculé).
-/// 4. `planning` stocké → Planifié.
-/// 5. Sinon → `null` (hors listes).
+/// 1. Statut manuel gelant (pause/abandonné/revisionnage) → ce statut.
+/// 2. Nouvel épisode disponible (`hasNewEpisode == true`) → En cours (dépasse « Terminé »).
+/// 3. `completed` stocké (drapeau « entièrement vu ») → Terminé.
+/// 4. Progression > 0 → En cours (calculé).
+/// 5. `planning` stocké → Planifié.
+/// 6. Sinon → `null` (hors listes).
 ListStatus? effectiveStatus({
   required ListEntry? entry,
   required bool hasProgress,
+  bool hasNewEpisode = false,
 }) {
   final stored = entry?.status;
-  if (stored == ListStatus.completed) return ListStatus.completed;
   if (stored != null && isFreezingManualStatus(stored)) return stored;
+  if (hasNewEpisode) return ListStatus.current;
+  if (stored == ListStatus.completed) return ListStatus.completed;
   if (hasProgress) return ListStatus.current;
   if (stored == ListStatus.planning) return ListStatus.planning;
   return null;

@@ -80,6 +80,8 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
         if (eps.isNotEmpty) {
           total = eps.length;
           lastEpisodeNumber = eps.last;
+          await seasonProgress.setTotalEpisodes(
+              widget.media.mediaId, season.index, eps.last);
         }
       } catch (_) {}
       result[season.index] = _SeasonProgress(
