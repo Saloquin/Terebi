@@ -1,6 +1,8 @@
 /// Page Bibliothèque : entrées par statut avec badges de comptage, tri et filtres.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -68,6 +70,8 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   /// filtre. Comparaison insensible à la casse/accents (via normalisation).
   String _searchQuery = '';
   final _searchController = TextEditingController();
+  Timer? _recheckTimer;
+  bool _isRechecking = false;
 
   @override
   void initState() {
@@ -78,6 +82,13 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       await _loadSettings();
       await _normalizeLegacyStatuses();
       await _recheckCompleted();
+    });
+
+    // Re-vérifie automatiquement toutes les 10 minutes tant que l'utilisateur est sur la page.
+    _recheckTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      if (mounted) {
+        _recheckCompleted();
+      }
     });
   }
 
@@ -125,10 +136,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   }
 
   Future<void> _recheckCompleted() async {
+    if (_isRechecking) return;
+    _isRechecking = true;
     try {
       await _recheckCompletedImpl();
     } catch (_) {
       // Best-effort : un recheck qui échoue ne doit jamais casser la page.
+    } finally {
+      _isRechecking = false;
     }
   }
 
@@ -262,6 +277,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
     var changed = false;
     for (final entry in completed) {
+      if (!mounted) return;
       try {
         final media = await mediaRepo.getMedia(entry.mediaId);
         // Titre anime-sama de référence (le titre AniList peut diverger et faire
@@ -298,6 +314,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // dernière saison. Idempotent (skip si drapeau déjà posé).
     final planning = await listRepo.entriesByStatus(ListStatus.planning);
     for (final entry in planning) {
+      if (!mounted) return;
       // Ne garder que les « en cours » effectifs (progression réelle) ; un
       // `planning` pur (jamais commencé) n'est pas concerné.
       final hasProgress = entry.progress > 0 ||
@@ -355,6 +372,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
   @override
   void dispose() {
+    _recheckTimer?.cancel();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
