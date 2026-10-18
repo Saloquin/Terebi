@@ -58,6 +58,7 @@ class AnimeSamaCatalogService {
       coverUrl: detail.cover ?? existing?.coverUrl ?? animeSamaCoverUrl(slug),
       bannerUrl:
           detail.banner ?? existing?.bannerUrl ?? animeSamaBannerUrl(slug),
+      episodes: detail.totalEpisodes ?? existing?.episodes,
     );
     await mediaRepo.upsertMedia(media);
   }

@@ -75,10 +75,12 @@ class Media {
     List<String> genres = const [],
     String? coverUrl,
     String? bannerUrl,
+    int? episodes,
   }) =>
       Media(
         mediaId: animeSamaIdForSlug(slug),
         title: MediaTitle(romaji: title, english: title),
+        episodes: episodes,
         description: synopsis,
         genres: genres,
         coverUrl: coverUrl,

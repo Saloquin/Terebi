@@ -113,22 +113,59 @@ class AnimeSamaCatalogueItem {
 }
 
 /// Detail enrichi d'une page catalogue anime-sama (`/catalogue/<slug>/`).
-/// Remplace l'enrichissement AniList (synopsis/genres/image).
 class AnimeSamaDetail {
   final String slug;
   final String title;
+  final String? alternativeTitles;
   final String? synopsis;
   final List<String> genres;
   final String? cover;
   final String? banner;
+  final double? score;
+  final int? anilistId;
+  final int? malId;
+  final int? tmdbId;
+  final String? korboUrl;
+  final String? trailerYoutubeId;
+  final String? format;
+  final String? status;
+  final String? releaseDate;
+  final String? seasonPeriod;
+  final int? totalEpisodes;
+  final String? studio;
+  final String? broadcastChannels;
+  final String? authors;
+  final int? nextEpisodeNumber;
+  final int? nextEpisodeTimestamp;
+  final String? nextEpisodeDateText;
+  final List<AnimeSamaCatalogueItem> similarAnime;
 
   const AnimeSamaDetail({
     required this.slug,
     required this.title,
+    this.alternativeTitles,
     this.synopsis,
     this.genres = const [],
     this.cover,
     this.banner,
+    this.score,
+    this.anilistId,
+    this.malId,
+    this.tmdbId,
+    this.korboUrl,
+    this.trailerYoutubeId,
+    this.format,
+    this.status,
+    this.releaseDate,
+    this.seasonPeriod,
+    this.totalEpisodes,
+    this.studio,
+    this.broadcastChannels,
+    this.authors,
+    this.nextEpisodeNumber,
+    this.nextEpisodeTimestamp,
+    this.nextEpisodeDateText,
+    this.similarAnime = const [],
   });
 }
 

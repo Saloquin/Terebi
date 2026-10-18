@@ -35,6 +35,10 @@ class DartAnimeSamaResolver implements StreamResolver {
   /// Domaine résolu, mis en cache après la 1re résolution (comme `ensure_domain`).
   String? _domain;
 
+  /// Cache en mémoire des MAL IDs résolus (optimisation instantanée pour AniSkip).
+  final Map<String, int> _malIdBySlug = {};
+  final Map<String, int> _malIdByTitle = {};
+
   DartAnimeSamaResolver({required this.fetch});
 
   /// Résout (une fois) puis renvoie le domaine anime-sama courant.
@@ -246,12 +250,13 @@ class DartAnimeSamaResolver implements StreamResolver {
   }) async {
     try {
       final saison = seasonIndex > 1 ? 'Saison $seasonIndex' : null;
+      final effectiveMalId = malId ?? _malIdByTitle[normText(title)];
       return await resolveSkipTimes(
         fetch,
         animeName: title,
         episode: episode,
         saison: saison,
-        malId: malId,
+        malId: effectiveMalId,
       );
     } catch (_) {
       return const SkipTimes();
@@ -302,13 +307,44 @@ class DartAnimeSamaResolver implements StreamResolver {
       final resp =
           await fetch('https://$domain/catalogue/$s/', headers: kHeadersBase);
       final d = parseCatalogueDetail(resp.ok ? resp.body : '', s);
+      if (d.malId != null) {
+        _malIdBySlug[s] = d.malId!;
+        _malIdByTitle[normText(d.title)] = d.malId!;
+      }
       return AnimeSamaDetail(
         slug: s,
         title: d.title,
+        alternativeTitles: d.alternativeTitles,
         synopsis: d.synopsis,
         genres: d.genres,
-        cover: cdnImageUrl(s),
-        banner: cdnImageUrl(s, banner: true),
+        cover: d.posterUrl ?? cdnImageUrl(s),
+        banner: d.bannerUrl ?? cdnImageUrl(s, banner: true),
+        score: d.score,
+        anilistId: d.anilistId,
+        malId: d.malId,
+        tmdbId: d.tmdbId,
+        korboUrl: d.korboUrl,
+        trailerYoutubeId: d.trailerYoutubeId,
+        format: d.format,
+        status: d.status,
+        releaseDate: d.releaseDate,
+        seasonPeriod: d.seasonPeriod,
+        totalEpisodes: d.totalEpisodes,
+        studio: d.studio,
+        broadcastChannels: d.broadcastChannels,
+        authors: d.authors,
+        nextEpisodeNumber: d.nextEpisodeNumber,
+        nextEpisodeTimestamp: d.nextEpisodeTimestamp,
+        nextEpisodeDateText: d.nextEpisodeDateText,
+        similarAnime: [
+          for (final it in d.similarAnime)
+            AnimeSamaCatalogueItem(
+              title: it.title,
+              url: it.url,
+              slug: it.slug,
+              cover: it.coverUrl,
+            )
+        ],
       );
     } catch (_) {
       return AnimeSamaDetail(slug: s, title: s, cover: cdnImageUrl(s));

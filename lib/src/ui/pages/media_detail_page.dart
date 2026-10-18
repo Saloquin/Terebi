@@ -210,6 +210,18 @@ class _DetailBody extends ConsumerWidget {
                 // --- Saisons anime-sama (seul point de choix de saison) ---
                 _AnimeSamaSeasonsSection(
                     media: media, displayTitle: displayTitle),
+
+                // --- Œuvres similaires (refonte Anime-Sama) ---
+                if (media.animeSamaSlug != null &&
+                    media.animeSamaSlug!.isNotEmpty)
+                  ref
+                      .watch(animeSamaRawDetailProvider(media.animeSamaSlug!))
+                      .maybeWhen(
+                        data: (d) => d != null && d.similarAnime.isNotEmpty
+                            ? _SimilarAnimeSection(similars: d.similarAnime)
+                            : const SizedBox.shrink(),
+                        orElse: () => const SizedBox.shrink(),
+                      ),
               ],
             ),
           ),
@@ -339,20 +351,100 @@ class _Header extends StatelessWidget {
 // Chips de métadonnées
 // ---------------------------------------------------------------------------
 
-class _MetaChips extends StatelessWidget {
+class _MetaChips extends ConsumerWidget {
   final Media media;
   const _MetaChips({required this.media});
 
   @override
-  Widget build(BuildContext context) {
-    // Source anime-sama : la seule métadonnée fiable est le nombre d'épisodes.
-    if (media.episodes == null) return const SizedBox.shrink();
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Chip(
-        label: Text('${media.episodes} épisodes'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rawDetailAsync = media.animeSamaSlug != null &&
+            media.animeSamaSlug!.isNotEmpty
+        ? ref.watch(animeSamaRawDetailProvider(media.animeSamaSlug!))
+        : null;
+    final detail = rawDetailAsync?.valueOrNull;
+
+    final chips = <Widget>[];
+
+    // Score / Note
+    if (detail?.score != null) {
+      chips.add(Chip(
+        avatar: const Icon(Icons.star, color: Colors.amber, size: 16),
+        label: Text('${detail!.score!.toStringAsFixed(1)} / 10'),
         visualDensity: VisualDensity.compact,
         padding: EdgeInsets.zero,
+      ));
+    }
+
+    // Épisodes
+    final epCount = detail?.totalEpisodes ?? media.episodes;
+    if (epCount != null && epCount > 0) {
+      chips.add(Chip(
+        label: Text('$epCount épisodes'),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ));
+    }
+
+    // Statut (En cours / Terminé)
+    if (detail?.status != null && detail!.status!.isNotEmpty) {
+      chips.add(Chip(
+        label: Text(detail.status!),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ));
+    }
+
+    // Format (Série TV, Film, OAV)
+    if (detail?.format != null && detail!.format!.isNotEmpty) {
+      chips.add(Chip(
+        label: Text(detail.format!),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ));
+    }
+
+    // Studio
+    if (detail?.studio != null && detail!.studio!.isNotEmpty) {
+      chips.add(Chip(
+        avatar: const Icon(Icons.business, size: 15),
+        label: Text(detail.studio!),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ));
+    }
+
+    // Saison de diffusion
+    if (detail?.seasonPeriod != null && detail!.seasonPeriod!.isNotEmpty) {
+      chips.add(Chip(
+        avatar: const Icon(Icons.calendar_today, size: 14),
+        label: Text(detail.seasonPeriod!),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ));
+    }
+
+    // Prochain épisode
+    if (detail?.nextEpisodeNumber != null) {
+      final dateText = detail!.nextEpisodeDateText != null
+          ? ' • ${detail.nextEpisodeDateText}'
+          : '';
+      chips.add(Chip(
+        avatar:
+            const Icon(Icons.alarm, color: Colors.lightGreenAccent, size: 16),
+        label: Text('Épisode ${detail.nextEpisodeNumber}$dateText'),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+      ));
+    }
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        children: chips,
       ),
     );
   }
@@ -1155,6 +1247,84 @@ class _EpisodeChip extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Section Œuvres similaires (refonte Anime-Sama)
+// ---------------------------------------------------------------------------
+
+class _SimilarAnimeSection extends StatelessWidget {
+  final List<AnimeSamaCatalogueItem> similars;
+
+  const _SimilarAnimeSection({required this.similars});
+
+  @override
+  Widget build(BuildContext context) {
+    if (similars.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 24),
+        Text(
+          'Œuvres similaires',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 195,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: similars.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final it = similars[index];
+              return SizedBox(
+                width: 110,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => MediaDetailPage(
+                          mediaId: animeSamaIdForSlug(it.slug),
+                          displayTitle: it.title,
+                        ),
+                      ),
+                    );
+                  },
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: SizedBox(
+                          width: 110,
+                          height: 145,
+                          child: AnimeSamaImage(
+                            slug: it.slug,
+                            fallbackUrl: it.cover,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        it.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

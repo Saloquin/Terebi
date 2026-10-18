@@ -12,6 +12,16 @@ import 'package:html/parser.dart' as html_parser;
 const _cdnCoverExts = ['webp', 'jpg', 'png'];
 const _cdnBannerExts = ['jpg', 'webp', 'png'];
 
+/// Retire les accents français basiques pour normaliser les clés/balises.
+String _stripAccents(String s) => s
+    .toLowerCase()
+    .replaceAll(RegExp(r'[éèêë]'), 'e')
+    .replaceAll(RegExp(r'[àâä]'), 'a')
+    .replaceAll(RegExp(r'[îï]'), 'i')
+    .replaceAll(RegExp(r'[ôö]'), 'o')
+    .replaceAll(RegExp(r'[ûüù]'), 'u')
+    .replaceAll(RegExp(r'[ç]'), 'c');
+
 /// Normalise un texte pour matching (minuscule alphanumérique). Port de `_norm`.
 String normText(String text) =>
     text.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
@@ -80,40 +90,93 @@ List<String> normalizeGenres(List<String> raw) {
   return out;
 }
 
-/// Détail scrapé d'une fiche : titre, synopsis, genres.
+/// Détail scrapé d'une fiche : titre, synopsis, genres et métadonnées enrichies (refonte Anime-Sama).
 class CatalogueDetailData {
   final String slug;
   final String title;
+  final String? alternativeTitles;
   final String? synopsis;
   final List<String> genres;
+  final String? posterUrl;
+  final String? bannerUrl;
+  final double? score;
+  final int? anilistId;
+  final int? malId;
+  final int? tmdbId;
+  final String? korboUrl;
+  final String? trailerYoutubeId;
+  final String? format;
+  final String? status;
+  final String? releaseDate;
+  final String? seasonPeriod;
+  final int? totalEpisodes;
+  final String? studio;
+  final String? broadcastChannels;
+  final String? authors;
+  final int? nextEpisodeNumber;
+  final int? nextEpisodeTimestamp;
+  final String? nextEpisodeDateText;
+  final List<CatalogueCard> similarAnime;
+
   const CatalogueDetailData({
     required this.slug,
     required this.title,
+    this.alternativeTitles,
     this.synopsis,
     this.genres = const [],
+    this.posterUrl,
+    this.bannerUrl,
+    this.score,
+    this.anilistId,
+    this.malId,
+    this.tmdbId,
+    this.korboUrl,
+    this.trailerYoutubeId,
+    this.format,
+    this.status,
+    this.releaseDate,
+    this.seasonPeriod,
+    this.totalEpisodes,
+    this.studio,
+    this.broadcastChannels,
+    this.authors,
+    this.nextEpisodeNumber,
+    this.nextEpisodeTimestamp,
+    this.nextEpisodeDateText,
+    this.similarAnime = const [],
   });
 }
 
-/// Parse le HTML d'une fiche `/catalogue/<slug>/`. Port EXACT de
-/// `action_catalogue_detail` (partie parsing : h1, #synopsisText, genres).
+/// Parse le HTML d'une fiche `/catalogue/<slug>/`. Supporte à la fois
+/// le nouveau design Anime-Sama (.oe-*) et l'ancien design (h1, #synopsisText).
 CatalogueDetailData parseCatalogueDetail(String htmlContent, String slug) {
   var title = slug;
   String? synopsis;
   var genres = <String>[];
 
   final doc = html_parser.parse(htmlContent);
-  final h1 = doc.querySelector('h1');
-  if (h1 != null && h1.text.trim().isNotEmpty) {
-    title = h1.text.trim();
+
+  // Titre principal
+  final titleEl = doc.querySelector('#titreOeuvre, h1.oe-titre, h1');
+  if (titleEl != null && titleEl.text.trim().isNotEmpty) {
+    title = titleEl.text.trim();
   }
 
-  final synEl = doc.querySelector('#synopsisText');
-  if (synEl != null) {
+  // Titres alternatifs (#titreAlter)
+  final alterEl = doc.querySelector('#titreAlter, .oe-alters');
+  final alternativeTitles = (alterEl != null && alterEl.text.trim().isNotEmpty)
+      ? alterEl.text.trim()
+      : null;
+
+  // Synopsis
+  final synEl = doc.querySelector('#synopsisText, .oe-synopsis p, .synopsis');
+  if (synEl != null && synEl.text.trim().isNotEmpty) {
     synopsis = synEl.text.trim();
   }
 
+  // Genres
   final pills = doc
-      .querySelectorAll('.genres-wrap .genre-pill, .genre-pill')
+      .querySelectorAll('.oe-genres .genre-pill, .genres-wrap .genre-pill, .genre-pill')
       .map((e) => e.text.trim())
       .where((s) => s.isNotEmpty)
       .toList();
@@ -121,8 +184,147 @@ CatalogueDetailData parseCatalogueDetail(String htmlContent, String slug) {
     genres = normalizeGenres(pills);
   }
 
+  // Affiche / Cover HD (TMDB / CDN) & Bannière
+  final posterEl = doc.querySelector('.oe-affiche img');
+  final posterUrl = posterEl?.attributes['src']?.trim();
+
+  final bannerEl = doc.querySelector('.oe-fond img');
+  final bannerUrl = bannerEl?.attributes['src']?.trim();
+
+  // Note / Score (ex: 6,8 / 10 sur AniList)
+  double? score;
+  final scoreEl = doc.querySelector('.oe-notes .oe-note b, .oe-note b');
+  if (scoreEl != null) {
+    final clean = scoreEl.text.trim().replaceAll(',', '.');
+    score = double.tryParse(clean);
+  }
+
+  // Liens externes (AniList, MyAnimeList, TMDB, Korbo)
+  int? anilistId;
+  int? malId;
+  int? tmdbId;
+  String? korboUrl;
+
+  for (final a in doc.querySelectorAll('a[href]')) {
+    final href = a.attributes['href'] ?? '';
+    if (anilistId == null && href.contains('anilist.co/anime/')) {
+      final m = RegExp(r'anilist\.co/anime/(\d+)').firstMatch(href);
+      if (m != null) anilistId = int.tryParse(m.group(1)!);
+    }
+    if (malId == null && href.contains('myanimelist.net/anime/')) {
+      final m = RegExp(r'myanimelist\.net/anime/(\d+)').firstMatch(href);
+      if (m != null) malId = int.tryParse(m.group(1)!);
+    }
+    if (tmdbId == null && href.contains('themoviedb.org/')) {
+      final m = RegExp(r'themoviedb\.org/(?:tv|movie)/(\d+)').firstMatch(href);
+      if (m != null) tmdbId = int.tryParse(m.group(1)!);
+    }
+    if (korboUrl == null && href.contains('korbo.fr/oeuvre/')) {
+      korboUrl = href.trim();
+    }
+  }
+
+  // Bande-annonce YouTube
+  final ytBtn = doc.querySelector('button[data-youtube], .btn-ba[data-youtube]');
+  final trailerYoutubeId = ytBtn?.attributes['data-youtube']?.trim();
+
+  // Liste de métadonnées (dl.oe-infos)
+  final infoMap = <String, String>{};
+  final dl = doc.querySelector('dl.oe-infos');
+  if (dl != null) {
+    final dts = dl.querySelectorAll('dt');
+    final dds = dl.querySelectorAll('dd');
+    final count = dts.length < dds.length ? dts.length : dds.length;
+    for (var i = 0; i < count; i++) {
+      final key = normText(_stripAccents(dts[i].text));
+      infoMap[key] = dds[i].text.trim();
+    }
+  }
+
+  final format = infoMap['format'];
+  final status = infoMap['statut'];
+  final releaseDate = infoMap['diffusion'];
+  final seasonPeriod = infoMap['saison'];
+  final epStr = infoMap['episodes'];
+  final totalEpisodes = epStr != null ? int.tryParse(epStr) : null;
+  final studio = infoMap['studio'];
+  final broadcastChannels = infoMap['chaine'];
+  final authors = infoMap['createur'];
+
+  // Prochain épisode (.oe-prochain)
+  int? nextEpisodeTimestamp;
+  int? nextEpisodeNumber;
+  String? nextEpisodeDateText;
+
+  final prochainEl = doc.querySelector('.oe-prochain');
+  if (prochainEl != null) {
+    final tsStr = prochainEl.attributes['data-heure']?.trim();
+    if (tsStr != null) nextEpisodeTimestamp = int.tryParse(tsStr);
+
+    final titreEl = prochainEl.querySelector('.oe-prochain-titre');
+    if (titreEl != null) {
+      final m = RegExp(r'(\d+)').firstMatch(titreEl.text);
+      if (m != null) nextEpisodeNumber = int.tryParse(m.group(1)!);
+    }
+
+    final dateEl = prochainEl.querySelector('.oe-prochain-date');
+    if (dateEl != null) {
+      nextEpisodeDateText = dateEl.text.trim();
+    }
+  }
+
+  // Œuvres similaires (#containerSimilaires)
+  final similarAnime = <CatalogueCard>[];
+  for (final card in doc.querySelectorAll(
+      '#containerSimilaires .as-carte, #containerSimilaires .as-carte-oeuvre')) {
+    final nom = (card.attributes['data-nom'] ?? '').trim().isNotEmpty
+        ? card.attributes['data-nom']!.trim()
+        : (card.querySelector('.as-carte-titre, h3')?.text.trim() ?? '');
+    final a = card.querySelector('a[href]');
+    final href = card.attributes['data-url'] ?? a?.attributes['href'] ?? '';
+    final cardSlug = slugFromUrl(href);
+    if (nom.isEmpty || cardSlug.isEmpty) continue;
+    final img = card.attributes['data-img'] ??
+        card.querySelector('img')?.attributes['src'] ??
+        cdnImageUrl(cardSlug);
+    final fullUrl = href.startsWith('http')
+        ? href
+        : 'https://anime-sama.to${href.startsWith('/') ? href : '/$href'}';
+    similarAnime.add(CatalogueCard(
+      title: nom,
+      url: fullUrl,
+      slug: cardSlug,
+      coverUrl: img,
+    ));
+  }
+
   return CatalogueDetailData(
-      slug: slug, title: title, synopsis: synopsis, genres: genres);
+    slug: slug,
+    title: title,
+    alternativeTitles: alternativeTitles,
+    synopsis: synopsis,
+    genres: genres,
+    posterUrl: posterUrl,
+    bannerUrl: bannerUrl,
+    score: score,
+    anilistId: anilistId,
+    malId: malId,
+    tmdbId: tmdbId,
+    korboUrl: korboUrl,
+    trailerYoutubeId: trailerYoutubeId,
+    format: format,
+    status: status,
+    releaseDate: releaseDate,
+    seasonPeriod: seasonPeriod,
+    totalEpisodes: totalEpisodes,
+    studio: studio,
+    broadcastChannels: broadcastChannels,
+    authors: authors,
+    nextEpisodeNumber: nextEpisodeNumber,
+    nextEpisodeTimestamp: nextEpisodeTimestamp,
+    nextEpisodeDateText: nextEpisodeDateText,
+    similarAnime: similarAnime,
+  );
 }
 
 /// Une carte de catalogue (titre + slug + genres + cover).
@@ -143,10 +345,62 @@ class CatalogueCard {
 
 
 /// Parse les cartes d'un fragment de catalogue. Port de `_cards_from_html`.
+/// Supporte la refonte Anime-Sama (.as-carte / .as-carte-oeuvre) et l'ancien format.
 List<CatalogueCard> parseCards(String htmlContent, String domain) {
   final doc = html_parser.parse(htmlContent);
   final items = <CatalogueCard>[];
 
+  // 1) Refonte Anime-Sama : cartes structurées .as-carte / .as-carte-oeuvre
+  final asCards = doc.querySelectorAll('.as-carte, .as-carte-oeuvre');
+  if (asCards.isNotEmpty) {
+    final seenSlugs = <String>{};
+    for (final card in asCards) {
+      final aTag = card.querySelector('a[href]');
+      final href = card.attributes['data-url'] ?? aTag?.attributes['href'] ?? '';
+      final slug = slugFromUrl(href);
+      if (slug.isEmpty || slug == 'catalogue' || seenSlugs.contains(slug)) continue;
+
+      // Filtre les scans purs s'il y a un badge Scan et pas de badge Anime
+      final badges = card
+          .querySelectorAll('.as-badge')
+          .map((b) => b.text.trim().toLowerCase())
+          .toList();
+      if (badges.isNotEmpty &&
+          badges.contains('scans') &&
+          !badges.contains('anime')) {
+        continue;
+      }
+
+      final title = (card.attributes['data-nom'] ?? '').trim().isNotEmpty
+          ? card.attributes['data-nom']!.trim()
+          : (card.querySelector('.as-carte-titre, h3, h2, .card-title')?.text.trim() ?? '');
+      if (title.isEmpty) continue;
+
+      seenSlugs.add(slug);
+
+      final imgEl = card.querySelector('img');
+      final coverSrc = card.attributes['data-img']?.trim() ??
+          imgEl?.attributes['src']?.trim();
+      final coverUrl = (coverSrc != null && coverSrc.isNotEmpty)
+          ? coverSrc
+          : cdnImageUrl(slug);
+
+      final fullUrl = href.startsWith('http')
+          ? href
+          : 'https://$domain${href.startsWith('/') ? href : '/$href'}';
+
+      items.add(CatalogueCard(
+        title: title,
+        url: fullUrl,
+        slug: slug,
+        coverUrl: coverUrl,
+        genres: const [],
+      ));
+    }
+    if (items.isNotEmpty) return items;
+  }
+
+  // 2) Rétro-compatibilité : ancien format avec a[href*="/catalogue/"]
   for (final card in doc.querySelectorAll('a[href*="/catalogue/"]')) {
     final href = card.attributes['href'] ?? '';
     final slugMatch = RegExp(r'/catalogue/([^/"]+)').firstMatch(href);

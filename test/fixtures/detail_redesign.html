@@ -1,0 +1,871 @@
+<!doctype html>
+<html lang="fr">
+
+	<head>
+		
+
+<!-- Meta Tags -->
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="robots" content="index, nofollow">
+
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-QK64GJ58E9"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-QK64GJ58E9');
+</script>
+
+<!-- Favicon -->
+<link rel="icon" type="image/png" sizes="32x32" href="/img/opti/icon.png?v=5">
+<link rel="apple-touch-icon" sizes="180x180" href="/img/appli/icone-apple-180.png">
+<!-- Appli (PWA) : description, couleur, icône ; installation gérée par js/defaut/appli.js -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#020306">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Anime-Sama">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="stylesheet" href="/css/appli.css?v=1792337067">
+<script defer src="/js/defaut/appli.js?v=1792337072"></script>
+
+<link rel="icon" href="/img/favicon.ico?v=4">
+
+<!-- CSS -->
+<!-- Anti-miroirs : si la page s'affiche sur un domaine qui n'est pas le nôtre, retour au vrai site (liste : /config/domaines.php) -->
+<script>(function(){var ok=["anime-sama.to","anime-sama.tv","anime-sama.si","anime-sama.org"],h=location.hostname.replace(/^www\./,'');if(ok.indexOf(h)===-1&&!/^(localhost|127\.0\.0\.1)$/.test(h)){location.replace('https://anime-sama.to'+location.pathname+location.search+location.hash);}})();</script>
+<link rel="preload" href="/fonts/outfit-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/tailwind.css?v=1792337070">
+<link rel="stylesheet" href="/css/defaut.css?v=1792337069">
+<link rel="stylesheet" href="/css/carte.css?v=1792338196">
+<!-- Fond d'écran choisi dans le footer (appliqué avant l'affichage pour éviter un flash) -->
+<script>try{var fondSite=localStorage.getItem('fondSite');if(fondSite)document.documentElement.setAttribute('data-fond',fondSite);}catch(e){}</script>
+<!-- jQuery & JS -->
+<script src="/js/libs/jquery.min.js?v=3.7.1"></script>
+<script defer src="/js/defaut/defaut.js?v=1792337073"></script>
+<script defer src="/js/defaut/rangees.js?v=1792233832"></script>
+<!-- Cartes du site : menu ⋯ (Watchlist / Favoris / Vu) et webtoons en couleur -->
+<script defer src="/js/defaut/carte.js?v=1792338196"></script>
+
+<!-- Adcash -->
+<script id="aclib" type="text/javascript" async src="//acscdn.com/script/aclib.js"></script>
+
+<!-- NAV BAR -->
+<nav class="asn-navbar">
+    <!-- Menu burger mobile -->
+    <button class="asn-burger">
+        <svg class="w-6 h-6" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+            <path d="M0 3h20v2H0V3zm0 6h20v2H0V9zm0 6h20v2H0v-2z"></path>
+        </svg>
+    </button>
+
+    <!-- Searchbar mobile -->
+    <div class="asn-mobile-search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z" />
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clip-rule="evenodd" />
+        </svg>
+        <input name="search_text" type="search" placeholder="Rechercher..." autocomplete="off" spellcheck="false"/>
+    </div>
+    <!-- Mobile Results (outside search box) -->
+    <div id="asn-result-mobile"></div>
+
+    <!-- Logo -->
+    <a href="/" class="asn-logo">
+        <img class="asn-logo-desktop" src="/img/opti/logo_banniere.webp" alt="Anime-Sama"/>
+        <img class="asn-logo-mobile" src="/img/opti/logo.webp" alt="Anime-Sama"/>
+    </a>
+
+    <!-- Donate -->
+    <a href="https://www.paypal.com/donate/?hosted_button_id=3FBNLMGT3JAJ2" class="asn-donate-btn">
+        <img src="/img/opti/flag_pal.webp" alt="PayPal"/>
+    </a>
+
+    <!-- Social Discord -->
+    <a href="https://discord.gg/mKbYYbmxY8" class="asn-social-link">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16">
+            <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
+        </svg>
+    </a>
+
+    <!-- Social X -->
+    <a href="https://x.com/anime_samafr" class="asn-social-link">
+        <svg viewBox="0 0 1200 1227" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" fill="currentColor"/>
+        </svg>
+    </a>
+
+    <!-- Desktop Navigation -->
+    <div class="asn-nav-desktop">
+        <!-- Search -->
+        <div class="asn-desktop-search">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M9 9a2 2 0 114 0 2 2 0 01-4 0z" />
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a4 4 0 00-3.446 6.032l-2.261 2.26a1 1 0 101.414 1.415l2.261-2.261A4 4 0 1011 5z" clip-rule="evenodd" />
+            </svg>
+            <input name="search_text" type="search" placeholder="Rechercher une œuvre..." autocomplete="off" spellcheck="false"/>
+            <div id="asn-result-desktop"></div>
+        </div>
+
+        <!-- Catalogue -->
+        <a href="/catalogue" class="asn-nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+            </svg>
+            <span>Catalogue</span>
+        </a>
+
+        <!-- Planning -->
+        <a href="/planning" class="asn-nav-link">
+			<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M12.75 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM7.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM8.25 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM9.75 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM10.5 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12.75 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM14.25 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 13.5a.75.75 0 100-1.5.75.75 0 000 1.5z" />
+				<path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zm13.5 9a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5z" clip-rule="evenodd" />
+			</svg>
+            <span>Planning</span>
+        </a>
+
+        <!-- Aide -->
+        <a href="/aide" class="asn-nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 0 1-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 0 1-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 0 1-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584ZM12 18a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />
+            </svg>
+            <span>Aide</span>
+        </a>
+
+        <!-- Profil -->
+        <a href="/profil" class="asn-nav-link">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd" />
+            </svg>
+            <span>Profil (Déconnecté)</span>        </a>
+    </div>
+</nav>
+
+<!-- MOBILE MENU DRAWER -->
+<div class="asn-mobile-menu">
+    <div class="asn-menu-backdrop"></div>
+    
+    <nav class="asn-menu-panel">
+        <div class="asn-menu-nav">
+            <a href="/catalogue">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M7 3a1 1 0 000 2h6a1 1 0 100-2H7zM4 7a1 1 0 011-1h10a1 1 0 110 2H5a1 1 0 01-1-1zM2 11a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H4a2 2 0 01-2-2v-4z" />
+                </svg>
+                <span>Catalogue</span>
+            </a>
+            <a href="/planning">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M12.75 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM7.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM8.25 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM9.75 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM10.5 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM12.75 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM14.25 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 17.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 15.75a.75.75 0 100-1.5.75.75 0 000 1.5zM15 12.75a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM16.5 13.5a.75.75 0 100-1.5.75.75 0 000 1.5z" />
+					<path fill-rule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zm13.5 9a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5z" clip-rule="evenodd" />
+				</svg>
+                <span>Planning</span>
+            </a>
+            <a href="/aide">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                    <path fill-rule="evenodd" d="M2.25 12c0-5.385 4.365-9.75 9.75-9.75s9.75 4.365 9.75 9.75-4.365 9.75-9.75 9.75S2.25 17.385 2.25 12Zm11.378-3.917c-.89-.777-2.366-.777-3.255 0a.75.75 0 0 1-.988-1.129c1.454-1.272 3.776-1.272 5.23 0 1.513 1.324 1.513 3.518 0 4.842a3.75 3.75 0 0 1-.837.552c-.676.328-1.028.774-1.028 1.152v.75a.75.75 0 0 1-1.5 0v-.75c0-1.279 1.06-2.107 1.875-2.502.182-.088.351-.199.503-.331.83-.727.83-1.857 0-2.584ZM12 18a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z" clip-rule="evenodd" />
+                </svg>
+                <span>Aide</span>
+            </a>
+
+            <a href="https://discord.gg/mKbYYbmxY8">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16">
+                    <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
+                </svg>
+                <span>Discord</span>
+            </a>
+
+            <a href="https://x.com/anime_samafr">
+                <svg viewBox="0 0 1200 1227" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z" fill="currentColor"/>
+                </svg>
+                <span>X</span>
+            </a>
+
+            <a href="/profil">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd" />
+                </svg>
+                <span>Profil (Déconnecté)</span>            </a>
+        </div>
+    </nav>
+</div>
+
+<!-- Scroll to Top Button -->
+<div style="z-index:300;" id="scrollProgressWrapper">
+    <svg id="scrollProgressSvg" width="60" height="60" viewBox="0 0 60 60" class="absolute top-0 left-0 z-10" style="opacity: 1; transition: opacity 0.3s ease; pointer-events: none;">
+        <circle cx="30" cy="30" r="26" stroke="#0c4a6e" stroke-width="4" fill="none" stroke-linecap="round" />
+    </svg>
+
+	<button onclick="topFunction()" id="topBtn" style="background: rgba(39, 56, 70, 0.3);" class="pointer-events-auto rounded-full p-2 w-12 h-12 flex items-center justify-center hover:opacity-80 transition-all duration-200 z-20 relative">
+		<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-black" viewBox="0 0 20 20" fill="currentColor">
+		<path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+		</svg>
+	</button>
+</div>
+		<meta name="keywords" content="The Exiled Heavy Knight Knows How to Game the System, The Exiled Reincarnated Heavy Knight Is Unrivaled in Game Knowledge, Tsuihou Sareta Tensei Juukishi wa Game Chishiki de Musou Suru, anime-sama, anime, scan, anime sama, vostfr, vf, streaming, streaming vostfr, streaming vf, sans pubs, streaming sans pubs, streaming scan">
+		<meta name="description" content="Lors de la Cérémonie de Bénédiction, Elma, 15 ans, issus d'une famille noble où coule le sang des Saints de l'Épée, se manifeste en tant que Chevalier Lourd. C'est une classe typiquement infortunée, par conséquence il se voit privé de sa position de futur chef de famille et est banni. Les Chevaliers Lourds ont des statistiques déséquilibrées et des compétences soit-disant inutiles. En plus de cela, on dit même que c'est une classe réservée aux lâches et aux paresseux. Mais Elma savait tout cela, car il est dans le monde du jeu auquel il avait participé auparavant, et le Chevalier Lourd est la classe la plus puissante ! Elma commence alors à utiliser pleinement les connaissances qu'il a acquises avant sa mort pour conquérir efficacement ce monde !">
+		<meta property="og:image" content="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/the-exiled-heavy-knight-knows-how-to-game-the-system.jpg"/>
+		<meta property="og:image:width" content="800">
+		<meta property="og:image:height" content="450">
+		<meta property="og:image:type" content="image/jpeg"/>
+		<meta itemprop="image" content="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/the-exiled-heavy-knight-knows-how-to-game-the-system.jpg"/>
+		<title>The Exiled Heavy Knight Knows How to Game the System | Anime-Sama - Streaming et catalogage d'animes et scans.</title>
+		<link rel="canonical" href="/catalogue/the-exiled-heavy-knight-knows-how-to-game-the-system" />
+		<script type="text/javascript" src='../../js/contenu/script_oeuvre.js?filever=12018'defer></script>
+
+	</head>
+
+	<body>
+
+		<div id="blocEntier" class="grid grid-cols-8 pb-16">
+
+	<div id="sousBlocLeft" style="margin-top: 600px; margin-left: 20px;" class="hidden lg:block">
+		<div id="bannLeft" class="ad-container">
+		<span class="ad-label">Publicité</span>
+			<a href="https://korbo.fr/jeux/animedle?utm_source=anime-sama&utm_medium=banniere&utm_campaign=animedle-sky" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/korbo_animedle_skyscraper.png" alt="Korbo - Skyscraper Animedle" loading="lazy" style="max-width:100%; height:auto; border-radius:6px;"></a>
+			<div class="ad-content"><script type="text/javascript">aclib.runBanner({zoneId: '8653010',});</script></div>
+			<a href="https://www.eneba.com/fr/?af_id=Leynoor&currency=EUR&region=global" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/eneba_skyscraper.jpg" alt="Eneba - Jeux moins chers" loading="lazy" style="max-width:100%; height:auto; border-radius:6px;"></a>
+		</div>
+	</div>
+
+	<div id="sousBlocMiddle" class="col-span-8 mx-3 lg:col-span-6 lg:mx-0 mt-6 z-20">
+			<div class="mx-3 md:mx-10">
+
+				<link rel="stylesheet" href="/css/cards.css?v=1792233831">
+<link rel="stylesheet" href="/css/oeuvre.css?v=1792337068">
+<script defer src="/js/contenu/oeuvre.js?v=1792262921"></script>
+
+<script>
+/* Cartes des saisons / scans, appelées depuis l'index.php de chaque œuvre :
+   panneauAnime("nom", "saison1/vostfr"); panneauScan("nom", "scan/vf"); */
+var OE_BASE = "\/catalogue\/the-exiled-heavy-knight-knows-how-to-game-the-system\/";
+var OE_IMG = "https:\/\/cdn.jsdelivr.net\/gh\/Anime-Sama\/IMG@img\/contenu\/thumb\/the-exiled-heavy-knight-knows-how-to-game-the-system.webp";
+function oePanneau(nom, url, scan) {
+    var e = function (s) { return String(s).replace(/[&<>"]/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+    var lien = /^(https?:)?\//.test(url) ? url : OE_BASE + url;
+    document.write('<a href="' + e(lien) + '" class="oe-panneau' + (scan ? ' oe-panneau-scan' : '') + '">'
+        + '<img src="' + e(OE_IMG) + '" alt="" loading="lazy" decoding="async">'
+        + '<span class="oe-panneau-nom' + (nom.length > 30 ? ' oe-long' : '') + '">' + e(nom) + '</span></a>');
+}
+function panneauAnime(nom, url) { oePanneau(nom, url, false); }
+function panneauScan(nom, url) { oePanneau(nom, url, true); }
+</script>
+
+<div class="oe-page">
+
+<!-- ============ EN-TÊTE ============ -->
+<section class="oe-hero">
+    <div class="oe-fond" aria-hidden="true">
+        <img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/the-exiled-heavy-knight-knows-how-to-game-the-system.jpg" alt="" fetchpriority="high" decoding="async">
+    </div>
+
+    <div class="oe-hero-contenu">
+        <div class="oe-affiche">
+            <img src="https://image.tmdb.org/t/p/w342/flcyEjfwHECnqgXMGNZsajLg1rv.jpg" alt="The Exiled Heavy Knight Knows How to Game the System" decoding="async">
+        </div>
+
+        <div class="oe-tete">
+                        <div class="oe-badges">
+                                                <span class="type-badge">Anime</span>
+                                                            </div>
+            
+            <h1 id="titreOeuvre" class="oe-titre">The Exiled Heavy Knight Knows How to Game the System</h1>
+                        <p id="titreAlter" class="oe-alters">The Exiled Reincarnated Heavy Knight Is Unrivaled in Game Knowledge, Tsuihou Sareta Tensei Juukishi wa Game Chishiki de Musou Suru</p>
+            
+                        <p class="oe-meta">2026<span class="oe-point">·</span>Série TV<span class="oe-point">·</span>GoHands<span class="oe-point">·</span>En cours</p>
+            
+                        <div class="oe-notes">
+                                <a class="oe-note" href="https://anilist.co/anime/180136" target="_blank" rel="noopener" title="Note moyenne sur AniList">
+                    <span class="oe-note-quoi">Anime</span>
+                    <span class="oe-note-etoile"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg></span>
+                    <b>6,8</b><span class="oe-note-sur">/10</span>
+                </a>
+                            </div>
+            
+            <div class="oe-actions">
+                <button id="addWatchlist" class="action-btn btn-watchlist" type="button">
+                    <span id="plusWatchlist"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg></span><span id="checkedWatchlist" class="hidden"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></span>
+                    <span id="textWatchlist">Watchlist</span>
+                </button>
+                <button id="addFavoris" class="action-btn btn-favoris" type="button">
+                    <span id="plusFavoris"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z"/></svg></span><span id="checkedFavoris" class="hidden"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></span>
+                    <span id="textFavoris">Favoris</span>
+                </button>
+                <button id="addVu" class="action-btn btn-vu" type="button">
+                    <span id="plusVu"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span><span id="checkedVu" class="hidden"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg></span>
+                    <span id="textVu">Vu</span>
+                </button>
+                                <button class="action-btn btn-ba" type="button" data-youtube="ZyJA7hswtv0">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/></svg><span>Bande-annonce</span>
+                </button>
+                            </div>
+        </div>
+    </div>
+</section>
+<!-- Image utilisée par la watchlist / les favoris (format paysage, comme sur le profil) -->
+<img id="imgOeuvre" src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/the-exiled-heavy-knight-knows-how-to-game-the-system.webp" alt="" hidden>
+
+<!-- ============ CORPS : colonne principale + colonne d'infos ============ -->
+<div class="oe-corps">
+
+    <aside class="oe-cote">
+                <div class="oe-bloc oe-prochain" data-heure="1792682760">
+            <span class="oe-prochain-icone"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg></span>
+            <div>
+                <p class="oe-prochain-titre">Épisode 17 <span class="oe-prochain-dans"></span></p>
+                <p class="oe-prochain-date">Diffusion au Japon le <span class="oe-prochain-jour">22/10/2026</span></p>
+            </div>
+        </div>
+        
+                <div class="oe-bloc">
+            <h3 class="oe-bloc-titre">Informations</h3>
+                                    <dl class="oe-infos">
+                                <dt>Format</dt><dd>Série TV</dd>
+                                <dt>Statut</dt><dd>En cours</dd>
+                                <dt>Diffusion</dt><dd>3 juil. 2026</dd>
+                                <dt>Saison</dt><dd>Été 2026</dd>
+                                <dt>Épisodes</dt><dd>26</dd>
+                                <dt>Studio</dt><dd>GoHands</dd>
+                                <dt>Chaîne</dt><dd>MBS, TBS</dd>
+                                <dt>Créateur</dt><dd>Nekoko, Lee Brocco</dd>
+                            </dl>
+                                </div>
+        
+                <div class="oe-bloc">
+            <h3 class="oe-bloc-titre">Sur les autres sites</h3>
+            <ul class="oe-liens">
+                                <li><a href="https://anilist.co/anime/180136" target="_blank" rel="noopener nofollow">
+                    <img class="oe-lien-logo" src="/img/logos/anilist.png" alt="" width="28" height="28" loading="lazy">
+                    <span class="oe-lien-nom">AniList</span>
+                    <span class="oe-lien-quoi">Anime</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>                </a></li>
+                                <li><a href="https://myanimelist.net/anime/59741" target="_blank" rel="noopener nofollow">
+                    <img class="oe-lien-logo" src="/img/logos/mal.svg" alt="" width="28" height="28" loading="lazy">
+                    <span class="oe-lien-nom">MyAnimeList</span>
+                    <span class="oe-lien-quoi">Anime</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>                </a></li>
+                                <li><a href="https://www.themoviedb.org/tv/270603" target="_blank" rel="noopener nofollow">
+                    <img class="oe-lien-logo" src="/img/logos/tmdb.png" alt="" width="28" height="28" loading="lazy">
+                    <span class="oe-lien-nom">TMDB</span>
+                    <span class="oe-lien-quoi">Série</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>                </a></li>
+                                <li><a href="https://korbo.fr/oeuvre/the-exiled-heavy-knight-knows-how-to-game-the-system" target="_blank" rel="noopener nofollow">
+                    <img class="oe-lien-logo" src="/img/logos/korbo.svg" alt="" width="28" height="28" loading="lazy">
+                    <span class="oe-lien-nom">Korbo</span>
+                    <span class="oe-lien-quoi">Fiche</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"/></svg>                </a></li>
+                            </ul>
+        </div>
+            </aside>
+
+    <div class="oe-principal">
+
+        
+                <div class="oe-planning">
+            <p class="oe-planning-titre"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>Au planning</p>
+            <ul>
+                                <li><a href="/catalogue/the-exiled-heavy-knight-knows-how-to-game-the-system/saison1/vostfr/">
+                    <span class="oe-planning-jour">Jeudi</span>
+                    <span class="oe-planning-quoi">
+                        <b>Saison 1</b>
+                        <span class="oe-planning-langue"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="" loading="lazy">VOSTFR</span>                                            </span>
+                    <span class="oe-planning-quand">
+                        Prochain : le 22 oct. à 18h20                    </span>
+                </a></li>
+                            </ul>
+        </div>
+        
+        <h2 class="oe-h2">Synopsis</h2>
+        <div class="oe-synopsis">
+            <p id="synopsisText" class="oe-replie">Lors de la Cérémonie de Bénédiction, Elma, 15 ans, issus d'une famille noble où coule le sang des Saints de l'Épée, se manifeste en tant que Chevalier Lourd. C'est une classe typiquement infortunée, par conséquence il se voit privé de sa position de futur chef de famille et est banni. Les Chevaliers Lourds ont des statistiques déséquilibrées et des compétences soit-disant inutiles. En plus de cela, on dit même que c'est une classe réservée aux lâches et aux paresseux. Mais Elma savait tout cela, car il est dans le monde du jeu auquel il avait participé auparavant, et le Chevalier Lourd est la classe la plus puissante ! Elma commence alors à utiliser pleinement les connaissances qu'il a acquises avant sa mort pour conquérir efficacement ce monde !</p>
+            <button type="button" class="oe-voir-plus" data-cible="synopsisText" hidden>Voir plus</button>
+        </div>
+
+        
+                <div class="oe-genres">
+                        <a class="genre-pill" href="/catalogue/?genre[]=Action">Action</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Aventure">Aventure</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Drame">Drame</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Fantasy">Fantasy</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Isekai">Isekai</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Autre+monde">Autre monde</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Magie">Magie</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=Monstres">Monstres</a>
+                        <a class="genre-pill" href="/catalogue/?genre[]=R%C3%A9incarnation+%2F+Transmigration">Réincarnation / Transmigration</a>
+                    </div>
+        
+        <!-- Les sections Anime / Manga de l'œuvre suivent (index.php de l'œuvre) -->
+
+				<!-- ANIME -->
+				<h2 class="text-white text-xl font-bold uppercase border-b-2 mt-5 border-slate-500">Anime</h2>
+				<div class="flex flex-wrap overflow-y-hidden justify-start bg-slate-900 bg-opacity-70 rounded mt-2 h-auto">
+					<script>
+					/*panneauAnime("nom", "url"); -> on en met autant qu'on veut à la ligne*/
+					panneauAnime("Saison 1", "saison1/vostfr");
+					/*panneauAnime("Saison 2", "saison2/vostfr");
+					panneauAnime("Saison 3", "saison3/vostfr");
+					panneauAnime("Saison 4", "saison4/vostfr");
+					panneauAnime("Saison 5", "saison5/vostfr");
+					panneauAnime("Saison 6", "saison6/vostfr");
+					panneauAnime("Saison 7", "saison7/vostfr");
+					panneauAnime("Saison 8", "saison8/vostfr");
+					panneauAnime("Saison 9", "saison9/vostfr");
+					panneauAnime("Saison 10", "saison10/vostfr");
+					panneauAnime("Film", "film/vostfr");
+					panneauAnime("OAV", "oav/vostfr");*/
+					</script>
+				</div>
+
+				<!-- MANGA
+				<h2 class="text-white text-xl font-bold uppercase border-b-2 mt-5 border-slate-500">Manga</h2>
+				<div class="flex flex-wrap overflow-y-hidden justify-start bg-slate-900 bg-opacity-70 rounded mt-2 h-auto">
+					<script>
+					/*panneauScan("nom", "url"); -> on en met autant qu'on veut à la ligne*/
+					panneauScan("Scans", "scan/vf");
+					</script>
+				</div> -->
+
+				
+    </div><!-- /.oe-principal -->
+
+        <!-- Sous les informations sur téléphone, sous le contenu sur ordinateur -->
+    <div class="oe-suite">
+
+                <h2 class="oe-h2">Personnages <span class="oe-h2-detail">et leurs doubleurs japonais</span></h2>
+        <div class="oe-rangee scrollBarStyled grabScroll">
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/b277688-HqhBRnSIvnMQ.png" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n128426-uB8KFqVLbogF.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Elymas Edvan</p>
+                <p class="oe-perso-detail">Takeo Ootsuka</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/b344248-yIAlePtvhgoo.png" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n148220-Tj3U7jdXZehG.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Luce Rubis</p>
+                <p class="oe-perso-detail">Shion Wakayama</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/b342589-vt9AOwRFeY7B.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n273563-XdhkBSBljCPB.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Maris Edvan</p>
+                <p class="oe-perso-detail">Natsuko Abe</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/b342590-38kAaKVybBVM.png" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n150456-88d5OFEmD4Sj.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Ares</p>
+                <p class="oe-perso-detail">Masahiro Itou</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n303694-JD7zAaUA0lzh.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Teal</p>
+                <p class="oe-perso-detail">Haruki Asada</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n106641-zsyRkJ74NXvE.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Uketsuke-jou</p>
+                <p class="oe-perso-detail">Misaki Kuno</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n122731-nAnzixFo0dLS.jpg" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Cline</p>
+                <p class="oe-perso-detail">Katsumi Fukuhara</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n95395-HpxLuh4ysrzJ.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Goutan</p>
+                <p class="oe-perso-detail">Tetsu Inada</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n105571-Ck9wy1fxMy3N.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Aizas Edvaughn</p>
+                <p class="oe-perso-detail">Kentarou Tone</p>
+            </div>
+                        <div class="oe-perso">
+                <div class="oe-perso-img">
+                    <img src="https://s4.anilist.co/file/anilistcdn/character/medium/default.jpg" alt="" loading="lazy" decoding="async">                    <img class="oe-perso-voix" src="https://s4.anilist.co/file/anilistcdn/staff/medium/n126579-aYXUMZi7ozKD.png" alt="" loading="lazy" decoding="async">                </div>
+                <p class="oe-perso-nom">Reiss</p>
+                <p class="oe-perso-detail">Miyuri Shimabukuro</p>
+            </div>
+                    </div>
+        
+                <h2 class="oe-h2">Équipe</h2>
+        <div class="oe-rangee scrollBarStyled grabScroll">
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <img src="https://s4.anilist.co/file/anilistcdn/staff/medium/n124587-NPaobNdZ0K37.jpg" alt="" loading="lazy" decoding="async">
+                                    </div>
+                <p class="oe-perso-nom">Nekoko</p>
+                <p class="oe-perso-detail">Histoire originale</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <img src="https://s4.anilist.co/file/anilistcdn/staff/medium/125726-YbLhQ4UO2Tk1.jpg" alt="" loading="lazy" decoding="async">
+                                    </div>
+                <p class="oe-perso-nom">Jaian</p>
+                <p class="oe-perso-detail">Character design original</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <img src="https://s4.anilist.co/file/anilistcdn/staff/medium/n105132-V9yqufRjMC2a.png" alt="" loading="lazy" decoding="async">
+                                    </div>
+                <p class="oe-perso-nom">Shingo Suzuki</p>
+                <p class="oe-perso-detail">Réalisation en chef</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <span class="oe-initiale">K</span>
+                                    </div>
+                <p class="oe-perso-nom">Katsumasa Yokomine</p>
+                <p class="oe-perso-detail">Réalisation</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <span class="oe-initiale">T</span>
+                                    </div>
+                <p class="oe-perso-nom">Takayuki Uchida</p>
+                <p class="oe-perso-detail">Character design</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <span class="oe-initiale">K</span>
+                                    </div>
+                <p class="oe-perso-nom">Keiji Tani</p>
+                <p class="oe-perso-detail">Character design</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <span class="oe-initiale">H</span>
+                                    </div>
+                <p class="oe-perso-nom">Hiroshi Ookubo</p>
+                <p class="oe-perso-detail">Main Animator</p>
+            </div>
+                        <div class="oe-perso oe-staff">
+                <div class="oe-perso-img">
+                                        <img src="https://s4.anilist.co/file/anilistcdn/staff/medium/n210858-fAdw1gERaLmw.jpg" alt="" loading="lazy" decoding="async">
+                                    </div>
+                <p class="oe-perso-nom">Tetsuya Gunji</p>
+                <p class="oe-perso-detail">Direction sonore</p>
+            </div>
+                    </div>
+        
+    </div><!-- /.oe-suite -->
+    </div><!-- /.oe-corps -->
+
+
+<h2 class="oe-h2 oe-h2-similaires">Œuvres similaires</h2>
+<div id="containerSimilaires" class="scrollBarStyled grabScroll flex flex-nowrap py-4 overflow-y-hidden mb-6">
+            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/mynoghra/" data-cat="oeuvre" data-nom="Mynoghra" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/mynoghra.jpg"><a class="as-carte-lien" href="/catalogue/mynoghra" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/mynoghra.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Mynoghra">Mynoghra</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/saihate-no-paladin/" data-cat="oeuvre" data-nom="Saihate no Paladin" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/saihate-no-paladin.jpg"><a class="as-carte-lien" href="/catalogue/saihate-no-paladin" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/saihate-no-paladin.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_fr.png" alt="VF" title="VF" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Saihate no Paladin">Saihate no Paladin</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/skeleton-knight-in-another-world/" data-cat="oeuvre" data-nom="Skeleton Knight in Another World" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/skeleton-knight-in-another-world.jpg"><a class="as-carte-lien" href="/catalogue/skeleton-knight-in-another-world" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/skeleton-knight-in-another-world.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Skeleton Knight in Another World">Skeleton Knight in Another World</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/tales-of-wedding-rings/" data-cat="oeuvre" data-nom="Tales of Wedding Rings" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/tales-of-wedding-rings.jpg"><a class="as-carte-lien" href="/catalogue/tales-of-wedding-rings" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/tales-of-wedding-rings.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Tales of Wedding Rings">Tales of Wedding Rings</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/the-worlds-strongest-rearguard/" data-cat="oeuvre" data-nom="The World&#039;s Strongest Rearguard" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/the-worlds-strongest-rearguard.jpg"><a class="as-carte-lien" href="/catalogue/the-worlds-strongest-rearguard" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/the-worlds-strongest-rearguard.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="The World&#039;s Strongest Rearguard">The World&#039;s Strongest Rearguard</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/chillin-in-another-world-with-level-2-super-cheat-powers/" data-cat="oeuvre" data-nom="Chillin&#039; in Another World with Level 2 Super Cheat Powers" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/chillin-in-another-world-with-level-2-super-cheat-powers.jpg"><a class="as-carte-lien" href="/catalogue/chillin-in-another-world-with-level-2-super-cheat-powers" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/chillin-in-another-world-with-level-2-super-cheat-powers.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_fr.png" alt="VF" title="VF" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Chillin&#039; in Another World with Level 2 Super Cheat Powers">Chillin&#039; in Another World with Level 2 Super Cheat Powers</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/dad-is-a-hero-mom-is-a-spirit-im-a-reincarnator/" data-cat="oeuvre" data-nom="Dad Is a Hero, Mom Is a Spirit, I&#039;m a Reincarnator" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/dad-is-a-hero-mom-is-a-spirit-im-a-reincarnator.jpg"><a class="as-carte-lien" href="/catalogue/dad-is-a-hero-mom-is-a-spirit-im-a-reincarnator" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/dad-is-a-hero-mom-is-a-spirit-im-a-reincarnator.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Dad Is a Hero, Mom Is a Spirit, I&#039;m a Reincarnator">Dad Is a Hero, Mom Is a Spirit, I&#039;m a Reincarnator</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/high-school-prodigies-have-it-easy-even-in-another-world/" data-cat="oeuvre" data-nom="High School Prodigies Have It Easy Even in Another World!" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/high-school-prodigies-have-it-easy-even-in-another-world.jpg"><a class="as-carte-lien" href="/catalogue/high-school-prodigies-have-it-easy-even-in-another-world" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/high-school-prodigies-have-it-easy-even-in-another-world.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="High School Prodigies Have It Easy Even in Another World!">High School Prodigies Have It Easy Even in Another World!</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/isekai-yururi-kikou/" data-cat="oeuvre" data-nom="Isekai Yururi Kikou" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/isekai-yururi-kikou.jpg"><a class="as-carte-lien" href="/catalogue/isekai-yururi-kikou" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/isekai-yururi-kikou.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Isekai Yururi Kikou">Isekai Yururi Kikou</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>            <div class="as-carte as-carte-oeuvre" data-url="/catalogue/leadale-no-daichi-nite/" data-cat="oeuvre" data-nom="Leadale no Daichi Nite" data-img="https://raw.githubusercontent.com/Anime-Sama/IMG/img/contenu/leadale-no-daichi-nite.jpg"><a class="as-carte-lien" href="/catalogue/leadale-no-daichi-nite" draggable="false"><div class="as-carte-image"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/thumb/leadale-no-daichi-nite.webp" alt="" loading="lazy" decoding="async" draggable="false"></div><div class="as-carte-badges"><span class="as-badge as-badge-anime">Anime</span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_jp.png" alt="VOSTFR" title="VOSTFR" loading="lazy"></span><span class="as-drapeau"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/flag_fr.png" alt="VF" title="VF" loading="lazy"></span></div><div class="as-carte-texte"><h3 class="as-carte-titre" title="Leadale no Daichi Nite">Leadale no Daichi Nite</h3></div></a><button class="pf-carte-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Actions" title="Actions"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" /></svg></button></div>    </div>
+
+<!-- Bande-annonce (chargée seulement au clic) -->
+<div class="oe-modale" id="oeModale" hidden>
+    <div class="oe-modale-fond" data-fermer></div>
+    <div class="oe-modale-boite" role="dialog" aria-modal="true" aria-label="Bande-annonce">
+        <button type="button" class="oe-modale-fermer" data-fermer aria-label="Fermer">&times;</button>
+        <div class="oe-modale-video"></div>
+    </div>
+</div>
+
+</div><!-- /.oe-page -->
+
+			</div>
+
+			<div id="blocBottom" class="flex flex-col items-center justify-center gap-4 mt-10">
+			<p class="text-sm text-white text-center font-medium opacity-50 pb-2">Cliquer sur une pub est le meilleur moyen de nous soutenir.</p>
+			<div id="bannBot" class="ad-container">
+				<span class="ad-label">Publicité</span>
+					<a href="https://korbo.fr/jeux/animedle?utm_source=anime-sama&utm_medium=banniere&utm_campaign=animedle-lb" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/korbo_animedle_leaderboard.png" alt="Korbo - Leaderboard Animedle" width="728" height="90" loading="lazy" style="max-width:100%; height:auto; border-radius:6px;"></a>
+				<span class="ad-label mt-2">Publicité</span>
+					<a href="https://www.eneba.com/fr/?af_id=Leynoor&currency=EUR&region=global" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/eneba_leaderboard.jpg" alt="Eneba - Jeux moins chers" width="728" height="90" loading="lazy" style="max-width:100%; height:auto; border-radius:6px;"></a>
+				<span class="ad-label mt-2">Publicité</span>
+					<div class="ad-content flex items-center justify-center mt-2"><script type="text/javascript">aclib.runBanner({zoneId: '8653014',});</script></div>
+			</div>
+			<div id="squBot" style="margin-top:5px;" class="ad-container">
+				<span class="ad-label">Publicité</span>
+				<div class="ad-content sm:inline-flex items-center justify-center pt-1">
+					<a href="https://korbo.fr/?utm_source=anime-sama&utm_medium=banniere&utm_campaign=liste-sq" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/korbo_liste_carre.png" alt="Korbo - Square liste" loading="lazy" width="300" height="300" style="max-width:100%; height:auto; border-radius:6px;"></a>
+					<!--<script async data-cfasync="false" data-size="300x250" data-category="common" data-id="dl-banner-300x250" data-zone="7809940" src="//a-zzz.com/btag.min.js"></script>-->
+					<a href="https://www.eneba.com/fr/?af_id=Leynoor&currency=EUR&region=global" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/eneba_square.jpg" alt="Eneba - Jeux moins chers" loading="lazy" width="300" height="300" style="max-width:100%; height:auto; border-radius:6px;"></a>
+					<div><script type="text/javascript">aclib.runBanner({zoneId: '8653002',});</script></div>
+				</div>
+			</div>
+		</div>
+
+	</div>
+	
+	<div id="sousBlocRight" style="margin-top: 600px; margin-left: 30px;" class="hidden lg:block">
+		<div id="bannRight" class="ad-container">
+			<span class="ad-label">Publicité</span>
+			<a href="https://korbo.fr/jeux/blind-test?utm_source=anime-sama&utm_medium=banniere&utm_campaign=blindtest-sky" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/korbo_blindtest_skyscraper.png" alt="Korbo - Skyscraper Blindtest" loading="lazy" style="max-width:100%; height:auto; border-radius:6px;"></a>
+			<div class="ad-content"><script type="text/javascript">aclib.runBanner({zoneId: '8653006',});</script></div>
+			<a href="https://www.eneba.com/fr/?af_id=Leynoor&currency=EUR&region=global" target="_blank"><img src="https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/autres/eneba_skyscraper.jpg" alt="Eneba - Jeux moins chers" loading="lazy" style="max-width:100%; height:auto; border-radius:6px;"></a>
+		</div>
+	</div>
+<!--
+	<div id="bandeau-pubs-nuit" role="status" hidden>
+		<div class="bpn-contenu">
+			<span class="bpn-icone" aria-hidden="true">🌙</span>
+			<p>
+				<strong>Période creuse nocturne (3h–6h)</strong><br>
+				Nous affichons pendant ce créneau quelques publicités intrusives pour financer le site.
+				Vous pouvez utiliser un bloqueur de pubs pour les retirer.
+			</p>
+			<span class="bpn-compteur" aria-hidden="true"></span>
+			<button type="button" class="bpn-fermer" aria-label="Fermer">&times;</button>
+		</div>
+	</div>
+-->
+	<style>
+	#bandeau-pubs-nuit {
+		position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
+		background: #1c2333; color: #e8ecf4;
+		border-top: 2px solid #f0b429;
+		font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.5;
+		box-shadow: 0 -2px 12px rgba(0,0,0,.35);
+		transition: opacity .4s ease, transform .4s ease;
+	}
+	#bandeau-pubs-nuit[hidden] { display: none; }
+	#bandeau-pubs-nuit.bpn-sortie {
+		opacity: 0;
+		transform: translateY(100%);
+	}
+	#bandeau-pubs-nuit .bpn-contenu {
+		max-width: 900px; margin: 0 auto; padding: 14px 18px;
+		display: flex; align-items: center; gap: 14px;
+	}
+	#bandeau-pubs-nuit p { margin: 0; flex: 1; }
+	#bandeau-pubs-nuit strong { color: #f0b429; }
+	#bandeau-pubs-nuit .bpn-icone { font-size: 24px; }
+
+	/* Compteur discret */
+	#bandeau-pubs-nuit .bpn-compteur {
+		font-size: 12px;
+		font-variant-numeric: tabular-nums;
+		color: #5c6678;
+		min-width: 18px;
+		text-align: right;
+		user-select: none;
+	}
+
+	#bandeau-pubs-nuit .bpn-fermer {
+		background: none; border: 0; color: #8a94a6;
+		font-size: 26px; line-height: 1; cursor: pointer; padding: 0 4px;
+	}
+	#bandeau-pubs-nuit .bpn-fermer:hover { color: #e8ecf4; }
+	@media (max-width: 600px) {
+		#bandeau-pubs-nuit .bpn-contenu { padding: 12px 14px; gap: 10px; }
+		#bandeau-pubs-nuit { font-size: 13px; }
+		#bandeau-pubs-nuit .bpn-compteur { font-size: 11px; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		#bandeau-pubs-nuit { transition: none; }
+	}
+	</style>
+
+	<script>
+		/*
+	(function () {
+		var HEURE_DEBUT = 3;
+		var HEURE_FIN   = 6;
+		var DUREE       = 10;   // secondes avant fermeture automatique
+
+		// Heure LOCALE du visiteur, selon les réglages de son appareil
+		var h = new Date().getHours();
+		if (h < HEURE_DEBUT || h >= HEURE_FIN) return;
+
+		// --- Bandeau ---
+		var b = document.getElementById('bandeau-pubs-nuit');
+		if (b && !sessionStorage.getItem('bpn-ferme')) {
+			b.hidden = false;
+
+			var compteur = b.querySelector('.bpn-compteur');
+			var restant  = DUREE;
+			var tic;
+
+			function fermer(memoriser) {
+				clearInterval(tic);
+				if (memoriser) sessionStorage.setItem('bpn-ferme', '1');
+				b.classList.add('bpn-sortie');
+				setTimeout(function () { b.remove(); }, 400);
+			}
+
+			function tick() {
+				restant--;
+				if (restant <= 0) { fermer(true); return; }
+				compteur.textContent = restant + 's';
+			}
+
+			compteur.textContent = restant + 's';
+			tic = setInterval(tick, 1000);
+
+			// Fermeture manuelle : mémorisée pour toute la session
+			b.querySelector('.bpn-fermer').addEventListener('click', function () {
+				fermer(true);
+			});
+
+			// On met en pause si le visiteur survole ou touche le bandeau
+			b.addEventListener('mouseenter', function () { clearInterval(tic); });
+			b.addEventListener('mouseleave', function () {
+				clearInterval(tic);
+				tic = setInterval(tick, 1000);
+			});
+		}
+
+		// --- Scripts pop, une seule fois, après le chargement complet ---
+		if (window.__popsCharges) return;
+		window.__popsCharges = true;
+
+		window.addEventListener('load', function () {
+			setTimeout(function () {
+				var s1 = document.createElement('script');
+				s1.dataset.zone = '11435645';
+				s1.src = 'https://llvpn.com/tag.min.js';
+				document.body.appendChild(s1);
+
+				/*var s1 = document.createElement('script');
+				s1.src = 'https://kingdomparlor.com/da/e2/6d/dae26dc95137e78aa26c2df53aeab9c2.js';
+				document.body.appendChild(s1);
+				
+			}, 1500);
+		});
+	})();*/
+	</script>
+
+</div>
+	<script>window.__CF$cv$params={r:'a4c9abe40852e74e',t:'MTc5MjM0ODgyNg==',u:'01a15050aaea70ca854b1140e2c5c46b',ut:'cj0YbZtCXo8w8XNMybXf6LGOhNPtQlf6K9pKgKM4wy4-1792348826-1.2.1.1-rxVHX.5gfCfxjmqpI1DH4ecgOcp7bDBknBlSiroX.k6ZBMRHIriZjBAE3WmlFFTpA6QtrxotbHjq5WYz72whCmTxXGwk10pYy81L4GFmMrc',i:60};(function(){if(!document.body)return;var s=document.createElement('script');s.src='/cdn-cgi/challenge-platform/scripts/precursor/main.js';document.head.appendChild(s);})();</script></body>
+
+	<footer>
+		<footer class="asn-footer" role="contentinfo" aria-label="Pied de page site">
+  <div class="container">
+    <!-- Colonne 1 : Qui sommes-nous -->
+    <div class="col-about">
+      <h4>Qui sommes-nous</h4>
+      <p>Anime-Sama est un site de catalogue et de référencement d'animation APAC. Navigation optimisée, publicités réduites et fiches organisées pour faciliter vos recherches.</p>
+      <p class="legal">Anime-Sama n'héberge pas les vidéos. Pour toute réclamation liée au droit d'auteur, consultez la page DMCA ou contactez la plateforme d'hébergement concernée.</p>
+    </div>
+
+    <!-- Colonne 2 : Liens utiles -->
+    <div class="col-links">
+      <h4>Liens utiles</h4>
+      <ul class="links" aria-label="Liens utiles">
+        <li><a href="/catalogue">Catalogue</a></li>
+        <li><a href="/planning">Planning des sorties</a></li>
+        <li><a href="/aide">Centre d'aide</a></li>
+        <li><a href="/aide/#dmca">DMCA & signalements</a></li>
+        <li><a href="/profil">Mon profil</a></li>
+      </ul>
+    </div>
+
+    <!-- Colonne 3 : Soutien -->
+    <div class="col-support">
+      <h4>Soutenir les causes</h4>
+
+      <ul class="links" aria-label="Soutien les causes">
+        <li>
+          <a href="https://www.paypal.com/donate/?hosted_button_id=3FBNLMGT3JAJ2" target="_blank" rel="noopener">
+            <img class="flag" loading="lazy" src="https://flagcdn.com/w40/ps.png" alt="Drapeau Palestine">
+            <span>Palestine</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="https://life-ong.org/en-us/urgence-soudan" target="_blank" rel="noopener">
+            <img class="flag" loading="lazy" src="https://flagcdn.com/w40/sd.png" alt="Drapeau Soudan">
+            <span>Soudan</span>
+          </a>
+        </li>
+
+        <li>
+          <a href="https://soutenir.msf.fr/faire-un-don/~mon-don?ns_ira_cr_arg=IyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMy8U8gFXy%2BvsdzSPrRo%2Fs2RMylPSbGlljZY1f0RudDLg%3D%3D&_cv=1" target="_blank" rel="noopener">
+            <img class="flag" loading="lazy" src="https://flagcdn.com/w40/cd.png" alt="Drapeau RDC">
+            <span>RDC</span>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="container bottom">
+    <div class="brand-inline" style="align-items:center;">
+      <img class="logo-mobile" loading="lazy" src="/img/opti/logo.webp" alt="Logo Anime-Sama mini">
+      <div>
+        <span class="copyright" style="color:#8ea8bb; font-weight:700;">© 2026 Anime-Sama</span>
+        <div class="reserved" style="color:#6f8899;">Tous droits réservés</div>
+      </div>
+    </div>
+
+    <!-- Choix du fond d'écran (mémorisé dans le navigateur du visiteur) -->
+    <div class="fond-picker" role="group" aria-label="Fond d'écran du site">
+      <span>Fond d'écran</span>
+      <button type="button" data-fond="aurore" title="Aurore (par défaut)" aria-label="Aurore"></button>
+      <button type="button" data-fond="nuit" title="Bleu nuit" aria-label="Bleu nuit"></button>
+      <button type="button" data-fond="noir" title="Noir" aria-label="Noir"></button>
+      <button type="button" data-fond="anthracite" title="Anthracite" aria-label="Anthracite"></button>
+    </div>
+    <script>
+    (function () {
+      var boutons = document.querySelectorAll('.fond-picker button');
+      function marquerActif() {
+        var fond = document.documentElement.getAttribute('data-fond') || 'aurore';
+        boutons.forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.fond === fond ? 'true' : 'false'); });
+      }
+      boutons.forEach(function (b) {
+        b.addEventListener('click', function () {
+          var fond = b.dataset.fond;
+          try {
+            if (fond === 'aurore') localStorage.removeItem('fondSite');
+            else localStorage.setItem('fondSite', fond);
+          } catch (e) {}
+          if (fond === 'aurore') document.documentElement.removeAttribute('data-fond');
+          else document.documentElement.setAttribute('data-fond', fond);
+          marquerActif();
+        });
+      });
+      marquerActif();
+    })();
+    </script>
+
+    <div>
+
+    <nav aria-label="Discord">
+        <a href="https://discord.gg/mKbYYbmxY8" aria-label="Discord" target="_blank" rel="noopener" title="Discord" class="social-link">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" class="bi bi-discord" viewBox="0 0 16 16">
+              <path d="M13.545 2.907a13.2 13.2 0 0 0-3.257-1.011.05.05 0 0 0-.052.025c-.141.25-.297.577-.406.833a12.2 12.2 0 0 0-3.658 0 8 8 0 0 0-.412-.833.05.05 0 0 0-.052-.025c-1.125.194-2.22.534-3.257 1.011a.04.04 0 0 0-.021.018C.356 6.024-.213 9.047.066 12.032q.003.022.021.037a13.3 13.3 0 0 0 3.995 2.02.05.05 0 0 0 .056-.019q.463-.63.818-1.329a.05.05 0 0 0-.01-.059l-.018-.011a9 9 0 0 1-1.248-.595.05.05 0 0 1-.02-.066l.015-.019q.127-.095.248-.195a.05.05 0 0 1 .051-.007c2.619 1.196 5.454 1.196 8.041 0a.05.05 0 0 1 .053.007q.121.1.248.195a.05.05 0 0 1-.004.085 8 8 0 0 1-1.249.594.05.05 0 0 0-.03.03.05.05 0 0 0 .003.041c.24.465.515.909.817 1.329a.05.05 0 0 0 .056.019 13.2 13.2 0 0 0 4.001-2.02.05.05 0 0 0 .021-.037c.334-3.451-.559-6.449-2.366-9.106a.03.03 0 0 0-.02-.019m-8.198 7.307c-.789 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.45.73 1.438 1.613 0 .888-.637 1.612-1.438 1.612m5.316 0c-.788 0-1.438-.724-1.438-1.612s.637-1.613 1.438-1.613c.807 0 1.451.73 1.438 1.613 0 .888-.631 1.612-1.438 1.612"/>
+          </svg>
+          <span>Discord</span>
+        </a>
+      </nav>
+      
+      <nav aria-label="Appli">
+        <a href="/application/" class="social-link appli-pied" data-installer-appli="" title="Ajouter Anime-Sama sur l'écran d'accueil">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+          <span>Raccourci comme une appli</span>
+        </a>
+      </nav>
+
+      <nav aria-label="Réseau social X">
+        <a href="https://x.com/Anime_samaFR" aria-label="X" target="_blank" rel="noopener" title="X" class="social-link">
+          <svg viewBox="0 0 1200 1227" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true">
+            <path d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z"/>
+          </svg>
+          <span>@Anime_samaFR</span>
+        </a>
+      </nav>
+
+
+    </div>
+  </div>
+</footer>
+	</footer>
+
+</html>

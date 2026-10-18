@@ -124,4 +124,82 @@ void main() {
       expect(classicSlugs.last, 'dr-stone');
     });
   });
+
+  group('Refonte Anime-Sama (.oe-* & .as-carte)', () {
+    test('parseCatalogueDetail extrait toutes les nouvelles métadonnées', () {
+      final file = File('test/fixtures/detail_redesign.html');
+      if (!file.existsSync()) {
+        markTestSkipped('fixture detail_redesign.html absente');
+        return;
+      }
+      final detail = parseCatalogueDetail(
+        _readUtf8('test/fixtures/detail_redesign.html'),
+        'the-exiled-heavy-knight-knows-how-to-game-the-system',
+      );
+
+      expect(detail.title,
+          'The Exiled Heavy Knight Knows How to Game the System');
+      expect(
+          detail.alternativeTitles,
+          contains('Tsuihou Sareta Tensei Juukishi wa Game Chishiki de Musou Suru'));
+      expect(detail.synopsis, contains('Lors de la Cérémonie'));
+      expect(detail.genres, contains('Action'));
+      expect(detail.genres, contains('Fantasy'));
+      expect(detail.genres, contains('Isekai'));
+
+      // Images HD
+      expect(detail.posterUrl,
+          'https://image.tmdb.org/t/p/w342/flcyEjfwHECnqgXMGNZsajLg1rv.jpg');
+      expect(
+          detail.bannerUrl,
+          'https://cdn.jsdelivr.net/gh/Anime-Sama/IMG@img/contenu/the-exiled-heavy-knight-knows-how-to-game-the-system.jpg');
+
+      // Notes et IDs externes
+      expect(detail.score, 6.8);
+      expect(detail.anilistId, 180136);
+      expect(detail.malId, 59741);
+      expect(detail.tmdbId, 270603);
+      expect(detail.korboUrl, contains('korbo.fr/oeuvre/'));
+      expect(detail.trailerYoutubeId, 'ZyJA7hswtv0');
+
+      // Métadonnées dl.oe-infos
+      expect(detail.format, 'Série TV');
+      expect(detail.status, 'En cours');
+      expect(detail.releaseDate, '3 juil. 2026');
+      expect(detail.seasonPeriod, 'Été 2026');
+      expect(detail.totalEpisodes, 26);
+      expect(detail.studio, 'GoHands');
+      expect(detail.broadcastChannels, 'MBS, TBS');
+      expect(detail.authors, contains('Nekoko'));
+
+      // Prochain épisode
+      expect(detail.nextEpisodeNumber, 17);
+      expect(detail.nextEpisodeTimestamp, 1792682760);
+      expect(detail.nextEpisodeDateText, contains('22/10/2026'));
+
+      // Similaires
+      expect(detail.similarAnime.length, 10);
+      expect(detail.similarAnime.first.slug, 'mynoghra');
+      expect(detail.similarAnime.first.title, 'Mynoghra');
+    });
+
+    test('parseCards extrait les cartes .as-carte du nouveau catalogue', () {
+      final file = File('test/fixtures/catalogue_redesign.html');
+      if (!file.existsSync()) {
+        markTestSkipped('fixture catalogue_redesign.html absente');
+        return;
+      }
+      final cards = parseCards(
+        _readUtf8('test/fixtures/catalogue_redesign.html'),
+        'anime-sama.to',
+      );
+
+      expect(cards.length, greaterThanOrEqualTo(30));
+      expect(cards.any((c) => c.slug == 'zombie-sagashitemasu'), isTrue);
+      expect(cards.any((c) => c.slug == 'tis-time-for-torture-princess'), isTrue);
+      expect(cards.any((c) => c.slug == '07-ghost'), isTrue);
+      // Vérifie que les scans purs sont exclus
+      expect(cards.any((c) => c.slug == '100-jours-avant-ta-mort'), isFalse);
+    });
+  });
 }

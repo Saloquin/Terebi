@@ -280,6 +280,18 @@ final animeSamaDetailProvider =
   yield* service.watchDetail(slug);
 });
 
+/// Détail direct et complet Anime-Sama (score, studio, statut, prochain épisode, trailer, etc.).
+final animeSamaRawDetailProvider =
+    FutureProvider.family<AnimeSamaDetail?, String>((ref, slug) async {
+  if (slug.trim().isEmpty) return null;
+  final resolver = await ref.watch(animeSamaResolverProvider.future);
+  try {
+    return await resolver.catalogueDetail(slug: slug);
+  } catch (_) {
+    return null;
+  }
+});
+
 /// Sections de l'accueil anime-sama (classiques + derniers episodes).
 final animeSamaHomeProvider = FutureProvider<AnimeSamaHome>((ref) async {
   final resolver = await ref.watch(animeSamaResolverProvider.future);
