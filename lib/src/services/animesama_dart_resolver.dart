@@ -57,12 +57,34 @@ class DartAnimeSamaResolver implements StreamResolver {
     bool vf,
   ) async {
     final domain = await _ensureDomain();
-    final found = await searchCatalogue(fetch, domain, title, vf: vf);
-    if (found == null) {
+    String? animeUrl;
+    if (title.startsWith('http://') || title.startsWith('https://')) {
+      animeUrl = title;
+    } else if (title.startsWith('/catalogue/')) {
+      animeUrl = 'https://$domain$title';
+    } else {
+      final found = await searchCatalogue(fetch, domain, title, vf: vf);
+      if (found != null) {
+        animeUrl = found.url;
+      } else {
+        final slug = slugFromUrl('/catalogue/$title/');
+        if (slug.isNotEmpty) {
+          final directUrl = 'https://$domain/catalogue/$slug/';
+          final testResp = await fetch(directUrl, headers: {
+            ...kHeadersBase,
+            'referer': 'https://$domain/catalogue/',
+          });
+          if (testResp.ok) animeUrl = directUrl;
+        }
+      }
+    }
+    if (animeUrl == null) {
       throw ResolveException('aucun anime correspondant a "$title"');
     }
-    final animeUrl = found.url;
-    final resp = await fetch(animeUrl, headers: kHeadersBase);
+    final resp = await fetch(animeUrl, headers: {
+      ...kHeadersBase,
+      'referer': 'https://$domain/catalogue/',
+    });
     final raw = parseSeasons(resp.body);
     final candidates = dedupeSeasons(raw.where(isRealSeason).toList());
 

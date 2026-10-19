@@ -140,12 +140,26 @@ Future<Map<String, List<String>>> fetchEpisodes(
   HttpFetcher fetch,
   String seasonUrl,
 ) async {
-  final pageResp = await fetch(seasonUrl, headers: kHeadersBase);
+  final cleanSeasonUrl = '${seasonUrl.replaceAll(RegExp(r'/+$'), '')}/';
+  final pageResp = await fetch(
+    cleanSeasonUrl,
+    headers: {
+      ...kHeadersBase,
+      'referer': cleanSeasonUrl,
+    },
+  );
   if (!pageResp.ok) return const {};
   final filever = parseFilever(pageResp.body);
   if (filever == null) return const {};
   final jsUrl = '${seasonUrl.replaceAll(RegExp(r'/+$'), '')}/episodes.js';
-  final jsResp = await fetch(jsUrl, headers: kHeadersBase, query: {'filever': filever});
+  final jsResp = await fetch(
+    jsUrl,
+    headers: {
+      ...kHeadersBase,
+      'referer': cleanSeasonUrl,
+    },
+    query: {'filever': filever},
+  );
   if (!jsResp.ok) return const {};
   return parseEpisodesJs(jsResp.body);
 }
