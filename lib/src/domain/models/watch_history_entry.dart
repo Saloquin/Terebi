@@ -24,4 +24,19 @@ class WatchHistoryEntry {
     required this.episodeNumber,
     required this.startedAt,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'mediaId': mediaId,
+        'episodeNumber': episodeNumber,
+        'startedAt': startedAt.toIso8601String(),
+      };
+
+  factory WatchHistoryEntry.fromJson(Map<String, dynamic> json) =>
+      WatchHistoryEntry(
+        id: json['id'] as int?,
+        mediaId: json['mediaId'] as int,
+        episodeNumber: (json['episodeNumber'] as num).toDouble(),
+        startedAt: DateTime.parse(json['startedAt'] as String),
+      );
 }

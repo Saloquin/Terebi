@@ -42,6 +42,9 @@ class AuthRepository {
   AuthRepository(this._settings, {TursoClient? client})
       : _client = client ?? TursoClient(url: defaultTursoUrl, token: defaultTursoToken);
 
+  /// Client Turso actuellement configuré.
+  TursoClient get client => _client;
+
   /// Met à jour le client Turso si l'utilisateur change son URL/token dans les paramètres.
   void updateTursoConfig({required String url, required String token}) {
     _client.close();
@@ -451,8 +454,9 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 /// StateNotifier pour gérer l'utilisateur actuellement connecté
 class CurrentUserNotifier extends StateNotifier<AsyncValue<UserAccount?>> {
   final AuthRepository _auth;
+  final void Function(UserAccount user)? onUserConnected;
 
-  CurrentUserNotifier(this._auth) : super(const AsyncValue.loading()) {
+  CurrentUserNotifier(this._auth, {this.onUserConnected}) : super(const AsyncValue.loading()) {
     init();
   }
 
@@ -460,6 +464,9 @@ class CurrentUserNotifier extends StateNotifier<AsyncValue<UserAccount?>> {
     try {
       final user = await _auth.restoreSession();
       state = AsyncValue.data(user);
+      if (user != null) {
+        onUserConnected?.call(user);
+      }
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -470,6 +477,7 @@ class CurrentUserNotifier extends StateNotifier<AsyncValue<UserAccount?>> {
     try {
       final user = await _auth.login(username, password);
       state = AsyncValue.data(user);
+      onUserConnected?.call(user);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;
@@ -493,6 +501,7 @@ class CurrentUserNotifier extends StateNotifier<AsyncValue<UserAccount?>> {
         avatarSeed: avatarSeed,
       );
       state = AsyncValue.data(user);
+      onUserConnected?.call(user);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       rethrow;

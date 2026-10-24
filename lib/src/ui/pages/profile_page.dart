@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/remote/turso_client.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../domain/models/user_account.dart';
+import '../../app/providers.dart';
+import '../../services/sync_service.dart';
 import '../app_shell.dart';
 
 class ProfilePage extends ConsumerStatefulWidget {
@@ -846,6 +848,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                 ],
 
+                const SizedBox(height: 16),
+
+                // --- CARTE STATUT DE SYNCHRONISATION CLOUD & DIFF ---
+                _buildSyncCard(context),
+
                 const SizedBox(height: 24),
 
                 // --- STATISTIQUES DE VISIONNAGE ---
@@ -1078,6 +1085,128 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  String _formatLastSync(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return "A l'instant";
+    if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
+    if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
+    return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} a ${dt.hour}h${dt.minute.toString().padLeft(2, '0')}";
+  }
+
+  Widget _buildSyncCard(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final syncService = ref.watch(syncServiceProvider);
+    final syncAsync = ref.watch(syncStatusProvider);
+    final status = syncAsync.value ?? syncService.currentStatus;
+
+    final isSyncing = status.state == SyncState.syncing;
+    final isOffline = status.state == SyncState.offline || status.pendingQueueCount > 0;
+
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: isSyncing
+                    ? colorScheme.primaryContainer
+                    : (isOffline
+                        ? Colors.amber.withValues(alpha: 0.15)
+                        : Colors.green.withValues(alpha: 0.15)),
+                shape: BoxShape.circle,
+              ),
+              child: isSyncing
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(
+                      isOffline ? Icons.cloud_queue : Icons.cloud_done_outlined,
+                      color: isOffline ? Colors.amber[800] : Colors.green[700],
+                      size: 22,
+                    ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        isSyncing
+                            ? 'Synchronisation avec Turso...'
+                            : (isOffline
+                                ? '${status.pendingQueueCount} modification(s) en attente'
+                                : 'Cloud synchronise'),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (isOffline) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Hors-ligne',
+                            style: TextStyle(
+                              color: Colors.amber[900],
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    status.lastSyncedAt != null
+                        ? 'Derniere synchro : ${_formatLastSync(status.lastSyncedAt!)}'
+                        : 'Aucune donnee ecrasee - Fusion intelligente',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            FilledButton.tonalIcon(
+              onPressed: isSyncing
+                  ? null
+                  : () async {
+                      final ok = await syncService.fullSync();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(ok
+                                ? 'Synchronisation reussie ! Vos donnees sont a jour.'
+                                : 'Erreur de connexion : vos modifications restent securisees en local.'),
+                          ),
+                        );
+                      }
+                    },
+              icon: isSyncing
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.sync, size: 18),
+              label: Text(isSyncing ? 'En cours...' : 'Synchroniser'),
+            ),
+          ],
         ),
       ),
     );

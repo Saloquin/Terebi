@@ -10,8 +10,9 @@ import '../local/database.dart';
 
 class ProgressRepository {
   final TerebiDatabase _db;
+  void Function(EpisodeProgress)? onProgressUpserted;
 
-  const ProgressRepository(this._db);
+  ProgressRepository(this._db, {this.onProgressUpserted});
 
   // ---------------------------------------------------------------------------
   // Conversions privées
@@ -43,7 +44,7 @@ class ProgressRepository {
   // ---------------------------------------------------------------------------
 
   /// Insère ou met à jour la progression (upsert sur contrainte unique mediaId+episodeNumber).
-  Future<void> upsertProgress(EpisodeProgress progress) async {
+  Future<void> upsertProgress(EpisodeProgress progress, {bool notifySync = true}) async {
     final companion = _toCompanion(progress);
     await _db.into(_db.episodeProgresses).insert(
           companion,
@@ -55,6 +56,15 @@ class ProgressRepository {
             ],
           ),
         );
+    if (notifySync) {
+      onProgressUpserted?.call(progress);
+    }
+  }
+
+  /// Retourne toutes les progressions locales enregistrées.
+  Future<List<EpisodeProgress>> getAllProgresses() async {
+    final rows = await _db.select(_db.episodeProgresses).get();
+    return rows.map(_fromRow).toList();
   }
 
   /// Retourne la progression pour ([mediaId], [episodeNumber]), ou `null`.

@@ -43,6 +43,8 @@ import '../controllers/player/player_state.dart';
 import '../controllers/library/library_controller.dart';
 import '../controllers/library/library_state.dart';
 import '../services/system_http_fetcher.dart';
+import '../data/repositories/auth_repository.dart';
+import '../services/sync_service.dart';
 
 /// Base de données. **Doit être surchargé** au démarrage via
 /// `ProviderScope(overrides: [databaseProvider.overrideWithValue(db)])`
@@ -79,6 +81,40 @@ final progressRepositoryProvider = Provider<ProgressRepository>(
 final watchHistoryRepositoryProvider = Provider<WatchHistoryRepository>(
   (ref) => WatchHistoryRepository(ref.watch(databaseProvider)),
 );
+
+/// Service de synchronisation bidirectionnelle intelligente Turso Cloud.
+final syncServiceProvider = Provider<SyncService>((ref) {
+  final db = ref.watch(databaseProvider);
+  final authRepo = ref.watch(authRepositoryProvider);
+  final listRepo = ref.watch(listRepositoryProvider);
+  final progressRepo = ref.watch(progressRepositoryProvider);
+  final historyRepo = ref.watch(watchHistoryRepositoryProvider);
+  final settingsRepo = ref.watch(settingsRepositoryProvider);
+
+  final service = SyncService(
+    db: db,
+    authRepo: authRepo,
+    listRepo: listRepo,
+    progressRepo: progressRepo,
+    historyRepo: historyRepo,
+    settingsRepo: settingsRepo,
+  );
+
+  // Câblage des callbacks pour alimenter automatiquement la file sync_queue
+  listRepo.onEntryUpserted = (entry) => service.enqueueListEntry(entry);
+  listRepo.onEntryDeleted = (id) => service.enqueueListDelete(id);
+  progressRepo.onProgressUpserted = (p) => service.enqueueEpisodeProgress(p);
+  historyRepo.onHistoryRecorded = (h) => service.enqueueWatchHistory(h);
+
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+/// Statut réactif de la synchronisation (en cours, synchronisé, hors-ligne...).
+final syncStatusProvider = StreamProvider<SyncStatus>((ref) {
+  final syncService = ref.watch(syncServiceProvider);
+  return syncService.statusStream;
+});
 
 /// `true` si l'anime [mediaId] a une progression locale. Reactif : re-emet des
 /// qu'une entree de liste ou une cle `anime_sama_watched:<id>:*` change.

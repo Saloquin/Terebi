@@ -11,8 +11,9 @@ import '../local/database.dart';
 
 class WatchHistoryRepository {
   final TerebiDatabase _db;
+  void Function(WatchHistoryEntry)? onHistoryRecorded;
 
-  const WatchHistoryRepository(this._db);
+  WatchHistoryRepository(this._db, {this.onHistoryRecorded});
 
   WatchHistoryEntry _fromRow(WatchHistoryRow row) => WatchHistoryEntry(
         id: row.id,
@@ -26,7 +27,13 @@ class WatchHistoryRepository {
     required int mediaId,
     required double episodeNumber,
     required DateTime startedAt,
+    bool notifySync = true,
   }) async {
+    final entry = WatchHistoryEntry(
+      mediaId: mediaId,
+      episodeNumber: episodeNumber,
+      startedAt: startedAt,
+    );
     await _db.into(_db.watchHistories).insert(
           WatchHistoriesCompanion.insert(
             mediaId: mediaId,
@@ -34,6 +41,9 @@ class WatchHistoryRepository {
             startedAt: startedAt,
           ),
         );
+    if (notifySync) {
+      onHistoryRecorded?.call(entry);
+    }
   }
 
   /// Historique récent (le plus récent d'abord), limité à [limit] entrées.

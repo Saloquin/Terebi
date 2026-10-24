@@ -61,6 +61,11 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
     super.initState();
     // Vérifie les mises à jour au démarrage si le toggle auto-update est activé.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Déclenche la synchronisation bidirectionnelle intelligente en tâche de fond
+      try {
+        ref.read(syncServiceProvider).fullSync();
+      } catch (_) {}
+
       final settings = ref.read(settingsRepositoryProvider);
       final autoUpdate =
           await settings.get(SettingsKeys.autoUpdate, defaultValue: '1');

@@ -11,8 +11,10 @@ import '../local/database.dart';
 
 class ListRepository {
   final TerebiDatabase _db;
+  void Function(ListEntry)? onEntryUpserted;
+  void Function(int mediaId)? onEntryDeleted;
 
-  const ListRepository(this._db);
+  ListRepository(this._db, {this.onEntryUpserted, this.onEntryDeleted});
 
   // ---------------------------------------------------------------------------
   // Conversions privées
@@ -40,10 +42,13 @@ class ListRepository {
   // ---------------------------------------------------------------------------
 
   /// Insère ou remplace une [ListEntry].
-  Future<void> upsertEntry(ListEntry entry) async {
+  Future<void> upsertEntry(ListEntry entry, {bool notifySync = true}) async {
     await _db
         .into(_db.listEntries)
         .insertOnConflictUpdate(_toCompanion(entry));
+    if (notifySync) {
+      onEntryUpserted?.call(entry);
+    }
   }
 
   /// Retourne l'entrée pour [mediaId], ou `null`.
@@ -88,10 +93,13 @@ class ListRepository {
 
   /// Retire l'entrée de liste pour [mediaId] (retrait de la bibliothèque).
   /// N'efface PAS la progression d'épisodes (table séparée).
-  Future<void> deleteEntry(int mediaId) async {
+  Future<void> deleteEntry(int mediaId, {bool notifySync = true}) async {
     await (_db.delete(_db.listEntries)
           ..where((t) => t.mediaId.equals(mediaId)))
         .go();
+    if (notifySync) {
+      onEntryDeleted?.call(mediaId);
+    }
   }
 
   /// Toutes les entrées pour un [status] donné.
