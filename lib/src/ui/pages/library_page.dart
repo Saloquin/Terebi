@@ -72,6 +72,9 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   final _searchController = TextEditingController();
   Timer? _recheckTimer;
   bool _isRechecking = false;
+  int _recheckTotal = 0;
+  int _recheckCurrent = 0;
+  String? _recheckCurrentTitle;
 
   @override
   void initState() {
@@ -137,13 +140,27 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
 
   Future<void> _recheckCompleted() async {
     if (_isRechecking) return;
-    _isRechecking = true;
+    setState(() {
+      _isRechecking = true;
+      _recheckCurrent = 0;
+      _recheckTotal = 0;
+      _recheckCurrentTitle = null;
+    });
     try {
       await _recheckCompletedImpl();
     } catch (_) {
       // Best-effort : un recheck qui échoue ne doit jamais casser la page.
     } finally {
-      _isRechecking = false;
+      if (mounted) {
+        setState(() {
+          _isRechecking = false;
+          _recheckTotal = 0;
+          _recheckCurrent = 0;
+          _recheckCurrentTitle = null;
+        });
+      } else {
+        _isRechecking = false;
+      }
     }
   }
 
@@ -275,32 +292,71 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       }
     }
 
+    // --- Comptage des animes à vérifier pour la barre de progression ---
+    final planning = await listRepo.entriesByStatus(ListStatus.planning);
+    final planningCandidates = <ListEntry>[];
+    for (final entry in planning) {
+      if (!mounted) return;
+      final hasProgress = entry.progress > 0 ||
+          await seasonProgress.hasAnyProgress(entry.mediaId);
+      if (!hasProgress) continue;
+      if (await settings.get(SettingsKeys.newEpisodeFor(entry.mediaId)) ==
+          '1') {
+        continue;
+      }
+      planningCandidates.add(entry);
+    }
+
+    final total = completed.length + planningCandidates.length;
+    if (total == 0) return;
+
+    if (mounted) {
+      setState(() {
+        _recheckTotal = total;
+        _recheckCurrent = 0;
+        _recheckCurrentTitle = null;
+      });
+    }
+
     var changed = false;
     for (final entry in completed) {
       if (!mounted) return;
+      Media? media;
       try {
-        final media = await mediaRepo.getMedia(entry.mediaId);
+        media = await mediaRepo.getMedia(entry.mediaId);
+      } catch (_) {}
+      final displayTitle = media?.title.preferred ??
+          media?.animeSamaTitle ??
+          'Anime #${entry.mediaId}';
+      if (mounted) {
+        setState(() {
+          _recheckCurrent++;
+          _recheckCurrentTitle = displayTitle;
+        });
+      }
+
+      try {
         // Titre anime-sama de référence (le titre AniList peut diverger et faire
         // échouer le scraping). Repli sur le titre préféré si non renseigné.
         final title = media?.animeSamaTitle ?? media?.title.preferred;
-        if (title == null) continue;
-
-        final seasons = await resolver.listSeasons(title: title);
-        if (seasons.isEmpty) continue;
-        final last = seasons.last;
-
-        final eps = await resolver.listEpisodes(
-          title: title,
-          seasonIndex: last.index,
-        );
-        if (eps.isEmpty) continue;
-
-        // Met à jour le nombre total d'épisodes (déclenche le patron observateur
-        // qui compare automatiquement watched et total, et déplace l'anime dans
-        // la bonne catégorie).
-        await seasonProgress.setTotalEpisodes(
-            entry.mediaId, last.index, eps.last);
-        changed = true;
+        if (title != null) {
+          final seasons = await resolver.listSeasons(title: title);
+          if (seasons.isNotEmpty) {
+            final last = seasons.last;
+            final eps = await resolver.listEpisodes(
+              title: title,
+              seasonIndex: last.index,
+            );
+            if (eps.isNotEmpty) {
+              // Met à jour le nombre total d'épisodes (déclenche le patron observateur
+              // qui compare automatiquement watched et total, et déplace l'anime dans
+              // la bonne catégorie).
+              await seasonProgress.setTotalEpisodes(
+                  entry.mediaId, last.index, eps.last);
+              changed = true;
+            }
+          }
+        }
       } catch (_) {
         // Ignore les erreurs individuelles (réseau, anime introuvable…).
       }
@@ -312,46 +368,48 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // Contrairement aux « Terminé », on NE change PAS le statut : on pose juste
     // le drapeau « nouvel épisode » si l'utilisateur n'est pas à jour sur la
     // dernière saison. Idempotent (skip si drapeau déjà posé).
-    final planning = await listRepo.entriesByStatus(ListStatus.planning);
-    for (final entry in planning) {
+    for (final entry in planningCandidates) {
       if (!mounted) return;
-      // Ne garder que les « en cours » effectifs (progression réelle) ; un
-      // `planning` pur (jamais commencé) n'est pas concerné.
-      final hasProgress = entry.progress > 0 ||
-          await seasonProgress.hasAnyProgress(entry.mediaId);
-      if (!hasProgress) continue;
-      // Drapeau déjà posé → rien à faire (évite scrape + écriture inutiles).
-      if (await settings.get(SettingsKeys.newEpisodeFor(entry.mediaId)) ==
-          '1') {
-        continue;
-      }
+      Media? media;
       try {
-        final media = await mediaRepo.getMedia(entry.mediaId);
+        media = await mediaRepo.getMedia(entry.mediaId);
+      } catch (_) {}
+      final displayTitle = media?.title.preferred ??
+          media?.animeSamaTitle ??
+          'Anime #${entry.mediaId}';
+      if (mounted) {
+        setState(() {
+          _recheckCurrent++;
+          _recheckCurrentTitle = displayTitle;
+        });
+      }
+
+      try {
         final title = media?.animeSamaTitle ?? media?.title.preferred;
-        if (title == null) continue;
-
-        final seasons = await resolver.listSeasons(title: title);
-        if (seasons.isEmpty) continue;
-        final last = seasons.last;
-
-        final eps = await resolver.listEpisodes(
-          title: title,
-          seasonIndex: last.index,
-        );
-        if (eps.isEmpty) continue;
-
-        final watched =
-            await seasonProgress.lastWatched(entry.mediaId, last.index);
-        // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
-        // y a un nouvel épisode (progression AniList seule, sans clé watched).
-        // Nettoie aussi un éventuel faux positif posé par une version antérieure.
-        if (watched == 0) {
-          await settings.delete(SettingsKeys.newEpisodeFor(entry.mediaId));
-          continue;
+        if (title != null) {
+          final seasons = await resolver.listSeasons(title: title);
+          if (seasons.isNotEmpty) {
+            final last = seasons.last;
+            final eps = await resolver.listEpisodes(
+              title: title,
+              seasonIndex: last.index,
+            );
+            if (eps.isNotEmpty) {
+              final watched =
+                  await seasonProgress.lastWatched(entry.mediaId, last.index);
+              // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
+              // y a un nouvel épisode (progression AniList seule, sans clé watched).
+              // Nettoie aussi un éventuel faux positif posé par une version antérieure.
+              if (watched == 0) {
+                await settings.delete(SettingsKeys.newEpisodeFor(entry.mediaId));
+              } else {
+                await seasonProgress.setTotalEpisodes(
+                    entry.mediaId, last.index, eps.last);
+                changed = true;
+              }
+            }
+          }
         }
-        await seasonProgress.setTotalEpisodes(
-            entry.mediaId, last.index, eps.last);
-        changed = true;
       } catch (_) {
         // Ignore les erreurs individuelles (réseau, anime introuvable…).
       }
@@ -367,6 +425,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
       // La fiche a son propre provider d'entrée : l'invalider aussi pour éviter
       // un statut incohérent entre la bibliothèque et la page de détail.
       ref.invalidate(listEntryProvider);
+    }
+
+    if (mounted && _recheckTotal > 0) {
+      // Petite pause pour afficher la complétion à 100% avant disparition
+      await Future.delayed(const Duration(milliseconds: 600));
     }
   }
 
@@ -505,6 +568,14 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
                     ))
                 .toList(),
           ),
+        ),
+
+        // --- Barre de progression d'actualisation en arrière-plan ---
+        _RecheckProgressBanner(
+          visible: _isRechecking && _recheckTotal > 0,
+          current: _recheckCurrent,
+          total: _recheckTotal,
+          currentTitle: _recheckCurrentTitle,
         ),
       ],
     );
@@ -1315,3 +1386,121 @@ class _NewEpisodeDot extends StatelessWidget {
     );
   }
 }
+
+// ---------------------------------------------------------------------------
+// Bandeau de progression d'actualisation de la bibliothèque
+// ---------------------------------------------------------------------------
+
+class _RecheckProgressBanner extends StatelessWidget {
+  final bool visible;
+  final int current;
+  final int total;
+  final String? currentTitle;
+
+  const _RecheckProgressBanner({
+    required this.visible,
+    required this.current,
+    required this.total,
+    this.currentTitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
+
+    return ClipRect(
+      child: AnimatedSize(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
+        alignment: Alignment.bottomCenter,
+        child: visible
+            ? Material(
+                color: colorScheme.surfaceContainerHighest,
+                elevation: 4,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                      tween: Tween<double>(begin: 0.0, end: progress),
+                      builder: (context, val, _) {
+                        return LinearProgressIndicator(
+                          value: total > 0 ? val : null,
+                          minHeight: 3,
+                          backgroundColor:
+                              colorScheme.surfaceContainerHighest,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            colorScheme.primary,
+                          ),
+                        );
+                      },
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Actualisation de la bibliothèque',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          if (currentTitle != null &&
+                              currentTitle!.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              '•',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.6),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                currentTitle!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ] else
+                            const Spacer(),
+                          const SizedBox(width: 12),
+                          Text(
+                            '$current / $total · ${(progress * 100).toInt()}%',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
+    );
+  }
+}
+
