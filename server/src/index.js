@@ -10,6 +10,8 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
 }));
 
+app.get('/', (c) => c.json({ status: 'ok', service: 'terebi-api', version: '1.0.0' }));
+
 // --- Helper Turso libSQL Pipeline HTTP ---
 async function queryTurso(env, sql, args = []) {
   const dbUrl = env.TURSO_DATABASE_URL.replace(/\/+$/, '') + '/v2/pipeline';
