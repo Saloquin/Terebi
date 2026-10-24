@@ -30,6 +30,7 @@ dependencies:
 
   # Réseau (scraping anime-sama en Dart pur)
   http: ^1.2.2
+  crypto: ^3.0.6
   rxdart: ^0.28.0
 
   # Version applicative (auto-update)

@@ -1,0 +1,16 @@
+{
+  "name": "terebi-api",
+  "version": "1.0.0",
+  "description": "API sécurisée pour Terebi (Cloudflare Worker + Turso libSQL)",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "wrangler": "^4.152.0"
+  }
+}

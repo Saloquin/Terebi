@@ -8,6 +8,8 @@ import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
 import '../../services/update_models.dart';
 import '../pages/calendar_page.dart';
+import '../pages/leaderboard_page.dart';
+import '../pages/profile_page.dart';
 import 'catalog_page_tv.dart';
 import 'library_page_tv.dart';
 import '../pages/settings_page.dart';
@@ -17,7 +19,7 @@ import '../widgets/update_dialog.dart';
 import 'home_page_tv.dart';
 import 'widgets/tv_focus_scope.dart';
 
-const int _settingsIndex = 5;
+const int _settingsIndex = 6;
 const int _libraryIndex = 3;
 
 /// Fournit le [TvFocusController] du shell aux pages TV descendantes.
@@ -93,7 +95,9 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
     _Destination(Icons.calendar_month_outlined, 'Calendrier', CalendarPage()),
     _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPageTv()),
     _Destination(Icons.bar_chart, 'Stats', StatsPage()),
+    _Destination(Icons.leaderboard_outlined, 'Classement', LeaderboardPage()),
     _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
+    _Destination(Icons.person_outline, 'Profil', ProfilePage()),
   ];
 
   void _onSelect(int i) {

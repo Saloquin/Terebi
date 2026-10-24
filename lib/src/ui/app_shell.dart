@@ -6,16 +6,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app/providers.dart';
+import '../data/repositories/auth_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../services/update_models.dart';
 import 'pages/calendar_page.dart';
 import 'pages/catalog_page.dart';
 import 'pages/home_page.dart';
+import 'pages/leaderboard_page.dart';
 import 'pages/library_page.dart';
+import 'pages/profile_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/stats_page.dart';
 import 'tv/app_shell_tv.dart';
 import 'widgets/update_dialog.dart';
+
+/// Provider global pour contrôler l'onglet actif depuis n'importe où dans l'application.
+final appNavigationIndexProvider = StateProvider<int>((ref) => 0);
 
 /// Une destination de navigation.
 class _Destination {
@@ -25,11 +31,20 @@ class _Destination {
   const _Destination(this.icon, this.label, this.page);
 }
 
-/// Index de l'onglet Paramètres (pour le garde « modifs non sauvegardées »).
-const int _settingsIndex = 5;
-
 /// Index de l'onglet Bibliothèque (pour la pastille « nouvel épisode »).
-const int _libraryIndex = 3;
+const int tabLibrary = 3;
+
+/// Index de l'onglet Stats.
+const int tabStats = 4;
+
+/// Index de l'onglet Classement.
+const int tabLeaderboard = 5;
+
+/// Index de l'onglet Paramètres (pour le garde « modifs non sauvegardées »).
+const int tabSettings = 6;
+
+/// Index de l'onglet Profil.
+const int tabProfile = 7;
 
 /// Shell avec `NavigationRail` (adapté desktop).
 class AppShellDesktop extends ConsumerStatefulWidget {
@@ -40,7 +55,6 @@ class AppShellDesktop extends ConsumerStatefulWidget {
 }
 
 class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
-  int _index = 0;
 
   @override
   void initState() {
@@ -72,23 +86,27 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
     _Destination(Icons.calendar_month_outlined, 'Calendrier', CalendarPage()),
     _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPage()),
     _Destination(Icons.bar_chart, 'Stats', StatsPage()),
+    _Destination(Icons.emoji_events_outlined, 'Classement', LeaderboardPage()),
     _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
+    _Destination(Icons.person_outline, 'Profil', ProfilePage()),
   ];
 
   void _onSelect(int i) {
-    if (i == _index) return;
+    final currentIndex = ref.read(appNavigationIndexProvider);
+    if (i == currentIndex) return;
     // Garde « modifs non sauvegardées » : si on quitte les Paramètres avec des
     // changements en attente, on bloque et on fait clignoter la barre.
-    if (_index == _settingsIndex && ref.read(settingsDirtyProvider)) {
+    if (currentIndex == tabSettings && ref.read(settingsDirtyProvider)) {
       ref.read(settingsFlashProvider.notifier).state++;
       return;
     }
-    setState(() => _index = i);
+    ref.read(appNavigationIndexProvider.notifier).state = i;
   }
 
   @override
   Widget build(BuildContext context) {
     ref.watch(slugMigrationProvider); // declenche la migration au 1er boot (non bloquant)
+    final index = ref.watch(appNavigationIndexProvider);
     // Pastille « nouvel episode » sur l'onglet Bibliotheque si au moins un
     // anime a le drapeau (reactif via le stream des cles new_episode:*).
     final hasNewEpisode = ref.watch(newEpisodeIdsProvider).maybeWhen(
@@ -98,6 +116,7 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
     // Sur Android TV, le focus doit démarrer dans le contenu et non dans le
     // NavigationRail — on isole les deux zones via FocusTraversalGroup/FocusScope.
     final isTv = ref.watch(isTvProvider);
+    final currentUser = ref.watch(currentUserProvider).value;
     return Scaffold(
       body: Row(
         children: [
@@ -109,7 +128,7 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
             policy: WidgetOrderTraversalPolicy(),
             descendantsAreFocusable: !isTv,
             child: NavigationRail(
-              selectedIndex: _index,
+              selectedIndex: index,
               onDestinationSelected: _onSelect,
               labelType: NavigationRailLabelType.all,
               leading: Padding(
@@ -125,12 +144,31 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
               destinations: [
                 for (int i = 0; i < _destinations.length; i++)
                   NavigationRailDestination(
-                    icon: i == _libraryIndex
+                    icon: i == tabLibrary
                         ? Badge(
                             isLabelVisible: hasNewEpisode,
                             child: Icon(_destinations[i].icon),
                           )
-                        : Icon(_destinations[i].icon),
+                        : (i == tabProfile && currentUser != null
+                            ? Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Theme.of(context).colorScheme.primary,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: Image.network(
+                                  currentUser.avatarPngUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) =>
+                                      Icon(_destinations[i].icon),
+                                ),
+                              )
+                            : Icon(_destinations[i].icon)),
                     label: Text(_destinations[i].label),
                   ),
               ],
@@ -146,7 +184,7 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
             child: FocusScope(
               autofocus: isTv,
               child: IndexedStack(
-                index: _index,
+                index: index,
                 children: [for (final d in _destinations) d.page],
               ),
             ),

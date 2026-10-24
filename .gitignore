@@ -32,3 +32,6 @@ __pycache__/
 
 # Packaging
 dist/
+
+# Node
+node_modules/
