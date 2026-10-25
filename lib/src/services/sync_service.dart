@@ -10,6 +10,7 @@ import 'package:drift/drift.dart' show Variable;
 
 import '../data/local/database.dart';
 import '../data/repositories/auth_repository.dart';
+import '../data/repositories/media_repository.dart';
 import '../data/repositories/list_repository.dart';
 import '../data/repositories/progress_repository.dart';
 import '../data/repositories/settings_repository.dart';
@@ -61,6 +62,7 @@ class SyncStatus {
 class SyncService {
   final TerebiDatabase _db;
   final AuthRepository _authRepo;
+  final MediaRepository _mediaRepo;
   final ListRepository _listRepo;
   final ProgressRepository _progressRepo;
   final WatchHistoryRepository _historyRepo;
@@ -76,12 +78,14 @@ class SyncService {
   SyncService({
     required TerebiDatabase db,
     required AuthRepository authRepo,
+    required MediaRepository mediaRepo,
     required ListRepository listRepo,
     required ProgressRepository progressRepo,
     required WatchHistoryRepository historyRepo,
     required SettingsRepository settingsRepo,
   })  : _db = db,
         _authRepo = authRepo,
+        _mediaRepo = mediaRepo,
         _listRepo = listRepo,
         _progressRepo = progressRepo,
         _historyRepo = historyRepo,
@@ -471,6 +475,47 @@ class SyncService {
 
       final allMediaIds = {...localEntryMap.keys, ...remoteEntryMap.keys};
 
+      // 0. Synchronisation des métadonnées des médias pour la bibliothèque
+      final localMediaList = await _mediaRepo.getAllMedia();
+      final localMediaMap = {for (final m in localMediaList) m.mediaId: m};
+
+      final remoteMediaRows = await client.query('SELECT anilist_id FROM media_table');
+      final remoteMediaIds = {
+        for (final r in remoteMediaRows) r['anilist_id'] as int
+      };
+
+      for (final mid in allMediaIds) {
+        if (!remoteMediaIds.contains(mid)) {
+          final media = localMediaMap[mid];
+          if (media != null) {
+            statementsToPush.add((
+              sql: '''
+                INSERT OR REPLACE INTO media_table (
+                  anilist_id, title_romaji, title_english, title_native, episodes,
+                  cover_url, banner_url, description, genres_json,
+                  anime_sama_title, anime_sama_slug, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              ''',
+              args: [
+                media.mediaId,
+                media.title.romaji,
+                media.title.english,
+                media.title.native,
+                media.episodes,
+                media.coverUrl,
+                media.bannerUrl,
+                media.description,
+                jsonEncode(media.genres),
+                media.animeSamaTitle,
+                media.animeSamaSlug,
+                DateTime.now().millisecondsSinceEpoch,
+              ],
+            ));
+            remoteMediaIds.add(mid);
+          }
+        }
+      }
+
       for (final mid in allMediaIds) {
         final local = localEntryMap[mid];
         final remote = remoteEntryMap[mid];
@@ -745,9 +790,14 @@ class SyncService {
         }
       }
 
-      // Envoi groupé des mises à jour vers Turso
+      // Envoi groupé des mises à jour vers Turso par lots de 50 pour éviter les timeouts
       if (statementsToPush.isNotEmpty) {
-        await client.batch(statementsToPush);
+        const chunkSize = 50;
+        for (var i = 0; i < statementsToPush.length; i += chunkSize) {
+          final end = min(i + chunkSize, statementsToPush.length);
+          final chunk = statementsToPush.sublist(i, end);
+          await client.batch(chunk);
+        }
       }
 
       final now = DateTime.now();

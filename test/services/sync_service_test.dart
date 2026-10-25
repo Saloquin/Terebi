@@ -4,6 +4,7 @@ import 'package:test/test.dart';
 
 import 'package:terebi/src/data/local/database.dart';
 import 'package:terebi/src/data/repositories/auth_repository.dart';
+import 'package:terebi/src/data/repositories/media_repository.dart';
 import 'package:terebi/src/data/repositories/list_repository.dart';
 import 'package:terebi/src/data/repositories/progress_repository.dart';
 import 'package:terebi/src/data/repositories/settings_repository.dart';
@@ -27,6 +28,7 @@ void main() {
     db = TerebiDatabase(NativeDatabase.memory());
     settings = SettingsRepository(db);
     authRepo = AuthRepository(settings);
+    final mediaRepo = MediaRepository(db);
     listRepo = ListRepository(db);
     progressRepo = ProgressRepository(db);
     historyRepo = WatchHistoryRepository(db);
@@ -34,6 +36,7 @@ void main() {
     syncService = SyncService(
       db: db,
       authRepo: authRepo,
+      mediaRepo: mediaRepo,
       listRepo: listRepo,
       progressRepo: progressRepo,
       historyRepo: historyRepo,

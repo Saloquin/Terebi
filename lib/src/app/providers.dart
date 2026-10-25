@@ -86,6 +86,7 @@ final watchHistoryRepositoryProvider = Provider<WatchHistoryRepository>(
 final syncServiceProvider = Provider<SyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final authRepo = ref.watch(authRepositoryProvider);
+  final mediaRepo = ref.watch(mediaRepositoryProvider);
   final listRepo = ref.watch(listRepositoryProvider);
   final progressRepo = ref.watch(progressRepositoryProvider);
   final historyRepo = ref.watch(watchHistoryRepositoryProvider);
@@ -94,6 +95,7 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   final service = SyncService(
     db: db,
     authRepo: authRepo,
+    mediaRepo: mediaRepo,
     listRepo: listRepo,
     progressRepo: progressRepo,
     historyRepo: historyRepo,

@@ -40,11 +40,11 @@ const int tabStats = 4;
 /// Index de l'onglet Classement.
 const int tabLeaderboard = 5;
 
-/// Index de l'onglet Paramètres (pour le garde « modifs non sauvegardées »).
-const int tabSettings = 6;
-
 /// Index de l'onglet Profil.
-const int tabProfile = 7;
+const int tabProfile = 6;
+
+/// Index de l'onglet Paramètres (pour le garde « modifs non sauvegardées »).
+const int tabSettings = 7;
 
 /// Shell avec `NavigationRail` (adapté desktop).
 class AppShellDesktop extends ConsumerStatefulWidget {
@@ -92,8 +92,8 @@ class _AppShellDesktopState extends ConsumerState<AppShellDesktop> {
     _Destination(Icons.video_library_outlined, 'Bibliothèque', LibraryPage()),
     _Destination(Icons.bar_chart, 'Stats', StatsPage()),
     _Destination(Icons.emoji_events_outlined, 'Classement', LeaderboardPage()),
-    _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
     _Destination(Icons.person_outline, 'Profil', ProfilePage()),
+    _Destination(Icons.settings_outlined, 'Paramètres', SettingsPage()),
   ];
 
   void _onSelect(int i) {
