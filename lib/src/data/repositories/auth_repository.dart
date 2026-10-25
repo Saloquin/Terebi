@@ -61,10 +61,23 @@ class AuthRepository {
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
+  /// Récupère immédiatement le profil utilisateur mis en cache localement (0ms, hors-ligne).
+  Future<UserAccount?> getCachedUser() async {
+    final cachedJson = await _settings.get('auth_cached_user');
+    if (cachedJson != null && cachedJson.isNotEmpty) {
+      try {
+        return UserAccount.fromMap(jsonDecode(cachedJson));
+      } catch (_) {}
+    }
+    return null;
+  }
+
   /// Tente de restaurer la session sauvegardée ("Rester connecté").
+  /// L'utilisateur ne sera JAMAIS déconnecté automatiquement sauf s'il clique sur "Se déconnecter".
   Future<UserAccount?> restoreSession() async {
+    final cached = await getCachedUser();
     final token = await _settings.get('auth_session_token');
-    if (token == null || token.isEmpty) return null;
+    if (token == null || token.isEmpty) return cached;
 
     try {
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -75,30 +88,25 @@ class AuthRepository {
         LIMIT 1
       ''', [token, now]);
 
-      if (rows.isEmpty) {
-        // Session invalide ou expirée en ligne
-        await _settings.delete('auth_session_token');
-        await _settings.delete('auth_user_id');
-        return null;
+      if (rows.isNotEmpty) {
+        final serverUser = UserAccount.fromMap(rows.first);
+        // Met à jour la dernière utilisation sur le serveur
+        await _client.execute(
+          'UPDATE user_sessions SET last_used_at = ? WHERE token = ?',
+          [now, token],
+        );
+        // Met à jour le cache local avec les données fraîches
+        await _settings.set('auth_cached_user', jsonEncode(serverUser.toMap()));
+        return serverUser;
       }
 
-      // Met à jour la dernière utilisation
-      await _client.execute(
-        'UPDATE user_sessions SET last_used_at = ? WHERE token = ?',
-        [now, token],
-      );
-
-      return UserAccount.fromMap(rows.first);
+      // Si la session en ligne n'est pas trouvée (ex: purge temporaire),
+      // on préserve l'utilisateur local pour ne pas forcer une reconnexion
+      // intempestive tant qu'il n'a pas appuyé sur "Se déconnecter".
+      return cached;
     } catch (_) {
-      // En cas d'absence de réseau au démarrage, on peut tenter de charger
-      // le profil mémorisé localement si disponible.
-      final cachedJson = await _settings.get('auth_cached_user');
-      if (cachedJson != null && cachedJson.isNotEmpty) {
-        try {
-          return UserAccount.fromMap(jsonDecode(cachedJson));
-        } catch (_) {}
-      }
-      return null;
+      // En cas d'absence de réseau ou erreur de communication, on conserve le compte en cache
+      return cached;
     }
   }
 
@@ -462,13 +470,23 @@ class CurrentUserNotifier extends StateNotifier<AsyncValue<UserAccount?>> {
 
   Future<void> init() async {
     try {
+      // 1. Restauration instantanée depuis le cache local (0 ms, UI immédiate sans clignotement)
+      final cached = await _auth.getCachedUser();
+      if (cached != null) {
+        state = AsyncValue.data(cached);
+        onUserConnected?.call(cached);
+      }
+
+      // 2. Validation / mise à jour auprès de Turso en tâche de fond
       final user = await _auth.restoreSession();
       state = AsyncValue.data(user);
-      if (user != null) {
+      if (user != null && (cached == null || cached.id != user.id || cached.updatedAt != user.updatedAt)) {
         onUserConnected?.call(user);
       }
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      if (state.value == null) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 

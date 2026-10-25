@@ -281,6 +281,27 @@ class SyncService {
     final user = await _getCurrentUser();
     if (user == null) return false;
 
+    _isSyncing = true;
+    _updateStatus(_currentStatus.copyWith(state: SyncState.syncing));
+
+    try {
+      final res = await _flushQueueCore(user);
+      _isSyncing = false;
+      return res;
+    } catch (e) {
+      _isSyncing = false;
+      final remaining = await getPendingQueueCount();
+      _updateStatus(_currentStatus.copyWith(
+        pendingQueueCount: remaining,
+        state: SyncState.offline,
+        message: 'Connexion indisponible. Enregistré localement.',
+      ));
+      return false;
+    }
+  }
+
+  /// Traite le déchargement de la file d'attente pour [user].
+  Future<bool> _flushQueueCore(UserAccount user) async {
     await _ensureSyncQueueTable();
     try {
       await _db.customStatement(
@@ -302,128 +323,113 @@ class SyncService {
       return true;
     }
 
-    _isSyncing = true;
-    _updateStatus(_currentStatus.copyWith(state: SyncState.syncing));
+    final statements = <({String sql, List<dynamic>? args})>[];
+    final processedIds = <int>[];
 
-    try {
-      final statements = <({String sql, List<dynamic>? args})>[];
-      final processedIds = <int>[];
+    for (final r in rows) {
+      final id = r.data['id'] as int;
+      final entityType = r.data['entity_type'] as String;
+      final action = r.data['action'] as String;
+      final payload = jsonDecode(r.data['payload'] as String) as Map<String, dynamic>;
 
-      for (final r in rows) {
-        final id = r.data['id'] as int;
-        final entityType = r.data['entity_type'] as String;
-        final action = r.data['action'] as String;
-        final payload = jsonDecode(r.data['payload'] as String) as Map<String, dynamic>;
-
-        if (entityType == 'list_entry') {
-          if (action == 'upsert') {
-            final entry = ListEntry.fromJson(payload);
-            statements.add((
-              sql: '''
-                INSERT INTO list_entries (user_id, media_id, status, progress, hidden_from_planning, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(user_id, media_id) DO UPDATE SET
-                  status = excluded.status,
-                  progress = excluded.progress,
-                  hidden_from_planning = excluded.hidden_from_planning,
-                  updated_at = excluded.updated_at
-              ''',
-              args: [
-                user.id,
-                entry.mediaId,
-                entry.status.name,
-                entry.progress,
-                entry.hiddenFromPlanning ? 1 : 0,
-                entry.updatedAt.millisecondsSinceEpoch,
-              ],
-            ));
-          } else if (action == 'delete') {
-            final mediaId = payload['mediaId'] as int;
-            statements.add((
-              sql: 'DELETE FROM list_entries WHERE user_id = ? AND media_id = ?',
-              args: [user.id, mediaId],
-            ));
-          }
-        } else if (entityType == 'episode_progress') {
-          final p = EpisodeProgress.fromJson(payload);
+      if (entityType == 'list_entry') {
+        if (action == 'upsert') {
+          final entry = ListEntry.fromJson(payload);
           statements.add((
             sql: '''
-              INSERT INTO episode_progresses (user_id, media_id, episode_number, watched, position_seconds, duration_seconds, completed_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-              ON CONFLICT(user_id, media_id, episode_number) DO UPDATE SET
-                watched = excluded.watched,
-                position_seconds = excluded.position_seconds,
-                duration_seconds = excluded.duration_seconds,
-                completed_at = excluded.completed_at,
+              INSERT INTO list_entries (user_id, media_id, status, progress, hidden_from_planning, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?)
+              ON CONFLICT(user_id, media_id) DO UPDATE SET
+                status = excluded.status,
+                progress = excluded.progress,
+                hidden_from_planning = excluded.hidden_from_planning,
                 updated_at = excluded.updated_at
             ''',
             args: [
               user.id,
-              p.mediaId,
-              p.episodeNumber,
-              p.watched ? 1 : 0,
-              p.positionSeconds,
-              p.durationSeconds,
-              p.completedAt?.millisecondsSinceEpoch,
-              p.updatedAt.millisecondsSinceEpoch,
+              entry.mediaId,
+              entry.status.name,
+              entry.progress,
+              entry.hiddenFromPlanning ? 1 : 0,
+              entry.updatedAt.millisecondsSinceEpoch,
             ],
           ));
-        } else if (entityType == 'watch_history') {
-          final h = WatchHistoryEntry.fromJson(payload);
+        } else if (action == 'delete') {
+          final mediaId = payload['mediaId'] as int;
           statements.add((
-            sql: '''
-              INSERT INTO watch_histories (user_id, media_id, episode_number, started_at, ended_at, watched_seconds)
-              VALUES (?, ?, ?, ?, NULL, 0.0)
-            ''',
-            args: [
-              user.id,
-              h.mediaId,
-              h.episodeNumber,
-              h.startedAt.millisecondsSinceEpoch,
-            ],
+            sql: 'DELETE FROM list_entries WHERE user_id = ? AND media_id = ?',
+            args: [user.id, mediaId],
           ));
         }
-
-        processedIds.add(id);
+      } else if (entityType == 'episode_progress') {
+        final p = EpisodeProgress.fromJson(payload);
+        statements.add((
+          sql: '''
+            INSERT INTO episode_progresses (user_id, media_id, episode_number, watched, position_seconds, duration_seconds, completed_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, media_id, episode_number) DO UPDATE SET
+              watched = excluded.watched,
+              position_seconds = excluded.position_seconds,
+              duration_seconds = excluded.duration_seconds,
+              completed_at = excluded.completed_at,
+              updated_at = excluded.updated_at
+          ''',
+          args: [
+            user.id,
+            p.mediaId,
+            p.episodeNumber,
+            p.watched ? 1 : 0,
+            p.positionSeconds,
+            p.durationSeconds,
+            p.completedAt?.millisecondsSinceEpoch,
+            p.updatedAt.millisecondsSinceEpoch,
+          ],
+        ));
+      } else if (entityType == 'watch_history') {
+        final h = WatchHistoryEntry.fromJson(payload);
+        statements.add((
+          sql: '''
+            INSERT INTO watch_histories (user_id, media_id, episode_number, started_at, ended_at, watched_seconds)
+            VALUES (?, ?, ?, ?, NULL, 0.0)
+          ''',
+          args: [
+            user.id,
+            h.mediaId,
+            h.episodeNumber,
+            h.startedAt.millisecondsSinceEpoch,
+          ],
+        ));
       }
 
-      if (statements.isNotEmpty) {
-        await _authRepo.client.batch(statements);
-      }
-
-      // Suppression des requêtes traitées avec succès
-      final idPlaceholders = List.filled(processedIds.length, '?').join(',');
-      await _db.customStatement(
-        'DELETE FROM sync_queue WHERE id IN ($idPlaceholders)',
-        processedIds,
-      );
-
-      final remaining = await getPendingQueueCount();
-      final now = DateTime.now();
-      await _settingsRepo.set('cloud_last_synced_at', now.toIso8601String());
-
-      _isSyncing = false;
-      _updateStatus(_currentStatus.copyWith(
-        pendingQueueCount: remaining,
-        lastSyncedAt: now,
-        state: remaining > 0 ? SyncState.offline : SyncState.synced,
-      ));
-
-      if (remaining > 0) {
-        // Enchaîne avec le lot suivant
-        scheduleMicrotask(flushQueue);
-      }
-      return true;
-    } catch (e) {
-      _isSyncing = false;
-      final remaining = await getPendingQueueCount();
-      _updateStatus(_currentStatus.copyWith(
-        pendingQueueCount: remaining,
-        state: SyncState.offline,
-        message: 'Connexion indisponible. Enregistré localement.',
-      ));
-      return false;
+      processedIds.add(id);
     }
+
+    if (statements.isNotEmpty) {
+      await _authRepo.client.batch(statements);
+    }
+
+    // Suppression des requêtes traitées avec succès
+    final idPlaceholders = List.filled(processedIds.length, '?').join(',');
+    await _db.customStatement(
+      'DELETE FROM sync_queue WHERE id IN ($idPlaceholders)',
+      processedIds,
+    );
+
+    final remaining = await getPendingQueueCount();
+    final now = DateTime.now();
+    await _settingsRepo.set('cloud_last_synced_at', now.toIso8601String());
+
+    _updateStatus(_currentStatus.copyWith(
+      pendingQueueCount: remaining,
+      lastSyncedAt: now,
+      state: remaining > 0 ? SyncState.offline : SyncState.synced,
+    ));
+
+    if (remaining > 0) {
+      // Enchaîne avec le lot suivant
+      scheduleMicrotask(flushQueue);
+    }
+    return true;
   }
 
   // ---------------------------------------------------------------------------
@@ -446,7 +452,7 @@ class SyncService {
 
     try {
       // 1. Draine d'abord les deltas locaux
-      await flushQueue();
+      await _flushQueueCore(user);
 
       final client = _authRepo.client;
 
@@ -532,7 +538,7 @@ class SyncService {
           // Présent en local, absent du Cloud -> Push vers Turso
           statementsToPush.add((
             sql: '''
-              INSERT INTO list_entries (user_id, media_id, status, progress, hidden_from_planning, updated_at)
+              INSERT OR REPLACE INTO list_entries (user_id, media_id, status, progress, hidden_from_planning, updated_at)
               VALUES (?, ?, ?, ?, ?, ?)
             ''',
             args: [
@@ -641,7 +647,7 @@ class SyncService {
           // Présent en local uniquement -> Push
           statementsToPush.add((
             sql: '''
-              INSERT INTO episode_progresses (user_id, media_id, episode_number, watched, position_seconds, duration_seconds, completed_at, updated_at)
+              INSERT OR REPLACE INTO episode_progresses (user_id, media_id, episode_number, watched, position_seconds, duration_seconds, completed_at, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''',
             args: [

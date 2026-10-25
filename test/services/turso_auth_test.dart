@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'package:drift/native.dart';
 import 'package:test/test.dart';
+import 'package:terebi/src/data/local/database.dart';
+import 'package:terebi/src/data/repositories/auth_repository.dart';
+import 'package:terebi/src/data/repositories/settings_repository.dart';
 import 'package:terebi/src/domain/models/user_account.dart';
 import 'package:terebi/src/data/remote/turso_client.dart';
 
@@ -83,6 +88,69 @@ void main() {
         client.baseUrl,
         'https://terebi-saloquin.aws-eu-west-1.turso.io/v2/pipeline',
       );
+    });
+  });
+
+  group('AuthRepository & Reconnection Persistence', () {
+    late TerebiDatabase db;
+    late SettingsRepository settings;
+    late AuthRepository authRepo;
+
+    final dummyUser = UserAccount(
+      id: 'usr_persistent_42',
+      username: 'Saloquin',
+      avatarStyle: 'lorelei',
+      avatarSeed: 'tyxcz7oe',
+      bio: 'Membre actif Terebi',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+      updatedAt: DateTime.fromMillisecondsSinceEpoch(1700000000000),
+    );
+
+    setUp(() {
+      db = TerebiDatabase(NativeDatabase.memory());
+      settings = SettingsRepository(db);
+      authRepo = AuthRepository(settings);
+    });
+
+    tearDown(() async {
+      await db.close();
+    });
+
+    test('getCachedUser retourne le profil immédiatement sans appel réseau', () async {
+      await settings.set('auth_cached_user', jsonEncode(dummyUser.toMap()));
+
+      final cached = await authRepo.getCachedUser();
+      expect(cached, isNotNull);
+      expect(cached!.id, 'usr_persistent_42');
+      expect(cached.username, 'Saloquin');
+      expect(cached.avatarStyle, 'lorelei');
+    });
+
+    test('restoreSession conserve le compte utilisateur même si offline ou erreur serveur', () async {
+      await settings.set('auth_session_token', 'fake_offline_token_xyz');
+      await settings.set('auth_cached_user', jsonEncode(dummyUser.toMap()));
+
+      final restored = await authRepo.restoreSession();
+      expect(restored, isNotNull);
+      expect(restored!.id, 'usr_persistent_42');
+      expect(restored.username, 'Saloquin');
+
+      // Le token local et le cache ne doivent JAMAIS avoir été supprimés
+      expect(await settings.get('auth_session_token'), 'fake_offline_token_xyz');
+      expect(await settings.get('auth_cached_user'), isNotNull);
+    });
+
+    test('logout efface définitivement le token et le cache local', () async {
+      await settings.set('auth_session_token', 'token_to_purge');
+      await settings.set('auth_user_id', 'usr_persistent_42');
+      await settings.set('auth_cached_user', jsonEncode(dummyUser.toMap()));
+
+      await authRepo.logout();
+
+      expect(await settings.get('auth_session_token'), isNull);
+      expect(await settings.get('auth_user_id'), isNull);
+      expect(await settings.get('auth_cached_user'), isNull);
+      expect(await authRepo.getCachedUser(), isNull);
     });
   });
 }

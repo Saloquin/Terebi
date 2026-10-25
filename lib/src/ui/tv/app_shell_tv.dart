@@ -64,6 +64,10 @@ class _AppShellTvState extends ConsumerState<AppShellTv> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        ref.read(syncServiceProvider).fullSync();
+      } catch (_) {}
+
       final settings = ref.read(settingsRepositoryProvider);
       final autoUpdate =
           await settings.get(SettingsKeys.autoUpdate, defaultValue: '1');
