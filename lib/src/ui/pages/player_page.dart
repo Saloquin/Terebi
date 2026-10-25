@@ -1273,9 +1273,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
-  bool get _isTv =>
-      ref.watch(isTvProvider) ||
-      ref.watch(layoutModeProvider) == LayoutMode.tv;
+  bool get _isTv => ref.watch(isTvProvider);
 
   bool get _useMobileControls => _isMobile && !_isTv;
 

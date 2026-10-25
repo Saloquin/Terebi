@@ -207,11 +207,6 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final forced = ref.watch(layoutModeProvider);
-    if (forced == LayoutMode.tv) return const AppShellTv();
-    if (forced == LayoutMode.mobile) return const AppShellMobile();
-    if (forced == LayoutMode.desktop) return const AppShellDesktop();
-
     return switch (ref.watch(appPlatformProvider)) {
       AppPlatform.tv      => const AppShellTv(),
       AppPlatform.mobile  => const AppShellMobile(),

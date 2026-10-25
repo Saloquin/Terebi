@@ -346,40 +346,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
                     _recomputeDirty();
                   },
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Mode d\'affichage de l\'interface',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                SegmentedButton<LayoutMode>(
-                  segments: const [
-                    ButtonSegment(
-                      value: LayoutMode.auto,
-                      icon: Icon(Icons.auto_awesome),
-                      label: Text('Auto'),
-                    ),
-                    ButtonSegment(
-                      value: LayoutMode.desktop,
-                      icon: Icon(Icons.desktop_windows),
-                      label: Text('Bureau'),
-                    ),
-                    ButtonSegment(
-                      value: LayoutMode.mobile,
-                      icon: Icon(Icons.smartphone),
-                      label: Text('Mobile'),
-                    ),
-                    ButtonSegment(
-                      value: LayoutMode.tv,
-                      icon: Icon(Icons.tv),
-                      label: Text('Android TV'),
-                    ),
-                  ],
-                  selected: {ref.watch(layoutModeProvider)},
-                  onSelectionChanged: (s) {
-                    ref.read(layoutModeProvider.notifier).state = s.first;
-                  },
-                ),
                 const SizedBox(height: 24),
 
                 // --- Lecture ---

@@ -50,9 +50,6 @@ abstract final class SettingsKeys {
   /// Saut automatique des openings (AniSkip) : '1' (défaut) = activé.
   static const String autoSkipOpening = 'auto_skip_opening';
 
-  /// Mode d'affichage forcé de l'interface ('auto' | 'desktop' | 'mobile' | 'tv').
-  static const String layoutMode = 'layout_mode';
-
   /// Afficher les animes avec nouveaux épisodes en premier dans l'onglet « En cours »
   /// ('1' = activé par défaut, '0' = désactivé).
   static const String prioritizeNewEpisodes = 'prioritize_new_episodes';

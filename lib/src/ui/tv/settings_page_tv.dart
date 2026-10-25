@@ -111,7 +111,6 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider).value;
     final syncStatus = ref.watch(syncServiceProvider).currentStatus;
-    final layoutMode = ref.watch(layoutModeProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -233,45 +232,7 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
           ),
           const SizedBox(height: 32),
 
-          // --- 2. SECTION MODE D'INTERFACE ---
-          _buildSectionHeader('Mode d\'interface', Icons.tv),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _buildChoiceCard(
-                  title: 'Android TV',
-                  subtitle: 'Optimisé télécommande & 10-foot',
-                  icon: Icons.tv,
-                  selected: layoutMode == LayoutMode.tv || layoutMode == LayoutMode.auto,
-                  onPressed: () => ref.read(layoutModeProvider.notifier).state = LayoutMode.tv,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildChoiceCard(
-                  title: 'Mobile',
-                  subtitle: 'Barre inférieure & tactile',
-                  icon: Icons.smartphone,
-                  selected: layoutMode == LayoutMode.mobile,
-                  onPressed: () => ref.read(layoutModeProvider.notifier).state = LayoutMode.mobile,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: _buildChoiceCard(
-                  title: 'Bureau',
-                  subtitle: 'Barre latérale desktop & souris',
-                  icon: Icons.desktop_windows,
-                  selected: layoutMode == LayoutMode.desktop,
-                  onPressed: () => ref.read(layoutModeProvider.notifier).state = LayoutMode.desktop,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 32),
-
-          // --- 3. SECTION LECTURE & VIDÉO ---
+          // --- 2. SECTION LECTURE & VIDÉO ---
           _buildSectionHeader('Lecture & Audio', Icons.play_circle_outline),
           const SizedBox(height: 12),
           Row(
@@ -309,7 +270,7 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
           ),
           const SizedBox(height: 32),
 
-          // --- 4. SECTION MISES À JOUR ---
+          // --- 3. SECTION MISES À JOUR ---
           _buildSectionHeader('Application', Icons.info_outline),
           const SizedBox(height: 12),
           Container(
