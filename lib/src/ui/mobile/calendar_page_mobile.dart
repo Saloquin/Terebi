@@ -10,6 +10,7 @@ import '../../app/providers.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
+import '../../domain/models/media.dart';
 import '../../services/stream_resolver.dart';
 import '../pages/media_detail_page.dart';
 import '../widgets/anime_sama_image.dart';
@@ -223,6 +224,11 @@ class _PlanningItemCard extends ConsumerWidget {
 
   Future<void> _addToLibrary(BuildContext context, WidgetRef ref) async {
     final id = animeSamaIdForSlug(item.slug);
+    final media = Media.fromAnimeSama(
+      slug: item.slug,
+      title: item.title,
+    );
+    await ref.read(mediaRepositoryProvider).upsertMedia(media);
     final listRepo = ref.read(listRepositoryProvider);
     await listRepo.upsertEntry(ListEntry(
       mediaId: id,

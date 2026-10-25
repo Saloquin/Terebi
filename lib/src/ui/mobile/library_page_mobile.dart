@@ -241,43 +241,36 @@ class _MobileEntriesList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mediaRepo = ref.watch(mediaRepositoryProvider);
+    final mediaMapAsync = ref.watch(allMediaMapProvider);
+    final mediaMap = mediaMapAsync.asData?.value ?? const {};
 
-    return FutureBuilder<List<({ListEntry entry, Media? media})>>(
-      future: Future.wait(
-        entries.map((e) async {
-          final m = await mediaRepo.getMedia(e.mediaId);
-          return (entry: e, media: m);
-        }),
-      ),
-      builder: (context, snap) {
-        if (!snap.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
+    var items = entries.map((e) => (entry: e, media: mediaMap[e.mediaId])).toList();
+    if (searchQuery.isNotEmpty) {
+      final q = searchQuery.toLowerCase();
+      items = items.where((it) {
+        final title = it.media?.title.preferred.toLowerCase() ?? '';
+        final sama = it.media?.animeSamaTitle?.toLowerCase() ?? '';
+        final slug = it.media?.animeSamaSlug?.toLowerCase() ?? '';
+        return title.contains(q) || sama.contains(q) || slug.contains(q);
+      }).toList();
+    }
 
-        var items = snap.data!;
-        if (searchQuery.isNotEmpty) {
-          items = items.where((it) {
-            final title = it.media?.title.preferred.toLowerCase() ?? '';
-            final sama = it.media?.animeSamaTitle?.toLowerCase() ?? '';
-            return title.contains(searchQuery) || sama.contains(searchQuery);
-          }).toList();
-        }
+    if (items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.filter_list_off, size: 48, color: Colors.white38),
+            const SizedBox(height: 12),
+            Text(searchQuery.isNotEmpty
+                ? 'Aucun anime ne correspond à « $searchQuery »'
+                : 'Aucun anime dans « ${status.label} »'),
+          ],
+        ),
+      );
+    }
 
-        if (items.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.filter_list_off, size: 48, color: Colors.white38),
-                const SizedBox(height: 12),
-                Text('Aucun anime ne correspond à « $searchQuery »'),
-              ],
-            ),
-          );
-        }
-
-        if (isGridView) {
+    if (isGridView) {
           return GridView.builder(
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -307,8 +300,6 @@ class _MobileEntriesList extends ConsumerWidget {
             );
           },
         );
-      },
-    );
   }
 }
 
@@ -369,7 +360,13 @@ class _MobileListCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final title = media?.title.preferred ?? 'Anime #${entry.mediaId}';
+    final title = (media?.title.preferred.isNotEmpty ?? false)
+        ? media!.title.preferred
+        : (media?.animeSamaTitle?.isNotEmpty ?? false)
+            ? media!.animeSamaTitle!
+            : (media?.animeSamaSlug?.isNotEmpty ?? false)
+                ? media!.animeSamaSlug!
+                : 'Anime #${entry.mediaId}';
     final slug = media?.animeSamaSlug ?? '';
     final cover = media?.coverUrl;
 
@@ -398,7 +395,10 @@ class _MobileListCard extends ConsumerWidget {
             MaterialPageRoute(
               builder: (_) => MediaDetailPage(
                 mediaId: entry.mediaId,
-                displayTitle: media?.animeSamaTitle,
+                displayTitle: media?.animeSamaTitle ??
+                    ((media?.title.preferred.isNotEmpty ?? false)
+                        ? media!.title.preferred
+                        : null),
               ),
             ),
           );
@@ -556,7 +556,13 @@ class _MobileGridCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final title = media?.title.preferred ?? 'Anime #${entry.mediaId}';
+    final title = (media?.title.preferred.isNotEmpty ?? false)
+        ? media!.title.preferred
+        : (media?.animeSamaTitle?.isNotEmpty ?? false)
+            ? media!.animeSamaTitle!
+            : (media?.animeSamaSlug?.isNotEmpty ?? false)
+                ? media!.animeSamaSlug!
+                : 'Anime #${entry.mediaId}';
     final slug = media?.animeSamaSlug ?? '';
     final cover = media?.coverUrl;
 
@@ -567,7 +573,10 @@ class _MobileGridCard extends ConsumerWidget {
           MaterialPageRoute(
             builder: (_) => MediaDetailPage(
               mediaId: entry.mediaId,
-              displayTitle: media?.animeSamaTitle,
+              displayTitle: media?.animeSamaTitle ??
+                  ((media?.title.preferred.isNotEmpty ?? false)
+                      ? media!.title.preferred
+                      : null),
             ),
           ),
         );

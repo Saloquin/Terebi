@@ -18,6 +18,7 @@ import '../data/repositories/watch_history_repository.dart';
 import '../domain/models/episode_progress.dart';
 import '../domain/models/list_entry.dart';
 import '../domain/models/list_status.dart';
+import '../domain/models/media.dart';
 import '../domain/models/user_account.dart';
 import '../domain/models/watch_history_entry.dart';
 
@@ -530,6 +531,36 @@ class SyncService {
         }
       }
 
+      // 0.b. PULL des métadonnées distantes manquantes en local depuis Turso
+      final missingLocally = allMediaIds
+          .where((mid) =>
+              (!localMediaMap.containsKey(mid) ||
+                  (localMediaMap[mid]?.title.preferred.isEmpty ?? true)) &&
+              remoteMediaIds.contains(mid))
+          .toList();
+
+      if (missingLocally.isNotEmpty) {
+        const fetchBatch = 50;
+        for (var i = 0; i < missingLocally.length; i += fetchBatch) {
+          final chunk = missingLocally.sublist(
+            i,
+            min(i + fetchBatch, missingLocally.length),
+          );
+          final placeholders = List.filled(chunk.length, '?').join(',');
+          final rows = await client.query(
+            'SELECT * FROM media_table WHERE anilist_id IN ($placeholders)',
+            chunk,
+          );
+          for (final row in rows) {
+            final media = _mediaFromRemoteRow(row);
+            if (media != null) {
+              await _mediaRepo.upsertMedia(media);
+              localMediaMap[media.mediaId] = media;
+            }
+          }
+        }
+      }
+
       for (final mid in allMediaIds) {
         final local = localEntryMap[mid];
         final remote = remoteEntryMap[mid];
@@ -832,6 +863,64 @@ class SyncService {
         message: 'Erreur lors de la synchronisation : $e',
       ));
       return false;
+    }
+  }
+
+  Media? _mediaFromRemoteRow(Map<String, dynamic> row) {
+    try {
+      final midRaw = row['anilist_id'];
+      final mid = midRaw is int
+          ? midRaw
+          : int.tryParse(midRaw?.toString() ?? '');
+      if (mid == null) return null;
+
+      final romaji = row['title_romaji']?.toString();
+      final english = row['title_english']?.toString();
+      final native = row['title_native']?.toString();
+      final samaTitle = row['anime_sama_title']?.toString();
+      final samaSlug = row['anime_sama_slug']?.toString();
+
+      final effectiveRomaji = (romaji != null && romaji.trim().isNotEmpty)
+          ? romaji.trim()
+          : (samaTitle != null && samaTitle.trim().isNotEmpty)
+              ? samaTitle.trim()
+              : (english != null && english.trim().isNotEmpty)
+                  ? english.trim()
+                  : null;
+
+      List<String> genres = const [];
+      final genresRaw = row['genres_json'];
+      if (genresRaw != null && genresRaw is String && genresRaw.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(genresRaw);
+          if (decoded is List) {
+            genres = decoded.map((e) => e.toString()).toList();
+          }
+        } catch (_) {}
+      }
+
+      final epRaw = row['episodes'];
+      final episodes = epRaw is int
+          ? epRaw
+          : int.tryParse(epRaw?.toString() ?? '');
+
+      return Media(
+        mediaId: mid,
+        title: MediaTitle(
+          romaji: effectiveRomaji,
+          english: english,
+          native: native,
+        ),
+        episodes: episodes,
+        coverUrl: row['cover_url']?.toString(),
+        bannerUrl: row['banner_url']?.toString(),
+        description: row['description']?.toString(),
+        genres: genres,
+        animeSamaTitle: samaTitle,
+        animeSamaSlug: samaSlug,
+      );
+    } catch (_) {
+      return null;
     }
   }
 

@@ -12,6 +12,7 @@ import 'package:terebi/src/data/repositories/watch_history_repository.dart';
 import 'package:terebi/src/domain/models/episode_progress.dart';
 import 'package:terebi/src/domain/models/list_entry.dart';
 import 'package:terebi/src/domain/models/list_status.dart';
+import 'package:terebi/src/domain/models/media.dart';
 import 'package:terebi/src/domain/models/watch_history_entry.dart';
 import 'package:terebi/src/services/sync_service.dart';
 
@@ -177,5 +178,23 @@ void main() {
     ));
 
     expect(await syncService.getPendingQueueCount(), equals(2));
+  });
+
+  test('MediaRepository persiste et restitue correctement un Media Anime-Sama complet', () async {
+    final mediaRepo = MediaRepository(db);
+    final media = Media.fromAnimeSama(
+      slug: 'death-note',
+      title: 'Death Note',
+      synopsis: 'Cahier de la mort',
+      genres: ['Thriller', 'Surnaturel'],
+    );
+    await mediaRepo.upsertMedia(media);
+
+    final retrieved = await mediaRepo.getMedia(media.mediaId);
+    expect(retrieved, isNotNull);
+    expect(retrieved!.title.preferred, equals('Death Note'));
+    expect(retrieved.animeSamaSlug, equals('death-note'));
+    expect(retrieved.description, equals('Cahier de la mort'));
+    expect(retrieved.genres, contains('Thriller'));
   });
 }

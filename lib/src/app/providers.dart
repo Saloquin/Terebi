@@ -229,6 +229,14 @@ final libraryStatusMapProvider =
       (entries) => {for (final e in entries) e.entry.mediaId: e.status});
 });
 
+/// Map réactive de tous les médias en base locale SQLite (mediaId -> Media).
+/// Émet automatiquement à chaque insertion ou mise à jour de média (synchronisation Cloud, etc.).
+final allMediaMapProvider = StreamProvider<Map<int, Media>>((ref) {
+  return ref.watch(mediaRepositoryProvider).watchAllMedia().map(
+        (list) => {for (final m in list) m.mediaId: m},
+      );
+});
+
 final metaCacheRepositoryProvider = Provider<MetaCacheRepository>(
   (ref) => MetaCacheRepository(ref.watch(databaseProvider)),
 );

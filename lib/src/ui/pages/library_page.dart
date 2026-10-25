@@ -1180,7 +1180,10 @@ class _EntryCard extends ConsumerWidget {
               MaterialPageRoute(
                 builder: (_) => MediaDetailPage(
                   mediaId: entry.mediaId,
-                  displayTitle: media?.animeSamaTitle,
+                  displayTitle: media?.animeSamaTitle ??
+                      ((media?.title.preferred.isNotEmpty ?? false)
+                          ? media!.title.preferred
+                          : null),
                 ),
               ),
             );
@@ -1195,7 +1198,10 @@ class _EntryCard extends ConsumerWidget {
                   MaterialPageRoute(
                     builder: (_) => MediaDetailPage(
                       mediaId: entry.mediaId,
-                      displayTitle: media?.animeSamaTitle,
+                      displayTitle: media?.animeSamaTitle ??
+                          ((media?.title.preferred.isNotEmpty ?? false)
+                              ? media!.title.preferred
+                              : null),
                     ),
                   ),
                 );
