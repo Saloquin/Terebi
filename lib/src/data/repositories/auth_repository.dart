@@ -326,7 +326,7 @@ class AuthRepository {
   Future<UserProfileStats> getUserStats(String userId) async {
     try {
       final entriesRows = await _client.query('''
-        SELECT status, COUNT(*) as count 
+        SELECT status, COUNT(*) as count, SUM(progress) as total_prog
         FROM list_entries 
         WHERE user_id = ? 
         GROUP BY status
@@ -336,11 +336,14 @@ class AuthRepository {
       int completed = 0;
       int current = 0;
       int planning = 0;
+      int totalProgress = 0;
 
       for (final r in entriesRows) {
         final st = r['status']?.toString();
         final c = (r['count'] is int) ? r['count'] as int : int.tryParse(r['count']?.toString() ?? '') ?? 0;
+        final p = (r['total_prog'] is int) ? r['total_prog'] as int : int.tryParse(r['total_prog']?.toString() ?? '') ?? 0;
         total += c;
+        totalProgress += p;
         if (st == 'completed') completed = c;
         if (st == 'current') current = c;
         if (st == 'planning') planning = c;
@@ -362,18 +365,22 @@ class AuthRepository {
           ? (histRows.first['total_sec'] is num ? (histRows.first['total_sec'] as num).toDouble() : double.tryParse(histRows.first['total_sec'].toString()) ?? 0.0)
           : 0.0;
 
+      final effectiveWatchedEps = max(watchedEps, totalProgress);
+      final effectiveHours = totalSec > 0.0 ? (totalSec / 3600.0) : (effectiveWatchedEps * 24.0 / 60.0);
+
       return UserProfileStats(
         totalEntries: total,
         completedCount: completed,
         currentCount: current,
         planningCount: planning,
-        watchedEpisodesCount: watchedEps,
-        totalWatchedHours: (totalSec / 3600.0),
+        watchedEpisodesCount: effectiveWatchedEps,
+        totalWatchedHours: effectiveHours,
       );
     } catch (_) {
       return const UserProfileStats();
     }
   }
+
   /// Récupère le classement des utilisateurs et les dashboards de la communauté.
   Future<CommunityDashboardData> getCommunityLeaderboard() async {
     try {
@@ -385,16 +392,42 @@ class AuthRepository {
           u.avatar_seed,
           u.avatar_url,
           u.bio,
-          COUNT(DISTINCT CASE WHEN l.status = 'completed' THEN l.media_id END) as completed_count,
-          COUNT(DISTINCT l.media_id) as total_animes,
-          COALESCE(SUM(DISTINCT CASE WHEN p.watched = 1 THEN 1 ELSE 0 END), 0) as episodes_watched,
-          COALESCE(ROUND(SUM(w.watched_seconds) / 3600.0, 1), 0.0) as watched_hours
+          COALESCE(l.completed_count, 0) as completed_count,
+          COALESCE(l.total_animes, 0) as total_animes,
+          MAX(COALESCE(p.episodes_watched, 0), COALESCE(l.total_progress, 0)) as episodes_watched,
+          ROUND(
+            CASE 
+              WHEN COALESCE(w.watched_hours, 0.0) > 0.0 THEN w.watched_hours
+              ELSE MAX(COALESCE(p.episodes_watched, 0), COALESCE(l.total_progress, 0)) * 24.0 / 60.0
+            END, 
+            1
+          ) as watched_hours
         FROM users u
-        LEFT JOIN list_entries l ON l.user_id = u.id
-        LEFT JOIN episode_progresses p ON p.user_id = u.id
-        LEFT JOIN watch_histories w ON w.user_id = u.id
-        GROUP BY u.id
-        ORDER BY watched_hours DESC, episodes_watched DESC, completed_count DESC
+        LEFT JOIN (
+          SELECT 
+            user_id,
+            COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+            COUNT(*) as total_animes,
+            SUM(progress) as total_progress
+          FROM list_entries
+          GROUP BY user_id
+        ) l ON l.user_id = u.id
+        LEFT JOIN (
+          SELECT 
+            user_id,
+            COUNT(*) as episodes_watched
+          FROM episode_progresses
+          WHERE watched = 1
+          GROUP BY user_id
+        ) p ON p.user_id = u.id
+        LEFT JOIN (
+          SELECT 
+            user_id,
+            ROUND(SUM(watched_seconds) / 3600.0, 1) as watched_hours
+          FROM watch_histories
+          GROUP BY user_id
+        ) w ON w.user_id = u.id
+        ORDER BY completed_count DESC, episodes_watched DESC, total_animes DESC
         LIMIT 50
       ''');
 
@@ -421,12 +454,15 @@ class AuthRepository {
 
       final globalRows = await _client.query('''
         SELECT 
-          COUNT(DISTINCT u.id) as total_users,
-          COUNT(DISTINCT l.media_id) as community_unique_animes,
-          COALESCE(ROUND(SUM(w.watched_seconds) / 3600.0, 1), 0.0) as community_total_hours
-        FROM users u
-        LEFT JOIN list_entries l ON l.user_id = u.id
-        LEFT JOIN watch_histories w ON w.user_id = u.id
+          (SELECT COUNT(*) FROM users) as total_users,
+          (SELECT COUNT(DISTINCT media_id) FROM list_entries) as community_unique_animes,
+          ROUND(
+            COALESCE(
+              NULLIF((SELECT SUM(watched_seconds) / 3600.0 FROM watch_histories WHERE watched_seconds > 0), 0.0),
+              (SELECT COALESCE(SUM(progress), 0) * 24.0 / 60.0 FROM list_entries)
+            ),
+            1
+          ) as community_total_hours
       ''');
 
       final g = globalRows.isNotEmpty ? globalRows.first : <String, dynamic>{};
@@ -440,14 +476,28 @@ class AuthRepository {
           ? (g['community_total_hours'] as num).toDouble()
           : double.tryParse(g['community_total_hours']?.toString() ?? '') ?? 0.0;
 
-      return CommunityDashboardData(
+      final data = CommunityDashboardData(
         totalUsers: totalU,
         uniqueAnimes: uniqueA,
         totalHours: totalH,
         users: users,
         topAnimes: topAnimes,
       );
-    } catch (_) {
+
+      // Met en cache local pour disponibilité instantanée et hors-ligne
+      try {
+        await _settings.set('cached_community_dashboard', jsonEncode(data.toMap()));
+      } catch (_) {}
+
+      return data;
+    } catch (e) {
+      // En cas d'erreur réseau, tente de renvoyer le cache local s'il existe
+      final cachedJson = await _settings.get('cached_community_dashboard');
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        try {
+          return CommunityDashboardData.fromMap(jsonDecode(cachedJson));
+        } catch (_) {}
+      }
       return const CommunityDashboardData();
     }
   }

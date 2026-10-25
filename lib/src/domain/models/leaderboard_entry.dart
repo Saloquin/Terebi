@@ -35,6 +35,20 @@ class LeaderboardUser {
     return 'https://api.dicebear.com/9.x/$style/png?seed=${Uri.encodeComponent(seed)}';
   }
 
+  Map<String, dynamic> toMap() => {
+    'rank': rank,
+    'id': id,
+    'username': username,
+    'avatar_style': avatarStyle,
+    'avatar_seed': avatarSeed,
+    'avatar_url': avatarUrl,
+    'bio': bio,
+    'completed_count': completedCount,
+    'total_animes': totalAnimes,
+    'episodes_watched': episodesWatched,
+    'watched_hours': watchedHours,
+  };
+
   factory LeaderboardUser.fromMap(Map<String, dynamic> map, int rank) {
     final rawHours = map['watched_hours'];
     final hours = (rawHours is num)
@@ -85,6 +99,13 @@ class CommunityTopAnime {
     required this.trackingUsers,
   });
 
+  Map<String, dynamic> toMap() => {
+    'anilist_id': mediaId,
+    'anime_sama_title': title,
+    'cover_url': coverUrl,
+    'tracking_users': trackingUsers,
+  };
+
   factory CommunityTopAnime.fromMap(Map<String, dynamic> map) {
     return CommunityTopAnime(
       mediaId: (map['anilist_id'] is int)
@@ -115,4 +136,42 @@ class CommunityDashboardData {
     this.users = const [],
     this.topAnimes = const [],
   });
+
+  Map<String, dynamic> toMap() => {
+    'total_users': totalUsers,
+    'community_unique_animes': uniqueAnimes,
+    'community_total_hours': totalHours,
+    'users': users.map((u) => u.toMap()).toList(),
+    'top_animes': topAnimes.map((a) => a.toMap()).toList(),
+  };
+
+  factory CommunityDashboardData.fromMap(Map<String, dynamic> map) {
+    final rawUsers = (map['users'] as List?) ?? const [];
+    final users = <LeaderboardUser>[];
+    for (int i = 0; i < rawUsers.length; i++) {
+      if (rawUsers[i] is Map<String, dynamic>) {
+        final r = (rawUsers[i]['rank'] is int) ? rawUsers[i]['rank'] as int : i + 1;
+        users.add(LeaderboardUser.fromMap(rawUsers[i] as Map<String, dynamic>, r));
+      }
+    }
+    final rawTop = (map['top_animes'] as List?) ?? const [];
+    final topAnimes = rawTop
+        .whereType<Map<String, dynamic>>()
+        .map(CommunityTopAnime.fromMap)
+        .toList();
+
+    return CommunityDashboardData(
+      totalUsers: (map['total_users'] is int)
+          ? map['total_users'] as int
+          : int.tryParse(map['total_users']?.toString() ?? '') ?? users.length,
+      uniqueAnimes: (map['community_unique_animes'] is int)
+          ? map['community_unique_animes'] as int
+          : int.tryParse(map['community_unique_animes']?.toString() ?? '') ?? 0,
+      totalHours: (map['community_total_hours'] is num)
+          ? (map['community_total_hours'] as num).toDouble()
+          : double.tryParse(map['community_total_hours']?.toString() ?? '') ?? 0.0,
+      users: users,
+      topAnimes: topAnimes,
+    );
+  }
 }

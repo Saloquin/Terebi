@@ -197,7 +197,13 @@ class LeaderboardPage extends ConsumerWidget {
                                 medalIcon: '🥈',
                               )
                             else
-                              const SizedBox(width: 80),
+                              _buildEmptyPodiumSlot(
+                                context,
+                                rank: 2,
+                                height: 110,
+                                medalIcon: '🥈',
+                                medalColor: const Color(0xFFC0C0C0),
+                              ),
 
                             // 1ère place (plus haute)
                             if (top1 != null)
@@ -221,7 +227,13 @@ class LeaderboardPage extends ConsumerWidget {
                                 medalIcon: '🥉',
                               )
                             else
-                              const SizedBox(width: 80),
+                              _buildEmptyPodiumSlot(
+                                context,
+                                rank: 3,
+                                height: 90,
+                                medalIcon: '🥉',
+                                medalColor: const Color(0xFFCD7F32),
+                              ),
                           ],
                         ),
                       ),
@@ -236,10 +248,35 @@ class LeaderboardPage extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    Card(
-                      elevation: 1,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: ListView.separated(
+                    if (users.isEmpty)
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                          child: Column(
+                            children: [
+                              Icon(Icons.emoji_events_outlined, size: 48, color: colorScheme.outlineVariant),
+                              const SizedBox(height: 12),
+                              Text(
+                                'Aucun membre classé pour l\'instant',
+                                style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Synchronisez votre bibliothèque pour apparaître en tête du podium !',
+                                textAlign: TextAlign.center,
+                                style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Card(
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        child: ListView.separated(
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
                         itemCount: users.length,
@@ -579,6 +616,59 @@ class LeaderboardPage extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildEmptyPodiumSlot(
+    BuildContext context, {
+    required int rank,
+    required double height,
+    required String medalIcon,
+    required Color medalColor,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(medalIcon, style: const TextStyle(fontSize: 22, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Container(
+          width: 60,
+          height: 60,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: medalColor.withValues(alpha: 0.3), width: 2),
+          ),
+          child: Icon(Icons.person_outline, color: medalColor.withValues(alpha: 0.4), size: 28),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Place libre',
+          style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+        ),
+        Text(
+          'En attente',
+          style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+        ),
+        const SizedBox(height: 10),
+        Container(
+          width: 80,
+          height: height,
+          decoration: BoxDecoration(
+            color: medalColor.withValues(alpha: 0.08),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '#$rank',
+            style: TextStyle(
+              color: medalColor.withValues(alpha: 0.5),
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
