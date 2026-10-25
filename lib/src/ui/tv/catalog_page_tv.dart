@@ -109,95 +109,71 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
           // ─── Colonne gauche ───────────────────────────────────────────────
           SizedBox(
             width: 280,
-            child: Focus(
-              canRequestFocus: false,
-              onKeyEvent: (_, event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.arrowRight) {
-                  FocusManager.instance.primaryFocus
-                      ?.focusInDirection(TraversalDirection.right);
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFF111111),
-                  border: Border(
-                    right: BorderSide(color: Colors.white12, width: 1),
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Color(0xFF111111),
+                border: Border(
+                  right: BorderSide(color: Colors.white12, width: 1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Champ de recherche : le TvFocusable reçoit le OK du D-pad
+                  // et transfère le focus au TextField — Android TV ouvre alors
+                  // le clavier car c'est une action utilisateur explicite.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
+                    child: _TvSearchField(
+                      controller: _textCtrl,
+                      focusNode: _searchFocusNode,
+                      onChanged: _onTextChanged,
+                    ),
                   ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Champ de recherche : le TvFocusable reçoit le OK du D-pad
-                    // et transfère le focus au TextField — Android TV ouvre alors
-                    // le clavier car c'est une action utilisateur explicite.
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
-                      child: _TvSearchField(
-                        controller: _textCtrl,
-                        focusNode: _searchFocusNode,
-                        onChanged: _onTextChanged,
-                      ),
+                  _SidebarButton(
+                    icon: _hideLibrary
+                        ? Icons.visibility_off
+                        : Icons.visibility,
+                    label: _hideLibrary
+                        ? 'Afficher déjà vus'
+                        : 'Masquer déjà vus',
+                    selected: false,
+                    onPressed: _toggleHideLibrary,
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 16),
+                    child: Divider(color: Colors.white12, height: 16),
+                  ),
+                  Expanded(
+                    child: ListView(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      children: [
+                        for (int i = 0; i < kAnimeSamaGenres.length; i++)
+                          _SidebarButton(
+                            icon: _genreIcon(kAnimeSamaGenres[i]),
+                            label: kAnimeSamaGenres[i],
+                            selected: _selectedGenre == kAnimeSamaGenres[i],
+                            autofocus: i == 0,
+                            onPressed: () =>
+                                _onGenreSelected(kAnimeSamaGenres[i]),
+                          ),
+                      ],
                     ),
-                    _SidebarButton(
-                      icon: _hideLibrary
-                          ? Icons.visibility_off
-                          : Icons.visibility,
-                      label: _hideLibrary
-                          ? 'Afficher déjà vus'
-                          : 'Masquer déjà vus',
-                      selected: false,
-                      onPressed: _toggleHideLibrary,
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 16),
-                      child: Divider(color: Colors.white12, height: 16),
-                    ),
-                    Expanded(
-                      child: ListView(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        children: [
-                          for (int i = 0; i < kAnimeSamaGenres.length; i++)
-                            _SidebarButton(
-                              icon: _genreIcon(kAnimeSamaGenres[i]),
-                              label: kAnimeSamaGenres[i],
-                              selected: _selectedGenre == kAnimeSamaGenres[i],
-                              autofocus: i == 0,
-                              onPressed: () =>
-                                  _onGenreSelected(kAnimeSamaGenres[i]),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
 
           // ─── Panneau droit : résultats ────────────────────────────────────
           Expanded(
-            child: Focus(
-              canRequestFocus: false,
-              onKeyEvent: (_, event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-                  FocusManager.instance.primaryFocus
-                      ?.focusInDirection(TraversalDirection.left);
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: _showResults
-                  ? _ResultsGrid(
-                      query: _query,
-                      genre: _selectedGenre,
-                      hideLibrary: _hideLibrary,
-                    )
-                  : _EmptyPanel(),
-            ),
+            child: _showResults
+                ? _ResultsGrid(
+                    query: _query,
+                    genre: _selectedGenre,
+                    hideLibrary: _hideLibrary,
+                  )
+                : _EmptyPanel(),
           ),
         ],
       ),

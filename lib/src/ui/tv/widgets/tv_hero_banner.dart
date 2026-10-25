@@ -1,225 +1,222 @@
 library;
 
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/media.dart';
+import '../../pages/resume_helper.dart';
 import '../../widgets/anime_sama_image.dart';
+import '../../widgets/tv_focusable.dart';
 import '../media_detail_page_tv.dart';
-import 'tv_slide_indicators.dart';
 
-/// Hero plein écran style Netflix pour Android TV.
-/// Affiche les [items] en rotation automatique toutes les [rotationSeconds] secondes.
-/// [focusedMedia] surcharge l'image de fond quand une tuile de rangée est focusée.
-class TvHeroBanner extends ConsumerStatefulWidget {
-  final List<Media> items;
-  final int rotationSeconds;
-  final Media? focusedMedia;
+/// Hero Banner grand écran style Netflix / Apple TV pour Android TV.
+/// Comporte un bouton d'action principal « Reprendre / Regarder » et un bouton « Détails ».
+class TvHeroBanner extends ConsumerWidget {
+  final Media media;
+  final bool autofocus;
 
   const TvHeroBanner({
     super.key,
-    required this.items,
-    this.rotationSeconds = 10,
-    this.focusedMedia,
+    required this.media,
+    this.autofocus = true,
   });
 
-  @override
-  ConsumerState<TvHeroBanner> createState() => _TvHeroBannerState();
-}
-
-class _TvHeroBannerState extends ConsumerState<TvHeroBanner> {
-  int _current = 0;
-  Timer? _timer;
-  bool _hasFocus = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _startTimer();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(
-      Duration(seconds: widget.rotationSeconds),
-      (_) {
-        if (!_hasFocus && mounted && widget.items.isNotEmpty) {
-          setState(() => _current = (_current + 1) % widget.items.length);
-        }
-      },
-    );
-  }
-
-  Media? get _displayed {
-    if (widget.focusedMedia != null) return widget.focusedMedia;
-    if (widget.items.isEmpty) return null;
-    return widget.items[_current % widget.items.length];
-  }
-
   void _openDetail(BuildContext context) {
-    final media = _displayed;
-    if (media == null) return;
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => MediaDetailPageTv(
         mediaId: media.mediaId,
-        displayTitle: media.title.preferred,
+        displayTitle: media.animeSamaTitle ?? media.title.preferred,
         animeSamaSlug: media.animeSamaSlug,
       ),
     ));
   }
 
   @override
-  Widget build(BuildContext context) {
-    final media = _displayed;
-    if (media == null) {
-      return SizedBox(
-        height: MediaQuery.of(context).size.height - 64,
-        child: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final title = media.animeSamaTitle ?? media.title.preferred;
+    final bannerHeight = MediaQuery.sizeOf(context).height * 0.58;
 
-    final screenHeight = MediaQuery.of(context).size.height;
-    final screenWidth = MediaQuery.of(context).size.width;
-    final heroHeight = screenHeight - 64;
-
-    return Focus(
-      // Le hero est lui-même le focusable : pas de boutons. Flèche gauche/droite
-      // change de slide, OK/Centre ouvre les détails du slide courant. Haut/bas
-      // ne sont pas interceptés → gérés par le parent (navbar / rangées).
-      autofocus: true,
-      onFocusChange: (v) => setState(() => _hasFocus = v),
-      onKeyEvent: (_, event) {
-        if (event is! KeyDownEvent) return KeyEventResult.ignored;
-        final key = event.logicalKey;
-        if (key == LogicalKeyboardKey.arrowLeft) {
-          if (widget.items.length > 1) {
-            setState(() => _current =
-                (_current - 1 + widget.items.length) % widget.items.length);
-          }
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.arrowRight) {
-          if (widget.items.length > 1) {
-            setState(() => _current = (_current + 1) % widget.items.length);
-          }
-          return KeyEventResult.handled;
-        }
-        if (key == LogicalKeyboardKey.select ||
-            key == LogicalKeyboardKey.enter) {
-          _openDetail(context);
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: SizedBox(
-        width: screenWidth,
-        height: heroHeight,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Fond : bannière (image large paysage) de l'anime, transition
-            // animée. La bannière remplit toute la largeur du hero, contrairement
-            // à la cover portrait.
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 600),
-              child: KeyedSubtree(
-                key: ValueKey(media.mediaId),
-                child: SizedBox.expand(
-                  child: AnimeSamaImage(
-                    slug: media.animeSamaSlug ?? '',
-                    banner: true,
-                    fallbackUrl: media.bannerUrl ?? media.coverUrl,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-              ),
-            ),
-
-            // Gradient haut→bas (noir en bas)
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  stops: [0.0, 0.45, 1.0],
-                  colors: [
-                    Colors.transparent,
-                    Colors.transparent,
-                    Colors.black,
-                  ],
-                ),
-              ),
-            ),
-
-            // Gradient gauche (noir à gauche pour lisibilité du texte)
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerRight,
-                  end: Alignment.centerLeft,
-                  stops: [0.4, 1.0],
-                  colors: [Colors.transparent, Colors.black87],
-                ),
-              ),
-            ),
-
-            // Texte + boutons
-            Positioned(
-              left: 64,
-              bottom: 80,
-              right: screenWidth * 0.45,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    media.title.preferred,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 48,
-                      fontWeight: FontWeight.bold,
-                      shadows: [Shadow(blurRadius: 8, color: Colors.black)],
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (media.genres.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      media.genres.take(3).join(' • '),
-                      style:
-                          const TextStyle(color: Colors.white70, fontSize: 16),
-                    ),
-                  ],
+    return SizedBox(
+      height: bannerHeight,
+      width: double.infinity,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Image d'arrière-plan avec fallback
+          AnimeSamaImage(
+            key: ValueKey(media.mediaId),
+            slug: media.animeSamaSlug ?? '',
+            fallbackUrl: media.bannerUrl ?? media.coverUrl,
+            fit: BoxFit.cover,
+          ),
+          // Dégradé sombre pour lisibilité TV (gauche & bas)
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                stops: const [0.0, 0.45, 1.0],
+                colors: [
+                  Colors.black.withValues(alpha: 0.95),
+                  Colors.black.withValues(alpha: 0.70),
+                  Colors.black.withValues(alpha: 0.20),
                 ],
               ),
             ),
-
-            // Indicateurs de slide — limités pour ne jamais déborder la largeur
-            // (un point par item déborde dès qu'il y a beaucoup de sorties).
-            if (widget.items.length > 1)
-              Positioned(
-                bottom: 24,
-                left: 0,
-                right: 0,
-                child: TvSlideIndicators(
-                  count: widget.items.length,
-                  current: _current,
-                ),
+          ),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0.6, 1.0],
+                colors: [
+                  Colors.transparent,
+                  Colors.black.withValues(alpha: 1.0),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+
+          // Contenu textuel et boutons télécommande
+          Positioned(
+            left: 48,
+            bottom: 32,
+            right: MediaQuery.sizeOf(context).width * 0.35,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Badge catégorie / statut
+                if (media.genres.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            media.genres.first,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        if (media.genres.length > 1) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            media.genres.skip(1).take(2).join(' • '),
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.7),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                // Titre principal
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    shadows: [
+                      Shadow(blurRadius: 12, color: Colors.black87),
+                    ],
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 8),
+
+                // Synopsis
+                if (media.description != null && media.description!.trim().isNotEmpty)
+                  Text(
+                    media.description!.replaceAll(RegExp(r'<[^>]*>'), ''),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      fontSize: 13,
+                      height: 1.35,
+                      shadows: const [Shadow(blurRadius: 6, color: Colors.black)],
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const SizedBox(height: 20),
+
+                // Boutons d'action focusables pour télécommande
+                Row(
+                  children: [
+                    TvFocusable(
+                      autofocus: autofocus,
+                      onPressed: () => resumePlayback(context, ref, media),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.play_arrow_rounded, color: Colors.black, size: 26),
+                            SizedBox(width: 8),
+                            Text(
+                              'Regarder',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    TvFocusable(
+                      onPressed: () => _openDetail(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.white30),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.info_outline_rounded, color: Colors.white, size: 22),
+                            SizedBox(width: 8),
+                            Text(
+                              'Fiche & Épisodes',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

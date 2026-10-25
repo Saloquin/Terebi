@@ -4,25 +4,27 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum AppPlatform {
-  /// Android TV / Fire TV — navigation D-pad, interface Netflix-style.
+  /// Android TV / Fire TV — navigation D-pad, interface dédiée grand écran.
   tv,
-  /// Android téléphone / tablette — interface mobile (sous-projet 2).
+  /// Android téléphone / tablette — interface mobile tactile.
   mobile,
-  /// Windows / Linux / macOS — NavigationRail, interface actuelle.
+  /// Windows / Linux / macOS — NavigationRail, interface bureau.
   desktop,
 }
 
 /// Mode d'affichage forcé ou automatique.
 enum LayoutMode {
-  /// Automatique : selon la largeur de l'écran (< 720 dp = mobile, >= 720 dp = bureau).
+  /// Automatique : selon la plateforme et la taille d'écran.
   auto,
   /// Forcer l'interface bureau.
   desktop,
   /// Forcer l'interface mobile smartphone.
   mobile,
+  /// Forcer l'interface Android TV (D-Pad télécommande).
+  tv,
 }
 
-/// Provider pour forcer ou laisser automatique le choix de l'interface bureau / mobile.
+/// Provider pour forcer ou laisser automatique le choix de l'interface bureau / mobile / TV.
 final layoutModeProvider = StateProvider<LayoutMode>((ref) => LayoutMode.auto);
 
 /// Plateforme détectée au démarrage. Surchargée dans main.dart après détection Android TV.

@@ -4,37 +4,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/media.dart';
+import '../../pages/resume_helper.dart';
 import '../../widgets/anime_sama_image.dart';
 import '../../widgets/tv_focusable.dart';
 import '../media_detail_page_tv.dart';
-import '../../pages/resume_helper.dart';
 
 // Nombre de tuiles visibles simultanément (référence pour le calcul de largeur)
-const double _tilesVisible = 5.5;
+const double _tilesVisible = 5.2;
 // Ratio 16:9
 const double _tileAspectRatio = 16 / 9;
-// Padding horizontal de la rangée (2× car gauche + droite)
+// Padding horizontal de la rangée
 const double _rowHPadding = 40 * 2;
 // Espacement entre tuiles
-const double _tileSpacing = 12;
+const double _tileSpacing = 16;
 
 double _tileWidth(BuildContext context) {
   final screenWidth = MediaQuery.sizeOf(context).width;
   final available = screenWidth - _rowHPadding - (_tileSpacing * (_tilesVisible - 1));
-  return (available / _tilesVisible).clamp(200.0, 400.0);
+  return (available / _tilesVisible).clamp(200.0, 380.0);
 }
 
 /// Rangée horizontale défilante style Netflix pour Android TV.
-/// La largeur des tuiles est calculée dynamiquement pour remplir l'écran.
-/// [onFocused] est appelé quand une tuile reçoit le focus.
 class TvContentRow extends ConsumerWidget {
   final String title;
   final List<Media> items;
   final bool withResume;
   final void Function(Media)? onFocused;
-
-  /// Si vrai, la première tuile de cette rangée reçoit l'autofocus initial.
-  /// Ne doit être vrai que pour UNE seule rangée de la page.
   final bool autofocusFirst;
 
   const TvContentRow({
@@ -52,24 +47,23 @@ class TvContentRow extends ConsumerWidget {
 
     final tileW = _tileWidth(context);
     final tileH = tileW / _tileAspectRatio;
-    // Marge verticale réservée au zoom (1.08) + bordure 3px du TvFocusable,
-    // pour éviter le clipping du highlight sans gonfler la logique de layout.
-    const focusMargin = 24.0;
+    const focusMargin = 20.0;
     final rowH = tileH + focusMargin * 2;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.only(bottom: 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 6),
             child: Text(
               title,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
+                letterSpacing: -0.3,
               ),
             ),
           ),
@@ -77,12 +71,8 @@ class TvContentRow extends ConsumerWidget {
             height: rowH,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 40),
+              padding: const EdgeInsets.symmetric(horizontal: 48),
               itemCount: items.length,
-              // Centrage vertical de la tuile dans la marge de focus, sans
-              // Center (qui, dans une ListView horizontale, force une largeur
-              // infinie et casse le layout/hit-test). Column mainAxisSize.min
-              // + alignement centre garde la tuile à sa largeur fixe.
               itemBuilder: (context, i) => Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -121,6 +111,16 @@ class _TvTile extends ConsumerWidget {
     this.autofocus = false,
   });
 
+  String get _displayTitle {
+    if (media.animeSamaTitle != null && media.animeSamaTitle!.trim().isNotEmpty) {
+      return media.animeSamaTitle!;
+    }
+    if (media.title.preferred.isNotEmpty) {
+      return media.title.preferred;
+    }
+    return media.animeSamaSlug ?? 'Anime #${media.mediaId}';
+  }
+
   void _open(BuildContext context, WidgetRef ref) {
     if (withResume) {
       resumePlayback(context, ref, media);
@@ -128,7 +128,7 @@ class _TvTile extends ConsumerWidget {
       Navigator.of(context).push(MaterialPageRoute(
         builder: (_) => MediaDetailPageTv(
           mediaId: media.mediaId,
-          displayTitle: media.title.preferred,
+          displayTitle: _displayTitle,
           animeSamaSlug: media.animeSamaSlug,
         ),
       ));
@@ -138,7 +138,7 @@ class _TvTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.only(right: 12),
+      padding: const EdgeInsets.only(right: 14),
       child: TvFocusable(
         autofocus: autofocus,
         onPressed: () => _open(context, ref),
@@ -156,7 +156,7 @@ class _TvTile extends ConsumerWidget {
                   AnimeSamaImage(
                     key: ValueKey(media.mediaId),
                     slug: media.animeSamaSlug ?? '',
-                    fallbackUrl: media.coverUrl,
+                    fallbackUrl: media.bannerUrl ?? media.coverUrl,
                     fit: BoxFit.cover,
                   ),
                   const DecoratedBox(
@@ -164,17 +164,17 @@ class _TvTile extends ConsumerWidget {
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        stops: [0.5, 1.0],
+                        stops: [0.4, 1.0],
                         colors: [Colors.transparent, Colors.black87],
                       ),
                     ),
                   ),
                   Positioned(
-                    left: 8,
-                    right: 8,
+                    left: 10,
+                    right: 10,
                     bottom: 8,
                     child: Text(
-                      media.title.preferred,
+                      _displayTitle,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -186,11 +186,18 @@ class _TvTile extends ConsumerWidget {
                     ),
                   ),
                   if (withResume)
-                    const Center(
-                      child: Icon(
-                        Icons.play_circle_outline,
-                        color: Colors.white70,
-                        size: 40,
+                    Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 32,
+                        ),
                       ),
                     ),
                 ],
@@ -202,4 +209,3 @@ class _TvTile extends ConsumerWidget {
     );
   }
 }
-

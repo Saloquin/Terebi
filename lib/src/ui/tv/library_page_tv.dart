@@ -14,12 +14,6 @@ import 'media_detail_page_tv.dart';
 
 const _statusOrder = ListStatus.displayOrder;
 
-// Provider local : media par mediaId, best-effort (null si absent).
-final _tvLibraryMediaProvider =
-    FutureProvider.family<Media?, int>((ref, mediaId) async {
-  return ref.watch(mediaRepositoryProvider).getMedia(mediaId);
-});
-
 class LibraryPageTv extends ConsumerStatefulWidget {
   const LibraryPageTv({super.key});
 
@@ -34,28 +28,46 @@ class _LibraryPageTvState extends ConsumerState<LibraryPageTv> {
   Widget build(BuildContext context) {
     final counts = ref.watch(countByStatusProvider).asData?.value ?? {};
 
-    return ColoredBox(
-      color: Colors.black,
-      child: Column(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Barre d'onglets
-          SizedBox(
-            height: 56,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  for (final status in _statusOrder)
-                    _TvLibTab(
-                      label: status.label,
-                      count: counts[status] ?? 0,
-                      selected: _activeTab == status,
-                      autofocus: status == ListStatus.current,
-                      onPressed: () => setState(() => _activeTab = status),
+          // En-tête avec filtres d'onglets
+          Padding(
+            padding: const EdgeInsets.fromLTRB(48, 28, 48, 12),
+            child: Row(
+              children: [
+                const Text(
+                  'Ma Liste',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 32),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        for (final status in _statusOrder)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: _TvLibTab(
+                              label: status.label,
+                              count: counts[status] ?? 0,
+                              selected: _activeTab == status,
+                              autofocus: status == ListStatus.current,
+                              onPressed: () => setState(() => _activeTab = status),
+                            ),
+                          ),
+                      ],
                     ),
-                ],
-              ),
+                  ),
+                ),
+              ],
             ),
           ),
           const Divider(color: Colors.white12, height: 1),
@@ -86,61 +98,51 @@ class _TvLibTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
     return TvFocusable(
       autofocus: autofocus,
       onPressed: onPressed,
-      child: GestureDetector(
-        onTap: onPressed,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      color: selected ? Colors.white : Colors.white54,
-                      fontWeight:
-                          selected ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if (count > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? Theme.of(context).colorScheme.primary
-                            : Colors.white24,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        '$count',
-                        style:
-                            const TextStyle(color: Colors.white, fontSize: 10),
-                      ),
-                    ),
-                  ],
-                ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? primary.withValues(alpha: 0.25) : const Color(0xFF1A1A1C),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected ? primary : Colors.white12,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : Colors.white70,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                fontSize: 14,
               ),
-              const SizedBox(height: 4),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                height: 2,
-                width: selected ? 32.0 : 0.0,
+            ),
+            if (count > 0) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary,
-                  borderRadius: BorderRadius.circular(1),
+                  color: selected ? primary : Colors.white24,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '$count',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -154,44 +156,39 @@ class _LibraryGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final entriesAsync = ref.watch(entriesByStatusProvider(status));
+    final allMediaMap = ref.watch(allMediaMapProvider).value ?? const <int, Media>{};
 
     return entriesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
-        child:
-            Text('Erreur : $e', style: const TextStyle(color: Colors.white54)),
+        child: Text('Erreur : $e', style: const TextStyle(color: Colors.white54)),
       ),
       data: (entries) {
         if (entries.isEmpty) {
-          // Message focusable : sans focusable dans une grille vide, descendre
-          // ici perdrait le focus (irrécupérable). En le rendant focusable, le
-          // focus reste capturable et arrowUp peut remonter vers la tab bar /
-          // la navbar (remontée centralisée par TvFocusScope).
-          return const Focus(
-            child: Center(
-              child: Text(
-                'Aucun anime dans cette liste',
-                style: TextStyle(color: Colors.white54),
-              ),
+          return const Center(
+            child: Text(
+              'Aucun anime dans cette liste',
+              style: TextStyle(color: Colors.white54, fontSize: 16),
             ),
           );
         }
-        // Tri par updatedAt desc.
         final sorted = entries.sortedBy((e) => e.updatedAt).reversed.toList();
 
         return GridView.builder(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.fromLTRB(48, 20, 48, 48),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
+            crossAxisSpacing: 18,
+            mainAxisSpacing: 18,
             childAspectRatio: 16 / 9,
           ),
           itemCount: sorted.length,
           itemBuilder: (context, i) {
             final entry = sorted[i];
+            final media = allMediaMap[entry.mediaId];
             return _LibraryTileTv(
               entry: entry,
+              media: media,
               autofocus: i == 0,
             );
           },
@@ -201,59 +198,57 @@ class _LibraryGrid extends ConsumerWidget {
   }
 }
 
-class _LibraryTileTv extends ConsumerWidget {
+class _LibraryTileTv extends StatelessWidget {
   final ListEntry entry;
+  final Media? media;
   final bool autofocus;
 
   const _LibraryTileTv({
     required this.entry,
+    required this.media,
     required this.autofocus,
   });
 
+  String get _displayTitle {
+    if (media?.animeSamaTitle != null && media!.animeSamaTitle!.trim().isNotEmpty) {
+      return media!.animeSamaTitle!;
+    }
+    if (media?.title.preferred != null && media!.title.preferred.isNotEmpty) {
+      return media!.title.preferred;
+    }
+    return media?.animeSamaSlug ?? 'Anime #${entry.mediaId}';
+  }
+
+  void _open(BuildContext context) {
+    final slug = media?.animeSamaSlug;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MediaDetailPageTv(
+          mediaId: entry.mediaId,
+          displayTitle: _displayTitle,
+          animeSamaSlug: (slug != null && slug.isNotEmpty) ? slug : null,
+        ),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final mediaAsync = ref.watch(_tvLibraryMediaProvider(entry.mediaId));
-    final media = mediaAsync.asData?.value;
+  Widget build(BuildContext context) {
     final slug = media?.animeSamaSlug ?? '';
-    final coverUrl = media?.coverUrl;
-    final title = media?.animeSamaTitle ??
-        media?.title.preferred ??
-        'Anime #${entry.mediaId}';
+    final coverUrl = media?.bannerUrl ?? media?.coverUrl;
 
     return TvFocusable(
       autofocus: autofocus,
-      onPressed: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => MediaDetailPageTv(
-              mediaId: entry.mediaId,
-              displayTitle: title,
-              animeSamaSlug: slug.isNotEmpty ? slug : null,
-            ),
-          ),
-        );
-      },
+      onPressed: () => _open(context),
       child: GestureDetector(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => MediaDetailPageTv(
-                mediaId: entry.mediaId,
-                displayTitle: title,
-                animeSamaSlug: slug.isNotEmpty ? slug : null,
-              ),
-            ),
-          );
-        },
+        onTap: () => _open(context),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(8),
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Image (bannière si dispo, sinon cover)
-              if (slug.isNotEmpty)
+              if (slug.isNotEmpty || coverUrl != null)
                 AnimeSamaImage(
                   slug: slug,
                   banner: true,
@@ -261,8 +256,7 @@ class _LibraryTileTv extends ConsumerWidget {
                   fit: BoxFit.cover,
                 )
               else
-                Container(color: Colors.white12),
-              // Gradient + titre + progression
+                Container(color: const Color(0xFF1E1E22)),
               Positioned(
                 left: 0,
                 right: 0,
@@ -275,16 +269,20 @@ class _LibraryTileTv extends ConsumerWidget {
                       colors: [Colors.transparent, Colors.black87],
                     ),
                   ),
-                  padding: const EdgeInsets.all(8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Text(
-                    title,
+                    _displayTitle,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      shadows: [Shadow(blurRadius: 4, color: Colors.black)],
+                    ),
                   ),
                 ),
               ),
-              // Barre de progression (best-effort, null si inconnu)
               if (entry.progress > 0)
                 Positioned(
                   left: 0,
@@ -292,9 +290,9 @@ class _LibraryTileTv extends ConsumerWidget {
                   bottom: 0,
                   child: LinearProgressIndicator(
                     value: (media?.episodes != null && media!.episodes! > 0)
-                        ? (entry.progress / media.episodes!).clamp(0.0, 1.0)
+                        ? (entry.progress / media!.episodes!).clamp(0.0, 1.0)
                         : null,
-                    minHeight: 3,
+                    minHeight: 3.5,
                     backgroundColor: Colors.white24,
                   ),
                 ),

@@ -16,21 +16,12 @@ class HomepageTv extends ConsumerStatefulWidget {
 }
 
 class _HomepageTvState extends ConsumerState<HomepageTv> {
-  Media? _focusedMedia;
   final _scrollController = ScrollController();
 
   @override
   void dispose() {
     _scrollController.dispose();
     super.dispose();
-  }
-
-  void _onRowFocus(Media media) {
-    if (mounted) setState(() => _focusedMedia = media);
-  }
-
-  void _onHeroFocus() {
-    if (mounted) setState(() => _focusedMedia = null);
   }
 
   @override
@@ -51,88 +42,54 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
           data: (items) => items,
           orElse: () => <Media>[],
         );
-    final genres = ref.watch(watchedGenresProvider).maybeWhen(
-          data: (g) => g.take(3).toList(),
-          orElse: () => <String>[],
-        );
 
-    return ColoredBox(
-      color: Colors.black,
-      child: ListView(
+    // Média prioritaire pour le Hero : le dernier en cours, sinon la première sortie
+    final featuredMedia = continueItems.isNotEmpty
+        ? continueItems.first
+        : (heroItems.isNotEmpty ? heroItems.first : null);
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: ListView(
         controller: _scrollController,
+        padding: EdgeInsets.zero,
         children: [
-          Focus(
-            canRequestFocus: false,
-            onFocusChange: (focused) {
-              if (focused) _onHeroFocus();
-            },
-            child: TvHeroBanner(
-              items: heroItems,
-              focusedMedia: _focusedMedia,
+          if (featuredMedia != null)
+            TvHeroBanner(
+              media: featuredMedia,
+              autofocus: true,
+            )
+          else
+            const SizedBox(
+              height: 240,
+              child: Center(child: CircularProgressIndicator()),
             ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           if (continueItems.isNotEmpty)
             TvContentRow(
               title: 'Continuer à regarder',
               items: continueItems,
               withResume: true,
-              onFocused: _onRowFocus,
-              autofocusFirst: true,
             ),
           if (recentItems.isNotEmpty)
             TvContentRow(
               title: 'Regardé récemment',
               items: recentItems,
               withResume: true,
-              onFocused: _onRowFocus,
-              autofocusFirst: continueItems.isEmpty,
             ),
           if (heroItems.isNotEmpty)
             TvContentRow(
               title: 'Nouvelles sorties',
               items: heroItems,
-              onFocused: _onRowFocus,
-              autofocusFirst: continueItems.isEmpty && recentItems.isEmpty,
             ),
           if (classicItems.isNotEmpty)
             TvContentRow(
               title: 'Les classiques',
               items: classicItems,
-              onFocused: _onRowFocus,
-              autofocusFirst: continueItems.isEmpty &&
-                  recentItems.isEmpty &&
-                  heroItems.isEmpty,
             ),
-          for (final genre in genres)
-            _GenreRow(
-              genre: genre,
-              onFocused: _onRowFocus,
-            ),
-          const SizedBox(height: 48),
+          const SizedBox(height: 64),
         ],
       ),
-    );
-  }
-}
-
-class _GenreRow extends ConsumerWidget {
-  final String genre;
-  final void Function(Media) onFocused;
-
-  const _GenreRow({required this.genre, required this.onFocused});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final items = ref.watch(byGenreProvider(genre)).maybeWhen(
-          data: (i) => i,
-          orElse: () => <Media>[],
-        );
-    if (items.isEmpty) return const SizedBox.shrink();
-    return TvContentRow(
-      title: genre,
-      items: items,
-      onFocused: onFocused,
     );
   }
 }
