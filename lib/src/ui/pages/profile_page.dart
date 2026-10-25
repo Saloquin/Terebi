@@ -28,7 +28,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   final _regUsernameController = TextEditingController();
   final _regPasswordController = TextEditingController();
-  final _regEmailController = TextEditingController();
   String _regSelectedStyle = 'lorelei';
   String _regSeed = '';
 
@@ -59,7 +58,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _loginPasswordController.dispose();
     _regUsernameController.dispose();
     _regPasswordController.dispose();
-    _regEmailController.dispose();
     _seedController.dispose();
     _bioController.dispose();
     super.dispose();
@@ -121,7 +119,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       await ref.read(currentUserProvider.notifier).register(
             username: username,
             password: _regPasswordController.text,
-            email: _regEmailController.text.trim(),
             avatarStyle: _regSelectedStyle,
             avatarSeed: seed,
           );
@@ -550,15 +547,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: _regEmailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email (optionnel)',
-                        prefixIcon: Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
+
                     const SizedBox(height: 16),
                     InputDecorator(
                       decoration: const InputDecoration(
