@@ -560,24 +560,29 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    Text('Style d\'avatar DiceBear :', style: theme.textTheme.labelMedium),
-                    const SizedBox(height: 6),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: UserAccount.availableAvatarStyles.entries.map((e) {
-                          final selected = _regSelectedStyle == e.key;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 6),
-                            child: ChoiceChip(
-                              label: Text(e.key),
-                              selected: selected,
-                              onSelected: (val) {
-                                if (val) setState(() => _regSelectedStyle = e.key);
-                              },
-                            ),
-                          );
-                        }).toList(),
+                    InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Style d\'avatar DiceBear',
+                        prefixIcon: Icon(Icons.palette_outlined),
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _regSelectedStyle,
+                          isExpanded: true,
+                          items: UserAccount.availableAvatarStyles.entries.map((e) {
+                            return DropdownMenuItem<String>(
+                              value: e.key,
+                              child: Text(e.value),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() => _regSelectedStyle = val);
+                            }
+                          },
+                        ),
                       ),
                     ),
                     const SizedBox(height: 22),
@@ -764,21 +769,81 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                             ],
                           ),
                           const SizedBox(height: 16),
-                          Text('1. Choisis un style artistique :', style: theme.textTheme.labelLarge),
+                          Text('1. Style artistique DiceBear :', style: theme.textTheme.labelLarge),
                           const SizedBox(height: 8),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: UserAccount.availableAvatarStyles.entries.map((e) {
-                              final isSelected = _selectedStyle == e.key;
-                              return ChoiceChip(
-                                label: Text(e.value),
-                                selected: isSelected,
-                                onSelected: (val) {
-                                  if (val) setState(() => _selectedStyle = e.key);
+                          InputDecorator(
+                            decoration: const InputDecoration(
+                              labelText: 'Choisir un style artistique',
+                              prefixIcon: Icon(Icons.palette_outlined),
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _selectedStyle,
+                                isExpanded: true,
+                                items: UserAccount.availableAvatarStyles.entries.map((e) {
+                                  return DropdownMenuItem<String>(
+                                    value: e.key,
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 26,
+                                          height: 26,
+                                          margin: const EdgeInsets.only(right: 12),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: colorScheme.outlineVariant),
+                                          ),
+                                          clipBehavior: Clip.antiAlias,
+                                          child: Image.network(
+                                            'https://api.dicebear.com/9.x/${e.key}/png?seed=${Uri.encodeComponent(_currentSeed.isNotEmpty ? _currentSeed : "seed")}',
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 16),
+                                          ),
+                                        ),
+                                        Expanded(child: Text(e.value)),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  if (val != null) {
+                                    setState(() => _selectedStyle = val);
+                                  }
                                 },
-                              );
-                            }).toList(),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: UserAccount.availableAvatarStyles.entries.map((e) {
+                                final isSelected = _selectedStyle == e.key;
+                                return Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    avatar: Container(
+                                      width: 20,
+                                      height: 20,
+                                      clipBehavior: Clip.antiAlias,
+                                      decoration: const BoxDecoration(shape: BoxShape.circle),
+                                      child: Image.network(
+                                        'https://api.dicebear.com/9.x/${e.key}/png?seed=${Uri.encodeComponent(_currentSeed.isNotEmpty ? _currentSeed : "seed")}',
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 14),
+                                      ),
+                                    ),
+                                    label: Text(e.value.split(' (').first),
+                                    selected: isSelected,
+                                    onSelected: (val) {
+                                      if (val) setState(() => _selectedStyle = e.key);
+                                    },
+                                  ),
+                                );
+                              }).toList(),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text('2. Graine de génération (Seed) :', style: theme.textTheme.labelLarge),
