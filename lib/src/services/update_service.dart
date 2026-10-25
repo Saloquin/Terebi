@@ -3,6 +3,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
@@ -300,4 +301,25 @@ Remove-Item -Force "$scriptPath" -ErrorAction SilentlyContinue
 
   /// PID du process courant (l'app Flutter). `pid` global de dart:io.
   int _currentPid() => pid;
+
+  /// Déclenche l'invite d'installation système de l'APK sur Android via FileProvider.
+  Future<bool> installApk(File apkFile) async {
+    if (!Platform.isAndroid) {
+      throw const UpdateError("L'installation d'APK n'est disponible que sur Android.");
+    }
+    if (!await apkFile.exists()) {
+      throw UpdateError('Fichier APK introuvable : ${apkFile.path}');
+    }
+    const channel = MethodChannel('com.terebi.terebi/platform');
+    try {
+      final success = await channel.invokeMethod<bool>('installApk', {
+        'filePath': apkFile.path,
+      });
+      return success ?? false;
+    } on PlatformException catch (e) {
+      throw UpdateError('Erreur d\'installation Android : ${e.message}');
+    } catch (e) {
+      throw UpdateError('Erreur d\'installation Android : $e');
+    }
+  }
 }

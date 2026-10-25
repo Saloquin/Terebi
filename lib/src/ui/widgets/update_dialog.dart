@@ -119,8 +119,17 @@ class _UpdateDialogState extends ConsumerState<UpdateDialog> {
 
       if (mounted) {
         setState(() {
+          _progress = null;
+          _statusText = 'Ouverture de l\'installateur Android…';
+        });
+      }
+
+      await service.installApk(file);
+
+      if (mounted) {
+        setState(() {
           _isDownloading = false;
-          _statusText = 'APK téléchargé dans : ${file.path}';
+          _statusText = 'Installation lancée dans Android.';
         });
       }
     } catch (e) {
@@ -244,7 +253,7 @@ class _UpdateDialogState extends ConsumerState<UpdateDialog> {
           FilledButton.icon(
             onPressed: _isDownloading ? null : _downloadApk,
             icon: const Icon(Icons.android_rounded, size: 18),
-            label: const Text('Télécharger l\'APK'),
+            label: const Text('Installer la mise à jour'),
           )
         else if (hasZip)
           FilledButton.icon(

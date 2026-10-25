@@ -1,6 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Indispensable : scraping anime-sama + lecture des flux vidéo. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Permission pour déclencher l'installation de la mise à jour APK -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
+
     <!-- Android TV : déclare la compatibilité leanback (required=false = APK
          accepté aussi sur téléphone sans la feature). -->
     <uses-feature
@@ -48,6 +51,17 @@
         <meta-data
             android:name="io.flutter.embedding.android.EnableImpeller"
             android:value="false" />
+
+        <!-- FileProvider pour partager de manière sécurisée l'APK téléchargé avec le PackageInstaller Android -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
     <queries>
         <intent>
