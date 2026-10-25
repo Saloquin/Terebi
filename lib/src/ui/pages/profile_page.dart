@@ -1150,10 +1150,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   String _formatLastSync(DateTime dt) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inSeconds < 60) return "A l'instant";
+    if (diff.inSeconds < 60) return "À l'instant";
     if (diff.inMinutes < 60) return "Il y a ${diff.inMinutes} min";
     if (diff.inHours < 24) return "Il y a ${diff.inHours} h";
-    return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} a ${dt.hour}h${dt.minute.toString().padLeft(2, '0')}";
+    return "${dt.day.toString().padLeft(2, '0')}/${dt.month.toString().padLeft(2, '0')} à ${dt.hour}h${dt.minute.toString().padLeft(2, '0')}";
   }
 
   Widget _buildSyncCard(BuildContext context) {
@@ -1234,9 +1234,13 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    status.lastSyncedAt != null
-                        ? 'Derniere synchro : ${_formatLastSync(status.lastSyncedAt!)}'
-                        : 'Aucune donnee ecrasee - Fusion intelligente',
+                    isSyncing
+                        ? 'Synchronisation avec le cloud en cours...'
+                        : (status.lastSyncedAt != null
+                            ? 'Dernière synchro : ${_formatLastSync(status.lastSyncedAt!)}'
+                            : (isOffline
+                                ? 'Non synchronisé avec le cloud'
+                                : 'Synchronisé avec le cloud')),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
