@@ -144,7 +144,7 @@ class StatsPage extends ConsumerWidget {
 
     final statsAsync = ref.watch(_statsDataProvider);
 
-    return statsAsync.when(
+    final content = statsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, _) => Center(
         child: Padding(
@@ -187,6 +187,15 @@ class StatsPage extends ConsumerWidget {
         }
         return _StatsBody(data: data);
       },
+    );
+
+    return Scaffold(
+      appBar: Navigator.canPop(context)
+          ? AppBar(
+              title: const Text('Statistiques Détaillées'),
+            )
+          : null,
+      body: content,
     );
   }
 }

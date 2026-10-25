@@ -295,6 +295,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
         _initFromSettings(settings);
 
         return Scaffold(
+          appBar: Navigator.canPop(context)
+              ? AppBar(
+                  title: const Text('Paramètres'),
+                )
+              : null,
           // La barre d'actions n'apparaît qu'en présence de modifs non sauvées.
           bottomNavigationBar: _dirty ? _buildDirtyBar(context) : null,
           body: SingleChildScrollView(

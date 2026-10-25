@@ -19,6 +19,11 @@ class LeaderboardPage extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider).value;
 
     return Scaffold(
+      appBar: Navigator.canPop(context)
+          ? AppBar(
+              title: const Text('Classement de la Communauté'),
+            )
+          : null,
       body: dashboardAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(

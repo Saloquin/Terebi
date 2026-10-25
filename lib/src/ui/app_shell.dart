@@ -18,6 +18,7 @@ import 'pages/profile_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/stats_page.dart';
 import 'tv/app_shell_tv.dart';
+import 'mobile/app_shell_mobile.dart';
 import 'widgets/update_dialog.dart';
 
 /// Provider global pour contrôler l'onglet actif depuis n'importe où dans l'application.
@@ -208,8 +209,10 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return switch (ref.watch(appPlatformProvider)) {
       AppPlatform.tv      => const AppShellTv(),
-      AppPlatform.mobile  => const AppShellDesktop(),
-      AppPlatform.desktop => const AppShellDesktop(),
+      AppPlatform.mobile  => const AppShellMobile(),
+      AppPlatform.desktop => MediaQuery.of(context).size.width < 720
+          ? const AppShellMobile()
+          : const AppShellDesktop(),
     };
   }
 }
