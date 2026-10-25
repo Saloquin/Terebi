@@ -260,6 +260,14 @@ class SyncService {
   }
 
   Future<UserAccount?> _getCurrentUser() async {
+    // 1. Essaye d'abord le profil mémorisé en cache local immédiat (0 ms)
+    final cached = await _settingsRepo.get('auth_cached_user');
+    if (cached != null && cached.isNotEmpty) {
+      try {
+        return UserAccount.fromMap(jsonDecode(cached));
+      } catch (_) {}
+    }
+    // 2. Sinon restaure la session via le token
     return _authRepo.restoreSession();
   }
 

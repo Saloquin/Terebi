@@ -92,9 +92,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             _loginUsernameController.text,
             _loginPasswordController.text,
           );
+      // Synchronisation automatique et immédiate de tous les animes
+      await ref.read(syncServiceProvider).fullSync();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Connexion réussie ! Bienvenue sur Terebi.')),
+          const SnackBar(content: Text('Connexion réussie ! Vos animes sont synchronisés.')),
         );
       }
     } catch (e) {
@@ -122,9 +124,11 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             avatarStyle: _regSelectedStyle,
             avatarSeed: seed,
           );
+      // Synchronisation automatique et immédiate de tous les animes locaux vers le compte
+      await ref.read(syncServiceProvider).fullSync();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Compte créé avec succès !')),
+          const SnackBar(content: Text('Compte créé ! Vos animes ont été synchronisés automatiquement.')),
         );
       }
     } catch (e) {
