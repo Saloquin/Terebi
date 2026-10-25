@@ -660,7 +660,7 @@ class _FakeListRepository extends ListRepository {
   Future<ListEntry?> getEntry(int mediaId) async => null;
 
   @override
-  Future<void> upsertEntry(ListEntry entry) async {}
+  Future<void> upsertEntry(ListEntry entry, {bool notifySync = true}) async {}
 
   @override
   Future<void> setHidden(int mediaId, {required bool hidden}) async {}

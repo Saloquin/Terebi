@@ -118,6 +118,7 @@ void main() {
 
       var entry = await listRepo.getEntry(mediaId);
       expect(entry!.status, ListStatus.planning);
+      // Rétrogradé de completed (S1 finie) vers planning avec tag nouveau car S2 non finie
       expect(await settings.get(SettingsKeys.newEpisodeFor(mediaId)), '1');
 
       // Termine la saison 2
@@ -126,6 +127,27 @@ void main() {
       entry = await listRepo.getEntry(mediaId);
       expect(entry!.status, ListStatus.completed);
       expect(entry.progress, 28); // 12 + 16
+      expect(await settings.get(SettingsKeys.newEpisodeFor(mediaId)), isNull);
+    });
+
+    test(
+        'anime en cours : regarder un épisode ne pose PAS de faux positif new_episode',
+        () async {
+      const mediaId = 500;
+      await listRepo.upsertEntry(ListEntry(
+        mediaId: mediaId,
+        status: ListStatus.planning,
+        progress: 3,
+        updatedAt: DateTime.now(),
+      ));
+      await seasonProgress.setTotalEpisodes(mediaId, 1, 24);
+      await seasonProgress.setLastWatched(mediaId, 1, 3);
+
+      // L'utilisateur regarde l'épisode 4
+      await seasonProgress.setLastWatched(mediaId, 1, 4);
+
+      final entry = await listRepo.getEntry(mediaId);
+      expect(entry!.status, ListStatus.planning);
       expect(await settings.get(SettingsKeys.newEpisodeFor(mediaId)), isNull);
     });
 

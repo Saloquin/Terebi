@@ -109,6 +109,11 @@ class MediaDetailPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(libraryControllerProvider.notifier).clearNewEpisodeFlag(mediaId);
+      ref.invalidate(newEpisodeFlagProvider(mediaId));
+    });
+
     final mediaAsync =
         ref.watch(_mediaDetailProvider((id: mediaId, title: displayTitle)));
 

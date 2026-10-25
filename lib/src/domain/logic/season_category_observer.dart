@@ -111,12 +111,6 @@ class SeasonCategoryObserver implements SeasonProgressObserver {
           updatedAt: DateTime.now(),
         ));
         await _settings.set(SettingsKeys.newEpisodeFor(mediaId), '1');
-      } else if (!isFrozen &&
-          (entry.status == ListStatus.planning ||
-              entry.status == ListStatus.current)) {
-        if (watched > 0 && watched < total) {
-          await _settings.set(SettingsKeys.newEpisodeFor(mediaId), '1');
-        }
       }
     } else if (hasTrackedSeason && allSeasonsDone) {
       // Toutes les saisons connues sont entièrement vues !

@@ -172,7 +172,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     // épisode qui sort le jour même est détecté à la prochaine ouverture.
     // `recheckVersion` ne sert plus qu'à déclencher UNE FOIS la passe 0 de
     // migration (sentinelles + nettoyage des badges hérités).
-    const currentRecheckVersion = '5';
+    const currentRecheckVersion = '6';
     final recheckVer =
         await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
     final mustUpgrade = recheckVer != currentRecheckVersion;
@@ -221,35 +221,12 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
           }
         } catch (_) {/* réseau : on garde la sentinelle, réessai au prochain */}
       }
-      // (b) Nettoie les drapeaux « nouvel épisode » posés à tort par l'ancienne
-      // logique (bug numéro/count) : on ne garde le badge que si un épisode est
-      // réellement non vu sur la dernière saison ; sinon on le supprime.
+      // (b) Nettoie tous les drapeaux « nouvel épisode » posés à tort par l'ancienne
+      // logique sur les animes en cours. Passe 1 reposera immédiatement le drapeau
+      // sur les animes terminés qui ont de véritables nouveaux épisodes non vus.
       final newEpisodeKeys = await settings.entriesWithPrefix('new_episode:');
       for (final kv in newEpisodeKeys.entries) {
-        if (kv.value != '1') continue;
-        final id = int.tryParse(kv.key.substring('new_episode:'.length));
-        if (id == null) continue;
-        final media = await mediaRepo.getMedia(id);
-        final title = media?.animeSamaTitle ?? media?.title.preferred;
-        if (title == null) {
-          await settings.delete(kv.key);
-          continue;
-        }
-        try {
-          final seasons = await resolver.listSeasons(title: title);
-          if (seasons.isEmpty) {
-            await settings.delete(kv.key);
-            continue;
-          }
-          final last = seasons.last;
-          final eps =
-              await resolver.listEpisodes(title: title, seasonIndex: last.index);
-          final watched = await seasonProgress.lastWatched(id, last.index);
-          // Aucun épisode non vu → badge injustifié, on le retire.
-          if (eps.isEmpty || watched >= eps.last) {
-            await settings.delete(kv.key);
-          }
-        } catch (_) {/* réseau : on garde le badge, réévalué au prochain run */}
+        await settings.delete(kv.key);
       }
       // (c) Nettoie les progressions erronées sur les saisons suivantes (ex. Saison 2
       // affichant 1/X alors qu'aucun épisode n'a été réellement regardé).
@@ -397,12 +374,20 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
             if (eps.isNotEmpty) {
               final watched =
                   await seasonProgress.lastWatched(entry.mediaId, last.index);
-              // Jamais regardé via le lecteur intégré → on ne peut pas affirmer qu'il
-              // y a un nouvel épisode (progression AniList seule, sans clé watched).
-              // Nettoie aussi un éventuel faux positif posé par une version antérieure.
+              final prevTotal =
+                  await seasonProgress.totalEpisodes(entry.mediaId, last.index);
+
+              // Jamais regardé via le lecteur intégré → pas de badge « Nouveau ».
               if (watched == 0) {
                 await settings.delete(SettingsKeys.newEpisodeFor(entry.mediaId));
               } else {
+                // Poser le badge « Nouveau » UNIQUEMENT si anime-sama a publié de
+                // nouveaux épisodes (prevTotal > 0 && eps.last > prevTotal) et que
+                // l'utilisateur ne les a pas encore vus (watched < eps.last).
+                if (prevTotal > 0 && eps.last > prevTotal && watched < eps.last) {
+                  await settings.set(
+                      SettingsKeys.newEpisodeFor(entry.mediaId), '1');
+                }
                 await seasonProgress.setTotalEpisodes(
                     entry.mediaId, last.index, eps.last);
                 changed = true;
