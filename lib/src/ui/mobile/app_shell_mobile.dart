@@ -2,6 +2,7 @@
 /// barre supérieure compacte avec indicateur de synchronisation Turso et raccourcis.
 library;
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -95,6 +96,17 @@ class _AppShellMobileState extends ConsumerState<AppShellMobile> {
             ],
           ),
           actions: [
+            if (defaultTargetPlatform == TargetPlatform.windows ||
+                defaultTargetPlatform == TargetPlatform.linux ||
+                defaultTargetPlatform == TargetPlatform.macOS)
+              IconButton(
+                icon: const Icon(Icons.desktop_windows_outlined),
+                tooltip: 'Passer en vue bureau',
+                onPressed: () {
+                  ref.read(layoutModeProvider.notifier).state =
+                      LayoutMode.desktop;
+                },
+              ),
             // Indicateur de synchronisation Turso en direct
             _CloudSyncButton(
               isLoggedIn: currentUser != null,

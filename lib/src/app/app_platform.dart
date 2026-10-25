@@ -12,6 +12,19 @@ enum AppPlatform {
   desktop,
 }
 
+/// Mode d'affichage forcé ou automatique.
+enum LayoutMode {
+  /// Automatique : selon la largeur de l'écran (< 720 dp = mobile, >= 720 dp = bureau).
+  auto,
+  /// Forcer l'interface bureau.
+  desktop,
+  /// Forcer l'interface mobile smartphone.
+  mobile,
+}
+
+/// Provider pour forcer ou laisser automatique le choix de l'interface bureau / mobile.
+final layoutModeProvider = StateProvider<LayoutMode>((ref) => LayoutMode.auto);
+
 /// Plateforme détectée au démarrage. Surchargée dans main.dart après détection Android TV.
 final appPlatformProvider = StateProvider<AppPlatform>((ref) {
   switch (defaultTargetPlatform) {
