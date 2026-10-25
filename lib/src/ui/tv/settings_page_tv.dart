@@ -86,10 +86,18 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
 
   Future<void> _checkForUpdate() async {
     try {
+      ref.invalidate(updateCheckProvider);
       final status = await ref.read(updateCheckProvider.future);
       if (!mounted) return;
       if (status is UpdateAvailable) {
         showUpdateDialog(context, status);
+      } else if (status is UpdateError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur : ${status.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -98,10 +106,10 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
           ),
         );
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible de vérifier les mises à jour.')),
+          SnackBar(content: Text('Impossible de vérifier les mises à jour : $e')),
         );
       }
     }
