@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
@@ -81,9 +82,12 @@ class _UpdateDialogState extends ConsumerState<UpdateDialog> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e is PlatformException
+            ? (e.message ?? e.toString())
+            : (e is UpdateError ? e.message : e.toString());
         setState(() {
           _isDownloading = false;
-          _errorMessage = e.toString();
+          _errorMessage = msg;
           _statusText = null;
         });
       }
@@ -134,9 +138,12 @@ class _UpdateDialogState extends ConsumerState<UpdateDialog> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e is PlatformException
+            ? (e.message ?? e.toString())
+            : (e is UpdateError ? e.message : e.toString());
         setState(() {
           _isDownloading = false;
-          _errorMessage = e.toString();
+          _errorMessage = msg;
           _statusText = null;
         });
       }

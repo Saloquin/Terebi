@@ -247,9 +247,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _loading = false;
     }
     _subscribePlayerStreams();
-    // La lecture ne démarre PAS automatiquement : l'utilisateur clique « Lancer ».
-    // On charge tout de même le nom de saison + la liste d'épisodes pour la barre.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _prepareMeta());
+    // La lecture démarre automatiquement dès que les métadonnées sont prêtes.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _prepareMeta();
+      if (mounted && widget.existingPlayer == null) {
+        await _loadAndPlay();
+      }
+    });
   }
 
   /// S'abonne aux flux du lecteur : position (reprise), durée, fin d'épisode
@@ -1171,6 +1175,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       }
       _refreshAvailableSources(
           title, _seasonIndex, ep, _language ?? PlaybackLanguage.vostfr);
+      if (mounted) {
+        await _loadAndPlay();
+      }
     } finally {
       _navigating = false;
     }
@@ -1930,33 +1937,67 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
               Container(
                 color: Colors.black,
                 child: Center(
-                  child: _loading
-                      ? const CircularProgressIndicator()
-                      : TvFocusable(
-                          autofocus: true,
-                          onPressed: _loadAndPlay,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.primary,
-                              borderRadius: BorderRadius.circular(12),
+                  child: _error != null
+                      ? Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.error_outline_rounded,
+                                color: Colors.redAccent, size: 48),
+                            const SizedBox(height: 16),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              child: Text(
+                                _error!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                    color: Colors.white70, fontSize: 16),
+                              ),
                             ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.play_arrow_rounded, color: Colors.white, size: 36),
-                                SizedBox(width: 12),
-                                Text(
-                                  'Lancer la vidéo',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                            const SizedBox(height: 24),
+                            TvFocusable(
+                              autofocus: true,
+                              onPressed: _loadAndPlay,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                              ],
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.refresh_rounded,
+                                        color: Colors.white, size: 20),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      'Réessayer',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
+                        )
+                      : Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: 20),
+                            Text(
+                              'Chargement de l\'épisode $_currentEpisode…',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 15,
+                              ),
+                            ),
+                          ],
                         ),
                 ),
               ),
@@ -2328,17 +2369,29 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                   Container(color: Colors.black),
                                   if (_ready)
                                     _buildVideo()
-                                  else if (_loading)
-                                    const Center(
-                                        child: CircularProgressIndicator())
-                                  else
+                                  else if (_error != null)
                                     Center(
-                                      child: FilledButton.icon(
-                                        onPressed: _loadAndPlay,
-                                        icon: const Icon(Icons.play_arrow),
-                                        label: const Text('Lancer'),
+                                      child: Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _error!,
+                                            style: const TextStyle(
+                                                color: Colors.redAccent),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                          const SizedBox(height: 12),
+                                          FilledButton.icon(
+                                            onPressed: _loadAndPlay,
+                                            icon: const Icon(Icons.refresh),
+                                            label: const Text('Réessayer'),
+                                          ),
+                                        ],
                                       ),
-                                    ),
+                                    )
+                                  else
+                                    const Center(
+                                        child: CircularProgressIndicator()),
                                 ],
                               ),
                             ),
