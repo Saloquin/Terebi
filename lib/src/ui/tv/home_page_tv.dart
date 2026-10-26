@@ -7,6 +7,7 @@ import '../../domain/models/media.dart';
 import '../pages/home_providers.dart';
 import 'widgets/tv_content_row.dart';
 import 'widgets/tv_hero_banner.dart';
+import '../widgets/tv_focusable.dart';
 
 class HomepageTv extends ConsumerStatefulWidget {
   const HomepageTv({super.key});
@@ -60,9 +61,76 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
               autofocus: true,
             )
           else
-            const SizedBox(
+            Container(
               height: 240,
-              child: Center(child: CircularProgressIndicator()),
+              margin: const EdgeInsets.fromLTRB(48, 24, 48, 16),
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: const Color(0xFF141416),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Bienvenue sur Terebi',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Vos animes se chargent. Utilisez la télécommande pour naviguer.',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        TvFocusable(
+                          autofocus: true,
+                          onPressed: () {},
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                SizedBox(width: 10),
+                                Text(
+                                  'Chargement des animes…',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           const SizedBox(height: 16),
           if (continueItems.isNotEmpty)

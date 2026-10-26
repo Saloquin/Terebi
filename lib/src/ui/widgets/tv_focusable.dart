@@ -30,6 +30,9 @@ class TvFocusable extends StatefulWidget {
   /// Rayon des coins de la bordure de focus.
   final BorderRadius? borderRadius;
 
+  /// Callback de touche personnalisé optionnel (ex: interception flèches).
+  final KeyEventResult Function(FocusNode node, KeyEvent event)? onKeyEvent;
+
   const TvFocusable({
     super.key,
     required this.child,
@@ -40,6 +43,7 @@ class TvFocusable extends StatefulWidget {
     this.scrollAlignment = 0.12,
     this.scaleFactor = 1.06,
     this.borderRadius,
+    this.onKeyEvent,
   });
 
   @override
@@ -78,6 +82,10 @@ class _TvFocusableState extends State<TvFocusable> {
       autofocus: widget.autofocus,
       onFocusChange: _onFocusChange,
       onKeyEvent: (node, event) {
+        if (widget.onKeyEvent != null) {
+          final res = widget.onKeyEvent!(node, event);
+          if (res != KeyEventResult.ignored) return res;
+        }
         if (event is KeyDownEvent) {
           final k = event.logicalKey;
           if (k == LogicalKeyboardKey.select ||

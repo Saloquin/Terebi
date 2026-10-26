@@ -40,6 +40,10 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
         if (hasKeystore) {
             create("terebi") {
                 storeFile = file(keystoreProps.getProperty("storeFile"))
