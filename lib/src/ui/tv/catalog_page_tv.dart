@@ -12,6 +12,7 @@ import '../../domain/catalog_genre.dart';
 import '../../domain/logic/anime_id.dart';
 import '../../domain/models/list_status.dart';
 import '../../services/stream_resolver.dart';
+import '../pages/home_providers.dart';
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page_tv.dart';
@@ -40,13 +41,11 @@ class CatalogPageTv extends ConsumerStatefulWidget {
 }
 
 class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
-  final TextEditingController _textCtrl = TextEditingController();
-  final FocusNode _searchFocusNode = FocusNode(debugLabel: 'catalogSearch');
-  Timer? _debounce;
-
-  String _query = '';
+  String _inputText = '';
+  String _debouncedQuery = '';
   String? _selectedGenre;
   bool _hideLibrary = false;
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -61,30 +60,67 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 
   @override
   void dispose() {
-    _textCtrl.dispose();
-    _searchFocusNode.dispose();
     _debounce?.cancel();
     super.dispose();
   }
 
-  void _onTextChanged(String v) {
+  void _onChar(String c) {
+    final next = '$_inputText$c';
+    setState(() {
+      _inputText = next;
+      _selectedGenre = null;
+    });
+    _triggerDebouncedSearch(next);
+  }
+
+  void _onSpace() {
+    if (_inputText.isNotEmpty && !_inputText.endsWith(' ')) {
+      final next = '$_inputText ';
+      setState(() => _inputText = next);
+      _triggerDebouncedSearch(next);
+    }
+  }
+
+  void _onBackspace() {
+    if (_inputText.isNotEmpty) {
+      final next = _inputText.substring(0, _inputText.length - 1);
+      setState(() => _inputText = next);
+      if (next.trim().isEmpty) {
+        _debounce?.cancel();
+        setState(() => _debouncedQuery = '');
+      } else {
+        _triggerDebouncedSearch(next);
+      }
+    }
+  }
+
+  void _onClear() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 600), () {
+    setState(() {
+      _inputText = '';
+      _debouncedQuery = '';
+      _selectedGenre = null;
+    });
+  }
+
+  void _triggerDebouncedSearch(String text) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
       if (mounted) {
         setState(() {
-          _query = v.trim();
-          if (_query.isNotEmpty) _selectedGenre = null;
+          _debouncedQuery = text.trim();
         });
       }
     });
   }
 
   void _onGenreSelected(String genre) {
+    _debounce?.cancel();
     setState(() {
       _selectedGenre = _selectedGenre == genre ? null : genre;
       if (_selectedGenre != null) {
-        _query = '';
-        _textCtrl.clear();
+        _inputText = '';
+        _debouncedQuery = '';
       }
     });
   }
@@ -97,85 +133,120 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
         .set(SettingsKeys.catalogHideLibrary, newValue ? '1' : '0');
   }
 
-  bool get _showResults => _query.isNotEmpty || _selectedGenre != null;
-
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: Colors.black,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ─── Colonne gauche ───────────────────────────────────────────────
-          SizedBox(
-            width: 280,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Color(0xFF111111),
-                border: Border(
-                  right: BorderSide(color: Colors.white12, width: 1),
+    return Focus(
+      canRequestFocus: false,
+      onKeyEvent: (_, event) {
+        if (event is KeyDownEvent) {
+          final ch = event.character;
+          if (ch != null &&
+              ch.isNotEmpty &&
+              RegExp(r'^[a-zA-Z0-9]$').hasMatch(ch)) {
+            _onChar(ch.toUpperCase());
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      },
+      child: ColoredBox(
+        color: Colors.black,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ─── Colonne gauche : Clavier virtuel TV Netflix + Filtres ─────────
+            SizedBox(
+              width: 320,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Color(0xFF111114),
+                  border: Border(
+                    right: BorderSide(color: Colors.white12, width: 1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Barre d'affichage du texte recherché
+                    _TvSearchDisplay(
+                      query: _inputText,
+                      onClear: _onClear,
+                    ),
+
+                    // Clavier virtuel D-pad Netflix
+                    _TvVirtualKeyboard(
+                      onChar: _onChar,
+                      onSpace: _onSpace,
+                      onBackspace: _onBackspace,
+                      onClear: _onClear,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Bouton filtre bibliothèque
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _SidebarButton(
+                        icon: _hideLibrary
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        label: _hideLibrary
+                            ? 'Afficher déjà vus'
+                            : 'Masquer déjà vus',
+                        selected: false,
+                        onPressed: _toggleHideLibrary,
+                      ),
+                    ),
+
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14),
+                      child: Divider(color: Colors.white12, height: 14),
+                    ),
+
+                    // Liste des genres
+                    Expanded(
+                      child: ListView(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+                            child: Text(
+                              'GENRES',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.35),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 1.0,
+                              ),
+                            ),
+                          ),
+                          for (int i = 0; i < kAnimeSamaGenres.length; i++)
+                            _SidebarButton(
+                              icon: _genreIcon(kAnimeSamaGenres[i]),
+                              label: kAnimeSamaGenres[i],
+                              selected: _selectedGenre == kAnimeSamaGenres[i],
+                              autofocus: false,
+                              onPressed: () =>
+                                 _onGenreSelected(kAnimeSamaGenres[i]),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Champ de recherche : le TvFocusable reçoit le OK du D-pad
-                  // et transfère le focus au TextField — Android TV ouvre alors
-                  // le clavier car c'est une action utilisateur explicite.
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 4),
-                    child: _TvSearchField(
-                      controller: _textCtrl,
-                      focusNode: _searchFocusNode,
-                      onChanged: _onTextChanged,
-                    ),
-                  ),
-                  _SidebarButton(
-                    icon: _hideLibrary
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                    label: _hideLibrary
-                        ? 'Afficher déjà vus'
-                        : 'Masquer déjà vus',
-                    selected: false,
-                    onPressed: _toggleHideLibrary,
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    child: Divider(color: Colors.white12, height: 16),
-                  ),
-                  Expanded(
-                    child: ListView(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      children: [
-                        for (int i = 0; i < kAnimeSamaGenres.length; i++)
-                          _SidebarButton(
-                            icon: _genreIcon(kAnimeSamaGenres[i]),
-                            label: kAnimeSamaGenres[i],
-                            selected: _selectedGenre == kAnimeSamaGenres[i],
-                            autofocus: i == 0,
-                            onPressed: () =>
-                                _onGenreSelected(kAnimeSamaGenres[i]),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+            ),
+
+            // ─── Panneau droit : Résultats ou Tendances ────────────────────────
+            Expanded(
+              child: _ResultsGrid(
+                query: _debouncedQuery,
+                genre: _selectedGenre,
+                hideLibrary: _hideLibrary,
               ),
             ),
-          ),
-
-          // ─── Panneau droit : résultats ────────────────────────────────────
-          Expanded(
-            child: _showResults
-                ? _ResultsGrid(
-                    query: _query,
-                    genre: _selectedGenre,
-                    hideLibrary: _hideLibrary,
-                  )
-                : _EmptyPanel(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -225,132 +296,314 @@ class _CatalogPageTvState extends ConsumerState<CatalogPageTv> {
 }
 
 // ---------------------------------------------------------------------------
-// Champ de recherche TV inline
+// Barre d'affichage du texte tapé (Netflix TV Search Bar)
 // ---------------------------------------------------------------------------
 
-class _TvSearchField extends StatefulWidget {
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final void Function(String) onChanged;
+class _TvSearchDisplay extends StatelessWidget {
+  final String query;
+  final VoidCallback onClear;
 
-  const _TvSearchField({
-    required this.controller,
-    required this.focusNode,
-    required this.onChanged,
+  const _TvSearchDisplay({
+    required this.query,
+    required this.onClear,
   });
 
   @override
-  State<_TvSearchField> createState() => _TvSearchFieldState();
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hasQuery = query.isNotEmpty;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(10, 14, 10, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFF18181D),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: hasQuery
+              ? theme.colorScheme.primary.withValues(alpha: 0.8)
+              : Colors.white12,
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search_rounded,
+            color: hasQuery ? theme.colorScheme.primary : Colors.white38,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: hasQuery
+                ? Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          query,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const _BlinkingCursor(),
+                    ],
+                  )
+                : const Text(
+                    'Rechercher un anime…',
+                    style: TextStyle(
+                      color: Colors.white38,
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+          ),
+          if (hasQuery)
+            GestureDetector(
+              onTap: onClear,
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                decoration: const BoxDecoration(
+                  color: Colors.white12,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.white70,
+                  size: 14,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
-class _TvSearchFieldState extends State<_TvSearchField> {
-  // Nœud intermédiaire : reçoit le focus D-pad et transmet au TextField au OK.
-  final FocusNode _wrapperNode = FocusNode(debugLabel: 'searchWrapper');
-  bool _textFieldActive = false;
+class _BlinkingCursor extends StatefulWidget {
+  const _BlinkingCursor();
+
+  @override
+  State<_BlinkingCursor> createState() => _BlinkingCursorState();
+}
+
+class _BlinkingCursorState extends State<_BlinkingCursor>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
 
   @override
   void initState() {
     super.initState();
-    widget.focusNode.addListener(_onTextFocusChange);
-    _wrapperNode.addListener(_onWrapperFocusChange);
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    widget.focusNode.removeListener(_onTextFocusChange);
-    _wrapperNode.removeListener(_onWrapperFocusChange);
-    _wrapperNode.dispose();
+    _ctrl.dispose();
     super.dispose();
-  }
-
-  void _onWrapperFocusChange() {
-    setState(() {});
-  }
-
-  void _onTextFocusChange() {
-    setState(() => _textFieldActive = widget.focusNode.hasFocus);
-    if (!widget.focusNode.hasFocus) {
-      // Quand le TextField perd le focus (fermeture clavier), on remet le focus
-      // sur le wrapper pour que le D-pad reste dans la colonne gauche.
-      _wrapperNode.requestFocus();
-    }
-  }
-
-  void _activateTextField() {
-    widget.focusNode.requestFocus();
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasFocus = _wrapperNode.hasFocus || _textFieldActive;
-    return Focus(
-      focusNode: _wrapperNode,
-      onKeyEvent: (_, event) {
-        if (!_textFieldActive &&
-            event is KeyDownEvent &&
-            (event.logicalKey == LogicalKeyboardKey.select ||
-                event.logicalKey == LogicalKeyboardKey.enter)) {
-          _activateTextField();
-          return KeyEventResult.handled;
-        }
-        return KeyEventResult.ignored;
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: Colors.white10,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: hasFocus ? Colors.white : Colors.transparent,
-            width: 2,
-          ),
-          boxShadow: hasFocus
-              ? [
-                  BoxShadow(
-                    color: Colors.white.withValues(alpha: 0.2),
-                    blurRadius: 10,
+    return FadeTransition(
+      opacity: _ctrl,
+      child: Container(
+        width: 2,
+        height: 18,
+        margin: const EdgeInsets.only(left: 3),
+        color: Theme.of(context).colorScheme.primary,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Clavier virtuel D-pad TV (Style Netflix)
+// ---------------------------------------------------------------------------
+
+class _TvVirtualKeyboard extends StatelessWidget {
+  final void Function(String) onChar;
+  final VoidCallback onSpace;
+  final VoidCallback onBackspace;
+  final VoidCallback onClear;
+
+  const _TvVirtualKeyboard({
+    required this.onChar,
+    required this.onSpace,
+    required this.onBackspace,
+    required this.onClear,
+  });
+
+  static const List<List<String>> _rows = [
+    ['A', 'B', 'C', 'D', 'E', 'F'],
+    ['G', 'H', 'I', 'J', 'K', 'L'],
+    ['M', 'N', 'O', 'P', 'Q', 'R'],
+    ['S', 'T', 'U', 'V', 'W', 'X'],
+    ['Y', 'Z', '1', '2', '3', '4'],
+    ['5', '6', '7', '8', '9', '0'],
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (int r = 0; r < _rows.length; r++) ...[
+            if (r > 0) const SizedBox(height: 5),
+            Row(
+              children: [
+                for (int c = 0; c < _rows[r].length; c++) ...[
+                  if (c > 0) const SizedBox(width: 5),
+                  Expanded(
+                    child: _TvKey(
+                      label: _rows[r][c],
+                      autofocus: r == 0 && c == 0,
+                      onPressed: () => onChar(_rows[r][c]),
+                    ),
                   ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
-              child: Icon(Icons.search, color: Colors.white54, size: 18),
+                ],
+              ],
             ),
-            Expanded(
-              child: TextField(
-                controller: widget.controller,
-                focusNode: widget.focusNode,
-                autofocus: false,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                cursorColor: Colors.white70,
-                textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
-                  hintText: 'Rechercher…',
-                  hintStyle: TextStyle(color: Colors.white38),
-                  border: InputBorder.none,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 0, vertical: 12),
-                ),
-                onChanged: widget.onChanged,
-                onSubmitted: (_) => _wrapperNode.requestFocus(),
-              ),
-            ),
-            if (widget.controller.text.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  widget.controller.clear();
-                  widget.onChanged('');
-                  _wrapperNode.requestFocus();
-                },
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 10),
-                  child: Icon(Icons.close, color: Colors.white38, size: 16),
-                ),
-              ),
           ],
+          const SizedBox(height: 5),
+          // Ligne 7 : Touches d'action
+          Row(
+            children: [
+              Expanded(
+                flex: 3,
+                child: _TvKey(
+                  label: 'ESPACE',
+                  icon: Icons.space_bar_rounded,
+                  onPressed: onSpace,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                flex: 2,
+                child: _TvKey(
+                  label: 'EFFACER',
+                  icon: Icons.backspace_outlined,
+                  onPressed: onBackspace,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Expanded(
+                flex: 2,
+                child: _TvKey(
+                  label: 'VIDER',
+                  icon: Icons.clear_all_rounded,
+                  onPressed: onClear,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TvKey extends StatefulWidget {
+  final String label;
+  final IconData? icon;
+  final bool autofocus;
+  final VoidCallback onPressed;
+
+  const _TvKey({
+    required this.label,
+    this.icon,
+    this.autofocus = false,
+    required this.onPressed,
+  });
+
+  @override
+  State<_TvKey> createState() => _TvKeyState();
+}
+
+class _TvKeyState extends State<_TvKey> {
+  final FocusNode _focusNode = FocusNode();
+  bool _hasFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (mounted) setState(() => _hasFocus = _focusNode.hasFocus);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
+    return TvFocusable(
+      focusNode: _focusNode,
+      autofocus: widget.autofocus,
+      scaleFactor: 1.10,
+      borderRadius: BorderRadius.circular(8),
+      onPressed: widget.onPressed,
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          height: 38,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: _hasFocus
+                ? primaryColor.withValues(alpha: 0.35)
+                : const Color(0xFF1E1E24),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: widget.icon != null
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.icon,
+                      size: 14,
+                      color: _hasFocus ? Colors.white : Colors.white70,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        color: _hasFocus ? Colors.white : Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ],
+                )
+              : Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: _hasFocus ? Colors.white : Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
         ),
       ),
     );
@@ -421,30 +674,23 @@ class _SidebarButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Panneau vide
+// Modèle d'affichage de grille de catalogue
 // ---------------------------------------------------------------------------
 
-class _EmptyPanel extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return const Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.search, size: 64, color: Colors.white12),
-          SizedBox(height: 16),
-          Text(
-            'Recherchez un titre ou choisissez un genre',
-            style: TextStyle(color: Colors.white38, fontSize: 14),
-          ),
-        ],
-      ),
-    );
-  }
+class _CatalogGridItem {
+  final int mediaId;
+  final String slug;
+  final String title;
+
+  const _CatalogGridItem({
+    required this.mediaId,
+    required this.slug,
+    required this.title,
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Grille de résultats
+// Grille de résultats / Tendances (Panneau droit)
 // ---------------------------------------------------------------------------
 
 class _ResultsGrid extends ConsumerWidget {
@@ -460,74 +706,186 @@ class _ResultsGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final AsyncValue<List<AnimeSamaCatalogueItem>> resultsAsync;
     if (query.isNotEmpty) {
-      resultsAsync = ref.watch(_searchResultsProvider(query));
+      final resultsAsync = ref.watch(_searchResultsProvider(query));
+      return resultsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text('Erreur : $e',
+              style: const TextStyle(color: Colors.white54)),
+        ),
+        data: (items) {
+          final gridItems = [
+            for (final it in items)
+              _CatalogGridItem(
+                mediaId: animeSamaIdForSlug(_slugOf(it)),
+                slug: _slugOf(it),
+                title: it.title,
+              ),
+          ];
+          return _buildGrid(
+            context,
+            ref,
+            header: 'Résultats pour « $query »',
+            items: gridItems,
+          );
+        },
+      );
+    } else if (genre != null) {
+      final resultsAsync = ref.watch(animeSamaByGenreProvider(genre!));
+      return resultsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text('Erreur : $e',
+              style: const TextStyle(color: Colors.white54)),
+        ),
+        data: (items) {
+          final gridItems = [
+            for (final it in items)
+              _CatalogGridItem(
+                mediaId: animeSamaIdForSlug(_slugOf(it)),
+                slug: _slugOf(it),
+                title: it.title,
+              ),
+          ];
+          return _buildGrid(
+            context,
+            ref,
+            header: 'Genre : $genre',
+            items: gridItems,
+          );
+        },
+      );
     } else {
-      resultsAsync = ref.watch(animeSamaByGenreProvider(genre!));
+      // Par défaut : Tendances & Sorties récentes (aucun écran vide !)
+      final trendingAsync = ref.watch(recentlyReleasedProvider);
+      return trendingAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text('Erreur : $e',
+              style: const TextStyle(color: Colors.white54)),
+        ),
+        data: (medias) {
+          final gridItems = [
+            for (final m in medias)
+              _CatalogGridItem(
+                mediaId: m.mediaId,
+                slug: m.animeSamaSlug ?? '',
+                title: m.animeSamaTitle ?? m.title.preferred,
+              ),
+          ];
+          return _buildGrid(
+            context,
+            ref,
+            header: '🔥 Tendances & Sorties récentes',
+            items: gridItems,
+          );
+        },
+      );
+    }
+  }
+
+  Widget _buildGrid(
+    BuildContext context,
+    WidgetRef ref, {
+    required String header,
+    required List<_CatalogGridItem> items,
+  }) {
+    final statusMap = ref.watch(libraryStatusMapProvider).asData?.value ?? {};
+    final filtered = hideLibrary
+        ? items.where((it) => statusMap[it.mediaId] == null).toList()
+        : items;
+
+    if (filtered.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.search_off_rounded,
+                size: 56, color: Colors.white24),
+            const SizedBox(height: 12),
+            Text(
+              query.isNotEmpty
+                  ? 'Aucun résultat pour « $query »'
+                  : 'Aucun contenu disponible',
+              style: const TextStyle(color: Colors.white54, fontSize: 14),
+            ),
+          ],
+        ),
+      );
     }
 
-    final statusMap = ref.watch(libraryStatusMapProvider).asData?.value ?? {};
-
-    return resultsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(
-        child: Text('Erreur : $e',
-            style: const TextStyle(color: Colors.white54)),
-      ),
-      data: (items) {
-        final filtered = hideLibrary
-            ? items
-                .where((it) =>
-                    statusMap[animeSamaIdForSlug(_slugOf(it))] == null)
-                .toList()
-            : items;
-
-        if (filtered.isEmpty) {
-          return const Center(
-            child: Text('Aucun résultat',
-                style: TextStyle(color: Colors.white54)),
-          );
-        }
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(24),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 2 / 3,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+          child: Row(
+            children: [
+              Text(
+                header,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '(${filtered.length})',
+                style: const TextStyle(
+                  color: Colors.white38,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
-          itemCount: filtered.length,
-          itemBuilder: (context, i) {
-            final it = filtered[i];
-            final slug = _slugOf(it);
-            final mediaId = animeSamaIdForSlug(slug);
-            final status = statusMap[mediaId];
-            return _CatalogTileTv(
-              item: it,
-              slug: slug,
-              status: status,
-              autofocus: i == 0,
-            );
-          },
-        );
-      },
+        ),
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 2 / 3,
+            ),
+            itemCount: filtered.length,
+            itemBuilder: (context, i) {
+              final it = filtered[i];
+              final status = statusMap[it.mediaId];
+              return _CatalogTileTv(
+                mediaId: it.mediaId,
+                slug: it.slug,
+                title: it.title,
+                status: status,
+                autofocus: false,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
 
+// ---------------------------------------------------------------------------
+// Carte d'anime dans la grille TV
+// ---------------------------------------------------------------------------
+
 class _CatalogTileTv extends StatelessWidget {
-  final AnimeSamaCatalogueItem item;
+  final int mediaId;
   final String slug;
+  final String title;
   final ListStatus? status;
   final bool autofocus;
 
   const _CatalogTileTv({
-    required this.item,
+    required this.mediaId,
     required this.slug,
+    required this.title,
     required this.status,
-    required this.autofocus,
+    this.autofocus = false,
   });
 
   void _openDetail(BuildContext context) {
@@ -535,8 +893,8 @@ class _CatalogTileTv extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (_) => MediaDetailPageTv(
-          mediaId: animeSamaIdForSlug(slug),
-          displayTitle: item.title,
+          mediaId: mediaId,
+          displayTitle: title,
           animeSamaSlug: slug,
         ),
       ),
@@ -570,7 +928,7 @@ class _CatalogTileTv extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.fromLTRB(8, 24, 8, 8),
                   child: Text(
-                    item.title,
+                    title,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(color: Colors.white, fontSize: 12),
