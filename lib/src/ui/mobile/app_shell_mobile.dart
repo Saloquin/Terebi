@@ -1,5 +1,5 @@
 /// Shell mobile dédié pour smartphone : navigation inférieure (Material 3),
-/// barre supérieure compacte avec indicateur de synchronisation Turso et raccourcis.
+/// barre supérieure compacte avec indicateur de synchronisation Cloud et raccourcis.
 library;
 
 
@@ -96,7 +96,7 @@ class _AppShellMobileState extends ConsumerState<AppShellMobile> {
             ],
           ),
           actions: [
-            // Indicateur de synchronisation Turso en direct
+            // Indicateur de synchronisation Terebi Cloud en direct
             _CloudSyncButton(
               isLoggedIn: currentUser != null,
             ),

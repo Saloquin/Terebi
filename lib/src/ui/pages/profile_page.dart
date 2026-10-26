@@ -339,7 +339,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Se déconnecter ?'),
         content: const Text(
-          'Tes données en ligne sur Turso restent sauvegardées. '
+          'Tes données en ligne sur Terebi Cloud restent sauvegardées. '
           'Tu pourras te reconnecter à tout moment.',
         ),
         actions: [
@@ -372,7 +372,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           children: [
             const Icon(Icons.cloud_off, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
-            Text('Erreur de synchronisation avec Turso: $e', textAlign: TextAlign.center),
+            Text('Erreur de synchronisation Cloud : $e', textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () => ref.read(currentUserProvider.notifier).init(),
@@ -425,7 +425,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Synchronise tes listes, tes épisodes vus et ton historique sur tous tes appareils via Turso.',
+                    'Synchronise tes listes, tes épisodes vus et ton historique sur tous tes appareils avec Terebi Cloud.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
@@ -706,7 +706,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      'Turso Cloud',
+                                      'Terebi Cloud',
                                       style: TextStyle(
                                         color: colorScheme.onPrimaryContainer,
                                         fontSize: 12,
@@ -1125,7 +1125,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       ListTile(
                         leading: const Icon(Icons.password_outlined),
                         title: const Text('Modifier mon mot de passe'),
-                        subtitle: const Text('Met à jour le mot de passe de ton compte Turso'),
+                        subtitle: const Text('Met à jour le mot de passe de ton compte Terebi Cloud'),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () => _showChangePasswordDialog(user),
                       ),
@@ -1204,7 +1204,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     children: [
                       Text(
                         isSyncing
-                            ? 'Synchronisation avec Turso...'
+                            ? 'Synchronisation avec Terebi Cloud...'
                             : (isOffline
                                 ? '${status.pendingQueueCount} modification(s) en attente'
                                 : 'Cloud synchronise'),

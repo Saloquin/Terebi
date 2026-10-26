@@ -1,5 +1,5 @@
 /// Page de profil mobile tactile : authentification simple sans email,
-/// personnalisation d'avatar DiceBear, état de synchronisation Turso en direct,
+/// personnalisation d'avatar DiceBear, état de synchronisation Cloud en direct,
 /// statistiques rapides et hub d'accès au Classement et Paramètres.
 library;
 
@@ -335,7 +335,7 @@ class _ProfilePageMobileState extends ConsumerState<ProfilePageMobile> {
           ),
           const SizedBox(height: 16),
 
-          // Carte État de Synchronisation Cloud Turso
+          // Carte État de Synchronisation Terebi Cloud
           Material(
             color: colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(16),

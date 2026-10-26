@@ -112,7 +112,7 @@ class LeaderboardPage extends ConsumerWidget {
                               context,
                               title: 'Membres Terebi',
                               value: '${data.totalUsers}',
-                              subtitle: 'Comptes actifs sur Turso',
+                              subtitle: 'Comptes Terebi Cloud',
                               icon: Icons.people_outline,
                               color: colorScheme.primary,
                             ),

@@ -58,7 +58,7 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
       final syncService = ref.read(syncServiceProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Synchronisation en cours avec le Cloud Turso...'),
+          content: Text('Synchronisation en cours avec Terebi Cloud...'),
           duration: Duration(seconds: 2),
         ),
       );
@@ -200,7 +200,7 @@ class _SettingsPageTvState extends ConsumerState<SettingsPageTv> {
                           const SizedBox(width: 6),
                           Text(
                             syncStatus.state == SyncState.synced
-                                ? 'Synchronisé avec Turso'
+                                ? 'Synchronisé avec Terebi Cloud'
                                 : syncStatus.state == SyncState.syncing
                                     ? 'Synchronisation en cours...'
                                     : 'Prêt',

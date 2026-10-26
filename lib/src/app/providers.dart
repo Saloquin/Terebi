@@ -82,7 +82,7 @@ final watchHistoryRepositoryProvider = Provider<WatchHistoryRepository>(
   (ref) => WatchHistoryRepository(ref.watch(databaseProvider)),
 );
 
-/// Service de synchronisation bidirectionnelle intelligente Turso Cloud.
+/// Service de synchronisation bidirectionnelle intelligente Terebi Cloud.
 final syncServiceProvider = Provider<SyncService>((ref) {
   final db = ref.watch(databaseProvider);
   final authRepo = ref.watch(authRepositoryProvider);
