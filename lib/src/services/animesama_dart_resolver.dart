@@ -39,6 +39,15 @@ class DartAnimeSamaResolver implements StreamResolver {
   final Map<String, int> _malIdBySlug = {};
   final Map<String, int> _malIdByTitle = {};
 
+  /// Cache court et déduplication des requêtes parallèles sur les saisons et
+  /// épisodes (évite les rafales N×N à l'ouverture d'une fiche multi-saisons).
+  final Map<String, ({DateTime expiresAt, (String, List<RawSeason>) value})>
+      _seasonsCache = {};
+  final Map<String, Future<(String, List<RawSeason>)>> _inFlightSeasons = {};
+  final Map<String, ({DateTime expiresAt, Map<String, List<String>> value})>
+      _episodesCache = {};
+  final Map<String, Future<Map<String, List<String>>>> _inFlightEpisodes = {};
+
   DartAnimeSamaResolver({required this.fetch});
 
   /// Résout (une fois) puis renvoie le domaine anime-sama courant.
@@ -50,11 +59,34 @@ class DartAnimeSamaResolver implements StreamResolver {
 
   // --- Saisons réelles (port de _seasons_for) --------------------------------
 
-  /// Retourne (anime_url, saisons réelles) ou lève [ResolveException].
-  /// Applique le filtrage complet : vraies saisons + dédup + arrêt anticipé.
-  Future<(String, List<RawSeason>)> _seasonsFor(
+  /// Retourne (anime_url, saisons canoniques) ou lève [ResolveException].
+  /// Déduplique les appels concurrents et met en cache 2 minutes pour éviter
+  /// le throttling d'anime-sama lors du chargement des N saisons d'une fiche.
+  Future<(String, List<RawSeason>)> _seasonsFor(String title) {
+    final key = title.trim().toLowerCase();
+    final now = DateTime.now();
+    final cached = _seasonsCache[key];
+    if (cached != null && now.isBefore(cached.expiresAt)) {
+      return Future.value(cached.value);
+    }
+    final inFlight = _inFlightSeasons[key];
+    if (inFlight != null) return inFlight;
+
+    final future = _resolveSeasonsUncached(title).then((res) {
+      _seasonsCache[key] = (
+        expiresAt: DateTime.now().add(const Duration(minutes: 2)),
+        value: res,
+      );
+      return res;
+    }).whenComplete(() {
+      _inFlightSeasons.remove(key);
+    });
+    _inFlightSeasons[key] = future;
+    return future;
+  }
+
+  Future<(String, List<RawSeason>)> _resolveSeasonsUncached(
     String title,
-    bool vf,
   ) async {
     final domain = await _ensureDomain();
     String? animeUrl;
@@ -63,18 +95,28 @@ class DartAnimeSamaResolver implements StreamResolver {
     } else if (title.startsWith('/catalogue/')) {
       animeUrl = 'https://$domain$title';
     } else {
-      final found = await searchCatalogue(fetch, domain, title, vf: vf);
+      final found = await searchCatalogue(fetch, domain, title, vf: false);
       if (found != null) {
         animeUrl = found.url;
       } else {
-        final slug = slugFromUrl('/catalogue/$title/');
-        if (slug.isNotEmpty) {
+        final slugCandidates = <String>[
+          slugFromUrl('/catalogue/$title/'),
+          title
+              .toLowerCase()
+              .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
+              .replaceAll(RegExp(r'^-+|-+$'), ''),
+        ];
+        for (final slug in slugCandidates) {
+          if (slug.isEmpty) continue;
           final directUrl = 'https://$domain/catalogue/$slug/';
           final testResp = await fetch(directUrl, headers: {
             ...kHeadersBase,
             'referer': 'https://$domain/catalogue/',
           });
-          if (testResp.ok) animeUrl = directUrl;
+          if (testResp.ok) {
+            animeUrl = directUrl;
+            break;
+          }
         }
       }
     }
@@ -85,17 +127,38 @@ class DartAnimeSamaResolver implements StreamResolver {
       ...kHeadersBase,
       'referer': 'https://$domain/catalogue/',
     });
-    final raw = parseSeasons(resp.body);
-    final candidates = dedupeSeasons(raw.where(isRealSeason).toList());
-
-    final real = <RawSeason>[];
-    for (final s in candidates) {
-      if (await _seasonHasEpisodes(animeUrl, s, vf)) {
-        real.add(s);
-      } else if (real.isNotEmpty) {
-        break; // saisons factices contiguës en fin de liste -> arrêt anticipé
-      }
+    if (!resp.ok) {
+      throw ResolveException('page anime indisponible (${resp.statusCode})');
     }
+
+    // Extrait d'abord les saisons actives (hors commentaires JS /* */ / // et HTML <!-- -->).
+    var raw = parseActiveSeasons(resp.body);
+    var candidates = dedupeSeasons(raw.where(isRealSeason).toList());
+    if (candidates.isEmpty) {
+      raw = parseSeasons(resp.body);
+      candidates = dedupeSeasons(raw.where(isRealSeason).toList());
+    }
+
+    // Vérifie toutes les candidates par lots sans arrêt anticipé sur un « trou »
+    // (ex. OAV indisponible avant Kai dans Bleach, ou saison VOSTFR-only en VF).
+    final hasEpisodesList = List<bool>.filled(candidates.length, false);
+    const batchSize = 5;
+    for (var start = 0; start < candidates.length; start += batchSize) {
+      final end = (start + batchSize < candidates.length)
+          ? start + batchSize
+          : candidates.length;
+      await Future.wait([
+        for (var i = start; i < end; i++)
+          _seasonHasAnyEpisodes(animeUrl, candidates[i]).then((ok) {
+            hasEpisodesList[i] = ok;
+          }),
+      ]);
+    }
+
+    final real = <RawSeason>[
+      for (var i = 0; i < candidates.length; i++)
+        if (hasEpisodesList[i]) candidates[i],
+    ];
     if (real.isEmpty) {
       throw const ResolveException('aucune saison avec episodes trouvee');
     }
@@ -104,19 +167,57 @@ class DartAnimeSamaResolver implements StreamResolver {
 
   /// URL complète d'une saison (concatène anime_url + chemin, réécrit VF).
   String _seasonUrl(String animeUrl, RawSeason s, bool vf) {
-    var url = '${animeUrl.replaceAll(RegExp(r'/+$'), '')}/'
-        '${s.url.replaceAll(RegExp(r'^/+'), '')}';
-    if (vf) url = url.replaceAll('vostfr', 'vf');
-    return url;
+    var rel = s.url.trim().replaceAll(RegExp(r'^/+'), '');
+    if (vf) {
+      rel = rel.replaceAllMapped(
+        RegExp(r'(^|/)vostfr(?=/|$)', caseSensitive: false),
+        (m) => '${m[1]}vf',
+      );
+    }
+    return '${animeUrl.replaceAll(RegExp(r'/+$'), '')}/$rel';
   }
 
-  /// Vrai si la saison a au moins un épisode réellement jouable.
-  /// Port de `_season_has_episodes`.
-  Future<bool> _seasonHasEpisodes(
-      String animeUrl, RawSeason s, bool vf) async {
+  Future<Map<String, List<String>>> _fetchEpisodesCached(String seasonUrl) {
+    final key = seasonUrl.replaceAll(RegExp(r'/+$'), '').toLowerCase();
+    final now = DateTime.now();
+    final cached = _episodesCache[key];
+    if (cached != null && now.isBefore(cached.expiresAt)) {
+      return Future.value(cached.value);
+    }
+    final inFlight = _inFlightEpisodes[key];
+    if (inFlight != null) return inFlight;
+
+    final future = fetchEpisodes(fetch, seasonUrl).then((eps) {
+      if (eps.isNotEmpty) {
+        _episodesCache[key] = (
+          expiresAt: DateTime.now().add(const Duration(minutes: 1)),
+          value: eps,
+        );
+      }
+      return eps;
+    }).whenComplete(() {
+      _inFlightEpisodes.remove(key);
+    });
+    _inFlightEpisodes[key] = future;
+    return future;
+  }
+
+  /// Vrai si la saison a au moins un épisode réellement jouable (URL par défaut
+  /// ou son équivalent VF si absent par défaut).
+  Future<bool> _seasonHasAnyEpisodes(String animeUrl, RawSeason s) async {
     try {
-      final eps = await fetchEpisodes(fetch, _seasonUrl(animeUrl, s, vf));
-      return playableEpisodeCount(eps) > 0;
+      final defaultUrl = _seasonUrl(animeUrl, s, false);
+      final eps = await _fetchEpisodesCached(defaultUrl);
+      if (playableEpisodeCount(eps) > 0) return true;
+
+      if (s.url.toLowerCase().contains('vostfr')) {
+        final vfUrl = _seasonUrl(animeUrl, s, true);
+        if (vfUrl != defaultUrl) {
+          final vfEps = await _fetchEpisodesCached(vfUrl);
+          return playableEpisodeCount(vfEps) > 0;
+        }
+      }
+      return false;
     } catch (_) {
       return false;
     }
@@ -134,7 +235,7 @@ class DartAnimeSamaResolver implements StreamResolver {
     required String title,
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
-    final (_, seasons) = await _seasonsFor(title, _isVf(language));
+    final (_, seasons) = await _seasonsFor(title);
     return [
       for (var i = 0; i < seasons.length; i++)
         AnimeSamaSeason(index: i + 1, name: seasons[i].name)
@@ -147,13 +248,14 @@ class DartAnimeSamaResolver implements StreamResolver {
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     final vf = _isVf(language);
-    final (animeUrl, seasons) = await _seasonsFor(title, vf);
+    final (animeUrl, seasons) = await _seasonsFor(title);
     final season = _pickByIndex(seasons, seasonIndex);
     if (season == null) {
       throw ResolveException(
           'saison #$seasonIndex hors bornes (1..${seasons.length})');
     }
-    final episodes = await fetchEpisodes(fetch, _seasonUrl(animeUrl, season, vf));
+    final episodes =
+        await _fetchEpisodesCached(_seasonUrl(animeUrl, season, vf));
     if (episodes.isEmpty) throw const ResolveException('aucun episode trouve');
     // Épisodes triés numériquement quand possible (comme le Python).
     final keys = episodes.keys.toList()
@@ -173,13 +275,13 @@ class DartAnimeSamaResolver implements StreamResolver {
     PlaybackLanguage language = PlaybackLanguage.vostfr,
   }) async {
     final vf = _isVf(language);
-    final (animeUrl, seasons) = await _seasonsFor(title, vf);
+    final (animeUrl, seasons) = await _seasonsFor(title);
     final s = _pickByIndex(seasons, season);
     if (s == null) {
       throw ResolveException(
           'saison #$season hors bornes (1..${seasons.length})');
     }
-    final episodes = await fetchEpisodes(fetch, _seasonUrl(animeUrl, s, vf));
+    final episodes = await _fetchEpisodesCached(_seasonUrl(animeUrl, s, vf));
     if (episodes.isEmpty) throw const ResolveException('aucun episode trouve');
     final ids = episodes['$episode'];
     if (ids == null || ids.isEmpty) return const [];

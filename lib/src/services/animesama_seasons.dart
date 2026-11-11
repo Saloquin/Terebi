@@ -26,17 +26,35 @@ class RawSeason {
 /// Extrait les saisons du HTML d'une page anime (`panneauAnime("nom","path")`).
 /// Port EXACT de `get_seasons` : exclut le seul artefact de template « nom ».
 List<RawSeason> parseSeasons(String htmlContent) {
-  final pattern = RegExp(r'panneauAnime\("([^"]+)",\s*"([^"]+)"\)');
+  final pattern = RegExp(
+    r'''panneauAnime\s*\(\s*(?:"([^"]+)"|'([^']+)')\s*,\s*(?:"([^"]+)"|'([^']+)')''',
+  );
   final matches = pattern.allMatches(htmlContent);
   final seasons = <RawSeason>[];
   for (final m in matches) {
-    final name = m.group(1)!;
-    final path = m.group(2)!;
-    if (name.toLowerCase() != 'nom') {
+    final name = (m.group(1) ?? m.group(2))!;
+    final path = (m.group(3) ?? m.group(4))!;
+    if (name.trim().toLowerCase() != 'nom') {
       seasons.add(RawSeason(name, path));
     }
   }
   return seasons;
+}
+
+/// Extrait uniquement les saisons ACTIVES (hors commentaires JS `/* ... */`,
+/// `// ...` et commentaires HTML `<!-- ... -->`) telles qu'exécutées par le
+/// navigateur sur anime-sama.
+List<RawSeason> parseActiveSeasons(String htmlContent) {
+  // 1. Retire les commentaires blocs JS et HTML (peuvent s'étaler sur N lignes).
+  var cleaned = htmlContent
+      .replaceAll(RegExp(r'/\*[\s\S]*?\*/'), '')
+      .replaceAll(RegExp(r'<!--[\s\S]*?-->'), '');
+  // 2. Retire les lignes commentées par `//` (sans casser `https://` dans les URLs).
+  cleaned = cleaned
+      .split(RegExp(r'\r?\n'))
+      .where((line) => !RegExp(r'^\s*//').hasMatch(line))
+      .join('\n');
+  return parseSeasons(cleaned);
 }
 
 /// Vrai si l'entrée est une VRAIE saison (chemin relatif court), pas une reco.
@@ -49,7 +67,7 @@ bool isRealSeason(RawSeason s) {
   }
   // Retire un éventuel suffixe de langue ; il doit rester au plus 1 segment.
   final core = url
-      .replaceAll(RegExp(r'/(vostfr|vf|va|vcn|vkr|vqc)\b'), '')
+      .replaceAll(RegExp(r'/(vostfr|vf|va|vcn|vkr|vqc)\d*\b'), '')
       .replaceAll(RegExp(r'^/+|/+$'), '');
   return core.isNotEmpty && !core.contains('/');
 }
@@ -58,7 +76,7 @@ bool isRealSeason(RawSeason s) {
 /// VF/VOSTFR), repli sur le nom normalisé. Port de `_season_key`.
 String _seasonKey(RawSeason s) {
   var url = s.url.trim().toLowerCase().replaceAll(RegExp(r'/+$'), '');
-  url = url.replaceAll(RegExp(r'/(vostfr|vf|va|vcn|vkr|vqc)$'), '');
+  url = url.replaceAll(RegExp(r'/(vostfr|vf|va|vcn|vkr|vqc)\d*$'), '');
   if (url.isNotEmpty) return url;
   return s.name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 }
@@ -106,10 +124,12 @@ int playableEpisodeCount(Map<String, List<String>> eps) {
   return count;
 }
 
-/// Extrait le `filever` d'une page saison (`episodes.js?filever=(\d+)`).
-/// Port de `get_episode_list`. Renvoie `null` si absent.
+/// Extrait le `filever` d'une page saison (`episodes.js?filever=<hash|num>`).
+/// Supporte les anciens entiers (`5591`) ET les nouveaux hash hexadécimaux
+/// (`e20d0f7c54dd`) utilisés par anime-sama. Renvoie `null` si absent.
 String? parseFilever(String htmlContent) {
-  final m = RegExp(r'episodes\.js\?filever=(\d+)').firstMatch(htmlContent);
+  final m = RegExp(r'episodes\.js\?filever=([a-zA-Z0-9_-]+)')
+      .firstMatch(htmlContent);
   return m?.group(1);
 }
 
@@ -118,10 +138,11 @@ String? parseFilever(String htmlContent) {
 /// i-ème lien, une URL à l'épisode i (dédupliqué, ordre conservé).
 Map<String, List<String>> parseEpisodesJs(String content) {
   final embedLinks = <String, List<String>>{};
-  final varMatches = RegExp(r'var eps\d+\s*=\s*\[([^\]]+)\]').allMatches(content);
+  final varMatches =
+      RegExp(r'(?:var|let|const)\s+eps\d+\s*=\s*\[([^\]]*)\]').allMatches(content);
   for (final varMatch in varMatches) {
     final urlsBlock = varMatch.group(1)!;
-    final vidUrls = RegExp("'([^']+)'")
+    final vidUrls = RegExp(r'''['"]([^'"]+)['"]''')
         .allMatches(urlsBlock)
         .map((m) => m.group(1)!)
         .toList();
@@ -150,7 +171,9 @@ Future<Map<String, List<String>>> fetchEpisodes(
   );
   if (!pageResp.ok) return const {};
   final filever = parseFilever(pageResp.body);
-  if (filever == null) return const {};
+  if (filever == null && !pageResp.body.contains('episodes.js')) {
+    return const {};
+  }
   final jsUrl = '${seasonUrl.replaceAll(RegExp(r'/+$'), '')}/episodes.js';
   final jsResp = await fetch(
     jsUrl,
@@ -158,7 +181,7 @@ Future<Map<String, List<String>>> fetchEpisodes(
       ...kHeadersBase,
       'referer': cleanSeasonUrl,
     },
-    query: {'filever': filever},
+    query: filever != null ? {'filever': filever} : null,
   );
   if (!jsResp.ok) return const {};
   return parseEpisodesJs(jsResp.body);

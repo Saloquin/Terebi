@@ -37,12 +37,37 @@ void main() {
       expect([for (final s in dedup) s.url],
           [for (final e in expDedup) e['url']]);
     });
+
+    test('parseActiveSeasons ignore les commentaires JS/HTML et garde les actifs', () {
+      const html = '''
+        <script>
+          /*panneauAnime("nom", "url");*/
+          panneauAnime("Saison 1", "saison1/vostfr");
+          /*panneauAnime("Saison 2", "saison2/vostfr");
+          panneauAnime("Saison 3", "saison3/vostfr");*/
+          // panneauAnime("OAV", "oav/vostfr");
+          <!--panneauAnime("Film", "film/vostfr");-->
+          panneauAnime('Saison 4', 'saison4/vostfr');
+          panneauAnime("Externe", "https://example.com/stream");
+        </script>
+      ''';
+      final active = parseActiveSeasons(html);
+      expect(
+        [for (final s in active) (s.name, s.url)],
+        [
+          ('Saison 1', 'saison1/vostfr'),
+          ('Saison 4', 'saison4/vostfr'),
+          ('Externe', 'https://example.com/stream'),
+        ],
+      );
+    });
   });
 
   group('isRealSeason (cas unitaires)', () {
     test('chemin relatif court = vraie saison', () {
       expect(isRealSeason(const RawSeason('Saison 1', 'saison1/vostfr')), isTrue);
       expect(isRealSeason(const RawSeason('OAV', 'oav/vf')), isTrue);
+      expect(isRealSeason(const RawSeason('Saison 2 VF', 'saison2/vf1')), isTrue);
     });
     test('http/catalogue/multi-segment = reco, pas une saison', () {
       expect(isRealSeason(const RawSeason('X', 'https://autre.com/x')), isFalse);
@@ -62,10 +87,12 @@ void main() {
   });
 
   group('parseFilever / parseEpisodesJs (équivalence Python)', () {
-    test('filever = 5591 sur la vraie page saison', () {
-      // Le episodes.js réel a été enregistré ; le filever venait de la page
-      // saison (ici on vérifie l'extraction sur un fragment représentatif).
+    test('filever = 5591 et hash hexa (ex. e20d0f7c54dd) sur la page saison', () {
       expect(parseFilever('src="episodes.js?filever=5591"'), '5591');
+      expect(parseFilever("src='episodes.js?filever=e20d0f7c54dd'"),
+          'e20d0f7c54dd');
+      expect(parseFilever('src="episodes.js?filever=8b97a91d88f1"'),
+          '8b97a91d88f1');
       expect(parseFilever('pas de filever'), isNull);
     });
 
