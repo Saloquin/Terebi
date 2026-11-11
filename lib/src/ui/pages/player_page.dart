@@ -1990,6 +1990,23 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                           children: [
                             const CircularProgressIndicator(),
                             const SizedBox(height: 20),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              child: Text(
+                                widget.animeSamaTitle ??
+                                    widget.media.title.preferred,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
                             Text(
                               'Chargement de l\'épisode $_currentEpisode…',
                               style: const TextStyle(

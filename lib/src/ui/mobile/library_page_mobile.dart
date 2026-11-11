@@ -226,7 +226,7 @@ class _MobileStatusTab extends ConsumerWidget {
 }
 
 /// Résolution des titres et affichage liste / grille
-class _MobileEntriesList extends ConsumerWidget {
+class _MobileEntriesList extends ConsumerStatefulWidget {
   final List<ListEntry> entries;
   final ListStatus status;
   final String searchQuery;
@@ -240,9 +240,49 @@ class _MobileEntriesList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MobileEntriesList> createState() => _MobileEntriesListState();
+}
+
+class _MobileEntriesListState extends ConsumerState<_MobileEntriesList> {
+  bool _launchingRandom = false;
+  int? _lastRandomMediaId;
+
+  Future<void> _launchRandom(
+    List<ListEntry> candidates,
+    Map<int, Media> mediaMap,
+  ) async {
+    if (_launchingRandom || candidates.isEmpty) return;
+    setState(() => _launchingRandom = true);
+    try {
+      final picked = await resumeRandomPlayback(
+        context,
+        ref,
+        candidates,
+        mediaMap: mediaMap,
+        excludeMediaId: _lastRandomMediaId,
+      );
+      if (picked != null) {
+        _lastRandomMediaId = picked.mediaId;
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Aucun anime prêt à lancer dans cette liste.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _launchingRandom = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = widget.entries;
+    final status = widget.status;
+    final searchQuery = widget.searchQuery;
+    final isGridView = widget.isGridView;
+
     final mediaMapAsync = ref.watch(allMediaMapProvider);
-    final mediaMap = mediaMapAsync.asData?.value ?? const {};
+    final mediaMap = mediaMapAsync.asData?.value ?? const <int, Media>{};
 
     var items = entries.map((e) => (entry: e, media: mediaMap[e.mediaId])).toList();
     if (searchQuery.isNotEmpty) {
@@ -270,36 +310,60 @@ class _MobileEntriesList extends ConsumerWidget {
       );
     }
 
-    if (isGridView) {
-          return GridView.builder(
-            padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.65,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-            ),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final it = items[index];
-              return _MobileGridCard(entry: it.entry, media: it.media);
-            },
-          );
-        }
+    final randomLabel = randomLaunchLabel(status);
+    final candidates = [for (final it in items) it.entry];
 
-        // Vue Liste détaillée (optimisée smartphone avec action +1 épisode)
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 10),
-          itemBuilder: (context, index) {
-            final it = items[index];
-            return _MobileListCard(
-              entry: it.entry,
-              media: it.media,
-            );
-          },
-        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (randomLabel != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+            child: FilledButton.tonalIcon(
+              onPressed: _launchingRandom
+                  ? null
+                  : () => _launchRandom(candidates, mediaMap),
+              icon: _launchingRandom
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.shuffle_rounded, size: 18),
+              label: Text(randomLabel),
+            ),
+          ),
+        Expanded(
+          child: isGridView
+              ? GridView.builder(
+                  padding: const EdgeInsets.all(16),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.65,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final it = items[index];
+                    return _MobileGridCard(entry: it.entry, media: it.media);
+                  },
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final it = items[index];
+                    return _MobileListCard(
+                      entry: it.entry,
+                      media: it.media,
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
   }
 }
 

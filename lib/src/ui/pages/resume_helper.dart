@@ -4,16 +4,27 @@
 /// lecteur sur l'épisode à reprendre.
 library;
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/providers.dart';
 import '../../data/repositories/settings_repository.dart';
+import '../../domain/logic/random_entry_picker.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
 import 'player_page.dart';
+
+/// Libellé du bouton de lancement aléatoire selon l'onglet de bibliothèque,
+/// ou `null` pour les onglets qui ne le proposent pas.
+String? randomLaunchLabel(ListStatus status) => switch (status) {
+      ListStatus.current => 'Reprendre au hasard',
+      ListStatus.planning => 'Lancer au hasard',
+      _ => null,
+    };
 
 /// Ouvre le lecteur sur l'épisode à reprendre pour [media].
 ///
@@ -60,4 +71,47 @@ Future<void> resumePlayback(
       ),
     ),
   );
+}
+
+/// Tire un anime au hasard parmi [candidates] (en évitant [excludeMediaId] si
+/// possible), efface son éventuel badge « nouvel épisode » et lance/reprend sa
+/// lecture via [resumePlayback].
+Future<Media?> resumeRandomPlayback(
+  BuildContext context,
+  WidgetRef ref,
+  List<ListEntry> candidates, {
+  Map<int, Media>? mediaMap,
+  int? excludeMediaId,
+  Random? random,
+}) async {
+  final pool = shuffledEntriesForRandomPick(
+    candidates,
+    excludeMediaId: excludeMediaId,
+    random: random,
+  );
+  if (pool.isEmpty) return null;
+
+  final mediaRepo = ref.read(mediaRepositoryProvider);
+  Media? picked;
+  ListEntry? pickedEntry;
+  for (final e in pool) {
+    final m = mediaMap?[e.mediaId] ?? await mediaRepo.getMedia(e.mediaId);
+    if (m != null) {
+      picked = m;
+      pickedEntry = e;
+      break;
+    }
+  }
+  if (picked == null || pickedEntry == null) return null;
+
+  try {
+    await ref
+        .read(libraryControllerProvider.notifier)
+        .clearNewEpisodeFlag(pickedEntry.mediaId);
+    ref.invalidate(newEpisodeFlagProvider(pickedEntry.mediaId));
+  } catch (_) {}
+
+  if (!context.mounted) return picked;
+  await resumePlayback(context, ref, picked);
+  return picked;
 }

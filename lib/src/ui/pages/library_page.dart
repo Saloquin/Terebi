@@ -928,7 +928,7 @@ class _EntriesTab extends ConsumerWidget {
 // Liste triée + filtrée avec résolution des titres (pour tri par titre)
 // ---------------------------------------------------------------------------
 
-class _SortedEntriesList extends ConsumerWidget {
+class _SortedEntriesList extends ConsumerStatefulWidget {
   final List<ListEntry> entries;
   final ListStatus status;
   final EntrySortField sortField;
@@ -951,7 +951,50 @@ class _SortedEntriesList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SortedEntriesList> createState() => _SortedEntriesListState();
+}
+
+class _SortedEntriesListState extends ConsumerState<_SortedEntriesList> {
+  bool _launchingRandom = false;
+  int? _lastRandomMediaId;
+
+  Future<void> _launchRandom(
+    List<ListEntry> candidates,
+    Map<int, Media> mediaMap,
+  ) async {
+    if (_launchingRandom || candidates.isEmpty) return;
+    setState(() => _launchingRandom = true);
+    try {
+      final picked = await resumeRandomPlayback(
+        context,
+        ref,
+        candidates,
+        mediaMap: mediaMap,
+        excludeMediaId: _lastRandomMediaId,
+      );
+      if (picked != null) {
+        _lastRandomMediaId = picked.mediaId;
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Aucun anime prêt à lancer dans cette liste.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _launchingRandom = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = widget.entries;
+    final status = widget.status;
+    final sortField = widget.sortField;
+    final sortDesc = widget.sortDesc;
+    final filter = widget.filter;
+    final searchQuery = widget.searchQuery;
+    final prioritizeNew = widget.prioritizeNew;
+
     // Pour le tri par titre, on construit un cache des titres déjà chargés.
     // Les autres champs de tri n'ont pas besoin de Media.
     final filterService = ref.read(filterSortServiceProvider);
@@ -995,6 +1038,8 @@ class _SortedEntriesList extends ConsumerWidget {
       }).toList();
     }
 
+    final randomLabel = randomLaunchLabel(status);
+
     // Cache synchrone des titres disponibles depuis les FutureBuilder en cours.
     // On trie dès maintenant avec les titres disponibles (les non-chargés tombent
     // en fin de liste avec une chaîne vide).
@@ -1036,16 +1081,49 @@ class _SortedEntriesList extends ConsumerWidget {
           );
         }
 
-        return GridView.builder(
-          padding: const EdgeInsets.all(12),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 200, // ~1 carte / 200px de large (adaptatif)
-            childAspectRatio: 0.62, // cover 2/3 + bandeau titre/progression
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: finalEntries.length,
-          itemBuilder: (context, i) => _EntryCard(entry: finalEntries[i]),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (randomLabel != null && finalEntries.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: Row(
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: _launchingRandom
+                          ? null
+                          : () => _launchRandom(finalEntries, mediaMap),
+                      icon: _launchingRandom
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.shuffle_rounded, size: 18),
+                      label: Text(randomLabel),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${finalEntries.length} anime${finalEntries.length > 1 ? 's' : ''}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.all(12),
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 200, // ~1 carte / 200px de large (adaptatif)
+                  childAspectRatio: 0.62, // cover 2/3 + bandeau titre/progression
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemCount: finalEntries.length,
+                itemBuilder: (context, i) => _EntryCard(entry: finalEntries[i]),
+              ),
+            ),
+          ],
         );
       },
     );

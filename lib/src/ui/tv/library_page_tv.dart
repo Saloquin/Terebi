@@ -8,6 +8,7 @@ import '../../app/providers.dart';
 import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
+import '../pages/resume_helper.dart';
 import '../widgets/anime_sama_image.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page_tv.dart';
@@ -103,60 +104,106 @@ class _TvLibTab extends StatelessWidget {
     return TvFocusable(
       autofocus: autofocus,
       onPressed: onPressed,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? primary.withValues(alpha: 0.25) : const Color(0xFF1A1A1C),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected ? primary : Colors.white12,
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.white : Colors.white70,
-                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-                fontSize: 14,
-              ),
+      child: GestureDetector(
+        onTap: onPressed,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? primary.withValues(alpha: 0.25) : const Color(0xFF1A1A1C),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected ? primary : Colors.white12,
+              width: selected ? 1.5 : 1,
             ),
-            if (count > 0) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: selected ? primary : Colors.white24,
-                  borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : Colors.white70,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                  fontSize: 14,
                 ),
-                child: Text(
-                  '$count',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: selected ? primary : Colors.white24,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _LibraryGrid extends ConsumerWidget {
+class _LibraryGrid extends ConsumerStatefulWidget {
   final ListStatus status;
   const _LibraryGrid({required this.status});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final entriesAsync = ref.watch(entriesByStatusProvider(status));
+  ConsumerState<_LibraryGrid> createState() => _LibraryGridState();
+}
+
+class _LibraryGridState extends ConsumerState<_LibraryGrid> {
+  bool _launchingRandom = false;
+  int? _lastRandomMediaId;
+
+  @override
+  void didUpdateWidget(covariant _LibraryGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.status != widget.status) {
+      _lastRandomMediaId = null;
+    }
+  }
+
+  Future<void> _launchRandom(
+    List<ListEntry> entries,
+    Map<int, Media> mediaMap,
+  ) async {
+    if (_launchingRandom || entries.isEmpty) return;
+    setState(() => _launchingRandom = true);
+    try {
+      final picked = await resumeRandomPlayback(
+        context,
+        ref,
+        entries,
+        mediaMap: mediaMap,
+        excludeMediaId: _lastRandomMediaId,
+      );
+      if (picked != null) {
+        _lastRandomMediaId = picked.mediaId;
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aucun anime prêt à lancer dans cette liste.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _launchingRandom = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entriesAsync = ref.watch(entriesByStatusProvider(widget.status));
     final allMediaMap = ref.watch(allMediaMapProvider).value ?? const <int, Media>{};
+    final randomLabel = randomLaunchLabel(widget.status);
 
     return entriesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -174,26 +221,107 @@ class _LibraryGrid extends ConsumerWidget {
         }
         final sorted = entries.sortedBy((e) => e.updatedAt).reversed.toList();
 
-        return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(48, 20, 48, 48),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 4,
-            crossAxisSpacing: 18,
-            mainAxisSpacing: 18,
-            childAspectRatio: 16 / 9,
-          ),
-          itemCount: sorted.length,
-          itemBuilder: (context, i) {
-            final entry = sorted[i];
-            final media = allMediaMap[entry.mediaId];
-            return _LibraryTileTv(
-              entry: entry,
-              media: media,
-              autofocus: i == 0,
-            );
-          },
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (randomLabel != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(48, 16, 48, 2),
+                child: _TvRandomButton(
+                  label: randomLabel,
+                  busy: _launchingRandom,
+                  onPressed: () => _launchRandom(sorted, allMediaMap),
+                ),
+              ),
+            Expanded(
+              child: GridView.builder(
+                padding: EdgeInsets.fromLTRB(
+                  48,
+                  randomLabel != null ? 14 : 20,
+                  48,
+                  48,
+                ),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 18,
+                  mainAxisSpacing: 18,
+                  childAspectRatio: 16 / 9,
+                ),
+                itemCount: sorted.length,
+                itemBuilder: (context, i) {
+                  final entry = sorted[i];
+                  final media = allMediaMap[entry.mediaId];
+                  return _LibraryTileTv(
+                    entry: entry,
+                    media: media,
+                    autofocus: i == 0,
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
+    );
+  }
+}
+
+class _TvRandomButton extends StatelessWidget {
+  final String label;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  const _TvRandomButton({
+    required this.label,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return TvFocusable(
+      scaleFactor: 1.04,
+      onPressed: busy ? null : onPressed,
+      child: GestureDetector(
+        onTap: busy ? null : onPressed,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: primary.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: primary.withValues(alpha: 0.8),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (busy)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              else
+                const Icon(Icons.shuffle_rounded, color: Colors.white, size: 18),
+              const SizedBox(width: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
