@@ -139,10 +139,12 @@ class MediaDetailPage extends ConsumerWidget {
   String _titleFor(Media? m) =>
       displayTitle ?? m?.animeSamaTitle ?? m?.title.preferred ?? 'Détail';
 
-  /// Média minimal quand rien n'est en cache (id dérivé du titre, hors-ligne).
+  /// Média minimal quand rien n'est en cache (conserve [mediaId] pour que la
+  /// progression locale par saison s'affiche dès la 1re frame).
   Media _fallbackMedia() => displayTitle != null
       ? Media.fromAnimeSama(
-          slug: normalizeAnimeTitle(displayTitle!), title: displayTitle!)
+              slug: normalizeAnimeTitle(displayTitle!), title: displayTitle!)
+          .withId(mediaId)
       : Media(mediaId: mediaId, title: const MediaTitle(romaji: 'Anime'));
 }
 
@@ -862,6 +864,7 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
   List<int> _episodeList = const [];
   bool _expanded = false;
   bool _loaded = false;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
@@ -869,30 +872,45 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadProgress());
   }
 
+  @override
+  void didUpdateWidget(covariant _AnimeSamaSeasonTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.media.mediaId != widget.media.mediaId ||
+        oldWidget.season.index != widget.season.index ||
+        oldWidget.searchTitle != widget.searchTitle) {
+      _loadProgress();
+    }
+  }
+
   Future<void> _loadProgress() async {
+    final gen = ++_loadGeneration;
+    final mediaId = widget.media.mediaId;
+    final seasonIndex = widget.season.index;
+    final searchTitle = widget.searchTitle;
+
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-    final last = await seasonProgress.lastWatched(
-        widget.media.mediaId, widget.season.index);
+    final last = await seasonProgress.lastWatched(mediaId, seasonIndex);
+    if (!mounted || gen != _loadGeneration) return;
 
     int? total;
     int? lastEpisodeNumber;
     List<int> episodeList = const [];
     try {
-      // Passe par le provider global (cache partagé avec le lecteur) plutôt que
-      // d'appeler le resolver directement → évite un scraping redondant.
+      // Passe par le provider global (cache persistant partagé) plutôt que
+      // d'appeler le resolver directement.
       final eps = await ref.read(animeSamaEpisodesProvider(
-        (title: widget.searchTitle, seasonIndex: widget.season.index),
+        (title: searchTitle, seasonIndex: seasonIndex),
       ).future);
+      if (!mounted || gen != _loadGeneration) return;
       if (eps.isNotEmpty) {
         total = eps.length;
         lastEpisodeNumber = eps.last;
         episodeList = eps;
-        await seasonProgress.setTotalEpisodes(
-            widget.media.mediaId, widget.season.index, eps.last);
+        await seasonProgress.setTotalEpisodes(mediaId, seasonIndex, eps.last);
       }
     } catch (_) {/* total inconnu → barre indéterminée */}
 
-    if (mounted) {
+    if (mounted && gen == _loadGeneration) {
       setState(() {
         _lastWatched = last;
         _total = total;
@@ -1039,6 +1057,27 @@ class _AnimeSamaSeasonTileState extends ConsumerState<_AnimeSamaSeasonTile> {
     ref.listen<int>(seasonProgressRefreshProvider, (_, __) {
       _reloadWatchedOnly();
     });
+    // Si la revalidation en arrière-plan découvre de nouveaux épisodes en DB,
+    // met à jour instantanément le total et la liste affichée.
+    ref.listen<AsyncValue<List<int>>>(
+      animeSamaEpisodesProvider(
+        (title: widget.searchTitle, seasonIndex: widget.season.index),
+      ),
+      (_, next) {
+        final eps = next.asData?.value;
+        if (eps == null || eps.isEmpty || !mounted) return;
+        if (_total != eps.length || _lastEpisodeNumber != eps.last) {
+          setState(() {
+            _total = eps.length;
+            _lastEpisodeNumber = eps.last;
+            _episodeList = eps;
+            _loaded = true;
+          });
+          ref.read(seasonProgressRepositoryProvider).setTotalEpisodes(
+              widget.media.mediaId, widget.season.index, eps.last);
+        }
+      },
+    );
     final theme = Theme.of(context);
     final total = _total;
     // Saison finie : soit on a atteint le total réel, soit elle a été marquée

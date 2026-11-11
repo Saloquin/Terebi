@@ -3,6 +3,8 @@
 /// et bouton direct « +1 épisode » sur chaque carte sans ouvrir de sous-menus.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,7 @@ import '../../domain/season_progress_repository.dart';
 import '../pages/media_detail_page.dart';
 import '../pages/resume_helper.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/recheck_progress_banner.dart';
 
 class LibraryPageMobile extends ConsumerStatefulWidget {
   const LibraryPageMobile({super.key});
@@ -30,6 +33,7 @@ class _LibraryPageMobileState extends ConsumerState<LibraryPageMobile>
   final _searchController = TextEditingController();
   String _searchQuery = '';
   bool _isGridView = false;
+  Timer? _recheckTimer;
 
   static const _statuses = [
     ListStatus.current,
@@ -43,10 +47,21 @@ class _LibraryPageMobileState extends ConsumerState<LibraryPageMobile>
   void initState() {
     super.initState();
     _tabController = TabController(length: _statuses.length, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(libraryRecheckProvider.notifier).triggerRecheck();
+      }
+    });
+    _recheckTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      if (mounted) {
+        ref.read(libraryRecheckProvider.notifier).triggerRecheck(force: true);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _recheckTimer?.cancel();
     _tabController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -59,6 +74,7 @@ class _LibraryPageMobileState extends ConsumerState<LibraryPageMobile>
           data: (ids) => ids.isNotEmpty,
           orElse: () => false,
         );
+    final recheckState = ref.watch(libraryRecheckProvider);
     final theme = Theme.of(context);
 
     return Column(
@@ -170,6 +186,12 @@ class _LibraryPageMobileState extends ConsumerState<LibraryPageMobile>
                 ),
             ],
           ),
+        ),
+        RecheckProgressBanner(
+          visible: recheckState.isRechecking && recheckState.total > 0,
+          current: recheckState.current,
+          total: recheckState.total,
+          currentTitle: recheckState.currentTitle,
         ),
       ],
     );

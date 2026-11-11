@@ -1,5 +1,7 @@
 library;
 
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,7 @@ import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../pages/resume_helper.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/recheck_progress_banner.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page_tv.dart';
 
@@ -24,10 +27,33 @@ class LibraryPageTv extends ConsumerStatefulWidget {
 
 class _LibraryPageTvState extends ConsumerState<LibraryPageTv> {
   ListStatus _activeTab = ListStatus.current;
+  Timer? _recheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(libraryRecheckProvider.notifier).triggerRecheck();
+      }
+    });
+    _recheckTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      if (mounted) {
+        ref.read(libraryRecheckProvider.notifier).triggerRecheck(force: true);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _recheckTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final counts = ref.watch(countByStatusProvider).asData?.value ?? {};
+    final recheckState = ref.watch(libraryRecheckProvider);
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -75,6 +101,12 @@ class _LibraryPageTvState extends ConsumerState<LibraryPageTv> {
           // Grille d'entrées
           Expanded(
             child: _LibraryGrid(status: _activeTab),
+          ),
+          RecheckProgressBanner(
+            visible: recheckState.isRechecking && recheckState.total > 0,
+            current: recheckState.current,
+            total: recheckState.total,
+            currentTitle: recheckState.currentTitle,
           ),
         ],
       ),

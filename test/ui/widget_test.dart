@@ -413,12 +413,11 @@ void main() {
 
     testWidgets('affiche les stats quand des entrées sont présentes',
         (tester) async {
+      final db = TerebiDatabase(NativeDatabase.memory());
       await tester.pumpWidget(ProviderScope(
         overrides: [
           statsServiceProvider.overrideWithValue(const StatsService()),
-          databaseProvider.overrideWithValue(
-            TerebiDatabase(NativeDatabase.memory()),
-          ),
+          databaseProvider.overrideWithValue(db),
           listRepositoryProvider.overrideWith((ref) => _FakeListRepository()),
           mediaRepositoryProvider.overrideWith((ref) => _FakeMediaRepository()),
         ],
@@ -431,6 +430,7 @@ void main() {
       expect(find.text('Temps total regardé'), findsOneWidget);
       expect(find.text('Séries terminées'), findsOneWidget);
       expect(find.text('Répartition par statut'), findsOneWidget);
+      await db.close();
     });
   });
 

@@ -63,25 +63,42 @@ class TvSeasonsList extends ConsumerStatefulWidget {
 class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
   // null = pas encore chargé, vide = aucune saison avec progression disponible
   Map<int, _SeasonProgress>? _progressBySeasonIndex;
+  int? _loadedMediaId;
+  String? _loadedSearchTitle;
+  int _loadGeneration = 0;
+  bool _loadScheduled = false;
+
+  @override
+  void didUpdateWidget(covariant TvSeasonsList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.media.mediaId != widget.media.mediaId ||
+        oldWidget.searchTitle != widget.searchTitle) {
+      _loadedMediaId = null;
+      _loadedSearchTitle = null;
+      _loadScheduled = false;
+    }
+  }
 
   Future<void> _loadAllProgress(List<AnimeSamaSeason> seasons) async {
+    final gen = ++_loadGeneration;
+    final mediaId = widget.media.mediaId;
+    final searchTitle = widget.searchTitle;
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final result = <int, _SeasonProgress>{};
 
     await Future.wait(seasons.map((season) async {
-      final last = await seasonProgress.lastWatched(
-          widget.media.mediaId, season.index);
+      final last = await seasonProgress.lastWatched(mediaId, season.index);
       int? total;
       int? lastEpisodeNumber;
       try {
         final eps = await ref.read(animeSamaEpisodesProvider(
-          (title: widget.searchTitle, seasonIndex: season.index),
+          (title: searchTitle, seasonIndex: season.index),
         ).future);
         if (eps.isNotEmpty) {
           total = eps.length;
           lastEpisodeNumber = eps.last;
           await seasonProgress.setTotalEpisodes(
-              widget.media.mediaId, season.index, eps.last);
+              mediaId, season.index, eps.last);
         }
       } catch (_) {}
       result[season.index] = _SeasonProgress(
@@ -91,8 +108,13 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
       );
     }));
 
-    if (mounted) {
-      setState(() => _progressBySeasonIndex = result);
+    if (mounted && gen == _loadGeneration) {
+      setState(() {
+        _progressBySeasonIndex = result;
+        _loadedMediaId = mediaId;
+        _loadedSearchTitle = searchTitle;
+        _loadScheduled = false;
+      });
     }
   }
 
@@ -116,11 +138,18 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
           );
         }
 
-        // Déclenche le chargement global si pas encore fait (ou si les saisons
-        // ont changé).
-        if (_progressBySeasonIndex == null) {
+        final needsLoad = _progressBySeasonIndex == null ||
+            _loadedMediaId != widget.media.mediaId ||
+            _loadedSearchTitle != widget.searchTitle ||
+            seasons.any((s) => !_progressBySeasonIndex!.containsKey(s.index));
+
+        if (needsLoad && !_loadScheduled) {
+          _loadScheduled = true;
           WidgetsBinding.instance
               .addPostFrameCallback((_) => _loadAllProgress(seasons));
+        }
+
+        if (_progressBySeasonIndex == null) {
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -131,7 +160,8 @@ class _TvSeasonsListState extends ConsumerState<TvSeasonsList> {
           itemCount: seasons.length,
           itemBuilder: (context, i) {
             final season = seasons[i];
-            final progress = _progressBySeasonIndex![season.index]!;
+            final progress = _progressBySeasonIndex![season.index] ??
+                const _SeasonProgress(lastWatched: 0);
             return _TvSeasonRow(
               media: widget.media,
               season: season,
@@ -211,6 +241,25 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
     _lastWatched = widget.initialLastWatched;
     _total = widget.initialTotal;
     _lastEpisodeNumber = widget.initialLastEpisodeNumber;
+  }
+
+  @override
+  void didUpdateWidget(covariant _TvSeasonRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialLastWatched != widget.initialLastWatched) {
+      _lastWatched = widget.initialLastWatched;
+    }
+    if (oldWidget.initialTotal != widget.initialTotal) {
+      _total = widget.initialTotal;
+    }
+    if (oldWidget.initialLastEpisodeNumber != widget.initialLastEpisodeNumber) {
+      _lastEpisodeNumber = widget.initialLastEpisodeNumber;
+    }
+    if (oldWidget.media.mediaId != widget.media.mediaId ||
+        oldWidget.season.index != widget.season.index) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _reloadWatchedOnly());
+    }
   }
 
   @override
@@ -332,6 +381,23 @@ class _TvSeasonRowState extends ConsumerState<_TvSeasonRow> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<int>>>(
+      animeSamaEpisodesProvider(
+        (title: widget.searchTitle, seasonIndex: widget.season.index),
+      ),
+      (_, next) {
+        final eps = next.asData?.value;
+        if (eps == null || eps.isEmpty || !mounted) return;
+        if (_total != eps.length || _lastEpisodeNumber != eps.last) {
+          setState(() {
+            _total = eps.length;
+            _lastEpisodeNumber = eps.last;
+          });
+          ref.read(seasonProgressRepositoryProvider).setTotalEpisodes(
+              widget.media.mediaId, widget.season.index, eps.last);
+        }
+      },
+    );
     final total = _total;
     final markedFull =
         _lastWatched >= SeasonProgressRepository.fullyWatchedSentinel;

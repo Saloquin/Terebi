@@ -116,9 +116,10 @@ class _MediaDetailPageTvState extends ConsumerState<MediaDetailPageTv> {
     final media = mediaAsync.asData?.value ??
         (widget.displayTitle != null
             ? Media.fromAnimeSama(
-                slug: widget.animeSamaSlug ??
-                    normalizeAnimeTitle(widget.displayTitle!),
-                title: widget.displayTitle!)
+                    slug: widget.animeSamaSlug ??
+                        normalizeAnimeTitle(widget.displayTitle!),
+                    title: widget.displayTitle!)
+                .withId(widget.mediaId)
             : Media(
                 mediaId: widget.mediaId,
                 title: const MediaTitle(romaji: 'Anime')));

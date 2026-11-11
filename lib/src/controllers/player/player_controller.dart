@@ -104,8 +104,7 @@ class PlayerController extends Notifier<PlayerState> {
         await settings.get(SettingsKeys.animeSamaSeasonFor(media.mediaId));
     final storedSeason = storedStr != null ? int.tryParse(storedStr) : null;
 
-    final resolver = await ref.read(animeSamaResolverProvider.future);
-    final seasons = await resolver.listSeasons(title: title);
+    final seasons = await ref.read(animeSamaSeasonsProvider(title).future);
     if (seasons.isEmpty) {
       await loadAndPlay(media: media, episode: requestedEpisode);
       return;
@@ -116,10 +115,9 @@ class PlayerController extends Notifier<PlayerState> {
       orElse: () => seasons.first,
     );
 
-    final eps = await resolver.listEpisodes(
-      title: title,
-      seasonIndex: targetSeason.index,
-    );
+    final eps = await ref.read(animeSamaEpisodesProvider(
+      (title: title, seasonIndex: targetSeason.index),
+    ).future);
 
     final seasonProgress = ref.read(seasonProgressRepositoryProvider);
     final lastWatched =

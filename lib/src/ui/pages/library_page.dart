@@ -14,8 +14,8 @@ import '../../domain/models/list_entry.dart';
 import '../../domain/models/list_status.dart';
 import '../../domain/models/media.dart';
 import '../../domain/season_progress_repository.dart';
-import '../../services/animesama_dart_resolver.dart';
 import '../widgets/anime_sama_image.dart';
+import '../widgets/recheck_progress_banner.dart';
 import '../widgets/tv_focusable.dart';
 import 'media_detail_page.dart';
 import 'resume_helper.dart';
@@ -71,26 +71,23 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
   String _searchQuery = '';
   final _searchController = TextEditingController();
   Timer? _recheckTimer;
-  bool _isRechecking = false;
-  int _recheckTotal = 0;
-  int _recheckCurrent = 0;
-  String? _recheckCurrentTitle;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _statusOrder.length, vsync: this);
-    // Au montage : charge les préférences, normalise les statuts legacy, puis revalide les « Terminé ».
+    // Au montage : charge les préférences, puis lance la réactualisation
+    // partagée en arrière-plan (statuts legacy + détection nouveaux épisodes/saisons).
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _loadSettings();
-      await _normalizeLegacyStatuses();
-      await _recheckCompleted();
+      if (!mounted) return;
+      await ref.read(libraryRecheckProvider.notifier).triggerRecheck();
     });
 
     // Re-vérifie automatiquement toutes les 10 minutes tant que l'utilisateur est sur la page.
     _recheckTimer = Timer.periodic(const Duration(minutes: 10), (_) {
       if (mounted) {
-        _recheckCompleted();
+        ref.read(libraryRecheckProvider.notifier).triggerRecheck(force: true);
       }
     });
   }
@@ -111,311 +108,6 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
     ref
         .read(settingsRepositoryProvider)
         .set(SettingsKeys.prioritizeNewEpisodes, val ? '1' : '0');
-  }
-
-  /// Migration légère (one-shot par ouverture) : convertit les anciens statuts
-  /// STOCKÉS `current` en `planning`. Depuis la refonte, « En cours » n'est plus
-  /// stocké mais DÉRIVÉ de la progression (cf. effectiveStatus) ; une ligne
-  /// héritée `current` reste correctement affichée « En cours » tant qu'il y a
-  /// de la progression, mais on normalise le stockage pour éviter toute
-  /// incohérence (ex. `current` sans progression = fantôme hors listes).
-  Future<void> _normalizeLegacyStatuses() async {
-    try {
-      final listRepo = ref.read(listRepositoryProvider);
-      final all = await listRepo.getAllEntries();
-      var changed = false;
-      for (final e in all) {
-        if (e.status == ListStatus.current) {
-          await listRepo.upsertEntry(
-              e.copyWith(status: ListStatus.planning, updatedAt: e.updatedAt));
-          changed = true;
-        }
-      }
-      if (changed && mounted) {
-        ref.invalidate(entriesByStatusProvider);
-        ref.invalidate(countByStatusProvider);
-      }
-    } catch (_) {/* best-effort */}
-  }
-
-  Future<void> _recheckCompleted() async {
-    if (_isRechecking) return;
-    setState(() {
-      _isRechecking = true;
-      _recheckCurrent = 0;
-      _recheckTotal = 0;
-      _recheckCurrentTitle = null;
-    });
-    try {
-      await _recheckCompletedImpl();
-    } catch (_) {
-      // Best-effort : un recheck qui échoue ne doit jamais casser la page.
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isRechecking = false;
-          _recheckTotal = 0;
-          _recheckCurrent = 0;
-          _recheckCurrentTitle = null;
-        });
-      } else {
-        _isRechecking = false;
-      }
-    }
-  }
-
-  Future<void> _recheckCompletedImpl() async {
-    final settings = ref.read(settingsRepositoryProvider);
-
-    // Le recheck tourne à CHAQUE ouverture de la Bibliothèque, en arrière-plan
-    // (lancé sans await bloquant depuis initState). Pas de garde temporelle : un
-    // épisode qui sort le jour même est détecté à la prochaine ouverture.
-    // `recheckVersion` ne sert plus qu'à déclencher UNE FOIS la passe 0 de
-    // migration (sentinelles + nettoyage des badges hérités).
-    const currentRecheckVersion = '6';
-    final recheckVer =
-        await settings.get(SettingsKeys.recheckVersion, defaultValue: '1');
-    final mustUpgrade = recheckVer != currentRecheckVersion;
-
-    final listRepo = ref.read(listRepositoryProvider);
-    final mediaRepo = ref.read(mediaRepositoryProvider);
-    final seasonProgress = ref.read(seasonProgressRepositoryProvider);
-
-    final completed = await listRepo.entriesByStatus(ListStatus.completed);
-
-    final DartAnimeSamaResolver resolver;
-    try {
-      resolver = await ref.read(animeSamaResolverProvider.future);
-    } catch (_) {
-      return; // résolveur indisponible → pas de recheck.
-    }
-
-    // Critère « nouvel épisode » : il existe un épisode non vu sur la dernière
-    // saison (watched < dernier numéro). On NE consulte PAS le planning : un
-    // anime fini pendant une longue absence en sort → le planning le masquerait
-    // et ferait rater les épisodes sortis entre-temps. La progression locale
-    // (watched vs eps.last) est le seul signal fiable et robuste au temps.
-
-    // Passe 0 (mise à niveau uniquement) : migration + nettoyage rétroactif.
-    if (mustUpgrade) {
-      // (a) Remplace les sentinelles héritées par le nombre réel d'épisodes.
-      final watchedKeys =
-          await settings.entriesWithPrefix('anime_sama_watched:');
-      for (final kv in watchedKeys.entries) {
-        final v = int.tryParse(kv.value) ?? 0;
-        if (v < SeasonProgressRepository.fullyWatchedSentinel) continue;
-        // Clé = anime_sama_watched:<mediaId>:<seasonIndex>
-        final parts = kv.key.split(':');
-        if (parts.length != 3) continue;
-        final id = int.tryParse(parts[1]);
-        final seasonIndex = int.tryParse(parts[2]);
-        if (id == null || seasonIndex == null) continue;
-        try {
-          final media = await mediaRepo.getMedia(id);
-          final title = media?.animeSamaTitle ?? media?.title.preferred;
-          if (title == null) continue;
-          final eps =
-              await resolver.listEpisodes(title: title, seasonIndex: seasonIndex);
-          if (eps.isNotEmpty) {
-            await seasonProgress.setLastWatched(id, seasonIndex, eps.last);
-          }
-        } catch (_) {/* réseau : on garde la sentinelle, réessai au prochain */}
-      }
-      // (b) Nettoie tous les drapeaux « nouvel épisode » posés à tort par l'ancienne
-      // logique sur les animes en cours. Passe 1 reposera immédiatement le drapeau
-      // sur les animes terminés qui ont de véritables nouveaux épisodes non vus.
-      final newEpisodeKeys = await settings.entriesWithPrefix('new_episode:');
-      for (final kv in newEpisodeKeys.entries) {
-        await settings.delete(kv.key);
-      }
-      // (c) Nettoie les progressions erronées sur les saisons suivantes (ex. Saison 2
-      // affichant 1/X alors qu'aucun épisode n'a été réellement regardé).
-      final historyRepo = ref.read(watchHistoryRepositoryProvider);
-      final progressRepo = ref.read(progressRepositoryProvider);
-      for (final kv in watchedKeys.entries) {
-        final v = int.tryParse(kv.value) ?? 0;
-        if (v != 1) continue;
-        final parts = kv.key.split(':');
-        if (parts.length != 3) continue;
-        final id = int.tryParse(parts[1]);
-        final seasonIndex = int.tryParse(parts[2]);
-        if (id == null || seasonIndex == null || seasonIndex <= 1) continue;
-        try {
-          final media = await mediaRepo.getMedia(id);
-          final title = media?.animeSamaTitle ?? media?.title.preferred;
-          if (title == null) continue;
-          final eps =
-              await resolver.listEpisodes(title: title, seasonIndex: seasonIndex);
-          if (eps.length <= 1) continue; // Si la saison n'a qu'un épisode (film/OAV), 1/1 est légitime.
-
-          // Vérifie si l'utilisateur a réellement regardé l'épisode 1.
-          final history = await historyRepo.forMedia(id);
-          final prog = await progressRepo.getProgress(id, 1.0);
-          final actuallyWatched =
-              history.isNotEmpty || (prog != null && prog.positionSeconds > 0);
-          if (!actuallyWatched) {
-            await seasonProgress.setLastWatched(id, seasonIndex, 0);
-            final entry = await listRepo.getEntry(id);
-            if (entry != null &&
-                entry.progress == 1 &&
-                entry.status == ListStatus.planning) {
-              await listRepo.upsertEntry(entry.copyWith(
-                progress: 0,
-                updatedAt: DateTime.now(),
-              ));
-            }
-          }
-        } catch (_) {/* best-effort */}
-      }
-    }
-
-    // --- Comptage des animes à vérifier pour la barre de progression ---
-    final planning = await listRepo.entriesByStatus(ListStatus.planning);
-    final planningCandidates = <ListEntry>[];
-    for (final entry in planning) {
-      if (!mounted) return;
-      final hasProgress = entry.progress > 0 ||
-          await seasonProgress.hasAnyProgress(entry.mediaId);
-      if (!hasProgress) continue;
-      if (await settings.get(SettingsKeys.newEpisodeFor(entry.mediaId)) ==
-          '1') {
-        continue;
-      }
-      planningCandidates.add(entry);
-    }
-
-    final total = completed.length + planningCandidates.length;
-    if (total == 0) return;
-
-    if (mounted) {
-      setState(() {
-        _recheckTotal = total;
-        _recheckCurrent = 0;
-        _recheckCurrentTitle = null;
-      });
-    }
-
-    var changed = false;
-    for (final entry in completed) {
-      if (!mounted) return;
-      Media? media;
-      try {
-        media = await mediaRepo.getMedia(entry.mediaId);
-      } catch (_) {}
-      final displayTitle = media?.title.preferred ??
-          media?.animeSamaTitle ??
-          'Anime #${entry.mediaId}';
-      if (mounted) {
-        setState(() {
-          _recheckCurrent++;
-          _recheckCurrentTitle = displayTitle;
-        });
-      }
-
-      try {
-        // Titre anime-sama de référence (le titre AniList peut diverger et faire
-        // échouer le scraping). Repli sur le titre préféré si non renseigné.
-        final title = media?.animeSamaTitle ?? media?.title.preferred;
-        if (title != null) {
-          final seasons = await resolver.listSeasons(title: title);
-          if (seasons.isNotEmpty) {
-            final last = seasons.last;
-            final eps = await resolver.listEpisodes(
-              title: title,
-              seasonIndex: last.index,
-            );
-            if (eps.isNotEmpty) {
-              // Met à jour le nombre total d'épisodes (déclenche le patron observateur
-              // qui compare automatiquement watched et total, et déplace l'anime dans
-              // la bonne catégorie).
-              await seasonProgress.setTotalEpisodes(
-                  entry.mediaId, last.index, eps.last);
-              changed = true;
-            }
-          }
-        }
-      } catch (_) {
-        // Ignore les erreurs individuelles (réseau, anime introuvable…).
-      }
-      // Espace les requêtes pour ne pas se faire throttle par anime-sama.
-      await Future.delayed(const Duration(milliseconds: 400));
-    }
-
-    // --- Passe 2 : animes EN COURS (stockés `planning` + progression) ---
-    // Contrairement aux « Terminé », on NE change PAS le statut : on pose juste
-    // le drapeau « nouvel épisode » si l'utilisateur n'est pas à jour sur la
-    // dernière saison. Idempotent (skip si drapeau déjà posé).
-    for (final entry in planningCandidates) {
-      if (!mounted) return;
-      Media? media;
-      try {
-        media = await mediaRepo.getMedia(entry.mediaId);
-      } catch (_) {}
-      final displayTitle = media?.title.preferred ??
-          media?.animeSamaTitle ??
-          'Anime #${entry.mediaId}';
-      if (mounted) {
-        setState(() {
-          _recheckCurrent++;
-          _recheckCurrentTitle = displayTitle;
-        });
-      }
-
-      try {
-        final title = media?.animeSamaTitle ?? media?.title.preferred;
-        if (title != null) {
-          final seasons = await resolver.listSeasons(title: title);
-          if (seasons.isNotEmpty) {
-            final last = seasons.last;
-            final eps = await resolver.listEpisodes(
-              title: title,
-              seasonIndex: last.index,
-            );
-            if (eps.isNotEmpty) {
-              final watched =
-                  await seasonProgress.lastWatched(entry.mediaId, last.index);
-              final prevTotal =
-                  await seasonProgress.totalEpisodes(entry.mediaId, last.index);
-
-              // Jamais regardé via le lecteur intégré → pas de badge « Nouveau ».
-              if (watched == 0) {
-                await settings.delete(SettingsKeys.newEpisodeFor(entry.mediaId));
-              } else {
-                // Poser le badge « Nouveau » UNIQUEMENT si anime-sama a publié de
-                // nouveaux épisodes (prevTotal > 0 && eps.last > prevTotal) et que
-                // l'utilisateur ne les a pas encore vus (watched < eps.last).
-                if (prevTotal > 0 && eps.last > prevTotal && watched < eps.last) {
-                  await settings.set(
-                      SettingsKeys.newEpisodeFor(entry.mediaId), '1');
-                }
-                await seasonProgress.setTotalEpisodes(
-                    entry.mediaId, last.index, eps.last);
-                changed = true;
-              }
-            }
-          }
-        }
-      } catch (_) {
-        // Ignore les erreurs individuelles (réseau, anime introuvable…).
-      }
-      await Future.delayed(const Duration(milliseconds: 400));
-    }
-
-    // Mémorise la version : la passe 0 de migration ne re-tournera plus.
-    await settings.set(SettingsKeys.recheckVersion, currentRecheckVersion);
-
-    if (changed && mounted) {
-      ref.invalidate(countByStatusProvider);
-      ref.invalidate(entriesByStatusProvider);
-      // La fiche a son propre provider d'entrée : l'invalider aussi pour éviter
-      // un statut incohérent entre la bibliothèque et la page de détail.
-      ref.invalidate(listEntryProvider);
-    }
-
-    if (mounted && _recheckTotal > 0) {
-      // Petite pause pour afficher la complétion à 100% avant disparition
-      await Future.delayed(const Duration(milliseconds: 600));
-    }
   }
 
   @override
@@ -444,6 +136,7 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
             );
     final newCurrentCount =
         currentEntries.where((e) => newIds.contains(e.mediaId)).length;
+    final recheckState = ref.watch(libraryRecheckProvider);
 
     return Column(
       children: [
@@ -556,11 +249,11 @@ class _LibraryPageState extends ConsumerState<LibraryPage>
         ),
 
         // --- Barre de progression d'actualisation en arrière-plan ---
-        _RecheckProgressBanner(
-          visible: _isRechecking && _recheckTotal > 0,
-          current: _recheckCurrent,
-          total: _recheckTotal,
-          currentTitle: _recheckCurrentTitle,
+        RecheckProgressBanner(
+          visible: recheckState.isRechecking && recheckState.total > 0,
+          current: recheckState.current,
+          total: recheckState.total,
+          currentTitle: recheckState.currentTitle,
         ),
       ],
     );
@@ -1456,120 +1149,4 @@ class _NewEpisodeDot extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Bandeau de progression d'actualisation de la bibliothèque
-// ---------------------------------------------------------------------------
-
-class _RecheckProgressBanner extends StatelessWidget {
-  final bool visible;
-  final int current;
-  final int total;
-  final String? currentTitle;
-
-  const _RecheckProgressBanner({
-    required this.visible,
-    required this.current,
-    required this.total,
-    this.currentTitle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final progress = total > 0 ? (current / total).clamp(0.0, 1.0) : 0.0;
-
-    return ClipRect(
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        alignment: Alignment.bottomCenter,
-        child: visible
-            ? Material(
-                color: colorScheme.surfaceContainerHighest,
-                elevation: 4,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TweenAnimationBuilder<double>(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                      tween: Tween<double>(begin: 0.0, end: progress),
-                      builder: (context, val, _) {
-                        return LinearProgressIndicator(
-                          value: total > 0 ? val : null,
-                          minHeight: 3,
-                          backgroundColor:
-                              colorScheme.surfaceContainerHighest,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            colorScheme.primary,
-                          ),
-                        );
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: Row(
-                        children: [
-                          SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: colorScheme.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Actualisation de la bibliothèque',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                          if (currentTitle != null &&
-                              currentTitle!.isNotEmpty) ...[
-                            const SizedBox(width: 8),
-                            Text(
-                              '•',
-                              style: theme.textTheme.labelMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                currentTitle!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ] else
-                            const Spacer(),
-                          const SizedBox(width: 12),
-                          Text(
-                            '$current / $total · ${(progress * 100).toInt()}%',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: colorScheme.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              )
-            : const SizedBox.shrink(),
-      ),
-    );
-  }
-}
 

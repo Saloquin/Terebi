@@ -40,6 +40,25 @@ class MetaCacheRepository {
     return row.payload;
   }
 
+  /// Retourne l'entrée brute (payload + expiration) sans l'écarter si expirée.
+  ///
+  /// Utile pour les caches « cache-first » qui préfèrent servir une donnée
+  /// périmée pendant la revalidation réseau en arrière-plan.
+  Future<({String payload, DateTime expiresAt})?> getEntry(String key) async {
+    final row = await (_db.select(_db.metaCache)
+          ..where((t) => t.cacheKey.equals(key)))
+        .getSingleOrNull();
+    if (row == null) return null;
+    return (payload: row.payload, expiresAt: row.expiresAt);
+  }
+
+  /// Flux réactif sur le payload d'une clé de cache (null tant qu'absent).
+  Stream<String?> watchPayload(String key) {
+    return (_db.select(_db.metaCache)..where((t) => t.cacheKey.equals(key)))
+        .watchSingleOrNull()
+        .map((row) => row?.payload);
+  }
+
   /// Supprime toutes les entrées expirées à [now].
   Future<void> evictExpired(DateTime now) async {
     await (_db.delete(_db.metaCache)

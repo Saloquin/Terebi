@@ -35,12 +35,14 @@ import '../domain/models/list_status.dart';
 import '../domain/models/media.dart';
 import '../services/animesama_catalog_service.dart';
 import '../services/animesama_dart_resolver.dart';
+import '../services/animesama_season_cache.dart';
 import '../services/health_service.dart';
 import '../services/slug_migration_service.dart';
 import '../services/stream_resolver.dart';
 import '../controllers/player/player_controller.dart';
 import '../controllers/player/player_state.dart';
 import '../controllers/library/library_controller.dart';
+import '../controllers/library/library_recheck_controller.dart';
 import '../controllers/library/library_state.dart';
 import '../services/system_http_fetcher.dart';
 import '../data/repositories/auth_repository.dart';
@@ -422,20 +424,41 @@ final slugMigrationProvider = FutureProvider<void>((ref) async {
   await service.runOnce();
 });
 
-/// Saisons anime-sama d'un titre (VOSTFR par défaut, cf. wrapper).
-final animeSamaSeasonsProvider =
-    FutureProvider.family<List<AnimeSamaSeason>, String>((ref, title) async {
-  final resolver = await ref.watch(animeSamaResolverProvider.future);
-  return resolver.listSeasons(title: title);
+/// Cache persistant « cache-first » des saisons/épisodes anime-sama.
+/// Lit immédiatement la base locale (`MetaCache`) et revalide en arrière-plan
+/// avec fusion monotone (aucune saison/épisode ne disparaît en cas d'erreur).
+final animeSamaSeasonCacheProvider = Provider<AnimeSamaSeasonCacheService>((ref) {
+  return AnimeSamaSeasonCacheService(
+    cache: ref.watch(metaCacheRepositoryProvider),
+    fetchSeasons: (title, language) async {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      return resolver.listSeasons(title: title, language: language);
+    },
+    fetchEpisodes: (title, seasonIndex, language) async {
+      final resolver = await ref.read(animeSamaResolverProvider.future);
+      return resolver.listEpisodes(
+        title: title,
+        seasonIndex: seasonIndex,
+        language: language,
+      );
+    },
+  );
 });
 
-/// Numéros d'épisodes d'une (saison) anime-sama. Keyé sur (titre, index) pour
-/// que fiche + lecteur + recheck réutilisent le même résultat.
+/// Saisons anime-sama d'un titre (cache DB persistant + revalidation silencieuse).
+final animeSamaSeasonsProvider =
+    StreamProvider.family<List<AnimeSamaSeason>, String>((ref, title) {
+  return ref.watch(animeSamaSeasonCacheProvider).watchSeasons(title);
+});
+
+/// Numéros d'épisodes d'une (saison) anime-sama (cache DB persistant +
+/// revalidation silencieuse). Keyé sur (titre, index).
 final animeSamaEpisodesProvider =
-    FutureProvider.family<List<int>, ({String title, int seasonIndex})>(
-        (ref, arg) async {
-  final resolver = await ref.watch(animeSamaResolverProvider.future);
-  return resolver.listEpisodes(title: arg.title, seasonIndex: arg.seasonIndex);
+    StreamProvider.family<List<int>, ({String title, int seasonIndex})>(
+        (ref, arg) {
+  return ref
+      .watch(animeSamaSeasonCacheProvider)
+      .watchEpisodes(arg.title, arg.seasonIndex);
 });
 
 /// Titres normalisés présents au planning anime-sama (diffusion en cours).
@@ -689,3 +712,8 @@ final playerControllerProvider =
 
 final libraryControllerProvider =
     NotifierProvider<LibraryController, LibraryState>(LibraryController.new);
+
+final libraryRecheckProvider =
+    NotifierProvider<LibraryRecheckController, LibraryRecheckState>(
+  LibraryRecheckController.new,
+);

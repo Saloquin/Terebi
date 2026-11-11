@@ -103,5 +103,24 @@ void main() {
       expect(await repo.get('b', now), 'beta');
       expect(await repo.get('c', now), 'gamma');
     });
+
+    test('getEntry retourne aussi une entrée expirée et watchPayload suit les mises à jour',
+        () async {
+      final exp = DateTime.utc(2020, 1, 1);
+      final emissions = <String?>[];
+      final sub = repo.watchPayload('k').listen(emissions.add);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      await repo.put('k', 'v1', exp);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await repo.put('k', 'v2', exp);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await sub.cancel();
+
+      final entry = await repo.getEntry('k');
+      expect(entry, isNotNull);
+      expect(entry!.payload, 'v2');
+      expect(emissions, [null, 'v1', 'v2']);
+    });
   });
 }
