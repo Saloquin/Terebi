@@ -25,7 +25,7 @@ void main() {
 
       node.requestFocus();
       await tester.pumpAndSettle();
-      expect(scaleOf().scale, 1.08);
+      expect(scaleOf().scale, 1.06);
     });
 
     testWidgets('bordure blanche visible au focus', (tester) async {

@@ -44,9 +44,10 @@ class DartAnimeSamaResolver implements StreamResolver {
   final Map<String, ({DateTime expiresAt, (String, List<RawSeason>) value})>
       _seasonsCache = {};
   final Map<String, Future<(String, List<RawSeason>)>> _inFlightSeasons = {};
-  final Map<String, ({DateTime expiresAt, Map<String, List<String>> value})>
-      _episodesCache = {};
-  final Map<String, Future<Map<String, List<String>>>> _inFlightEpisodes = {};
+  final Map<String, ({DateTime expiresAt, SeasonInfo value})>
+      _seasonInfoCache = {};
+  final Map<String, Future<SeasonInfo>> _inFlightSeasonInfo = {};
+  final Map<String, String> _resolvedLiens = {};
 
   DartAnimeSamaResolver({required this.fetch});
 
@@ -177,29 +178,64 @@ class DartAnimeSamaResolver implements StreamResolver {
     return '${animeUrl.replaceAll(RegExp(r'/+$'), '')}/$rel';
   }
 
-  Future<Map<String, List<String>>> _fetchEpisodesCached(String seasonUrl) {
+  Future<SeasonInfo> _fetchSeasonInfoCached(String seasonUrl) {
     final key = seasonUrl.replaceAll(RegExp(r'/+$'), '').toLowerCase();
     final now = DateTime.now();
-    final cached = _episodesCache[key];
+    final cached = _seasonInfoCache[key];
     if (cached != null && now.isBefore(cached.expiresAt)) {
       return Future.value(cached.value);
     }
-    final inFlight = _inFlightEpisodes[key];
+    final inFlight = _inFlightSeasonInfo[key];
     if (inFlight != null) return inFlight;
 
-    final future = fetchEpisodes(fetch, seasonUrl).then((eps) {
-      if (eps.isNotEmpty) {
-        _episodesCache[key] = (
-          expiresAt: DateTime.now().add(const Duration(minutes: 1)),
-          value: eps,
+    final future = fetchSeasonInfo(fetch, seasonUrl).then((info) {
+      if (info.episodes.isNotEmpty) {
+        _seasonInfoCache[key] = (
+          expiresAt: DateTime.now().add(const Duration(minutes: 5)),
+          value: info,
         );
       }
-      return eps;
+      return info;
     }).whenComplete(() {
-      _inFlightEpisodes.remove(key);
+      _inFlightSeasonInfo.remove(key);
     });
-    _inFlightEpisodes[key] = future;
+    _inFlightSeasonInfo[key] = future;
     return future;
+  }
+
+  Future<Map<String, List<String>>> _fetchEpisodesCached(String seasonUrl) async {
+    final info = await _fetchSeasonInfoCached(seasonUrl);
+    return info.episodes;
+  }
+
+  Future<String> _resolveLien(
+    String domain,
+    String link,
+    String? jeton,
+    String seasonUrl,
+  ) async {
+    if (!link.startsWith('lien:')) return link;
+    final cached = _resolvedLiens[link];
+    if (cached != null) return cached;
+    final id = link.substring('lien:'.length).trim();
+    if (id.isEmpty) return link;
+    try {
+      final apiUrl =
+          'https://$domain/api/lien.php?j=${Uri.encodeComponent(jeton ?? "")}&l=$id';
+      final resp = await fetch(apiUrl, headers: {
+        ...kHeadersBase,
+        'referer': seasonUrl,
+        'accept': '*/*',
+      });
+      if (!resp.ok) return link;
+      final m = RegExp(r'''"u"\s*:\s*"([^"]+)"''').firstMatch(resp.body);
+      if (m != null) {
+        final realUrl = m.group(1)!.replaceAll(r'\/', '/');
+        _resolvedLiens[link] = realUrl;
+        return realUrl;
+      }
+    } catch (_) {}
+    return link;
   }
 
   /// Vrai si la saison a au moins un épisode réellement jouable (URL par défaut
@@ -281,17 +317,62 @@ class DartAnimeSamaResolver implements StreamResolver {
       throw ResolveException(
           'saison #$season hors bornes (1..${seasons.length})');
     }
-    final episodes = await _fetchEpisodesCached(_seasonUrl(animeUrl, s, vf));
+    final seasonUrl = _seasonUrl(animeUrl, s, vf);
+    final seasonInfo = await _fetchSeasonInfoCached(seasonUrl);
+    final episodes = seasonInfo.episodes;
     if (episodes.isEmpty) throw const ResolveException('aucun episode trouve');
     final ids = episodes['$episode'];
     if (ids == null || ids.isEmpty) return const [];
-    return parseHosterSources(ids);
+
+    final domain = await _ensureDomain();
+    final validIds = ids.where((u) => urlHasId(u)).toList();
+    final resolved = await Future.wait(validIds.map((link) async {
+      final realUrl = await _resolveLien(
+        domain,
+        link,
+        seasonInfo.jeton,
+        seasonUrl,
+      );
+      String? name;
+      if (link.startsWith('lien:')) {
+        final id = link.substring(5).trim();
+        final hostDomain = seasonInfo.meta[id]?.toLowerCase();
+        if (hostDomain != null) {
+          name = seasonInfo.lecteurNames[hostDomain] ??
+              identifyHosterName(hostDomain);
+        }
+      }
+      name ??= identifyHosterName(realUrl);
+      return (name: name, url: realUrl);
+    }));
+
+    final totals = <String, int>{};
+    for (final item in resolved) {
+      totals[item.name] = (totals[item.name] ?? 0) + 1;
+    }
+    final indices = <String, int>{};
+    final result = <VideoHosterSource>[];
+    for (final item in resolved) {
+      final idx = (indices[item.name] ?? 0) + 1;
+      indices[item.name] = idx;
+      final displayName =
+          (totals[item.name] ?? 0) > 1 ? '${item.name} $idx' : item.name;
+      result.add(VideoHosterSource(name: displayName, embedUrl: item.url));
+    }
+    return result;
   }
 
   /// Résout le flux direct d'un lecteur spécifique avec ses en-têtes HTTP requis.
   Future<VideoHosterSource?> resolveSource(VideoHosterSource source) async {
     final domain = await _ensureDomain();
-    return resolveHosterSource(fetch, domain, source);
+    var s = source;
+    if (s.embedUrl.startsWith('lien:')) {
+      final resolvedUrl = _resolvedLiens[s.embedUrl];
+      if (resolvedUrl != null) {
+        s = s.copyWith(embedUrl: resolvedUrl);
+      }
+    }
+    return resolveHosterSource(fetch, domain, s);
   }
 
   /// Résout la meilleure source vidéo disponible (ou [preferredSource] si demandée),

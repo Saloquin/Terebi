@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:terebi/src/services/animesama_http_client.dart';
 import 'package:terebi/src/services/animesama_seasons.dart';
 import 'package:test/test.dart';
 
@@ -81,6 +82,11 @@ void main() {
       expect(urlHasId('https://video.sibnet.ru/shell.php?videoid='), isFalse);
       expect(urlHasId('https://ansembed.net/embed-.html'), isFalse);
       expect(urlHasId('https://vk.com/video_ext.php?oid=&hd=3'), isFalse);
+      expect(urlHasId(''), isFalse);
+      expect(urlHasId(','), isFalse);
+      expect(urlHasId('lien:'), isFalse);
+      expect(urlHasId('lien:abc'), isFalse);
+      expect(urlHasId('lien:9474'), isTrue);
       expect(
           urlHasId('https://video.sibnet.ru/shell.php?videoid=6229246'), isTrue);
     });
@@ -112,6 +118,51 @@ void main() {
       for (final key in expected.keys) {
         expect(eps[key], expected[key], reason: 'episode $key');
       }
+    });
+
+    test('Anime-sama 12/11/2026 : parsing inline data-source bdd, epsJeton, epsMeta, lecteursInfos', () async {
+      const html = '''
+        <html>
+        <head>
+          <script data-source="bdd">
+            var eps1 = ["lien:9474", "lien:9477", ""];
+            var eps2 = ["lien:9473", "lien:9476", ","];
+            var epsMeta = {"9473":["uqload.vc"],"9474":["ansembed.net"],"9476":["uqload.vc"],"9477":["ansembed.net"]};
+            var epsJeton = "309.1794686400.9339c1dbebf0627dc5463a3e";
+            var epsOrdreFinal = true;
+          </script>
+          <script>
+            var lecteursInfos = {"ansembed.net":{"nom":"Vidmoly","pub":1,"hd":true},"uqload.vc":{"nom":"Uqload"}};
+          </script>
+        </head>
+        </html>
+      ''';
+
+      expect(parseEpsJeton(html), '309.1794686400.9339c1dbebf0627dc5463a3e');
+
+      final meta = parseEpsMeta(html);
+      expect(meta['9473'], 'uqload.vc');
+      expect(meta['9474'], 'ansembed.net');
+
+      final names = parseLecteursInfos(html);
+      expect(names['ansembed.net'], 'Vidmoly');
+      expect(names['uqload.vc'], 'Uqload');
+
+      final eps = parseEpisodesJs(html);
+      expect(eps['1'], ['lien:9474', 'lien:9473']);
+      expect(eps['2'], ['lien:9477', 'lien:9476']);
+      // Episode 3 had empty/comma -> should not have invalid links
+      expect(eps['3'], isNull);
+
+      final info = await fetchSeasonInfo(
+        (url, {followRedirects = true, headers, method = HttpMethod.get, query}) async =>
+            HttpResponse(statusCode: 200, body: html),
+        'https://anime-sama.to/catalogue/solo-leveling/saison2/vostfr/',
+      );
+      expect(info.episodes.length, 2);
+      expect(info.jeton, '309.1794686400.9339c1dbebf0627dc5463a3e');
+      expect(info.meta['9474'], 'ansembed.net');
+      expect(info.lecteurNames['ansembed.net'], 'Vidmoly');
     });
   });
 }

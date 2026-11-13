@@ -146,12 +146,23 @@ String identifyHosterName(String embedUrl) {
   final low = embedUrl.toLowerCase();
   if (low.contains('sendvid.com')) return 'Sendvid';
   if (low.contains('sibnet.ru')) return 'Sibnet';
-  if (low.contains('vidmoly')) return 'Vidmoly';
+  if (low.contains('vidmoly') || low.contains('ansembed.net')) return 'Vidmoly';
+  if (low.contains('uqload')) return 'Uqload';
   if (low.contains('voe.sx') ||
       low.contains('voe-network') ||
       low.contains('voe.net') ||
-      low.contains('voe.to')) {
+      low.contains('voe.to') ||
+      low.contains('derricknationtop') ||
+      low.contains('megankiddifference') ||
+      low.contains('minochinos')) {
     return 'Voe';
+  }
+  if (low.contains('earnvids') ||
+      low.contains('smoothpre') ||
+      low.contains('morencius') ||
+      low.contains('movearnpre') ||
+      low.contains('dingtezuni')) {
+    return 'Earnvids';
   }
   if (low.contains('filemoon')) return 'Filemoon';
   if (low.contains('streamtape')) return 'Streamtape';
@@ -269,7 +280,7 @@ Future<VideoHosterSource?> resolveHosterSource(
     final direct = await resolveEmbed(fetch, domain, embedUrl);
     if (direct != null && direct.isNotEmpty) {
       final normalized = direct.startsWith('//') ? 'https:$direct' : direct;
-      final referer = low.contains('vidmoly')
+      final referer = (low.contains('vidmoly') || low.contains('ansembed.net'))
           ? 'https://vidmoly.biz/'
           : 'https://$domain/';
       return source.copyWith(

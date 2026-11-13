@@ -13,6 +13,8 @@
 /// ET ayant au moins un épisode réellement jouable.
 library;
 
+import 'dart:convert';
+
 import 'animesama_http_client.dart';
 import 'animesama_domain.dart';
 
@@ -21,6 +23,23 @@ class RawSeason {
   final String name;
   final String url;
   const RawSeason(this.name, this.url);
+}
+
+/// Informations completes d'une saison scrappee : dictionnaire d'episodes,
+/// jeton de session /api/lien.php (depuis 12/11/2026), metadonnees des liens
+/// et noms lisibles des lecteurs hebergeurs.
+class SeasonInfo {
+  final Map<String, List<String>> episodes;
+  final String? jeton;
+  final Map<String, String> meta;
+  final Map<String, String> lecteurNames;
+
+  const SeasonInfo({
+    required this.episodes,
+    this.jeton,
+    this.meta = const {},
+    this.lecteurNames = const {},
+  });
 }
 
 /// Extrait les saisons du HTML d'une page anime (`panneauAnime("nom","path")`).
@@ -99,7 +118,11 @@ List<RawSeason> dedupeSeasons(List<RawSeason> seasons) {
 /// URLs-coquilles des épisodes fantômes). Port EXACT de `_url_has_id`.
 bool urlHasId(String? url) {
   final u = (url ?? '').trim();
-  if (u.isEmpty) return false;
+  if (u.isEmpty || u == ',') return false;
+  if (u.startsWith('lien:')) {
+    final id = u.substring(5).trim();
+    return id.isNotEmpty && RegExp(r'^\d+$').hasMatch(id);
+  }
   final low = u.toLowerCase();
   const emptyPatterns = [
     r'videoid=(?:&|$)',
@@ -142,22 +165,76 @@ Map<String, List<String>> parseEpisodesJs(String content) {
       RegExp(r'(?:var|let|const)\s+eps\d+\s*=\s*\[([^\]]*)\]').allMatches(content);
   for (final varMatch in varMatches) {
     final urlsBlock = varMatch.group(1)!;
-    final vidUrls = RegExp(r'''['"]([^'"]+)['"]''')
+    final vidUrls = RegExp(r'''['"]([^'"]*)['"]''')
         .allMatches(urlsBlock)
-        .map((m) => m.group(1)!)
+        .map((m) => m.group(1)!.trim())
         .toList();
     for (var i = 0; i < vidUrls.length; i++) {
+      final url = vidUrls[i];
+      if (url.isEmpty || url == ',') continue;
       final key = '${i + 1}';
       final list = embedLinks.putIfAbsent(key, () => <String>[]);
-      if (!list.contains(vidUrls[i])) list.add(vidUrls[i]);
+      if (!list.contains(url)) list.add(url);
     }
   }
   return embedLinks;
 }
 
-/// Récupère le filever puis le dict d'épisodes d'une URL de saison (réseau).
-/// Port de `get_episode_list` + `get_anime_episode` chaînés.
-Future<Map<String, List<String>>> fetchEpisodes(
+/// Extrait le jeton de securite (`epsJeton = "..."`) de la page de saison
+/// requis par `/api/lien.php` depuis la mise a jour anime-sama du 12/11/2026.
+String? parseEpsJeton(String htmlContent) {
+  final m =
+      RegExp(r'''epsJeton\s*=\s*["']([^"']+)["']''').firstMatch(htmlContent);
+  return m?.group(1);
+}
+
+/// Extrait la table `epsMeta = { "<id>": ["domaine.com"] }` associant chaque lien
+/// en base a son domaine hebergeur.
+Map<String, String> parseEpsMeta(String htmlContent) {
+  final meta = <String, String>{};
+  final m = RegExp(r'''var\s+epsMeta\s*=\s*(\{[\s\S]*?\});''')
+      .firstMatch(htmlContent);
+  if (m != null) {
+    try {
+      final decoded = jsonDecode(m.group(1)!);
+      if (decoded is Map) {
+        for (final entry in decoded.entries) {
+          final val = entry.value;
+          if (val is List && val.isNotEmpty && val.first is String) {
+            meta[entry.key.toString()] = val.first as String;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return meta;
+}
+
+/// Extrait la table `lecteursInfos = { "domaine.com": { "nom": "Vidmoly" } }`.
+Map<String, String> parseLecteursInfos(String htmlContent) {
+  final names = <String, String>{};
+  final m = RegExp(r'''var\s+lecteursInfos\s*=\s*(\{[\s\S]*?\});''')
+      .firstMatch(htmlContent);
+  if (m != null) {
+    try {
+      final decoded = jsonDecode(m.group(1)!);
+      if (decoded is Map) {
+        for (final entry in decoded.entries) {
+          final val = entry.value;
+          if (val is Map && val['nom'] is String) {
+            names[entry.key.toString().toLowerCase()] = val['nom'] as String;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+  return names;
+}
+
+/// Recupere l ensemble des informations de la saison (episodes, jeton, meta, lecteurs).
+/// Tente d abord le parsing inline (format direct du HTML depuis le 12/11/2026),
+/// puis retombe sur `episodes.js` pour la retrocompatibilite.
+Future<SeasonInfo> fetchSeasonInfo(
   HttpFetcher fetch,
   String seasonUrl,
 ) async {
@@ -169,20 +246,46 @@ Future<Map<String, List<String>>> fetchEpisodes(
       'referer': cleanSeasonUrl,
     },
   );
-  if (!pageResp.ok) return const {};
-  final filever = parseFilever(pageResp.body);
-  if (filever == null && !pageResp.body.contains('episodes.js')) {
-    return const {};
+  if (!pageResp.ok) return const SeasonInfo(episodes: {});
+
+  var eps = parseEpisodesJs(pageResp.body);
+  final jeton = parseEpsJeton(pageResp.body);
+  final meta = parseEpsMeta(pageResp.body);
+  final lecteurNames = parseLecteursInfos(pageResp.body);
+
+  if (eps.isEmpty) {
+    final filever = parseFilever(pageResp.body);
+    if (filever != null || pageResp.body.contains('episodes.js')) {
+      final jsUrl = '${seasonUrl.replaceAll(RegExp(r'/+$'), '')}/episodes.js';
+      final jsResp = await fetch(
+        jsUrl,
+        headers: {
+          ...kHeadersBase,
+          'referer': cleanSeasonUrl,
+        },
+        query: filever != null ? {'filever': filever} : null,
+      );
+      if (jsResp.ok) {
+        eps = parseEpisodesJs(jsResp.body);
+      }
+    }
   }
-  final jsUrl = '${seasonUrl.replaceAll(RegExp(r'/+$'), '')}/episodes.js';
-  final jsResp = await fetch(
-    jsUrl,
-    headers: {
-      ...kHeadersBase,
-      'referer': cleanSeasonUrl,
-    },
-    query: filever != null ? {'filever': filever} : null,
+
+  return SeasonInfo(
+    episodes: eps,
+    jeton: jeton,
+    meta: meta,
+    lecteurNames: lecteurNames,
   );
-  if (!jsResp.ok) return const {};
-  return parseEpisodesJs(jsResp.body);
+}
+
+/// Recupere le dict d episodes d une URL de saison (reseau).
+/// Compatible avec l ancien fichier externe `episodes.js` et le nouveau format
+/// inline injecte en base dans le HTML.
+Future<Map<String, List<String>>> fetchEpisodes(
+  HttpFetcher fetch,
+  String seasonUrl,
+) async {
+  final info = await fetchSeasonInfo(fetch, seasonUrl);
+  return info.episodes;
 }
