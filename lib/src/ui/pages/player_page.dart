@@ -118,6 +118,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Garde anti-boucle pour le basculement automatique de lecteur.
   bool _isHandlingShortVideoFallback = false;
 
+  /// Numéro de l'épisode pour lequel la complétion a déjà été traitée (garde anti-rebond).
+  int? _completedEpisode;
+
   /// Indique que le lecteur a été réduit dans l'application (ne pas disposer le player au pop).
   bool _minimizedToMiniPlayer = false;
 
@@ -585,7 +588,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                       (s.name == current.name || s.embedUrl == current.embedUrl),
                   orElse: () => null,
                 );
-            _selectedSource = match ?? sources.first;
+            if (match != null &&
+                current.isResolved &&
+                current.embedUrl == match.embedUrl) {
+              _selectedSource = current;
+            } else {
+              _selectedSource = match ?? sources.first;
+            }
           } else {
             _selectedSource = sources.first;
           }
@@ -792,6 +801,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       }
 
       if (!mounted) return;
+      if (_completedEpisode != null && _completedEpisode != _currentEpisode) {
+        _completedEpisode = null;
+      }
       setState(() {
         _ready = true;
         _loading = false;
@@ -845,6 +857,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       ).future);
       if (eps.isNotEmpty) {
         _episodes = eps;
+        if (mounted) setState(() {});
         await ref.read(seasonProgressRepositoryProvider).setTotalEpisodes(
           widget.media.mediaId,
           seasonIndex,
@@ -1049,6 +1062,10 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       return;
     }
 
+    if (_navigating || _autoPlayCountdown != null) return;
+    if (_completedEpisode == _currentEpisode) return;
+    _completedEpisode = _currentEpisode;
+
     await _markCurrentWatched();
     _positionSeconds = 0;
     _lastPersistedWhole = -1;
@@ -1114,7 +1131,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         t.cancel();
         setState(() => _autoPlayCountdown = null);
         await _goToEpisode(next);
-        if (mounted) await _loadAndPlay();
       } else {
         setState(() => _autoPlayCountdown = remaining);
       }
@@ -1128,10 +1144,11 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
   /// Navigue vers un épisode. Avancer marque l'épisode courant comme vu ;
   /// reculer RÉTROGRADE la progression à l'épisode précédent choisi (règle
-  /// utilisateur : reculer = revenir en arrière dans sa progression). Ne lance
-  /// PAS la lecture : le bouton « Lancer » réapparaît pour le nouvel épisode.
-  Future<void> _goToEpisode(int ep) async {
-    if (ep == _currentEpisode) return;
+  /// utilisateur : reculer = revenir en arrière dans sa progression).
+  Future<void> _goToEpisode(int ep, {bool forceReload = false}) async {
+    if (ep == _currentEpisode && !forceReload && _ready && _error == null) {
+      return;
+    }
     if (_navigating) {
       return; // garde : évite un double marquage si clics rapides.
     }
@@ -1147,11 +1164,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         // Ne marque comme vu que si l'épisode quitté a réellement été regardé jusqu'au bout.
         if (dur != null && dur > 10 && _positionSeconds >= dur * 0.90) {
           await _markCurrentWatched();
-        } else {
-          // Sinon, sauvegarde la position partielle sans marquer l'épisode comme vu.
+        } else if (_completedEpisode != _currentEpisode) {
+          // Sinon, sauvegarde la position partielle sans marquer l'épisode comme vu
+          // (uniquement si l'épisode n'a pas déjà été complété/validé).
           await _persistPosition();
         }
-      } else {
+      } else if (ep < _currentEpisode) {
         // Recul : sauvegarde la position de l'épisode qu'on quitte, puis
         // rétrograde la progression à (ep - 1) : on n'a plus « vu » les épisodes
         // >= ep. Ex : à l'ép 10, on revient à l'ép 5 → progression = 4 vus.
@@ -1159,8 +1177,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         await _rewindProgressTo(ep);
       }
       if (!mounted) return;
-      // Nouvel épisode → position remise à zéro, skip times réinitialisés.
+      // Nouvel épisode → position remise à zéro, durée réinitialisée, skip times réinitialisés.
       _positionSeconds = 0;
+      _durationSeconds = null;
       _lastPersistedWhole = -1;
       _skip = const SkipTimes();
       setState(() {
@@ -1173,8 +1192,6 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       if (!_singleLanguage) {
         _refreshAvailableLangs(title, _seasonIndex, ep);
       }
-      _refreshAvailableSources(
-          title, _seasonIndex, ep, _language ?? PlaybackLanguage.vostfr);
       if (mounted) {
         await _loadAndPlay();
       }
@@ -1249,6 +1266,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
     final idx = _episodes.indexOf(_currentEpisode);
     if (idx > 0) return _episodes[idx - 1];
+    final lower = _episodes.where((e) => e < _currentEpisode).toList();
+    if (lower.isNotEmpty) return lower.last;
     return null;
   }
 
@@ -1260,6 +1279,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     }
     final idx = _episodes.indexOf(_currentEpisode);
     if (idx >= 0 && idx < _episodes.length - 1) return _episodes[idx + 1];
+    final higher = _episodes.where((e) => e > _currentEpisode).toList();
+    if (higher.isNotEmpty) return higher.first;
     return null;
   }
 
@@ -1347,13 +1368,30 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                                   color: Colors.white, fontSize: 18),
                             ),
                             const SizedBox(height: 12),
-                            OutlinedButton(
-                              onPressed: _cancelAutoPlay,
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                side: const BorderSide(color: Colors.white70),
-                              ),
-                              child: const Text('Annuler'),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                OutlinedButton(
+                                  onPressed: _cancelAutoPlay,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(color: Colors.white70),
+                                  ),
+                                  child: const Text('Annuler'),
+                                ),
+                                const SizedBox(width: 12),
+                                FilledButton.icon(
+                                  onPressed: () {
+                                    final next = _nextEpisode;
+                                    _cancelAutoPlay();
+                                    if (next != null) {
+                                      _goToEpisode(next);
+                                    }
+                                  },
+                                  icon: const Icon(Icons.play_arrow),
+                                  label: const Text('Lire maintenant'),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -2427,7 +2465,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
                           onNext: _nextEpisode != null
                               ? () => _goToEpisode(_nextEpisode!)
                               : null,
-                          onSelect: (ep) => _goToEpisode(ep),
+                          onSelect: (ep) => _goToEpisode(ep, forceReload: true),
                           isLastEpisode: _isLastEpisode,
                           onFinish: _finishSeason,
                         ),
@@ -2671,10 +2709,11 @@ class _ControlBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Le menu déroulant a besoin que la valeur courante figure dans les items.
-    final items = <int>[
-      if (!episodes.contains(currentEpisode)) currentEpisode,
+    final items = <int>{
+      if (currentEpisode > 0) currentEpisode,
       ...episodes,
-    ]..sort();
+    }.toList()
+      ..sort();
 
     return Row(
       children: [

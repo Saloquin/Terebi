@@ -395,14 +395,25 @@ class DartAnimeSamaResolver implements StreamResolver {
     }
 
     if (preferredSource != null) {
-      final match = sources.firstWhere(
-        (s) =>
-            s.embedUrl == preferredSource.embedUrl ||
-            s.name == preferredSource.name,
-        orElse: () => preferredSource,
+      // On cherche uniquement un lecteur correspondant dans la liste des sources
+      // de CET épisode (par nom d'hébergeur). On ne réutilise JAMAIS l'embedUrl
+      // ou le flux direct d'un autre épisode !
+      final prefName = preferredSource.name.trim().toLowerCase();
+      final match = sources.cast<VideoHosterSource?>().firstWhere(
+        (s) {
+          if (s == null) return false;
+          final sName = s.name.trim().toLowerCase();
+          if (sName == prefName) return true;
+          final rootPref = prefName.split(' ').first;
+          final rootS = sName.split(' ').first;
+          return rootPref.isNotEmpty && rootPref == rootS;
+        },
+        orElse: () => null,
       );
-      final resolved = await resolveSource(match);
-      if (resolved != null && resolved.isResolved) return resolved;
+      if (match != null) {
+        final resolved = await resolveSource(match);
+        if (resolved != null && resolved.isResolved) return resolved;
+      }
     }
 
     for (final src in sources) {

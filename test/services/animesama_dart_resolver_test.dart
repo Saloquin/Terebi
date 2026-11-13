@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:terebi/src/services/animesama_dart_resolver.dart';
+import 'package:terebi/src/services/animesama_embed_resolver.dart';
 import 'package:terebi/src/services/animesama_http_client.dart';
 import 'package:terebi/src/services/stream_resolver.dart';
 import 'package:test/test.dart';
@@ -218,6 +219,158 @@ void main() {
         language: PlaybackLanguage.vf,
       );
       expect(s2VfEps, [1, 2]);
+    });
+
+    test(
+        'resolveStreamSource pour ep 2 ne réutilise JAMAIS preferredSource d\'un autre épisode',
+        () async {
+      final resolver = DartAnimeSamaResolver(
+        fetch: (url,
+            {method = HttpMethod.get,
+            headers,
+            query,
+            followRedirects = true}) async {
+          if (method == HttpMethod.head &&
+              url == 'https://anime-sama.to/catalogue/') {
+            return const HttpResponse(statusCode: 200);
+          }
+          if (url == 'https://anime-sama.to/catalogue/' &&
+              (query?.containsKey('search') ?? false)) {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<a href="https://anime-sama.to/catalogue/test-anime/"><h2>Test Anime</h2></a>',
+            );
+          }
+          if (url == 'https://anime-sama.to/catalogue/test-anime/') {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<script>panneauAnime("Saison 1", "saison1/vostfr");</script>',
+            );
+          }
+          if (url ==
+              'https://anime-sama.to/catalogue/test-anime/saison1/vostfr/') {
+            return const HttpResponse(
+              statusCode: 200,
+              body: '''
+                <script data-source="bdd">
+                  var eps1 = ['https://sendvid.com/embed-ep1.html', 'https://sendvid.com/embed-ep2.html'];
+                </script>
+              ''',
+            );
+          }
+          if (url == 'https://sendvid.com/embed-ep1.html') {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<source src="https://sendvid.com/direct-ep1.mp4" type="video/mp4">',
+            );
+          }
+          if (url == 'https://sendvid.com/embed-ep2.html') {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<source src="https://sendvid.com/direct-ep2.mp4" type="video/mp4">',
+            );
+          }
+          return const HttpResponse(statusCode: 404);
+        },
+      );
+
+      // Source de l'épisode 1 (avec un hoster inexistant pour ep 2)
+      const staleEp1Source = VideoHosterSource(
+        name: 'Vidmoly',
+        embedUrl: 'https://vidmoly.me/embed-ep1.html',
+        directStreamUrl: 'https://vidmoly.me/direct-ep1.mp4',
+      );
+
+      // Résolution de l'épisode 2 en passant l'ancienne source de l'épisode 1 en preferredSource
+      final source = await resolver.resolveStreamSource(
+        title: 'Test Anime',
+        episode: 2,
+        preferredSource: staleEp1Source,
+      );
+
+      // Doit impérativement résoudre l'épisode 2, et JAMAIS renvoyer staleEp1Source !
+      expect(source.embedUrl, 'https://sendvid.com/embed-ep2.html');
+      expect(source.directStreamUrl, 'https://sendvid.com/direct-ep2.mp4');
+    });
+
+    test(
+        'resolveStreamSource pour ep 2 respecte le nom du preferredSource quand disponible',
+        () async {
+      final resolver = DartAnimeSamaResolver(
+        fetch: (url,
+            {method = HttpMethod.get,
+            headers,
+            query,
+            followRedirects = true}) async {
+          if (method == HttpMethod.head &&
+              url == 'https://anime-sama.to/catalogue/') {
+            return const HttpResponse(statusCode: 200);
+          }
+          if (url == 'https://anime-sama.to/catalogue/' &&
+              (query?.containsKey('search') ?? false)) {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<a href="https://anime-sama.to/catalogue/test-anime2/"><h2>Test Anime 2</h2></a>',
+            );
+          }
+          if (url == 'https://anime-sama.to/catalogue/test-anime2/') {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<script>panneauAnime("Saison 1", "saison1/vostfr");</script>',
+            );
+          }
+          if (url ==
+              'https://anime-sama.to/catalogue/test-anime2/saison1/vostfr/') {
+            return const HttpResponse(
+              statusCode: 200,
+              body: '''
+                <script data-source="bdd">
+                  var eps1 = ['https://ansembed.net/embed-ep1.html', 'https://ansembed.net/embed-ep2.html'];
+                  var eps2 = ['https://sendvid.com/embed-ep1.html', 'https://sendvid.com/embed-ep2.html'];
+                </script>
+              ''',
+            );
+          }
+          if (url == 'https://sendvid.com/embed-ep2.html') {
+            return const HttpResponse(
+              statusCode: 200,
+              body:
+                  '<source src="https://sendvid.com/direct-sendvid-ep2.mp4" type="video/mp4">',
+            );
+          }
+          if (url == 'https://ansembed.net/embed-ep2.html') {
+            return const HttpResponse(
+              statusCode: 200,
+              body: '<html>mock ansembed</html>',
+            );
+          }
+          return const HttpResponse(statusCode: 404);
+        },
+      );
+
+      // L'utilisateur préférait Sendvid à l'épisode 1
+      const prefSendvid = VideoHosterSource(
+        name: 'Sendvid',
+        embedUrl: 'https://sendvid.com/embed-ep1.html',
+      );
+
+      final source = await resolver.resolveStreamSource(
+        title: 'Test Anime 2',
+        episode: 2,
+        preferredSource: prefSendvid,
+      );
+
+      // Doit sélectionner Sendvid pour l'épisode 2
+      expect(source.name, 'Sendvid');
+      expect(source.embedUrl, 'https://sendvid.com/embed-ep2.html');
+      expect(
+          source.directStreamUrl, 'https://sendvid.com/direct-sendvid-ep2.mp4');
     });
   });
 }
