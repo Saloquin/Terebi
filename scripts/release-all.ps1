@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = Split-Path $PSScriptRoot -Parent
+Set-Location $ProjectRoot
 $DistDir = Join-Path $ProjectRoot 'dist'
 
 $PubspecVersion = (Select-String -Path (Join-Path $ProjectRoot 'pubspec.yaml') -Pattern '^version:\s*(.+)').Matches[0].Groups[1].Value.Trim()
