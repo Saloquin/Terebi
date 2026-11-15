@@ -12,6 +12,8 @@
 ///   5. Scripts packés `eval(p,a,c,k,e,d)` -> dépaquetage -> m3u8/mp4.
 library;
 
+import 'dart:convert';
+
 import 'animesama_http_client.dart';
 import 'animesama_domain.dart';
 import 'animesama_seasons.dart';
@@ -141,6 +143,175 @@ class VideoHosterSource {
   int get hashCode => Object.hash(name, embedUrl);
 }
 
+/// Rotation ROT13 (utilisée par le chiffrement VOE).
+String rot13(String input) {
+  final output = StringBuffer();
+  for (var i = 0; i < input.length; i++) {
+    final code = input.codeUnitAt(i);
+    if (code >= 65 && code <= 90) {
+      output.writeCharCode((code - 65 + 13) % 26 + 65);
+    } else if (code >= 97 && code <= 122) {
+      output.writeCharCode((code - 97 + 13) % 26 + 97);
+    } else {
+      output.writeCharCode(code);
+    }
+  }
+  return output.toString();
+}
+
+/// Supprime les paires de motifs parasites injectés par VOE.
+String cleanVoePatterns(String str) {
+  return str
+      .replaceAll('@\$', '')
+      .replaceAll('^^', '')
+      .replaceAll('~@', '')
+      .replaceAll('%?', '')
+      .replaceAll('*~', '')
+      .replaceAll('!!', '')
+      .replaceAll('#&', '');
+}
+
+/// Complète le padding Base64 (=) si nécessaire.
+String padBase64(String str) {
+  var s = str.trim();
+  final rem = s.length % 4;
+  if (rem == 2) return '$s==';
+  if (rem == 3) return '$s=';
+  return s;
+}
+
+/// Décode le payload obfuscé de VOE (ROT13 -> motifs -> base64 -> shift -3 -> reverse -> base64 -> JSON).
+String? decodeVoePayload(String raw) {
+  try {
+    var str = rot13(raw);
+    str = cleanVoePatterns(str);
+    final b64Bytes = base64Decode(padBase64(str));
+    final decoded = utf8.decode(b64Bytes);
+
+    final shifted = StringBuffer();
+    for (var i = 0; i < decoded.length; i++) {
+      shifted.writeCharCode(decoded.codeUnitAt(i) - 3);
+    }
+
+    final reversed = shifted.toString().split('').reversed.join();
+    String finalJsonStr;
+    try {
+      finalJsonStr = utf8.decode(base64Decode(padBase64(reversed)));
+    } catch (_) {
+      finalJsonStr = reversed;
+    }
+
+    final data = jsonDecode(finalJsonStr);
+    if (data is Map) {
+      final source = data['source'] as String?;
+      if (source != null && source.isNotEmpty) {
+        return source.replaceAll(r'\/', '/');
+      }
+      final direct = data['direct_access_url'] as String?;
+      if (direct != null && direct.isNotEmpty) {
+        return direct.replaceAll(r'\/', '/');
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+/// Vérifie si l'URL correspond à un embed VOE (domaines connus ou pattern `/e/<id>`).
+bool isVoeUrl(String url) {
+  final low = url.toLowerCase();
+  if (low.contains('voe') ||
+      low.contains('derricknationtop') ||
+      low.contains('megankiddifference') ||
+      low.contains('teresapoliticallearn') ||
+      low.contains('jeremyparticipantanything') ||
+      low.contains('arianathankspecial') ||
+      low.contains('susanexpectcare') ||
+      low.contains('shanelocaldog') ||
+      low.contains('minochinos')) {
+    return true;
+  }
+  return RegExp(r'https?://[^/]+/e/[a-zA-Z0-9]{10,20}').hasMatch(url);
+}
+
+/// Résout l'URL de flux d'un embed VOE en suivant les redirections HTTP et JS
+/// puis en déchiffrant le conteneur JSON.
+Future<String?> resolveVoe(
+  HttpFetcher fetch,
+  String embedUrl, {
+  String? domain,
+}) async {
+  var currentUrl = embedUrl;
+
+  for (var i = 0; i < 15; i++) {
+    try {
+      final resp = await fetch(
+        currentUrl,
+        headers: {
+          ...kHeadersBase,
+          'user-agent': kDesktopUserAgent,
+          'referer': 'https://${domain ?? "anime-sama.fr"}/',
+        },
+        followRedirects: false,
+      );
+
+      // Suivi manuel des redirections HTTP (301, 302, 307, 308)
+      if (resp.statusCode >= 300 && resp.statusCode < 400) {
+        final loc = resp.header('location');
+        if (loc != null && loc.isNotEmpty) {
+          currentUrl = Uri.parse(currentUrl).resolve(loc).toString();
+          continue;
+        }
+      }
+
+      if (!resp.ok) return null;
+
+      final body = resp.body;
+
+      // Suivi des redirections JavaScript (window.location.href = '...')
+      if (body.contains('Redirecting...') || body.contains('window.location.href')) {
+        final jsRedirect = RegExp(r'''window\.location\.href\s*=\s*['"]([^'"]+)['"]''').firstMatch(body);
+        if (jsRedirect != null) {
+          currentUrl = Uri.parse(currentUrl).resolve(jsRedirect.group(1)!).toString();
+          continue;
+        }
+      }
+
+      // Extraction du payload JSON obfusqué
+      final jsonMatch = RegExp(
+              r'''<script[^>]+type=["']application/json["'][^>]*>([\s\S]*?)</script>''')
+          .firstMatch(body);
+      if (jsonMatch != null) {
+        final content = jsonMatch.group(1)!.trim();
+        try {
+          final parsed = jsonDecode(content);
+          if (parsed is List && parsed.isNotEmpty && parsed.first is String) {
+            final streamUrl = decodeVoePayload(parsed.first as String);
+            if (streamUrl != null && streamUrl.isNotEmpty) return streamUrl;
+          }
+        } catch (_) {}
+      }
+
+      // Repli : anciens patterns (hls / mp4 dans le code source)
+      final hlsMatch = RegExp(r'''['"]hls['"]\s*:\s*['"]([^'"]+)['"]''').firstMatch(body);
+      if (hlsMatch != null) {
+        return hlsMatch.group(1)!.replaceAll(r'\/', '/');
+      }
+      final mp4Match = RegExp(r'''['"]mp4['"]\s*:\s*['"]([^'"]+)['"]''').firstMatch(body);
+      if (mp4Match != null) {
+        return mp4Match.group(1)!.replaceAll(r'\/', '/');
+      }
+
+      final extracted = extractStreamUrl(body);
+      if (extracted != null && extracted.isNotEmpty) return extracted;
+
+      break;
+    } catch (_) {
+      return null;
+    }
+  }
+  return null;
+}
+
 /// Identifie le nom lisible de l'hébergeur d'après son URL.
 String identifyHosterName(String embedUrl) {
   final low = embedUrl.toLowerCase();
@@ -148,15 +319,7 @@ String identifyHosterName(String embedUrl) {
   if (low.contains('sibnet.ru')) return 'Sibnet';
   if (low.contains('vidmoly') || low.contains('ansembed.net')) return 'Vidmoly';
   if (low.contains('uqload')) return 'Uqload';
-  if (low.contains('voe.sx') ||
-      low.contains('voe-network') ||
-      low.contains('voe.net') ||
-      low.contains('voe.to') ||
-      low.contains('derricknationtop') ||
-      low.contains('megankiddifference') ||
-      low.contains('minochinos')) {
-    return 'Voe';
-  }
+  if (isVoeUrl(embedUrl)) return 'VOE';
   if (low.contains('earnvids') ||
       low.contains('smoothpre') ||
       low.contains('morencius') ||
@@ -249,7 +412,20 @@ Future<VideoHosterSource?> resolveHosterSource(
   final embedUrl = source.embedUrl;
   final low = embedUrl.toLowerCase();
 
-  if (low.contains('sendvid.com')) {
+  final isVoe = source.name.toLowerCase().contains('voe') || isVoeUrl(embedUrl);
+  if (isVoe) {
+    final direct = await resolveVoe(fetch, embedUrl, domain: domain);
+    if (direct != null && direct.isNotEmpty) {
+      final normalized = direct.startsWith('//') ? 'https:$direct' : direct;
+      return source.copyWith(
+        directStreamUrl: normalized,
+        httpHeaders: {
+          'Referer': embedUrl,
+          'User-Agent': kDesktopUserAgent,
+        },
+      );
+    }
+  } else if (low.contains('sendvid.com')) {
     final direct = await resolveSendvid(fetch, embedUrl);
     if (direct != null && direct.isNotEmpty) {
       final normalized = direct.startsWith('//') ? 'https:$direct' : direct;
@@ -313,6 +489,12 @@ Future<String?> resolveEmbed(
     if (videoId.contains('sendvid.com')) {
       final sv = await resolveSendvid(fetch, videoId);
       if (sv != null && sv.isNotEmpty) return sv;
+    }
+
+    // 3. VOE direct : redirect chain -> déchiffrement JSON -> HLS master.m3u8
+    if (isVoeUrl(videoId)) {
+      final voe = await resolveVoe(fetch, videoId, domain: domain);
+      if (voe != null && voe.isNotEmpty) return voe;
     }
 
     // Vidmoly : .to -> .biz, .net -> .biz (comme le Python).

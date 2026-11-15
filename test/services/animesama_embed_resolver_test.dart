@@ -128,7 +128,9 @@ void main() {
       expect(identifyHosterName('https://sendvid.com/embed/abc'), 'Sendvid');
       expect(identifyHosterName('https://video.sibnet.ru/shell.php?videoid=123'), 'Sibnet');
       expect(identifyHosterName('https://vidmoly.to/embed-xyz.html'), 'Vidmoly');
-      expect(identifyHosterName('https://voe.sx/e/def'), 'Voe');
+      expect(identifyHosterName('https://voe.sx/e/def'), 'VOE');
+      expect(identifyHosterName('https://megankiddifference.com/e/sx12ojslvg2p'), 'VOE');
+      expect(identifyHosterName('https://teresapoliticallearn.com/e/kdd7634f31'), 'VOE');
       expect(identifyHosterName('https://filemoon.sx/e/ghi'), 'Filemoon');
       expect(identifyHosterName('https://streamtape.com/e/jkl'), 'Streamtape');
       expect(identifyHosterName('https://doodstream.com/e/mno'), 'Doodstream');
@@ -220,6 +222,108 @@ void main() {
       expect(resolved!.directStreamUrl, 'https://video.sibnet.ru/999_final.mp4');
       expect(resolved.httpHeaders['Referer'], 'https://video.sibnet.ru/');
       expect(resolved.httpHeaders['User-Agent'], isNotEmpty);
+    });
+  });
+
+  group('VOE extraction & resolution', () {
+    String encodeVoeTestPayload(String jsonStr) {
+      final b64_1 = base64Encode(utf8.encode(jsonStr));
+      final rev = b64_1.split('').reversed.join();
+      final shifted = StringBuffer();
+      for (var i = 0; i < rev.length; i++) {
+        shifted.writeCharCode(rev.codeUnitAt(i) + 3);
+      }
+      final b64_2 = base64Encode(utf8.encode(shifted.toString()));
+      final withPatterns = '@\$$b64_2^^~@%?*~!!#&';
+      return rot13(withPatterns);
+    }
+
+    test('isVoeUrl détecte les domaines et motifs VOE', () {
+      expect(isVoeUrl('https://voe.sx/e/abcdef123456'), isTrue);
+      expect(isVoeUrl('https://megankiddifference.com/e/sx12ojslvg2p'), isTrue);
+      expect(isVoeUrl('https://teresapoliticallearn.com/e/kdd7634f31'), isTrue);
+      expect(isVoeUrl('https://susanexpectcare.com/e/foo987654321'), isTrue);
+      expect(isVoeUrl('https://customdomain.org/e/sx12ojslvg2p'), isTrue);
+      expect(isVoeUrl('https://sendvid.com/embed/123456'), isFalse);
+      expect(isVoeUrl('https://video.sibnet.ru/shell.php?videoid=123'), isFalse);
+    });
+
+    test('rot13, cleanVoePatterns et padBase64 fonctionnent correctement', () {
+      expect(rot13('Hello World! 123'), 'Uryyb Jbeyq! 123');
+      expect(rot13(rot13('Hello World! 123')), 'Hello World! 123');
+      expect(cleanVoePatterns(r'a@$b^^c~@d%?e*~f!!g#&h'), 'abcdefgh');
+      expect(padBase64('YWJj'), 'YWJj');
+      expect(padBase64('YWJjZA'), 'YWJjZA==');
+      expect(padBase64('YWJjZGU'), 'YWJjZGU=');
+    });
+
+    test('decodeVoePayload déchiffre les sources HLS et MP4', () {
+      final hlsPayload = encodeVoeTestPayload('{"source":"https://cdn.voe.example/engine/hls/master.m3u8"}');
+      expect(decodeVoePayload(hlsPayload), 'https://cdn.voe.example/engine/hls/master.m3u8');
+
+      final mp4Payload = encodeVoeTestPayload('{"direct_access_url":"https://cdn.voe.example/video.mp4"}');
+      expect(decodeVoePayload(mp4Payload), 'https://cdn.voe.example/video.mp4');
+
+      expect(decodeVoePayload('invalide'), isNull);
+    });
+
+    test('resolveVoe gère les redirections 302, JS et déchiffre le JSON', () async {
+      final payload = encodeVoeTestPayload('{"source":"https://cdn.voe.example/master.m3u8"}');
+      final fetch = RoutedFetcher({
+        'megankiddifference.com/e/initial': const HttpResponse(
+          statusCode: 302,
+          headers: {'location': '/e/step2'},
+        ),
+        'megankiddifference.com/e/step2': const HttpResponse(
+          statusCode: 200,
+          body: "<html><head><script>window.location.href = 'https://susanexpectcare.com/e/final';</script></head><body>Redirecting...</body></html>",
+        ),
+        'susanexpectcare.com/e/final': HttpResponse(
+          statusCode: 200,
+          body: '''
+            <html>
+              <head>
+                <script type="application/json">["$payload"]</script>
+              </head>
+              <body>Player</body>
+            </html>
+          ''',
+        ),
+      });
+
+      final streamUrl = await resolveVoe(fetch.call, 'https://megankiddifference.com/e/initial');
+      expect(streamUrl, 'https://cdn.voe.example/master.m3u8');
+    });
+
+    test('resolveHosterSource résout VOE avec Referer et User-Agent', () async {
+      final payload = encodeVoeTestPayload('{"source":"https://cdn.voe.example/master.m3u8"}');
+      final fetch = RoutedFetcher({
+        'teresapoliticallearn.com/e/abc': HttpResponse(
+          statusCode: 200,
+          body: '<script type="application/json">["$payload"]</script>',
+        ),
+      });
+
+      final source = VideoHosterSource(name: 'VOE', embedUrl: 'https://teresapoliticallearn.com/e/abc');
+      final resolved = await resolveHosterSource(fetch.call, 'anime-sama.fr', source);
+
+      expect(resolved, isNotNull);
+      expect(resolved!.directStreamUrl, 'https://cdn.voe.example/master.m3u8');
+      expect(resolved.httpHeaders['Referer'], 'https://teresapoliticallearn.com/e/abc');
+      expect(resolved.httpHeaders['User-Agent'], isNotEmpty);
+    });
+
+    test('resolveEmbed résout automatiquement une URL VOE', () async {
+      final payload = encodeVoeTestPayload('{"source":"https://cdn.voe.example/master.m3u8"}');
+      final fetch = RoutedFetcher({
+        'voe.sx/e/test': HttpResponse(
+          statusCode: 200,
+          body: '<script type="application/json">["$payload"]</script>',
+        ),
+      });
+
+      final direct = await resolveEmbed(fetch.call, 'anime-sama.fr', 'https://voe.sx/e/test');
+      expect(direct, 'https://cdn.voe.example/master.m3u8');
     });
   });
 }
