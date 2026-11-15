@@ -219,7 +219,24 @@ final effectiveEntriesProvider =
       }
       return result;
     },
-  );
+  ).distinct((prev, curr) {
+    if (identical(prev, curr)) return true;
+    if (prev.length != curr.length) return false;
+    for (var i = 0; i < prev.length; i++) {
+      final a = prev[i];
+      final b = curr[i];
+      if (a.status != b.status ||
+          a.entry.mediaId != b.entry.mediaId ||
+          a.entry.status != b.entry.status ||
+          a.entry.progress != b.entry.progress ||
+          a.entry.hiddenFromPlanning != b.entry.hiddenFromPlanning ||
+          a.entry.updatedAt != b.entry.updatedAt ||
+          a.entry.totalEpisodesOnPage != b.entry.totalEpisodesOnPage) {
+        return false;
+      }
+    }
+    return true;
+  });
 });
 
 /// Statut EFFECTIF (affiche) de CHAQUE anime present dans la bibliotheque :

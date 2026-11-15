@@ -122,13 +122,24 @@ class SettingsRepository {
     };
   }
 
-  /// Stream des paires (cle, valeur) dont la cle commence par [prefix]. Emet a
-  /// chaque ecriture dans AppSettings (filtrage cote Dart). Sert a la reactivite
-  /// temps reel de la progression par saison (`anime_sama_watched:<id>:*`).
+  /// Stream des paires (clé, valeur) dont la clé commence par [prefix]. Émet
+  /// uniquement lorsque les entrées correspondant au préfixe changent réellement
+  /// (déduplication par valeur pour éviter les réémissions sur écriture d'autres clés).
   Stream<Map<String, String>> watchWithPrefix(String prefix) {
-    return _db.select(_db.appSettings).watch().map((rows) => {
-          for (final r in rows)
-            if (r.key.startsWith(prefix)) r.key: r.value,
+    return _db
+        .select(_db.appSettings)
+        .watch()
+        .map((rows) => {
+              for (final r in rows)
+                if (r.key.startsWith(prefix)) r.key: r.value,
+            })
+        .distinct((prev, curr) {
+          if (identical(prev, curr)) return true;
+          if (prev.length != curr.length) return false;
+          for (final entry in prev.entries) {
+            if (curr[entry.key] != entry.value) return false;
+          }
+          return true;
         });
   }
 

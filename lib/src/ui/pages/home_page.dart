@@ -74,10 +74,8 @@ class HomePage extends ConsumerWidget {
         ),
         // 5. Par genre : une rangée par genre regardé, par nb de visualisations
         //    décroissant (l'ordre du provider est déjà celui-là).
-        ...genresAsync.maybeWhen(
-          data: (genres) => genres.map((g) => _GenreRow(genre: g)).toList(),
-          orElse: () => const <Widget>[],
-        ),
+        ...(genresAsync.valueOrNull ?? const <String>[])
+            .map((g) => _GenreRow(genre: g)),
       ],
     );
   }
@@ -156,116 +154,111 @@ class _HeroCarouselState extends ConsumerState<_HeroCarousel> {
   @override
   Widget build(BuildContext context) {
     final async = ref.watch(widget.provider);
+    final items = async.valueOrNull;
+    if (items == null || items.isEmpty) return const SizedBox.shrink();
+
     // Durée de rotation réglable : redémarre le timer si elle change.
-    final rotation = ref.watch(heroRotationSecondsProvider).maybeWhen(
-          data: (s) => s,
-          orElse: () => _rotationSeconds,
-        );
-    return async.maybeWhen(
-      data: (items) {
-        if (items.isEmpty) return const SizedBox.shrink();
-        // (Re)démarre le timer si le nombre d'items OU la durée a changé.
-        if (items.length != _count || rotation != _rotationSeconds) {
-          _count = items.length;
-          _rotationSeconds = rotation;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _restartTimer());
-        }
-        _items = items;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(widget.title,
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: _height,
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                // D-pad sur Android TV : flèches gauche/droite changent le slide,
-                // OK/Enter ouvre la fiche du slide courant.
-                child: Focus(
-                  canRequestFocus: ref.watch(isTvProvider),
-                  onKeyEvent: ref.watch(isTvProvider)
-                      ? (node, event) {
-                          if (event is! KeyDownEvent) {
-                            return KeyEventResult.ignored;
-                          }
-                          if (event.logicalKey ==
-                              LogicalKeyboardKey.arrowLeft) {
-                            _goTo(_index - 1);
-                            return KeyEventResult.handled;
-                          }
-                          if (event.logicalKey ==
-                              LogicalKeyboardKey.arrowRight) {
-                            _goTo(_index + 1);
-                            return KeyEventResult.handled;
-                          }
-                          if (event.logicalKey == LogicalKeyboardKey.select ||
-                              event.logicalKey == LogicalKeyboardKey.enter) {
-                            _openCurrentSlide(context);
-                            return KeyEventResult.handled;
-                          }
-                          return KeyEventResult.ignored;
-                        }
-                      : null,
-                  child: Stack(
+    final rotation = ref.watch(heroRotationSecondsProvider).valueOrNull ?? _rotationSeconds;
+
+    // (Re)démarre le timer si le nombre d'items OU la durée a changé.
+    if (items.length != _count || rotation != _rotationSeconds) {
+      _count = items.length;
+      _rotationSeconds = rotation;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _restartTimer());
+    }
+    _items = items;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(widget.title,
+            style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: _height,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            // D-pad sur Android TV : flèches gauche/droite changent le slide,
+            // OK/Enter ouvre la fiche du slide courant.
+            child: Focus(
+              canRequestFocus: ref.watch(isTvProvider),
+              onKeyEvent: ref.watch(isTvProvider)
+                  ? (node, event) {
+                      if (event is! KeyDownEvent) {
+                        return KeyEventResult.ignored;
+                      }
+                      if (event.logicalKey ==
+                          LogicalKeyboardKey.arrowLeft) {
+                        _goTo(_index - 1);
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey ==
+                          LogicalKeyboardKey.arrowRight) {
+                        _goTo(_index + 1);
+                        return KeyEventResult.handled;
+                      }
+                      if (event.logicalKey == LogicalKeyboardKey.select ||
+                          event.logicalKey == LogicalKeyboardKey.enter) {
+                        _openCurrentSlide(context);
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    }
+                  : null,
+              child: Stack(
+              children: [
+            PageView.builder(
+              controller: _pageController,
+              itemCount: items.length,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemBuilder: (context, i) => _HeroSlide(media: items[i]),
+            ),
+            // Flèche gauche.
+            if (items.length > 1)
+              _CarouselArrow(
+                alignment: Alignment.centerLeft,
+                icon: Icons.chevron_left,
+                onPressed: () => _goTo(_index - 1),
+              ),
+            // Flèche droite.
+            if (items.length > 1)
+              _CarouselArrow(
+                alignment: Alignment.centerRight,
+                icon: Icons.chevron_right,
+                onPressed: () => _goTo(_index + 1),
+              ),
+            // Points indicateurs.
+            if (items.length > 1)
+              Positioned(
+                bottom: 12,
+                left: 0,
+                right: 0,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                PageView.builder(
-                  controller: _pageController,
-                  itemCount: items.length,
-                  onPageChanged: (i) => setState(() => _index = i),
-                  itemBuilder: (context, i) => _HeroSlide(media: items[i]),
-                ),
-                // Flèche gauche.
-                if (items.length > 1)
-                  _CarouselArrow(
-                    alignment: Alignment.centerLeft,
-                    icon: Icons.chevron_left,
-                    onPressed: () => _goTo(_index - 1),
-                  ),
-                // Flèche droite.
-                if (items.length > 1)
-                  _CarouselArrow(
-                    alignment: Alignment.centerRight,
-                    icon: Icons.chevron_right,
-                    onPressed: () => _goTo(_index + 1),
-                  ),
-                // Points indicateurs.
-                if (items.length > 1)
-                  Positioned(
-                    bottom: 12,
-                    left: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < items.length; i++)
-                          GestureDetector(
-                            onTap: () => _goTo(i),
-                            child: Container(
-                              width: 8,
-                              height: 8,
-                              margin: const EdgeInsets.symmetric(horizontal: 3),
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: i == _index
-                                    ? Colors.white
-                                    : Colors.white38,
-                              ),
-                            ),
+                    for (var i = 0; i < items.length; i++)
+                      GestureDetector(
+                        onTap: () => _goTo(i),
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: i == _index
+                                ? Colors.white
+                                : Colors.white38,
                           ),
-                      ],
-                    ),
-                  ),
-              ],  // fin enfants Stack
-            ), // Stack
-          ), // Focus (D-pad TV)
-          ),  // ClipRRect
-        ),    // SizedBox
-            ],
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],  // fin enfants Stack
+        ), // Stack
+      ), // Focus (D-pad TV)
+      ),  // ClipRRect
+    ),    // SizedBox
+        ],
     );
   }
 }
@@ -421,45 +414,43 @@ class _MediaRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(provider);
-    return async.maybeWhen(
-      data: (raw) {
-        var items = raw;
+    final raw = async.valueOrNull;
+    if (raw == null) {
+      return const SizedBox.shrink();
+    }
 
-        // Exclusion des animes déjà en bibliothèque.
-        if (excludeLibrary) {
-          final lib = ref.watch(libraryFilterProvider).maybeWhen(
-                data: (f) => f,
-                orElse: () => (ids: <int>{}, titles: <String>{}),
-              );
-          if (lib.ids.isNotEmpty || lib.titles.isNotEmpty) {
-            items = items.where((m) {
-              if (lib.ids.contains(m.mediaId)) return false;
-              if (lib.titles.contains(normalizeAnimeTitle(m.title.preferred))) {
-                return false;
-              }
-              return true;
-            }).toList();
+    var items = raw;
+
+    // Exclusion des animes déjà en bibliothèque.
+    if (excludeLibrary) {
+      final lib = ref.watch(libraryFilterProvider).valueOrNull ??
+          (ids: <int>{}, titles: <String>{});
+      if (lib.ids.isNotEmpty || lib.titles.isNotEmpty) {
+        items = items.where((m) {
+          if (lib.ids.contains(m.mediaId)) return false;
+          if (lib.titles.contains(normalizeAnimeTitle(m.title.preferred))) {
+            return false;
           }
-        }
+          return true;
+        }).toList();
+      }
+    }
 
-        if (items.isEmpty) return const SizedBox.shrink();
+    if (items.isEmpty) return const SizedBox.shrink();
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            _HorizontalCardList(
-              items: items,
-              withResume: withResume,
-              cardWidth: _cardWidth,
-              height: _rowHeight,
-            ),
-            const SizedBox(height: 24),
-          ],
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        _HorizontalCardList(
+          items: items,
+          withResume: withResume,
+          cardWidth: _cardWidth,
+          height: _rowHeight,
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }
@@ -508,6 +499,25 @@ class _HorizontalCardListState extends ConsumerState<_HorizontalCardList> {
     super.initState();
     // Un nœud de focus par élément : navigation D-pad horizontale.
     _focusNodes = List.generate(widget.items.length, (_) => FocusNode());
+  }
+
+  @override
+  void didUpdateWidget(covariant _HorizontalCardList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.items.length != _focusNodes.length) {
+      if (widget.items.length > _focusNodes.length) {
+        _focusNodes.addAll(
+          List.generate(
+            widget.items.length - _focusNodes.length,
+            (_) => FocusNode(),
+          ),
+        );
+      } else {
+        while (_focusNodes.length > widget.items.length) {
+          _focusNodes.removeLast().dispose();
+        }
+      }
+    }
   }
 
   @override

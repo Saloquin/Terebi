@@ -39,7 +39,10 @@ final continueWatchingProvider = FutureProvider<List<Media>>((ref) async {
   final mediaRepo = ref.watch(mediaRepositoryProvider);
   // Dérive de effectiveEntriesProvider (réactif aux entrées ET à la progression
   // par saison) : marquer un épisode OU une saison rafraîchit la rangée.
-  final entries = await ref.watch(effectiveEntriesProvider.future);
+  final entriesAsync = ref.watch(effectiveEntriesProvider);
+  final entries = entriesAsync.hasValue
+      ? entriesAsync.requireValue
+      : await ref.watch(effectiveEntriesProvider.future);
   final current = [
     for (final e in entries)
       if (e.status == ListStatus.current)

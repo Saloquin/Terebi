@@ -27,22 +27,10 @@ class _HomepageTvState extends ConsumerState<HomepageTv> {
 
   @override
   Widget build(BuildContext context) {
-    final heroItems = ref.watch(recentlyReleasedProvider).maybeWhen(
-          data: (items) => items,
-          orElse: () => <Media>[],
-        );
-    final continueItems = ref.watch(continueWatchingProvider).maybeWhen(
-          data: (items) => items,
-          orElse: () => <Media>[],
-        );
-    final recentItems = ref.watch(recentlyWatchedProvider).maybeWhen(
-          data: (items) => items,
-          orElse: () => <Media>[],
-        );
-    final classicItems = ref.watch(classicsProvider).maybeWhen(
-          data: (items) => items,
-          orElse: () => <Media>[],
-        );
+    final heroItems = ref.watch(recentlyReleasedProvider).valueOrNull ?? <Media>[];
+    final continueItems = ref.watch(continueWatchingProvider).valueOrNull ?? <Media>[];
+    final recentItems = ref.watch(recentlyWatchedProvider).valueOrNull ?? <Media>[];
+    final classicItems = ref.watch(classicsProvider).valueOrNull ?? <Media>[];
 
     // Média prioritaire pour le Hero : le dernier en cours, sinon la première sortie
     final featuredMedia = continueItems.isNotEmpty

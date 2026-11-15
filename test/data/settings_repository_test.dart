@@ -67,6 +67,26 @@ void main() {
       expect(emissions.last['anime_sama_watched:5:1'], '3');
     });
 
+    test('watchWithPrefix n\'emet pas pour des cles etrangeres ou inchangees', () async {
+      final emissions = <Map<String, String>>[];
+      final sub =
+          repo.watchWithPrefix('anime_sama_watched:5:').listen(emissions.add);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final countBefore = emissions.length;
+
+      // Écriture d'une clé sans rapport (ex. synchronisation cloud)
+      await repo.set('cloud_last_synced_at', '2026-01-01');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(emissions.length, equals(countBefore));
+
+      // Écriture d'une clé d'un autre média
+      await repo.set('anime_sama_watched:6:1', '1');
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(emissions.length, equals(countBefore));
+
+      await sub.cancel();
+    });
+
     test('renameKeyPrefix renomme les cles old->new en conservant la valeur',
         () async {
       await repo.set('anime_sama_watched:-9:1', '4');

@@ -44,37 +44,33 @@ class HomePageMobile extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // 1. Carte Reprise Rapide (si un anime est en cours)
-          continueWatchingAsync.maybeWhen(
-            data: (items) {
-              if (items.isEmpty) return const SizedBox.shrink();
-              final latest = items.first;
-              return Column(
-                children: [
-                  _QuickResumeCard(media: latest),
-                  const SizedBox(height: 20),
-                ],
-              );
-            },
-            orElse: () => const SizedBox.shrink(),
-          ),
+          Builder(builder: (context) {
+            final items = continueWatchingAsync.valueOrNull;
+            if (items == null || items.isEmpty) return const SizedBox.shrink();
+            final latest = items.first;
+            return Column(
+              children: [
+                _QuickResumeCard(media: latest),
+                const SizedBox(height: 20),
+              ],
+            );
+          }),
 
           // 2. Continuer à regarder (si au moins 2 animes en cours)
-          continueWatchingAsync.maybeWhen(
-            data: (items) {
-              if (items.length <= 1) return const SizedBox.shrink();
-              return Column(
-                children: [
-                  _MobileMediaRow(
-                    title: 'Continuer à regarder',
-                    items: items.sublist(1),
-                    withResume: true,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-              );
-            },
-            orElse: () => const SizedBox.shrink(),
-          ),
+          Builder(builder: (context) {
+            final items = continueWatchingAsync.valueOrNull;
+            if (items == null || items.length <= 1) return const SizedBox.shrink();
+            return Column(
+              children: [
+                _MobileMediaRow(
+                  title: 'Continuer à regarder',
+                  items: items.sublist(1),
+                  withResume: true,
+                ),
+                const SizedBox(height: 20),
+              ],
+            );
+          }),
 
           // 3. Nouvelles sorties
           _MobileMediaRowFromProvider(
@@ -100,13 +96,10 @@ class HomePageMobile extends ConsumerWidget {
           const SizedBox(height: 20),
 
           // 6. Rangées par genres favoris
-          ...genresAsync.maybeWhen(
-            data: (genres) => genres.map((g) => Padding(
-                  padding: const EdgeInsets.only(bottom: 20),
-                  child: _MobileGenreRow(genre: g),
-                )),
-            orElse: () => const <Widget>[],
-          ),
+          ...(genresAsync.valueOrNull ?? const <String>[]).map((g) => Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: _MobileGenreRow(genre: g),
+              )),
         ],
       ),
     );
@@ -153,14 +146,12 @@ class _HeroCarouselMobileState extends ConsumerState<_HeroCarouselMobile> {
   Widget build(BuildContext context) {
     final mediaAsync = ref.watch(widget.provider);
     final theme = Theme.of(context);
+    final items = mediaAsync.valueOrNull;
+    if (items == null || items.isEmpty) return const SizedBox.shrink();
+    _items = items.take(6).toList();
+    if (_timer == null) _restartTimer();
 
-    return mediaAsync.maybeWhen(
-      data: (items) {
-        if (items.isEmpty) return const SizedBox.shrink();
-        _items = items.take(6).toList();
-        if (_timer == null) _restartTimer();
-
-        return Column(
+    return Column(
           children: [
             SizedBox(
               height: 220,
@@ -331,9 +322,6 @@ class _HeroCarouselMobileState extends ConsumerState<_HeroCarouselMobile> {
             ),
           ],
         );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
   }
 }
 
@@ -491,25 +479,19 @@ class _MobileMediaRowFromProvider extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final mediaAsync = ref.watch(provider);
-    final completed = ref.watch(completedIdsProvider).maybeWhen(
-          data: (ids) => ids,
-          orElse: () => const <int>{},
-        );
+    final items = mediaAsync.valueOrNull;
+    if (items == null) return const SizedBox.shrink();
 
-    return mediaAsync.maybeWhen(
-      data: (items) {
-        var filtered = items;
-        if (excludeLibrary) {
-          filtered = items.where((m) => !completed.contains(m.mediaId)).toList();
-        }
-        if (filtered.isEmpty) return const SizedBox.shrink();
+    final completed = ref.watch(completedIdsProvider).valueOrNull ?? const <int>{};
+    var filtered = items;
+    if (excludeLibrary) {
+      filtered = items.where((m) => !completed.contains(m.mediaId)).toList();
+    }
+    if (filtered.isEmpty) return const SizedBox.shrink();
 
-        return _MobileMediaRow(
-          title: title,
-          items: filtered,
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+    return _MobileMediaRow(
+      title: title,
+      items: filtered,
     );
   }
 }
