@@ -263,15 +263,18 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// (auto-play). Best-effort : sur desktop media_kit émet ces flux.
   void _subscribePlayerStreams() {
     _positionSub = _player.stream.position.listen((pos) {
+      if (!_ready || _loading || _navigating) return;
       _positionSeconds = pos.inMilliseconds / 1000.0;
       _maybePersistPosition();
     });
     _durationSub = _player.stream.duration.listen((dur) {
+      if (!_ready || _loading || _navigating) return;
       final s = dur.inMilliseconds / 1000.0;
       _durationSeconds = s > 0 ? s : null;
       _checkShortVideoDuration(dur);
     });
     _completedSub = _player.stream.completed.listen((done) {
+      if (!_ready || _loading || _navigating) return;
       if (done) _onEpisodeCompleted();
     });
   }
@@ -503,17 +506,32 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
 
     // Persistance best-effort APRÈS le dispose du player (ne bloque jamais la
     // fermeture, ne peut plus empêcher l'arrêt de la lecture).
-    if (repo != null &&
-        pos >= 5 &&
-        !(dur != null && dur > 0 && pos / dur > 0.95)) {
-      repo.upsertProgress(EpisodeProgress(
-        mediaId: widget.media.mediaId,
-        episodeNumber: _currentEpisode.toDouble(),
-        watched: false,
-        positionSeconds: pos,
-        durationSeconds: dur,
-        updatedAt: DateTime.now(),
-      ));
+    final wasNearEnd =
+        (dur != null && dur > 60 && (pos / dur >= 0.88 || dur - pos < 90)) ||
+            (dur == null && pos >= 1200);
+
+    if (repo != null && _completedEpisode != _currentEpisode) {
+      if (wasNearEnd) {
+        // Quitté pendant le générique de fin (>= 88%) : l'épisode est considéré comme vu.
+        repo.upsertProgress(EpisodeProgress(
+          mediaId: widget.media.mediaId,
+          episodeNumber: _currentEpisode.toDouble(),
+          watched: true,
+          positionSeconds: 0,
+          durationSeconds: dur,
+          completedAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ));
+      } else if (pos >= 15) {
+        repo.upsertProgress(EpisodeProgress(
+          mediaId: widget.media.mediaId,
+          episodeNumber: _currentEpisode.toDouble(),
+          watched: false,
+          positionSeconds: pos,
+          durationSeconds: dur,
+          updatedAt: DateTime.now(),
+        ));
+      }
     }
     super.dispose();
   }
@@ -983,6 +1001,30 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
     if (prog == null || prog.watched) return null;
     final pos = prog.positionSeconds.floor();
     if (pos < 15) return null; // trop peu → démarrage normal
+
+    // Garde anti-fin d'épisode : si la position est à >= 85% de la durée
+    // ou dans les 90 dernières secondes (ou > 20 min si durée inconnue),
+    // il s'agit du générique de fin ou d'un résidu de transition.
+    // On ne propose JAMAIS de reprendre à la fin d'un épisode : on nettoie la base
+    // et on démarre au début.
+    final dur = prog.durationSeconds;
+    final isNearEnd = (dur != null &&
+            dur > 60 &&
+            (pos >= dur * 0.85 || dur - pos < 90)) ||
+        (dur == null && pos >= 1200);
+
+    if (isNearEnd) {
+      try {
+        await ref
+            .read(progressRepositoryProvider)
+            .upsertProgress(prog.copyWith(
+              positionSeconds: 0,
+              updatedAt: DateTime.now(),
+            ));
+      } catch (_) {}
+      return null;
+    }
+
     if (!mounted) return null;
 
     final resume = await showDialog<bool>(
@@ -1004,7 +1046,19 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         ],
       ),
     );
-    if (resume != true) return 0; // recommencer (ou dialogue fermé)
+    if (resume != true) {
+      // Recommencer ou dialogue fermé : réinitialise la position en base
+      // pour ne plus jamais la reproposer.
+      try {
+        await ref
+            .read(progressRepositoryProvider)
+            .upsertProgress(prog.copyWith(
+              positionSeconds: 0,
+              updatedAt: DateTime.now(),
+            ));
+      } catch (_) {}
+      return 0;
+    }
     // Recul pour se remettre dans l'action, borné à 0.
     final rewound = pos - _resumeRewindSeconds;
     return rewound > 0 ? rewound : 0;
@@ -1021,6 +1075,7 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// stream position émet a un rythme irrégulier et pourrait les sauter →
   /// aucune écriture, donc pas de reprise possible).
   void _maybePersistPosition() {
+    if (!_ready || _loading || _navigating) return;
     final whole = _positionSeconds.floor();
     if (_lastPersistedWhole >= 0 && (whole - _lastPersistedWhole).abs() < 5) {
       return;
@@ -1033,10 +1088,16 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   /// Ignore les positions triviales (< 5 s) et les fins d'épisode (gérées par
   /// _markCurrentWatched). Fire-and-forget.
   Future<void> _persistPosition() async {
+    if (!_ready || _loading || _navigating) return;
     if (_positionSeconds < 5) return;
-    // Proche de la fin (>95 %) → ne pas enregistrer une reprise « presque finie ».
     final dur = _durationSeconds;
-    if (dur != null && dur > 0 && _positionSeconds / dur > 0.95) return;
+    // Ne pas persister une reprise proche de la fin (>88 % ou 90 dernières secondes,
+    // ou >20 min si durée inconnue : générique de fin).
+    if (dur != null && dur > 60) {
+      if (_positionSeconds / dur >= 0.88 || dur - _positionSeconds < 90) return;
+    } else if (_positionSeconds >= 1200) {
+      return;
+    }
     try {
       await ref.read(progressRepositoryProvider).upsertProgress(EpisodeProgress(
             mediaId: widget.media.mediaId,
@@ -1055,10 +1116,12 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
   Future<void> _onEpisodeCompleted() async {
     final dur = _durationSeconds;
     // Garde stricte : ne JAMAIS valider un épisode si la vidéo n'a pas été réellement
-    // lue jusqu'à la fin (au moins 90% ou dans les 15 dernières secondes).
+    // lue jusqu'à la fin (au moins 88% ou dans les 90 dernières secondes).
     // Évite qu'une erreur de flux, un EOF prématuré, un 404, un stop ou un ad
     // de quelques secondes ne valide l'épisode à tort (bug nouvel épisode vu = 1).
-    if (dur == null || dur < 60 || _positionSeconds < dur * 0.90) {
+    if (dur == null ||
+        dur < 60 ||
+        (_positionSeconds < dur * 0.88 && dur - _positionSeconds > 90)) {
       return;
     }
 
@@ -1162,7 +1225,9 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       if (ep > _currentEpisode) {
         final dur = _durationSeconds;
         // Ne marque comme vu que si l'épisode quitté a réellement été regardé jusqu'au bout.
-        if (dur != null && dur > 10 && _positionSeconds >= dur * 0.90) {
+        if (dur != null &&
+            dur > 10 &&
+            (_positionSeconds >= dur * 0.88 || dur - _positionSeconds < 90)) {
           await _markCurrentWatched();
         } else if (_completedEpisode != _currentEpisode) {
           // Sinon, sauvegarde la position partielle sans marquer l'épisode comme vu
@@ -1177,6 +1242,13 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
         await _rewindProgressTo(ep);
       }
       if (!mounted) return;
+
+      // STOPPE LE LECTEUR AVANT DE CHANGER D'ÉPISODE :
+      // Évite que les derniers événements de position de l'ancien média
+      // ne polluent le nouvel épisode.
+      _ready = false;
+      await _player.stop();
+
       // Nouvel épisode → position remise à zéro, durée réinitialisée, skip times réinitialisés.
       _positionSeconds = 0;
       _durationSeconds = null;
@@ -1184,10 +1256,8 @@ class _PlayerPageState extends ConsumerState<PlayerPage> {
       _skip = const SkipTimes();
       setState(() {
         _currentEpisode = ep;
-        _ready = false;
         _error = null;
       });
-      await _player.stop();
       final title = widget.animeSamaTitle ?? widget.media.title.preferred;
       if (!_singleLanguage) {
         _refreshAvailableLangs(title, _seasonIndex, ep);

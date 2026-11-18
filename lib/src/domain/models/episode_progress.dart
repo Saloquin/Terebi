@@ -69,4 +69,23 @@ class EpisodeProgress {
             : DateTime.parse(json['completedAt'] as String),
         updatedAt: DateTime.parse(json['updatedAt'] as String),
       );
+
+  EpisodeProgress copyWith({
+    int? mediaId,
+    double? episodeNumber,
+    bool? watched,
+    double? positionSeconds,
+    double? durationSeconds,
+    DateTime? completedAt,
+    DateTime? updatedAt,
+  }) =>
+      EpisodeProgress(
+        mediaId: mediaId ?? this.mediaId,
+        episodeNumber: episodeNumber ?? this.episodeNumber,
+        watched: watched ?? this.watched,
+        positionSeconds: positionSeconds ?? this.positionSeconds,
+        durationSeconds: durationSeconds ?? this.durationSeconds,
+        completedAt: completedAt ?? this.completedAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
 }

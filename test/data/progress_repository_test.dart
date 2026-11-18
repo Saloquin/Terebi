@@ -120,5 +120,55 @@ void main() {
       expect(await repo.getProgress(200, 1.0), isNotNull);
       expect(await repo.getProgress(200, 2.0), isNotNull);
     });
+
+    test('requete de nettoyage remet a 0 les positions parasites de fin de video', () async {
+      await repo.upsertProgress(_progress(
+        mediaId: 1,
+        episodeNumber: 1.0,
+        watched: false,
+        positionSeconds: 1350.0,
+        durationSeconds: 1440.0,
+      ));
+      await repo.upsertProgress(_progress(
+        mediaId: 1,
+        episodeNumber: 2.0,
+        watched: false,
+        positionSeconds: 1250.0,
+        durationSeconds: null,
+      ));
+      await repo.upsertProgress(_progress(
+        mediaId: 1,
+        episodeNumber: 3.0,
+        watched: false,
+        positionSeconds: 500.0,
+        durationSeconds: 1440.0,
+      ));
+      await repo.upsertProgress(_progress(
+        mediaId: 1,
+        episodeNumber: 4.0,
+        watched: true,
+        positionSeconds: 1440.0,
+        durationSeconds: 1440.0,
+      ));
+
+      await db.customStatement('''
+        UPDATE episode_progresses
+        SET position_seconds = 0
+        WHERE watched = 0 AND (
+          (duration_seconds > 60 AND (position_seconds >= duration_seconds * 0.85 OR duration_seconds - position_seconds < 90))
+          OR (duration_seconds IS NULL AND position_seconds >= 1200)
+        );
+      ''');
+
+      final ep1 = await repo.getProgress(1, 1.0);
+      final ep2 = await repo.getProgress(1, 2.0);
+      final ep3 = await repo.getProgress(1, 3.0);
+      final ep4 = await repo.getProgress(1, 4.0);
+
+      expect(ep1!.positionSeconds, 0.0);
+      expect(ep2!.positionSeconds, 0.0);
+      expect(ep3!.positionSeconds, 500.0);
+      expect(ep4!.positionSeconds, 1440.0);
+    });
   });
 }

@@ -81,15 +81,18 @@ class PlayerController extends Notifier<PlayerState> {
 
   void _subscribeStreams() {
     _positionSub = player.stream.position.listen((pos) {
+      if (!state.ready || state.loading || state.navigating) return;
       state = state.copyWith(positionSeconds: pos.inMilliseconds / 1000.0);
       _maybePersistPosition();
     });
     _durationSub = player.stream.duration.listen((dur) {
+      if (!state.ready || state.loading || state.navigating) return;
       if (dur.inSeconds > 0) {
         state = state.copyWith(durationSeconds: dur.inMilliseconds / 1000.0);
       }
     });
     _completedSub = player.stream.completed.listen((done) {
+      if (!state.ready || state.loading || state.navigating) return;
       if (done) _onEpisodeCompleted();
     });
   }
@@ -228,10 +231,14 @@ class PlayerController extends Notifier<PlayerState> {
     final repo = ref.read(progressRepositoryProvider);
     final prog = await repo.getProgress(mediaId, episode.toDouble());
     if (prog == null) return null;
-    if (prog.durationSeconds != null && prog.durationSeconds! > 0) {
-      if (prog.positionSeconds / prog.durationSeconds! > 0.9) return null;
+    final dur = prog.durationSeconds;
+    final pos = prog.positionSeconds;
+    if (dur != null && dur > 60) {
+      if (pos / dur >= 0.88 || dur - pos < 90) return null;
+    } else if (pos >= 1200) {
+      return null;
     }
-    return prog.positionSeconds;
+    return pos;
   }
 
   Future<void> goToEpisode({
@@ -246,7 +253,9 @@ class PlayerController extends Notifier<PlayerState> {
       if (episode > state.currentEpisode) {
         final dur = state.durationSeconds;
         final pos = state.positionSeconds;
-        if (dur != null && dur > 10 && pos >= dur * 0.90) {
+        if (dur != null &&
+            dur > 10 &&
+            (pos >= dur * 0.88 || dur - pos < 90)) {
           await _markCurrentWatched(media: media);
         } else {
           await _persistPosition();
@@ -254,6 +263,8 @@ class PlayerController extends Notifier<PlayerState> {
       } else {
         await _rewindProgressTo(media: media, episode: episode);
       }
+
+      await player.stop();
 
       state = state.copyWith(
         currentEpisode: episode,
@@ -330,7 +341,23 @@ class PlayerController extends Notifier<PlayerState> {
   }
 
   Future<void> _persistPosition() async {
-    if (state.currentEntry.mediaId == 0) return;
+    if (state.currentEntry.mediaId == 0 ||
+        !state.ready ||
+        state.loading ||
+        state.navigating) {
+      return;
+    }
+    if (state.positionSeconds < 5) {
+      return;
+    }
+    final dur = state.durationSeconds;
+    if (dur != null && dur > 60) {
+      if (state.positionSeconds / dur >= 0.88 || dur - state.positionSeconds < 90) {
+        return;
+      }
+    } else if (state.positionSeconds >= 1200) {
+      return;
+    }
     final repo = ref.read(progressRepositoryProvider);
     await repo.upsertProgress(EpisodeProgress(
       mediaId: state.currentEntry.mediaId,
@@ -352,7 +379,11 @@ class PlayerController extends Notifier<PlayerState> {
     if (_currentMedia == null) return;
     final dur = state.durationSeconds;
     final pos = state.positionSeconds;
-    if (dur == null || dur <= 10 || pos < dur * 0.90) return;
+    if (dur == null ||
+        dur < 60 ||
+        (pos < dur * 0.88 && dur - pos > 90)) {
+      return;
+    }
     unawaited(_markCurrentWatched(media: _currentMedia!));
     _maybeStartAutoPlay();
   }

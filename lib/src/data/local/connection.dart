@@ -16,7 +16,20 @@ import 'database.dart';
 Future<TerebiDatabase> openProductionDatabase() async {
   final dir = await getApplicationDocumentsDirectory();
   final dbFile = File(p.join(dir.path, 'terebi.sqlite'));
-  return TerebiDatabase(NativeDatabase(dbFile));
+  final db = TerebiDatabase(NativeDatabase(dbFile));
+  // Nettoyage au démarrage des positions de reprise parasites résiduelles
+  // (épisodes non vus avec position en fin de vidéo suite à fuite de stream ou générique).
+  try {
+    await db.customStatement('''
+      UPDATE episode_progresses
+      SET position_seconds = 0
+      WHERE watched = 0 AND (
+        (duration_seconds > 60 AND (position_seconds >= duration_seconds * 0.85 OR duration_seconds - position_seconds < 90))
+        OR (duration_seconds IS NULL AND position_seconds >= 1200)
+      );
+    ''');
+  } catch (_) {}
+  return db;
 }
 
 /// Chemin absolu du fichier SQLite de production (pour l'afficher dans les
